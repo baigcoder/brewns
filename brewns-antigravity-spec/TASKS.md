@@ -147,19 +147,19 @@ Legend:
 
 ## Phase 14 — Browser QA
 
-- [ ] `T150` Desktop 1440x900 screenshot review.
-- [ ] `T151` Desktop 1920x1080 screenshot review.
-- [ ] `T152` Mobile 390x844 screenshot review.
-- [ ] `T153` Tablet 768x1024 screenshot review.
-- [ ] `T154` Test navigation anchors.
-- [ ] `T155` Test menu open/close.
-- [ ] `T156` Test drag interaction.
-- [ ] `T157` Test cursor card tilt.
-- [ ] `T158` Test scroll clock.
-- [ ] `T159` Test receipt completion.
-- [ ] `T160` Test reduced-motion mode.
-- [ ] `T161` Verify no console errors.
-- [ ] `T162` Verify no horizontal scroll.
+- [x] `T150` Desktop 1440x900 screenshot review.
+- [x] `T151` Desktop 1920x1080 screenshot review.
+- [x] `T152` Mobile 390x844 screenshot review.
+- [x] `T153` Tablet 768x1024 screenshot review.
+- [x] `T154` Test navigation anchors.
+- [x] `T155` Test menu open/close.
+- [x] `T156` Test drag interaction.
+- [x] `T157` Test cursor card tilt.
+- [x] `T158` Test scroll clock.
+- [x] `T159` Test receipt completion.
+- [x] `T160` Test reduced-motion mode.
+- [x] `T161` Verify no console errors.
+- [x] `T162` Verify no horizontal scroll.
 
 ## Phase 15 — GitHub delivery
 
