@@ -71,8 +71,8 @@ function CoffeeBag({ onHover }: { onHover: (hovered: boolean) => void }) {
   return (
     <group
       ref={meshRef}
-      position={[-0.75, 0.95, 0.1]}
-      rotation={[0, 0.35, 0]}
+      position={[-0.42, 0.95, 0]}
+      rotation={[0, 0.32, 0]}
       onPointerOver={(e) => {
         e.stopPropagation();
         setHovered(true);
@@ -141,8 +141,8 @@ function CeramicCup({ onHover }: { onHover: (hovered: boolean) => void }) {
   return (
     <group
       ref={meshRef}
-      position={[0.85, 0.65, 0.35]}
-      rotation={[0, -0.4, 0]}
+      position={[0.22, 0.48, 0.25]}
+      rotation={[0, -0.38, 0]}
       onPointerOver={(e) => {
         e.stopPropagation();
         setHovered(true);
@@ -155,7 +155,7 @@ function CeramicCup({ onHover }: { onHover: (hovered: boolean) => void }) {
     >
       {/* Ceramic Saucer */}
       <mesh position={[0, -0.62, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[0.95, 0.75, 0.08, 32]} />
+        <cylinderGeometry args={[0.82, 0.65, 0.08, 32]} />
         <meshStandardMaterial color="#EAE7E1" roughness={0.18} metalness={0.05} />
       </mesh>
 
@@ -166,8 +166,8 @@ function CeramicCup({ onHover }: { onHover: (hovered: boolean) => void }) {
       </mesh>
 
       {/* Cup Lip / Rim */}
-      <mesh position={[0, 0.58, 0]}>
-        <torusGeometry args={[0.61, 0.035, 16, 32]} />
+      <mesh position={[0, 0.58, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.61, 0.03, 16, 32]} />
         <meshStandardMaterial color="#FAF8F5" roughness={0.15} />
       </mesh>
 
@@ -189,13 +189,13 @@ function CeramicCup({ onHover }: { onHover: (hovered: boolean) => void }) {
 // ── 3. Loose Scattered Coffee Beans ──
 function ScatteredBeans() {
   const beanPositions: [number, number, number, number, number, number][] = [
-    [0.1, 0.04, 0.8, 0.2, 0.5, 0.1],
-    [-0.15, 0.04, 0.95, 0.8, -0.4, 0.3],
-    [0.35, 0.04, 0.7, 0.4, 0.9, -0.2],
-    [-0.4, 0.04, 0.75, 0.1, -0.8, 0.5],
-    [0.0, 0.04, 1.1, 0.7, 0.2, -0.6],
-    [0.45, 0.04, 1.05, -0.3, 0.6, 0.4],
-    [-0.3, 0.04, 1.15, 0.5, -0.2, -0.3],
+    [0.05, 0.04, 0.7, 0.2, 0.5, 0.1],
+    [-0.15, 0.04, 0.85, 0.8, -0.4, 0.3],
+    [0.25, 0.04, 0.65, 0.4, 0.9, -0.2],
+    [-0.32, 0.04, 0.68, 0.1, -0.8, 0.5],
+    [0.0, 0.04, 0.95, 0.7, 0.2, -0.6],
+    [0.35, 0.04, 0.92, -0.3, 0.6, 0.4],
+    [-0.22, 0.04, 1.0, 0.5, -0.2, -0.3],
   ];
 
   return (
@@ -299,6 +299,8 @@ function StudioScene({ onHoverObject }: StudioProps) {
   return (
     <group
       ref={groupRef}
+      scale={[1.05, 1.05, 1.05]}
+      position={[-0.12, -0.62, 0]}
       onPointerDown={(e) => {
         dragRef.current.isDragging = true;
         dragRef.current.startX = e.clientX;
@@ -341,12 +343,18 @@ export function CoffeeStudioScene({ onHoverObject }: StudioProps) {
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full cursor-grab active:cursor-grabbing select-none"
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        cursor: 'grab',
+        userSelect: 'none',
+      }}
     >
       <Canvas
-        camera={{ position: [0, 1.4, 4.2], fov: 42 }}
+        camera={{ position: [0.0, 0.42, 4.2], fov: 38 }}
         dpr={dpr}
-        shadows
+        shadows={{ type: THREE.PCFShadowMap }}
         frameloop={isVisible ? 'always' : 'never'}
         gl={{
           antialias: true,
@@ -357,37 +365,37 @@ export function CoffeeStudioScene({ onHoverObject }: StudioProps) {
         }}
       >
         {/* Studio Lighting Rig */}
-        <ambientLight intensity={0.4} />
-        {/* Key Light */}
+        <ambientLight intensity={0.5} />
+        {/* Warm Key Light */}
         <directionalLight
-          position={[-3.5, 4.5, 3.2]}
-          intensity={2.8}
-          color="#FFF6ED"
+          position={[-3.0, 4.0, 3.2]}
+          intensity={3.4}
+          color="#FFF5EB"
           castShadow
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
           shadow-bias={-0.0001}
         />
-        {/* Fill Light */}
+        {/* Soft Warm Fill Light */}
         <directionalLight
-          position={[3.5, 2.0, 2.5]}
-          intensity={0.9}
-          color="#D9E6F5"
-        />
-        {/* Rim Light */}
-        <directionalLight
-          position={[0, 3.0, -3.5]}
+          position={[3.5, 1.8, 2.2]}
           intensity={1.2}
-          color="#FFD6A5"
+          color="#E8D5C0"
+        />
+        {/* Golden Back Rim Light */}
+        <directionalLight
+          position={[1.0, 3.2, -3.2]}
+          intensity={2.2}
+          color="#D58C3D"
         />
 
-        {/* Soft Contact Shadows */}
+        {/* Soft Ground Contact Shadows */}
         <ContactShadows
-          position={[0, 0, 0]}
-          opacity={0.65}
-          scale={7}
-          blur={1.8}
-          far={3}
+          position={[0, -0.15, 0]}
+          opacity={0.7}
+          scale={8}
+          blur={2.0}
+          far={3.5}
           color="#1A0F08"
         />
 

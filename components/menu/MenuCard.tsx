@@ -50,10 +50,10 @@ export function MenuCard({ item, index, onAddToCart }: MenuCardProps) {
       onPointerEnter={() => setIsHovered(true)}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
-      className="perspective-1000 select-none"
+      style={{ perspective: '1000px', userSelect: 'none' }}
     >
       <article
-        className="group relative border border-black/15 bg-white p-6 md:p-7 flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-xl hover:border-black/40"
+        className="menu-card"
         style={{
           transform: `perspective(800px) rotateX(${transform.rx}deg) rotateY(${transform.ry}deg) translateZ(${isHovered ? 8 : 0}px)`,
           transition: isHovered ? 'transform 0.08s ease-out, box-shadow 0.3s ease' : 'transform 0.5s ease-out, box-shadow 0.3s ease',
@@ -61,54 +61,115 @@ export function MenuCard({ item, index, onAddToCart }: MenuCardProps) {
         }}
       >
         <div>
-          {/* Top Index & Category */}
-          <div className="flex items-center justify-between font-mono text-xs text-black/50 mb-6">
-            <span className="font-bold">0{index + 1}</span>
-            <span className="uppercase tracking-widest">{item.category}</span>
+          {/* Top Index & Category with explicit separation */}
+          <div className="card-taxonomy-row">
+            <span style={{ fontWeight: 700, letterSpacing: '0.05em' }}>0{index + 1}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ color: 'rgba(7, 7, 7, 0.35)' }}>/</span>
+              <span style={{ textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, color: 'var(--accent-amber)' }}>
+                {item.category}
+              </span>
+            </div>
           </div>
 
           {/* Visual Container with Multi-layer Parallax */}
-          <div className="relative h-48 w-full bg-[#F4F1EB] flex items-center justify-center mb-6 overflow-hidden border border-black/5">
+          <div
+            style={{
+              position: 'relative',
+              height: '180px',
+              width: '100%',
+              backgroundColor: '#F4F1EB',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.25rem',
+              overflow: 'hidden',
+              border: '1px solid rgba(0, 0, 0, 0.06)',
+            }}
+          >
             {/* Visual SVG Graphic representing the drink */}
             <div
-              className="w-24 h-24 relative flex items-center justify-center transition-transform duration-100 ease-out"
               style={{
+                width: '6rem',
+                height: '6rem',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'transform 0.1s ease-out',
                 transform: `translate3d(${transform.px}px, ${transform.py}px, 20px)`,
               }}
             >
               {/* Geometric Drink Silhouette */}
-              <div className="relative w-16 h-20 border-2 border-black/80 flex flex-col justify-end p-1 rounded-b-md overflow-hidden bg-white/60">
+              <div
+                style={{
+                  position: 'relative',
+                  width: '4rem',
+                  height: '5rem',
+                  border: '2px solid rgba(0, 0, 0, 0.85)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-end',
+                  padding: '0.25rem',
+                  borderRadius: '0 0 6px 6px',
+                  overflow: 'hidden',
+                  backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                }}
+              >
                 <div
-                  className="w-full bg-[#2A1A0F] rounded-b-sm"
                   style={{
+                    width: '100%',
+                    backgroundColor: '#2A1A0F',
+                    borderRadius: '0 0 2px 2px',
                     height: index === 0 ? '40%' : index === 1 ? '70%' : index === 2 ? '85%' : '60%',
                   }}
                 />
-                <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-[#D58C3D]" />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '0.5rem',
+                    left: '0.5rem',
+                    width: '0.5rem',
+                    height: '0.5rem',
+                    borderRadius: '9999px',
+                    backgroundColor: 'var(--accent-amber)',
+                  }}
+                />
               </div>
             </div>
 
             {/* Subtle floating specs for visual depth */}
-            <div className="absolute bottom-2 right-3 font-mono text-[9px] text-black/40 tracking-wider">
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '0.5rem',
+                right: '0.75rem',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.5625rem',
+                color: 'rgba(0, 0, 0, 0.45)',
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+              }}
+            >
               {item.specs}
             </div>
           </div>
 
-          <h3 className="font-mono font-bold text-sm tracking-wide uppercase mb-2 text-[#070707]">
+          <h3 style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.875rem', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '0.5rem', color: '#070707' }}>
             {item.name}
           </h3>
 
-          <p className="text-black/70 text-xs leading-relaxed mb-4">
+          <p style={{ color: 'rgba(7, 7, 7, 0.72)', fontSize: '0.75rem', lineHeight: 1.5, marginBottom: '1rem' }}>
             {item.description}
           </p>
 
-          {/* Tasting Notes */}
+          {/* Tasting Notes as individual separated tags */}
           {item.notes && (
-            <div className="flex flex-wrap gap-1 mb-4">
+            <div className="card-notes-group">
               {item.notes.map((note) => (
                 <span
                   key={note}
-                  className="font-mono text-[9px] px-1.5 py-0.5 bg-[#F4F1EB] text-black/60 border border-black/5"
+                  className="tasting-pill-light"
                 >
                   {note}
                 </span>
@@ -118,8 +179,8 @@ export function MenuCard({ item, index, onAddToCart }: MenuCardProps) {
         </div>
 
         {/* Footer Row */}
-        <div className="border-t border-black/10 pt-4 flex items-center justify-between font-mono text-xs">
-          <span className="font-bold text-base text-[#070707]">
+        <div style={{ borderTop: '1px solid rgba(0, 0, 0, 0.1)', paddingTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+          <span style={{ fontWeight: 700, fontSize: '1.125rem', color: '#070707' }}>
             ${item.price.toFixed(2)}
           </span>
 
@@ -128,11 +189,17 @@ export function MenuCard({ item, index, onAddToCart }: MenuCardProps) {
               e.stopPropagation();
               onAddToCart(item);
             }}
-            className="group/btn inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#070707] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#D58C3D] transition-colors duration-200"
+            className="btn-primary"
+            style={{
+              padding: '0.5rem 1rem',
+              fontSize: '0.6875rem',
+              letterSpacing: '0.08em',
+              gap: '0.35rem',
+            }}
             aria-label={`Order ${item.name}`}
           >
             <span>+ ORDER</span>
-            <span className="group-hover/btn:translate-x-0.5 transition-transform duration-150">→</span>
+            <span>→</span>
           </button>
         </div>
       </article>

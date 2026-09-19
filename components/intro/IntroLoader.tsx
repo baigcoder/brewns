@@ -71,47 +71,66 @@ export function IntroLoader({ onComplete }: IntroLoaderProps) {
     <div
       id="intro-preloader"
       aria-hidden="false"
-      className="fixed inset-0 z-[100] flex flex-col justify-between p-6 md:p-10 bg-[#070707] text-white overflow-hidden pointer-events-none"
       style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 100,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        padding: '2rem',
+        backgroundColor: '#070707',
+        color: '#ffffff',
+        overflow: 'hidden',
+        pointerEvents: 'none',
         clipPath: `inset(${clipTopPercent}% 0 0 0)`,
         transition: 'clip-path 0.05s linear',
       }}
     >
       {/* Background radial warmth */}
       <div
-        className="absolute inset-0 opacity-40 pointer-events-none"
         style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          opacity: 0.4,
+          pointerEvents: 'none',
           background: 'radial-gradient(circle at 80% 80%, #2A1A0F 0%, #110B07 45%, #070707 75%)',
         }}
       />
 
       {/* Top Header Row */}
-      <div className="relative z-10 flex items-center justify-between">
-        <p className="font-mono text-xs tracking-widest text-white/50 uppercase">
-          <span className="text-[#D58C3D]">//</span> NOW BREWING
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <p className="font-mono" style={{ fontSize: '0.75rem', letterSpacing: '0.12em', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase' }}>
+          <span style={{ color: 'var(--accent-amber)' }}>//</span> NOW BREWING
         </p>
-        <span className="font-mono text-xs text-[#D58C3D] tracking-widest uppercase">
+        <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
           VELDT ATELIER
         </span>
       </div>
 
       {/* Center Numeric Counter */}
-      <div className="relative z-10">
-        <p className="font-mono text-7xl md:text-9xl font-bold tracking-tighter text-white tabular-nums">
+      <div style={{ position: 'relative', zIndex: 10 }}>
+        <p className="font-mono" style={{ fontSize: 'clamp(4.5rem, 12vw, 8.5rem)', fontWeight: 700, letterSpacing: '-0.05em', color: '#fff', fontVariantNumeric: 'tabular-nums', lineHeight: 0.9 }}>
           {String(count).padStart(3, '0')}
         </p>
-        <p className="font-mono text-xs tracking-widest text-white/40 uppercase mt-2">
+        <p className="font-mono" style={{ fontSize: '0.75rem', letterSpacing: '0.12em', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', marginTop: '0.75rem' }}>
           EXTRACTION PROFILE: 93.5°C · 9.2 BAR
         </p>
       </div>
 
       {/* Bottom Row: Logo on left, SVG Cup on right */}
-      <div className="relative z-10 flex items-end justify-between">
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
-          <p className="font-mono text-xl md:text-2xl font-bold tracking-widest uppercase text-white">
-            VELDT<span className="text-[#D58C3D]">.</span>
+          <p className="font-mono" style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff' }}>
+            VELDT<span style={{ color: 'var(--accent-amber)' }}>.</span>
           </p>
-          <p className="font-mono text-[10px] tracking-wider text-white/40 uppercase mt-1">
+          <p className="font-mono" style={{ fontSize: '0.625rem', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', marginTop: '0.25rem' }}>
             SAN FRANCISCO, CA
           </p>
         </div>

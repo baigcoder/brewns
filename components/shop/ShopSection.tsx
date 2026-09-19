@@ -29,29 +29,29 @@ export function ShopSection({ onAddToCart }: ShopSectionProps) {
     <section
       id="shop"
       aria-label="Coffee Products and Subscriptions"
-      className="relative py-28 px-6 md:px-12 bg-[#070707] text-white overflow-hidden border-t border-white/10"
+      className="shop-section"
     >
-      <div className="max-w-7xl mx-auto">
+      <div className="container-max">
         {/* Section Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 border-b border-white/15 pb-8">
+        <div className="shop-header-row">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[#D58C3D] font-mono text-sm font-bold">//</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>//</span>
               <p className="t-eyebrow">THE SHOP</p>
             </div>
             <h2 className="t-headline">TAKE VELDT HOME.</h2>
           </div>
 
-          <div className="flex flex-col md:items-end gap-2">
-            <p className="t-lede max-w-md md:text-right text-white/80">
+          <div>
+            <p className="t-lede" style={{ maxWidth: '28rem', opacity: 0.85 }}>
               BEANS ROASTED WEEKLY IN SAN FRANCISCO. ORDER AHEAD FOR IMMEDIATE PICKUP OR SUBSCRIBE FOR FRESH BATCH ROASTS DELIVERED TO YOUR DOOR.
             </p>
           </div>
         </div>
 
         {/* Filter Tabs & Catalog Counter */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-10 pb-4 border-b border-white/10">
-          <div className="flex flex-wrap gap-2">
+        <div className="shop-filter-bar">
+          <div className="shop-tabs-group">
             {CATEGORIES.map((cat) => {
               const count = cat.key === 'all'
                 ? PRODUCTS.length
@@ -62,28 +62,24 @@ export function ShopSection({ onAddToCart }: ShopSectionProps) {
                 <button
                   key={cat.key}
                   onClick={() => setActiveCategory(cat.key)}
-                  className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all duration-200 ${
-                    isActive
-                      ? 'bg-white text-black font-bold'
-                      : 'border border-white/15 text-white/70 hover:border-white/40 hover:text-white'
-                  }`}
+                  className={`shop-tab-btn ${isActive ? 'active' : ''}`}
                   aria-selected={isActive}
                   role="tab"
                 >
                   <span>{cat.label}</span>
-                  <sup className="ml-1 text-[10px] opacity-70">0{count}</sup>
+                  <sup style={{ marginLeft: '0.25rem', fontSize: '0.625rem', opacity: 0.7 }}>0{count}</sup>
                 </button>
               );
             })}
           </div>
 
-          <p className="font-mono text-xs tracking-widest text-[#D58C3D] uppercase">
-            <span className="text-white font-bold">{String(filteredProducts.length).padStart(2, '0')}</span> PRODUCTS AVAILABLE
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', letterSpacing: '0.12em', color: 'var(--accent-amber)', textTransform: 'uppercase' }}>
+            <strong style={{ color: '#fff' }}>{String(filteredProducts.length).padStart(2, '0')}</strong> PRODUCTS AVAILABLE
           </p>
         </div>
 
         {/* Products Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+        <div className="shop-grid-layout">
           {filteredProducts.map((product, idx) => (
             <ProductCard
               key={product.id}

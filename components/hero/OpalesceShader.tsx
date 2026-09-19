@@ -213,22 +213,50 @@ export function OpalesceShader({ className = '' }: { className?: string }) {
   }, []);
 
   return (
-    <div className={`absolute inset-0 pointer-events-none overflow-hidden ${className}`}>
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        pointerEvents: 'none',
+        overflow: 'hidden',
+        zIndex: 0,
+      }}
+      className={className}
+    >
       {/* CSS fallback gradient */}
       <div
-        className="absolute inset-0"
         style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           background: 'linear-gradient(135deg, #070707 0%, #110B07 40%, #2A1A0F 70%, #442211 100%)',
         }}
       />
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full opacity-90 transition-opacity duration-1000"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          opacity: 0.9,
+          display: 'block',
+        }}
       />
       {/* Editorial Scrim to preserve copy contrast */}
       <div
-        className="absolute inset-0"
         style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           background: 'linear-gradient(to right, rgba(7,7,7,0.85) 0%, rgba(7,7,7,0.45) 45%, rgba(7,7,7,0.15) 75%)',
         }}
       />

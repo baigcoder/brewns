@@ -49,61 +49,36 @@ export function SiteHeader({ bagCount, onOpenBag }: SiteHeaderProps) {
     <>
       <header
         id="hdr"
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-10 md:py-6 transition-colors duration-300 ${
-          isLight
-            ? 'bg-[#F1F1EF]/85 text-[#070707] border-b border-black/10'
-            : 'bg-[#070707]/85 text-white border-b border-white/10'
-        } backdrop-blur-md`}
+        className={`site-hdr ${isLight ? 'theme-light' : 'theme-dark'}`}
       >
         {/* Brand Wordmark */}
-        <div className="flex items-center gap-6">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <a
             href="#hero"
-            className="font-mono font-bold tracking-widest text-lg uppercase transition-opacity hover:opacity-70"
+            className="font-mono"
+            style={{ fontWeight: 700, letterSpacing: '0.12em', fontSize: '1.125rem', textTransform: 'uppercase' }}
             aria-label="Veldt Coffee House Home"
           >
-            VELDT<span className="text-[#D58C3D]">.</span>
+            VELDT<span style={{ color: 'var(--accent-amber)' }}>.</span>
           </a>
         </div>
 
         {/* Desktop Nav */}
         <nav
           aria-label="Primary"
-          className="hidden md:flex items-center gap-8 font-mono text-xs uppercase tracking-widest"
+          className="hdr-nav-list"
         >
-          <a
-            href="#shop"
-            className={`transition-colors ${isLight ? 'text-black/70 hover:text-black' : 'text-white/70 hover:text-white'}`}
-          >
-            01 / Shop
-          </a>
-          <a
-            href="#menu"
-            className={`transition-colors ${isLight ? 'text-black/70 hover:text-black' : 'text-white/70 hover:text-white'}`}
-          >
-            02 / Menu
-          </a>
-          <a
-            href="#locations"
-            className={`transition-colors ${isLight ? 'text-black/70 hover:text-black' : 'text-white/70 hover:text-white'}`}
-          >
-            03 / Locations
-          </a>
-          <a
-            href="#story"
-            className={`transition-colors ${isLight ? 'text-black/70 hover:text-black' : 'text-white/70 hover:text-white'}`}
-          >
-            04 / Story
-          </a>
+          <a href="#shop">01 / Shop</a>
+          <a href="#menu">02 / Menu</a>
+          <a href="#locations">03 / Locations</a>
+          <a href="#story">04 / Story</a>
         </nav>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-4 md:gap-6">
+        <div className="hdr-right-actions">
           <a
             href="#order"
-            className={`hidden sm:flex items-center gap-2 font-mono text-xs uppercase tracking-wider transition-colors hover:text-[#D58C3D] ${
-              isLight ? 'text-black' : 'text-white'
-            }`}
+            className="hdr-order-link"
           >
             <span className="status-dot" />
             <span>ORDER ONLINE</span>
@@ -112,32 +87,36 @@ export function SiteHeader({ bagCount, onOpenBag }: SiteHeaderProps) {
           <button
             id="bag-open-btn"
             onClick={onOpenBag}
-            className={`font-mono text-xs uppercase tracking-wider px-3.5 py-1.5 border transition-all duration-200 ${
-              isLight
-                ? 'border-black/25 text-black hover:border-black'
-                : 'border-white/25 text-white hover:border-white'
-            }`}
+            className="hdr-bag-btn"
             aria-label={`Open shopping bag with ${bagCount} items`}
           >
-            <span>BAG</span> <span className="font-bold ml-1">({bagCount})</span>
+            <span>BAG</span> <strong style={{ marginLeft: '0.25rem' }}>({bagCount})</strong>
           </button>
 
           {/* Mobile Menu Toggle Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden relative w-9 h-9 flex flex-col items-center justify-center gap-1.5 focus:outline-none"
+            className="mobile-toggle-btn"
             aria-expanded={mobileMenuOpen}
             aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           >
             <span
-              className={`w-5 h-0.5 transition-all duration-200 ${
-                isLight ? 'bg-black' : 'bg-white'
-              } ${mobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}
+              style={{
+                width: '1.25rem',
+                height: '2px',
+                backgroundColor: isLight ? '#070707' : '#ffffff',
+                transition: 'all 0.2s',
+                transform: mobileMenuOpen ? 'rotate(45deg) translateY(6px)' : 'none',
+              }}
             />
             <span
-              className={`w-3.5 h-0.5 ml-auto transition-all duration-200 ${
-                isLight ? 'bg-black' : 'bg-white'
-              } ${mobileMenuOpen ? '-rotate-45 -translate-y-0.5 w-5' : ''}`}
+              style={{
+                width: '1.25rem',
+                height: '2px',
+                backgroundColor: isLight ? '#070707' : '#ffffff',
+                transition: 'all 0.2s',
+                transform: mobileMenuOpen ? 'rotate(-45deg) translateY(-6px)' : 'none',
+              }}
             />
           </button>
         </div>

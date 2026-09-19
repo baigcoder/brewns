@@ -25,28 +25,43 @@ export function HeroCard({ hoveredObject }: HeroCardProps) {
 
   return (
     <div
-      className="hidden lg:block absolute right-8 top-16 z-20 transition-all duration-300 pointer-events-none"
+      className="hero-card-floating"
       style={{
+        position: 'absolute',
+        right: '1rem',
+        top: '0.75rem',
+        zIndex: 20,
+        pointerEvents: 'none',
         opacity: hoveredObject ? 1 : 0.85,
         transform: hoveredObject ? 'translateY(0) scale(1)' : 'translateY(6px) scale(0.98)',
+        transition: 'all 0.3s ease',
       }}
     >
-      <div className="glass-panel p-5 min-w-[240px] text-white shadow-2xl border border-white/20">
-        <p className="font-mono text-[10px] tracking-widest text-[#D58C3D] uppercase">
-          <span className="opacity-60">//</span> {cardData.eyebrow}
+      <div
+        className="glass-panel"
+        style={{
+          padding: '1rem',
+          minWidth: '190px',
+          color: '#fff',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+          border: '1px solid var(--border-dark)',
+        }}
+      >
+        <p className="font-mono" style={{ fontSize: '0.625rem', letterSpacing: '0.12em', color: 'var(--accent-amber)', textTransform: 'uppercase' }}>
+          <span style={{ opacity: 0.6 }}>//</span> {cardData.eyebrow}
         </p>
-        <div className="flex items-baseline justify-between gap-4 mt-2 mb-3 border-b border-white/10 pb-2">
-          <p className="font-mono text-sm font-bold tracking-tight uppercase">
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '1rem', marginTop: '0.5rem', marginBottom: '0.75rem', borderBottom: '1px solid var(--border-dark)', paddingBottom: '0.5rem' }}>
+          <p className="font-mono" style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
             {cardData.name}
           </p>
-          <p className="font-mono text-sm text-[#D58C3D] font-bold">
+          <p className="font-mono" style={{ fontSize: '0.875rem', color: 'var(--accent-amber)', fontWeight: 700 }}>
             {cardData.price}
           </p>
         </div>
-        <ul className="space-y-1 font-mono text-[10px] text-white/60">
+        <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.625rem', color: 'var(--fg-muted-light)' }}>
           {cardData.meta.map((m, i) => (
-            <li key={i} className="flex items-center gap-1.5">
-              <span className="w-1 h-1 bg-white/40 rounded-full" />
+            <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+              <span style={{ width: '0.25rem', height: '0.25rem', backgroundColor: 'rgba(255, 255, 255, 0.4)', borderRadius: '9999px' }} />
               <span>{m}</span>
             </li>
           ))}

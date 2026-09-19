@@ -16,40 +16,43 @@ export function Receipt({ data, progress }: ReceiptProps) {
   ];
 
   return (
-    <div className="relative w-full max-w-[340px] select-none filter drop-shadow-2xl">
+    <div className="receipt-paper-wrapper">
       {/* Main Thermal Receipt Paper Body */}
-      <div
-        className="bg-[#F4F1EB] text-[#11110F] font-mono p-6 pb-2 transition-all"
-        style={{
-          boxShadow: '0 20px 45px rgba(0, 0, 0, 0.45)',
-        }}
-      >
+      <div className="receipt-paper-body">
         {/* Header Branding */}
-        <div className="text-center border-b border-dashed border-black/30 pb-4 mb-4">
-          <p className="font-bold text-sm tracking-widest uppercase">{data.brandName}</p>
-          <p className="text-[10px] text-black/60 tracking-wider mt-0.5">{data.subhead}</p>
-          <p className="text-[10px] text-black/50 mt-1">{data.location}</p>
+        <div style={{ textAlign: 'center', borderBottom: '1px dashed rgba(0,0,0,0.25)', paddingBottom: '0.875rem', marginBottom: '0.875rem' }}>
+          <p style={{ fontWeight: 700, fontSize: '0.875rem', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+            {data.brandName}
+          </p>
+          <p style={{ fontSize: '0.625rem', color: 'rgba(0,0,0,0.6)', letterSpacing: '0.08em', marginTop: '0.125rem' }}>
+            {data.subhead}
+          </p>
+          <p style={{ fontSize: '0.625rem', color: 'rgba(0,0,0,0.5)', marginTop: '0.25rem' }}>
+            {data.location}
+          </p>
         </div>
 
         {/* Order Meta Row */}
-        <div className="flex justify-between items-center text-xs text-black/70 border-b border-dashed border-black/20 pb-3 mb-4">
-          <span className="font-bold">{data.orderNumber}</span>
-          <span className="text-[11px]">{data.date} · {data.time}</span>
+        <div className="receipt-row-between" style={{ fontSize: '0.75rem', color: 'rgba(0,0,0,0.7)', borderBottom: '1px dashed rgba(0,0,0,0.2)', paddingBottom: '0.625rem', marginBottom: '0.875rem' }}>
+          <span style={{ fontWeight: 700 }}>{data.orderNumber}</span>
+          <span style={{ fontSize: '0.6875rem' }}>{data.date} · {data.time}</span>
         </div>
 
         {/* Item Rows */}
-        <div className="space-y-3 mb-4 text-xs">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '0.875rem', fontSize: '0.75rem' }}>
           {data.items.map((item, idx) => (
-            <div key={idx} className="flex justify-between items-start gap-3">
-              <div>
-                <p className="font-bold">
+            <div key={idx} className="receipt-row-between" style={{ alignItems: 'flex-start', gap: '0.75rem' }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontWeight: 700 }}>
                   {item.qty}x {item.name}
                 </p>
                 {item.notes && (
-                  <p className="text-[10px] text-black/50 mt-0.5">{item.notes}</p>
+                  <p style={{ fontSize: '0.625rem', color: 'rgba(0,0,0,0.5)', marginTop: '0.125rem' }}>
+                    {item.notes}
+                  </p>
                 )}
               </div>
-              <span className="font-bold whitespace-nowrap">
+              <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
                 ${(item.qty * item.price).toFixed(2)}
               </span>
             </div>
@@ -57,42 +60,43 @@ export function Receipt({ data, progress }: ReceiptProps) {
         </div>
 
         {/* Totals Calculation */}
-        <div className="border-t border-dashed border-black/30 pt-3 space-y-1 text-xs mb-4">
-          <div className="flex justify-between text-black/60 text-[11px]">
+        <div style={{ borderTop: '1px dashed rgba(0,0,0,0.25)', paddingTop: '0.625rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.6875rem', marginBottom: '0.875rem' }}>
+          <div className="receipt-row-between" style={{ color: 'rgba(0,0,0,0.65)' }}>
             <span>SUBTOTAL</span>
             <span>${(data.total - data.tax - data.tip).toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-black/60 text-[11px]">
+          <div className="receipt-row-between" style={{ color: 'rgba(0,0,0,0.65)' }}>
             <span>SALES TAX (8.625%)</span>
             <span>${data.tax.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-black/60 text-[11px]">
+          <div className="receipt-row-between" style={{ color: 'rgba(0,0,0,0.65)' }}>
             <span>BARISTA TIP</span>
             <span>${data.tip.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm font-bold border-t border-black/20 pt-2 text-black">
+          <div className="receipt-row-between" style={{ fontSize: '0.875rem', fontWeight: 700, borderTop: '1px solid rgba(0,0,0,0.25)', paddingTop: '0.5rem', color: '#070707' }}>
             <span>TOTAL PAID</span>
             <span>${data.total.toFixed(2)}</span>
           </div>
         </div>
 
         {/* Status / Order Note */}
-        <div className="border-t border-dashed border-black/20 py-2.5 my-2 text-center">
-          <p className="text-[10px] font-bold text-[#D58C3D] tracking-wider uppercase">
+        <div style={{ borderTop: '1px dashed rgba(0,0,0,0.2)', padding: '0.5rem 0', margin: '0.5rem 0', textAlign: 'center' }}>
+          <p style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--accent-amber)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             ● {data.status}
           </p>
         </div>
 
         {/* Barcode Section */}
-        <div className="my-4 text-center">
-          <div className="flex justify-center items-end h-9 gap-[2px] mb-1">
+        <div style={{ margin: '0.75rem 0', textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', height: '2.25rem', gap: '2px', marginBottom: '0.35rem', overflow: 'hidden' }}>
             {barcodeBars.map((w, i) => (
               <span
                 key={i}
-                className="bg-[#11110F] inline-block"
                 style={{
+                  display: 'inline-block',
+                  backgroundColor: '#11110F',
                   width: `${w}px`,
-                  height: `${22 + ((i * 11) % 14)}px`,
+                  height: `${20 + ((i * 7) % 12)}px`,
                   transform: `scaleY(${Math.min(1, progress * 1.25)})`,
                   transformOrigin: 'bottom',
                   transition: 'transform 0.2s ease-out',
@@ -100,17 +104,17 @@ export function Receipt({ data, progress }: ReceiptProps) {
               />
             ))}
           </div>
-          <p className="text-[9px] tracking-widest text-black/60 uppercase">
+          <p style={{ fontSize: '0.5625rem', letterSpacing: '0.12em', color: 'rgba(0,0,0,0.6)', textTransform: 'uppercase' }}>
             *VELDT-{data.orderNumber.replace(/\D/g, '')}-SF*
           </p>
         </div>
 
         {/* Footer Link & Thanks */}
-        <div className="text-center pt-2 pb-1 border-t border-dashed border-black/20">
-          <p className="text-[8px] tracking-wider text-black/50 leading-relaxed mb-1">
+        <div style={{ textAlign: 'center', paddingTop: '0.5rem', paddingBottom: '0.25rem', borderTop: '1px dashed rgba(0,0,0,0.2)' }}>
+          <p style={{ fontSize: '0.5rem', letterSpacing: '0.05em', color: 'rgba(0,0,0,0.5)', lineHeight: 1.4, marginBottom: '0.25rem' }}>
             {data.footerNote}
           </p>
-          <p className="text-[9px] font-bold tracking-widest text-black/70">
+          <p style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(0,0,0,0.7)' }}>
             {data.webUrl}
           </p>
         </div>
@@ -119,7 +123,7 @@ export function Receipt({ data, progress }: ReceiptProps) {
       {/* Procedural Torn Paper Edge SVG */}
       <svg
         viewBox="0 0 340 12"
-        className="w-full h-3 block -mt-[1px]"
+        style={{ width: '100%', height: '12px', display: 'block', marginTop: '-1px' }}
         preserveAspectRatio="none"
       >
         <path

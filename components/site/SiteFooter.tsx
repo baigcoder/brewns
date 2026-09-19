@@ -7,57 +7,57 @@ export function SiteFooter() {
     <footer
       id="ftr"
       aria-label="Footer and Directory"
-      className="relative py-20 px-6 md:px-12 bg-[#070707] text-white border-t border-white/15 overflow-hidden"
+      className="site-footer"
     >
-      <div className="max-w-7xl mx-auto">
+      <div className="container-max">
         {/* Large Typographic Statement */}
-        <div className="mb-16 border-b border-white/10 pb-12">
-          <p className="font-mono text-xs tracking-widest text-[#D58C3D] uppercase mb-4">
+        <div style={{ marginBottom: '4rem', borderBottom: '1px solid var(--border-dark)', paddingBottom: '3rem' }}>
+          <p className="font-mono" style={{ fontSize: '0.75rem', letterSpacing: '0.12em', color: 'var(--accent-amber)', textTransform: 'uppercase', marginBottom: '1rem' }}>
             // VELDT COFFEE HOUSE · SAN FRANCISCO
           </p>
-          <p className="t-headline text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white/90">
+          <p className="t-headline" style={{ fontSize: 'clamp(2rem, 4.5vw, 3.75rem)', color: 'rgba(255, 255, 255, 0.9)' }}>
             COFFEE FOR RIGHT NOW. MADE FOR YOUR DAY.
           </p>
         </div>
 
         {/* Directory Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 font-mono text-xs mb-16">
+        <div className="footer-directory-grid">
           {/* Col 1: Brand Wordmark & Info */}
           <div>
-            <p className="font-bold text-lg tracking-widest uppercase mb-3">
-              VELDT<span className="text-[#D58C3D]">.</span>
+            <p className="font-mono" style={{ fontWeight: 700, fontSize: '1.125rem', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+              VELDT<span style={{ color: 'var(--accent-amber)' }}>.</span>
             </p>
-            <p className="text-white/60 leading-relaxed text-[11px]">
+            <p style={{ color: 'var(--fg-muted-light)', lineHeight: 1.6, fontSize: '0.75rem' }}>
               Specialty Coffee Roastery & House. Sourced directly from high-altitude smallholders. Roasted weekly in San Francisco.
             </p>
           </div>
 
           {/* Col 2: Navigation */}
           <div>
-            <p className="text-[#D58C3D] uppercase tracking-wider mb-4 font-bold">// DIRECTORY</p>
-            <ul className="space-y-2.5 text-white/70">
-              <li><a href="#shop" className="hover:text-white transition-colors">01 / The Shop</a></li>
-              <li><a href="#menu" className="hover:text-white transition-colors">02 / Favorites Menu</a></li>
-              <li><a href="#locations" className="hover:text-white transition-colors">03 / Café Locations</a></li>
-              <li><a href="#story" className="hover:text-white transition-colors">04 / Our Philosophy</a></li>
-              <li><a href="#order" className="hover:text-white transition-colors">05 / Order Ahead</a></li>
+            <p style={{ color: 'var(--accent-amber)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1rem', fontWeight: 700 }}>// DIRECTORY</p>
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', color: 'var(--fg-muted-light)' }}>
+              <li><a href="#shop" style={{ transition: 'color 0.2s' }}>01 / The Shop</a></li>
+              <li><a href="#menu" style={{ transition: 'color 0.2s' }}>02 / Favorites Menu</a></li>
+              <li><a href="#locations" style={{ transition: 'color 0.2s' }}>03 / Café Locations</a></li>
+              <li><a href="#story" style={{ transition: 'color 0.2s' }}>04 / Our Philosophy</a></li>
+              <li><a href="#order" style={{ transition: 'color 0.2s' }}>05 / Order Ahead</a></li>
             </ul>
           </div>
 
           {/* Col 3: Counters */}
           <div>
-            <p className="text-[#D58C3D] uppercase tracking-wider mb-4 font-bold">// ATELIERS</p>
-            <div className="space-y-3 text-white/70 text-[11px]">
+            <p style={{ color: 'var(--accent-amber)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1rem', fontWeight: 700 }}>// ATELIERS</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', color: 'var(--fg-muted-light)', fontSize: '0.75rem' }}>
               <div>
-                <p className="text-white font-bold">139 COFFEE STREET</p>
+                <p style={{ color: '#fff', fontWeight: 700 }}>139 COFFEE STREET</p>
                 <p>Mission District · Open 07:00–21:00</p>
               </div>
               <div>
-                <p className="text-white font-bold">310 VALENCIA STREET</p>
+                <p style={{ color: '#fff', fontWeight: 700 }}>310 VALENCIA STREET</p>
                 <p>Valencia Corridor · Open 07:00–21:00</p>
               </div>
               <div>
-                <p className="text-white font-bold">56 COLUMBUS AVENUE</p>
+                <p style={{ color: '#fff', fontWeight: 700 }}>56 COLUMBUS AVENUE</p>
                 <p>Jackson Square · Open 07:00–20:00</p>
               </div>
             </div>
@@ -65,24 +65,24 @@ export function SiteFooter() {
 
           {/* Col 4: Contact & Social */}
           <div>
-            <p className="text-[#D58C3D] uppercase tracking-wider mb-4 font-bold">// CONTACT</p>
-            <ul className="space-y-2.5 text-white/70 text-[11px]">
+            <p style={{ color: 'var(--accent-amber)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '1rem', fontWeight: 700 }}>// CONTACT</p>
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', color: 'var(--fg-muted-light)', fontSize: '0.75rem' }}>
               <li>
-                <a href="mailto:hello@veldt.coffee" className="hover:text-white transition-colors">
+                <a href="mailto:hello@veldt.coffee" style={{ transition: 'color 0.2s' }}>
                   hello@veldt.coffee
                 </a>
               </li>
               <li>
-                <a href="tel:+14155298812" className="hover:text-white transition-colors">
+                <a href="tel:+14155298812" style={{ transition: 'color 0.2s' }}>
                   (415) 529-8812
                 </a>
               </li>
-              <li className="pt-2 flex gap-3 text-white/50">
-                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hover:text-white">
+              <li style={{ paddingTop: '0.5rem', display: 'flex', gap: '0.75rem', opacity: 0.7 }}>
+                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer">
                   INSTAGRAM
                 </a>
                 <span>/</span>
-                <a href="https://tiktok.com" target="_blank" rel="noopener noreferrer" className="hover:text-white">
+                <a href="https://tiktok.com" target="_blank" rel="noopener noreferrer">
                   TIKTOK
                 </a>
               </li>
@@ -91,12 +91,12 @@ export function SiteFooter() {
         </div>
 
         {/* Legal Bottom Bar */}
-        <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-[10px] text-white/50">
+        <div style={{ borderTop: '1px solid var(--border-dark)', paddingTop: '1.5rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'var(--fg-muted-light)' }}>
           <p>© 2026 VELDT COFFEE HOUSE. ALL RIGHTS RESERVED.</p>
-          <div className="flex gap-4">
-            <a href="#privacy" className="hover:text-white">PRIVACY POLICY</a>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <a href="#privacy">PRIVACY POLICY</a>
             <span>/</span>
-            <a href="#terms" className="hover:text-white">TERMS OF SERVICE</a>
+            <a href="#terms">TERMS OF SERVICE</a>
           </div>
         </div>
       </div>

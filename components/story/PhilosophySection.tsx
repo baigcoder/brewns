@@ -21,52 +21,67 @@ export function PhilosophySection() {
     <section
       id="story"
       aria-label="Our Philosophy & Sourcing"
-      className="relative py-32 px-6 md:px-12 bg-[#070707] text-white overflow-hidden border-t border-white/10"
+      className="phil-section"
     >
-      <div className="max-w-7xl mx-auto relative z-10">
+      <div className="container-max" style={{ position: 'relative', zIndex: 10 }}>
         {/* Eyebrow & Large Display Statement */}
-        <div className="max-w-3xl mb-16">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[#D58C3D] font-mono text-sm font-bold">//</span>
+        <div style={{ maxWidth: '48rem', marginBottom: '4rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <span style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>//</span>
             <p className="t-eyebrow">OUR PHILOSOPHY</p>
           </div>
-          <h2 className="t-display text-4xl sm:text-5xl md:text-6xl font-bold uppercase tracking-tight text-white mb-6">
+          <h2 className="t-display" style={{ fontSize: 'clamp(2.5rem, 5.5vw, 4.5rem)', color: '#fff', marginBottom: '1.5rem' }}>
             {STORY_DATA.headline}
           </h2>
-          <p className="t-lede max-w-2xl text-white/80">
+          <p className="t-lede" style={{ maxWidth: '42rem' }}>
             {STORY_DATA.lede}
           </p>
         </div>
 
         {/* 3D Drifting Bean Field Scene Container */}
-        <div className="relative w-full h-96 md:h-[480px] mb-16 border border-white/15 bg-[#0E0D0C]/70 shadow-2xl overflow-hidden">
-          <div className="absolute inset-0 z-0">
+        <div style={{ position: 'relative', width: '100%', height: '500px', marginBottom: '4rem', border: '1px solid var(--border-dark)', backgroundColor: '#090807', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)', borderRadius: '2px' }}>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
             <BeanFieldScene />
           </div>
 
-          {/* Overlay Tag */}
-          <div className="absolute top-4 left-4 z-10 font-mono text-[10px] tracking-widest text-white/50 uppercase">
-            [INSTANCED 3D BEAN FIELD ATMOSPHERE · TILTED CUP]
+          {/* Top Editorial Overlay Tag */}
+          <div style={{ position: 'absolute', top: '1.25rem', left: '1.5rem', zIndex: 10, display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>
+            <span className="status-dot" style={{ width: '0.35rem', height: '0.35rem' }} />
+            <span>ATMOSPHERE 01 // HIGH-ALTITUDE MICROLOTS</span>
           </div>
 
-          <div className="absolute bottom-4 right-4 z-10 font-mono text-[10px] tracking-widest text-[#D58C3D] uppercase">
-            TOUCH / DRAG INTERACTIVE DEPTH
+          {/* Bottom Left Narrative Caption */}
+          <div style={{ position: 'absolute', bottom: '1.25rem', left: '1.5rem', zIndex: 10, maxWidth: '24rem', fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Whole washed Arabica beans floating in kinetic drift around our hand-cast ceramic cup.
+          </div>
+
+          {/* Bottom Right Tactile Interaction Prompt */}
+          <div style={{ position: 'absolute', bottom: '1.25rem', right: '1.5rem', zIndex: 10, fontFamily: 'var(--font-mono)', fontSize: '0.625rem', letterSpacing: '0.12em', color: 'var(--accent-amber)', textTransform: 'uppercase' }}>
+            TOUCH / DRAG FOR TACTILE PARALLAX →
           </div>
         </div>
 
         {/* 3 Pillars Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-16">
+        <div className="phil-pillars-grid">
           {STORY_DATA.pillars.map((pillar, i) => (
             <article
               key={pillar.title}
-              className="border border-white/15 bg-[#0E0D0C] p-6 md:p-8 flex flex-col justify-between hover:border-white/40 transition-colors"
+              style={{
+                border: '1px solid var(--border-dark)',
+                backgroundColor: 'var(--bg-card-dark)',
+                padding: '2rem',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                transition: 'border-color 0.2s ease',
+              }}
             >
               <div>
-                <p className="font-mono text-xs text-[#D58C3D] mb-4">0{i + 1} / PILLAR</p>
-                <h3 className="font-mono font-bold text-base uppercase mb-3 text-white">
+                <p className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', marginBottom: '1rem' }}>0{i + 1} / PILLAR</p>
+                <h3 className="font-mono" style={{ fontWeight: 700, fontSize: '1rem', textTransform: 'uppercase', marginBottom: '0.75rem', color: '#fff' }}>
                   {pillar.title}
                 </h3>
-                <p className="text-white/70 text-xs leading-relaxed">
+                <p style={{ color: 'var(--fg-muted-light)', fontSize: '0.8125rem', lineHeight: 1.6 }}>
                   {pillar.description}
                 </p>
               </div>
@@ -75,13 +90,13 @@ export function PhilosophySection() {
         </div>
 
         {/* Brand Quotes Statement Row */}
-        <div className="border-t border-white/15 pt-8 flex flex-wrap items-center justify-between gap-6 font-mono text-xs uppercase tracking-widest text-white/60">
+        <div style={{ borderTop: '1px solid var(--border-dark)', paddingTop: '2rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-muted-light)' }}>
           {STORY_DATA.quotes.map((quote, idx) => (
-            <div key={quote} className="flex items-center gap-3">
+            <div key={quote} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <span className="status-dot" />
-              <span className="text-white font-bold">{quote}</span>
+              <span style={{ color: '#fff', fontWeight: 700 }}>{quote}</span>
               {idx < STORY_DATA.quotes.length - 1 && (
-                <span className="hidden md:inline text-white/20 ml-6">/</span>
+                <span style={{ color: 'rgba(255, 255, 255, 0.2)', marginLeft: '1.5rem' }}>/</span>
               )}
             </div>
           ))}

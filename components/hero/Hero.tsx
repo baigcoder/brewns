@@ -30,46 +30,46 @@ export function Hero() {
     <section
       id="hero"
       aria-label="Specialty Coffee Roastery"
-      className="relative min-h-[100svh] w-full flex flex-col justify-between pt-28 pb-8 px-6 md:px-12 overflow-hidden bg-[#070707] text-white"
+      className="hero-section"
     >
       {/* 1. Custom WebGL2 Opalesce Noise Background */}
       <OpalesceShader />
 
       {/* 2. Main Hero Composition */}
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center my-auto w-full max-w-7xl mx-auto">
+      <div className="hero-grid">
         {/* Left Column: Editorial Headline & Copy */}
-        <div className="lg:col-span-7 flex flex-col gap-6">
-          <div className="flex items-center gap-2">
-            <span className="text-[#D58C3D] font-mono text-sm font-bold">//</span>
-            <p className="t-eyebrow tracking-widest text-white/70">
+        <div className="hero-copy">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>//</span>
+            <p className="t-eyebrow">
               SPECIALTY COFFEE HOUSE & ROASTERY
             </p>
           </div>
 
-          <div className="relative">
+          <div className="hero-h1-group">
             <h1 className="t-display text-white">
               COFFEE FOR YOUR
-              <span className="block font-script text-6xl md:text-8xl lg:text-9xl text-[#D58C3D] normal-case mt-1 ml-4 md:ml-12 drop-shadow-lg">
+              <span className="hero-script-overlap">
                 moment
               </span>
             </h1>
           </div>
 
-          <p className="t-lede max-w-xl text-white/85">
+          <p className="t-lede" style={{ maxWidth: '36rem' }}>
             CAREFULLY SOURCED HIGH-ALTITUDE MICROLOTS, THOUGHTFULLY ROASTED IN SAN FRANCISCO TO BRING OUT THE VIBRANT SWEETNESS IN EVERY POUR.
           </p>
 
-          <div className="flex flex-wrap items-center gap-4 pt-2">
+          <div className="hero-cta-row">
             <a
               href="#order"
-              className="group relative inline-flex items-center gap-3 bg-white text-[#070707] font-mono text-xs font-bold uppercase tracking-wider px-7 py-4 overflow-hidden hover:bg-[#D58C3D] hover:text-white transition-colors duration-300"
+              className="btn-primary"
             >
               <span>ORDER AHEAD</span>
-              <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
+              <span>→</span>
             </a>
             <a
               href="#menu"
-              className="inline-flex items-center gap-2 border border-white/30 text-white font-mono text-xs uppercase tracking-wider px-7 py-4 hover:border-white transition-colors duration-300"
+              className="btn-secondary"
             >
               EXPLORE MENU
             </a>
@@ -77,9 +77,9 @@ export function Hero() {
         </div>
 
         {/* Right Column: 3D Interactive Coffee Studio */}
-        <div className="lg:col-span-5 relative w-full h-[400px] md:h-[540px] flex items-center justify-center">
+        <div className="hero-media-mount">
           <HeroCard hoveredObject={hoveredObject} />
-          <div className="w-full h-full relative">
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             <CoffeeStudioScene onHoverObject={setHoveredObject} />
           </div>
         </div>
@@ -88,21 +88,21 @@ export function Hero() {
       {/* 3. Hero Bottom Metadata Bar */}
       <aside
         aria-label="Hours and Location Information"
-        className="relative z-10 w-full max-w-7xl mx-auto border-t border-white/15 pt-5 flex flex-wrap items-center justify-between gap-4 font-mono text-xs text-white/70 uppercase"
+        className="hero-bar"
       >
-        <div className="flex items-center gap-3">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <span className="status-dot" />
-          <span className="tracking-wider text-white">OPEN DAILY 07:00 – 21:00</span>
+          <span>OPEN DAILY 07:00 – 21:00</span>
         </div>
-        <address className="not-italic tracking-wider">
+        <address style={{ fontStyle: 'normal' }}>
           139 COFFEE STREET, MISSION DISTRICT, SF
         </address>
-        <div className="flex items-center gap-4 text-white/60">
-          <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.7 }}>
+          <a href="https://instagram.com" target="_blank" rel="noopener noreferrer">
             INSTAGRAM
           </a>
           <span>/</span>
-          <a href="https://tiktok.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+          <a href="https://tiktok.com" target="_blank" rel="noopener noreferrer">
             TIKTOK
           </a>
         </div>

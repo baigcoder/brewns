@@ -29,12 +29,15 @@ function InstancedBeans({ count = 36 }: { count?: number }) {
 
     const items: BeanData[] = [];
     for (let i = 0; i < count; i++) {
-      const scale = 0.6 + random() * 0.9;
+      // Substantial scale so beans are physically readable
+      const scale = 0.85 + random() * 0.75;
+      // Distribute beans in front of, alongside, and behind the hero cup
+      const z = -1.8 + random() * 3.8;
       items.push({
         position: new THREE.Vector3(
-          (random() * 2 - 1) * 7.5,
-          (random() * 2 - 1) * 4.5,
-          -2.0 - random() * 6.0
+          (random() * 2 - 1) * 5.2,
+          (random() * 2 - 1) * 3.0,
+          z
         ),
         rotation: new THREE.Euler(
           random() * Math.PI * 2,
@@ -42,14 +45,14 @@ function InstancedBeans({ count = 36 }: { count?: number }) {
           random() * Math.PI * 2
         ),
         rotationSpeed: new THREE.Vector3(
-          (random() * 2 - 1) * 0.35,
-          (random() * 2 - 1) * 0.35,
-          (random() * 2 - 1) * 0.35
+          (random() * 2 - 1) * 0.4,
+          (random() * 2 - 1) * 0.4,
+          (random() * 2 - 1) * 0.4
         ),
         driftSpeed: new THREE.Vector3(
-          0.15 + random() * 0.25,
-          0.15 + random() * 0.25,
-          0.1 + random() * 0.2
+          0.12 + random() * 0.22,
+          0.12 + random() * 0.22,
+          0.08 + random() * 0.18
         ),
         driftPhase: new THREE.Vector3(
           random() * Math.PI * 2,
@@ -64,7 +67,7 @@ function InstancedBeans({ count = 36 }: { count?: number }) {
 
   // Bean Geometry with Coffee Crease
   const beanGeometry = useMemo(() => {
-    const geo = new THREE.SphereGeometry(0.18, 16, 12);
+    const geo = new THREE.SphereGeometry(0.2, 16, 12);
     geo.scale(1.0, 1.45, 0.75); // Coffee bean oblong proportions
     return geo;
   }, []);
@@ -75,9 +78,9 @@ function InstancedBeans({ count = 36 }: { count?: number }) {
 
     beans.forEach((bean, i) => {
       // Independent slow sinusoidal drift
-      const dx = Math.sin(time * bean.driftSpeed.x + bean.driftPhase.x) * 0.45;
-      const dy = Math.cos(time * bean.driftSpeed.y + bean.driftPhase.y) * 0.45;
-      const dz = Math.sin(time * bean.driftSpeed.z + bean.driftPhase.z) * 0.3;
+      const dx = Math.sin(time * bean.driftSpeed.x + bean.driftPhase.x) * 0.5;
+      const dy = Math.cos(time * bean.driftSpeed.y + bean.driftPhase.y) * 0.5;
+      const dz = Math.sin(time * bean.driftSpeed.z + bean.driftPhase.z) * 0.35;
 
       dummy.position.set(
         bean.position.x + dx,
@@ -107,9 +110,9 @@ function InstancedBeans({ count = 36 }: { count?: number }) {
       castShadow
     >
       <meshStandardMaterial
-        color="#2B180E"
-        roughness={0.42}
-        metalness={0.12}
+        color="#543322"
+        roughness={0.3}
+        metalness={0.2}
       />
     </instancedMesh>
   );
@@ -134,7 +137,7 @@ function TiltedHeroCup() {
     const time = state.clock.getElapsedTime();
 
     // Subtle breathing float and mouse lean
-    const targetRotZ = -0.26 + Math.sin(time * 0.8) * 0.04 + pointerRef.current.x * 0.08;
+    const targetRotZ = -0.24 + Math.sin(time * 0.8) * 0.04 + pointerRef.current.x * 0.08;
     const targetRotX = pointerRef.current.y * 0.08;
     const targetRotY = Math.PI + Math.sin(time * 0.4) * 0.2;
 
@@ -144,33 +147,33 @@ function TiltedHeroCup() {
   });
 
   return (
-    <group ref={cupRef} position={[0, 0, 0]} scale={[1.4, 1.4, 1.4]}>
+    <group ref={cupRef} position={[0, 0, 0]} scale={[1.5, 1.5, 1.5]}>
       {/* Cup Body */}
       <mesh castShadow receiveShadow>
         <cylinderGeometry args={[0.92, 0.65, 1.8, 32]} />
         <meshStandardMaterial
-          color="#0E0D0C"
-          roughness={0.3}
-          metalness={0.1}
+          color="#161513"
+          roughness={0.22}
+          metalness={0.15}
         />
       </mesh>
 
       {/* Rim Bevel */}
       <mesh position={[0, 0.9, 0]}>
         <torusGeometry args={[0.91, 0.04, 16, 32]} />
-        <meshStandardMaterial color="#22201D" roughness={0.25} />
+        <meshStandardMaterial color="#22201D" roughness={0.2} />
       </mesh>
 
       {/* Inner Coffee Surface */}
       <mesh position={[0, 0.82, 0]}>
         <cylinderGeometry args={[0.88, 0.88, 0.02, 32]} />
-        <meshStandardMaterial color="#B07A45" roughness={0.4} />
+        <meshStandardMaterial color="#C48B52" roughness={0.35} metalness={0.05} />
       </mesh>
 
       {/* Gold Atelier Brand Foil Ring */}
       <mesh position={[0, 0.1, 0]}>
         <cylinderGeometry args={[0.81, 0.77, 0.22, 32]} />
-        <meshStandardMaterial color="#D58C3D" metalness={0.85} roughness={0.2} />
+        <meshStandardMaterial color="#E5A352" metalness={0.92} roughness={0.15} />
       </mesh>
     </group>
   );
@@ -197,7 +200,7 @@ export function BeanFieldScene() {
   return (
     <div ref={containerRef} className="w-full h-full relative">
       <Canvas
-        camera={{ position: [0, 0, 7.5], fov: 42 }}
+        camera={{ position: [0, 0, 5.8], fov: 40 }}
         dpr={dpr}
         frameloop={isVisible ? 'always' : 'never'}
         gl={{
@@ -207,12 +210,18 @@ export function BeanFieldScene() {
           toneMapping: THREE.ACESFilmicToneMapping,
         }}
       >
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[-4, 5, 5]} intensity={2.4} color="#FFF2E2" />
-        <directionalLight position={[4, 2, -4]} intensity={1.2} color="#FFD2A0" />
+        <ambientLight intensity={0.55} />
+        {/* Warm Key Light */}
+        <directionalLight position={[-3.5, 4.5, 3.5]} intensity={3.0} color="#FFF2E2" />
+        {/* Strong Golden Back Rim Light for Dramatic Edge Glow */}
+        <directionalLight position={[0, -2.5, -4.0]} intensity={4.5} color="#D58C3D" />
+        {/* Point Light for Crisp Specular Highlights on Beans */}
+        <pointLight position={[2.5, 2.5, 2.0]} intensity={3.2} color="#FFEDD5" distance={15} />
+        {/* Soft Cool/Warm Side Fill */}
+        <directionalLight position={[4, 1.5, -3]} intensity={1.8} color="#FFE0B2" />
 
         <TiltedHeroCup />
-        <InstancedBeans count={isMobile ? 18 : 38} />
+        <InstancedBeans count={isMobile ? 20 : 42} />
       </Canvas>
     </div>
   );

@@ -84,65 +84,77 @@ export function LocationsSection() {
       ref={sectionRef}
       id="locations"
       aria-label="Our Locations and Coffee Clock"
-      className="relative py-28 px-6 md:px-12 bg-[#F1F1EF] text-[#070707] overflow-hidden border-t border-black/10"
+      className="locations-section"
     >
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <div className="container-max">
+        <div className="locs-grid">
           {/* Left Column: Locations & Time-Band Narratives */}
-          <div className="lg:col-span-6 flex flex-col gap-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[#D58C3D] font-mono text-sm font-bold">//</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <span style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>//</span>
                 <p className="t-eyebrow-dark">LOCATIONS & TIME</p>
               </div>
               <h2 className="t-headline">CALIBRATED TO YOUR DAY.</h2>
             </div>
 
             {/* Dynamic Time Band Panel */}
-            <div className="border border-black/15 bg-white p-6 transition-all duration-300 shadow-sm">
-              <div className="flex items-baseline justify-between border-b border-black/10 pb-3 mb-3">
-                <div className="flex items-center gap-2">
+            <div style={{ border: '1px solid var(--border-light)', backgroundColor: '#fff', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span className="status-dot" />
-                  <span className="font-mono text-xl font-bold">{currentBand.time}</span>
+                  <span className="font-mono" style={{ fontSize: '1.25rem', fontWeight: 700 }}>{currentBand.time}</span>
                 </div>
-                <span className="font-mono text-xs font-bold text-[#D58C3D] uppercase tracking-widest">
+                <span className="font-mono" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-amber)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                   {currentBand.phase}
                 </span>
               </div>
-              <p className="text-black/80 text-xs font-mono leading-relaxed">
+              <p style={{ color: 'rgba(7, 7, 7, 0.8)', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
                 {currentBand.copy}
               </p>
             </div>
 
             {/* Location Rows */}
-            <div className="space-y-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {LOCATIONS.map((loc) => (
                 <div
                   key={loc.id}
-                  className="group border border-black/15 p-5 bg-white hover:border-black hover:shadow-md transition-all duration-200"
+                  style={{
+                    border: '1px solid var(--border-light)',
+                    padding: '1.25rem',
+                    backgroundColor: '#fff',
+                    transition: 'all 0.2s ease',
+                  }}
                 >
-                  <div className="flex items-center justify-between font-mono text-xs text-black/50 mb-1">
-                    <span className="font-bold">{loc.code}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'rgba(7, 7, 7, 0.5)', marginBottom: '0.25rem' }}>
+                    <span style={{ fontWeight: 700 }}>{loc.code}</span>
                     <span>{loc.district}</span>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem' }}>
                     <div>
-                      <p className="font-mono text-sm font-bold uppercase group-hover:text-[#D58C3D] transition-colors">
+                      <p className="font-mono" style={{ fontSize: '0.875rem', fontWeight: 700, textTransform: 'uppercase' }}>
                         {loc.name}
                       </p>
-                      <p className="text-xs text-black/70 font-mono mt-0.5">{loc.address}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'rgba(7, 7, 7, 0.7)', fontFamily: 'var(--font-mono)', marginTop: '0.125rem' }}>{loc.address}</p>
                     </div>
                     <a
                       href={loc.mapUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-mono text-xs text-[#070707] font-bold uppercase tracking-wider hover:text-[#D58C3D] self-start sm:self-auto"
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.75rem',
+                        color: '#070707',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                      }}
                     >
                       MAP & DIRECTIONS →
                     </a>
                   </div>
-                  <div className="flex items-center justify-between border-t border-black/10 pt-2 mt-3 font-mono text-[11px] text-black/60">
-                    <span className="text-[#D58C3D] font-bold">{loc.hours}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '0.5rem', marginTop: '0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'rgba(7, 7, 7, 0.6)' }}>
+                    <span style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>{loc.hours}</span>
                     <span>{loc.seating}</span>
                   </div>
                 </div>
@@ -151,22 +163,30 @@ export function LocationsSection() {
           </div>
 
           {/* Right Column: Architectural Clock Face + Centered 3D Iced Latte */}
-          <div className="lg:col-span-6 relative h-[500px] md:h-[620px] flex items-center justify-center">
+          <div style={{ position: 'relative', height: '540px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {/* Architectural Clock Ring */}
-            <div className="relative w-[340px] h-[340px] md:w-[460px] md:h-[460px] rounded-full border border-black/15 bg-white shadow-2xl flex items-center justify-center">
+            <div style={{ position: 'relative', width: '420px', height: '420px', maxWidth: '100%', maxHeight: '100%', borderRadius: '9999px', border: '1px solid var(--border-light)', backgroundColor: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {/* Hour Numbers 1 to 12 along the circumference */}
               {Array.from({ length: 12 }).map((_, i) => {
                 const hour = i + 1;
                 const angleRad = ((hour * 30 - 90) * Math.PI) / 180;
                 const radiusPercent = 42; // percentage from center
-                const x = 50 + radiusPercent * Math.cos(angleRad);
-                const y = 50 + radiusPercent * Math.sin(angleRad);
+                const x = (50 + radiusPercent * Math.cos(angleRad)).toFixed(2);
+                const y = (50 + radiusPercent * Math.sin(angleRad)).toFixed(2);
 
                 return (
                   <span
                     key={hour}
-                    className="absolute font-mono text-xs font-bold text-black/60 -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: `${x}%`, top: `${y}%` }}
+                    className="font-mono"
+                    style={{
+                      position: 'absolute',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      color: 'rgba(7, 7, 7, 0.6)',
+                      left: `${x}%`,
+                      top: `${y}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
                   >
                     {String(hour).padStart(2, '0')}
                   </span>

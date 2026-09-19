@@ -45,30 +45,33 @@ export function ThermalPrinter({ onOrderClick }: ThermalPrinterProps) {
   const currentTranslateY = (1 - feedProgress) * -maxFeedTranslate;
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-sm mx-auto flex flex-col items-center">
+    <div ref={containerRef} className="thermal-printer-container">
       {/* 1. Metallic Printer Housing Slot Strip */}
-      <div className="relative z-30 w-full max-w-[380px] h-14 bg-gradient-to-b from-[#322822] via-[#201813] to-[#0E0B09] border-t-2 border-b-2 border-[#544033] rounded-t-sm shadow-2xl flex flex-col items-center justify-center px-6">
+      <div className="thermal-printer-head">
         {/* Metal Status Light & Brand Stamp */}
-        <div className="w-full flex items-center justify-between font-mono text-[9px] text-white/50 mb-1">
-          <span className="tracking-widest">EPSON TM-T88VI THERMAL</span>
-          <span className="flex items-center gap-1.5 text-[#D58C3D]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#D58C3D] animate-ping" />
+        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.625rem', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '0.35rem' }}>
+          <span style={{ letterSpacing: '0.12em' }}>EPSON TM-T88VI THERMAL</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--accent-amber)', fontWeight: 700 }}>
+            <span className="status-dot" style={{ width: '0.35rem', height: '0.35rem' }} />
             FEEDING
           </span>
         </div>
 
         {/* Paper Discharge Slot */}
-        <div className="w-full h-2.5 bg-black/95 rounded-full border border-black shadow-inner flex items-center justify-center">
-          <div className="w-4/5 h-0.5 bg-[#423329]" />
+        <div style={{ width: '100%', height: '0.625rem', backgroundColor: '#050403', borderRadius: '9999px', border: '1px solid #16120E', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.8)' }}>
+          <div style={{ width: '82%', height: '2px', backgroundColor: '#423329' }} />
         </div>
       </div>
 
       {/* 2. Feeding Window with Overflow Hidden */}
-      <div className="relative z-20 w-full overflow-hidden min-h-[480px] flex justify-center pt-0">
+      <div className="thermal-feed-viewport">
         <div
-          className="transition-transform duration-75 ease-out"
           style={{
             transform: `translateY(${currentTranslateY}px)`,
+            transition: 'transform 0.08s ease-out',
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
           }}
         >
           <Receipt data={SAMPLE_RECEIPT} progress={feedProgress} />
@@ -76,10 +79,15 @@ export function ThermalPrinter({ onOrderClick }: ThermalPrinterProps) {
       </div>
 
       {/* 3. Interactive Order Action Button below printer */}
-      <div className="mt-4 z-30">
+      <div style={{ marginTop: '1rem', position: 'relative', zIndex: 30 }}>
         <button
           onClick={onOrderClick}
-          className="bg-[#D58C3D] text-white font-mono text-xs font-bold uppercase tracking-widest px-8 py-3.5 hover:bg-white hover:text-black transition-colors duration-200 shadow-xl"
+          className="btn-primary"
+          style={{
+            backgroundColor: 'var(--accent-amber)',
+            color: '#ffffff',
+            boxShadow: '0 12px 28px rgba(0,0,0,0.5)',
+          }}
         >
           PRINT YOUR ORDER NOW →
         </button>

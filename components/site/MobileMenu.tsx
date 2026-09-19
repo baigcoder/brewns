@@ -45,36 +45,34 @@ export function MobileMenu({ isOpen, onClose, onOpenBag, bagCount }: MobileMenuP
       role="dialog"
       aria-modal="true"
       aria-label="Navigation Menu"
-      className="fixed inset-0 z-40 bg-[#070707] text-white flex flex-col justify-between p-6 pt-28 pb-10 md:hidden animate-in fade-in duration-200"
+      className="mobile-menu-overlay"
     >
       <div>
-        <p className="font-mono text-xs text-white/40 tracking-widest uppercase mb-6">
-          <span className="text-[#D58C3D]">//</span> NAVIGATION
+        <p className="mobile-menu-kicker">
+          <span style={{ color: 'var(--accent-amber)' }}>//</span> NAVIGATION
         </p>
-        <nav className="flex flex-col border-t border-white/15">
+        <nav className="mobile-menu-nav">
           {links.map((link) => (
             <a
               key={link.href}
               href={link.href}
               onClick={onClose}
-              className="group flex items-baseline gap-4 py-5 border-b border-white/10 hover:border-white transition-colors"
+              className="mobile-menu-link"
             >
-              <span className="font-mono text-xs text-[#D58C3D]">{link.num}</span>
-              <span className="font-mono text-2xl font-bold uppercase tracking-tight group-hover:translate-x-2 transition-transform duration-200">
-                {link.label}
-              </span>
+              <span className="mobile-menu-link-num">{link.num}</span>
+              <span className="mobile-menu-link-text">{link.label}</span>
             </a>
           ))}
         </nav>
       </div>
 
-      <div className="space-y-4 pt-6 border-t border-white/10">
+      <div className="mobile-menu-footer">
         <a
           href="#order"
           onClick={onClose}
-          className="flex items-center justify-between p-4 bg-white/5 border border-white/15 font-mono text-xs uppercase tracking-wider hover:bg-[#D58C3D] hover:text-white transition-colors"
+          className="mobile-menu-order-btn"
         >
-          <span className="flex items-center gap-2">
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
             <span className="status-dot" />
             <span>ORDER ONLINE</span>
           </span>
@@ -85,10 +83,10 @@ export function MobileMenu({ isOpen, onClose, onOpenBag, bagCount }: MobileMenuP
             onClose();
             onOpenBag();
           }}
-          className="w-full flex items-center justify-between p-4 border border-white/15 font-mono text-xs uppercase tracking-wider text-white/70 hover:text-white transition-colors"
+          className="mobile-menu-bag-btn"
         >
           <span>VIEW YOUR BAG</span>
-          <span className="font-bold">({bagCount})</span>
+          <span style={{ fontWeight: 700 }}>({bagCount})</span>
         </button>
       </div>
     </div>

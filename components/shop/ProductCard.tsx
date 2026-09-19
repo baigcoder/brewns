@@ -23,54 +23,74 @@ export function ProductCard({ product, index, onOpenModal, onQuickAdd }: Product
   return (
     <article
       onClick={() => onOpenModal(product)}
-      className={`group relative border border-white/15 bg-[#0E0D0C] p-6 md:p-8 flex flex-col justify-between cursor-pointer hover:border-white/40 transition-all duration-300 ${
-        product.featured ? 'lg:col-span-2' : ''
-      }`}
+      className="product-card"
+      style={{
+        gridColumn: product.featured ? 'span 2' : undefined,
+      }}
     >
       <div>
-        {/* Card Header Index & Tag */}
-        <div className="flex items-center justify-between font-mono text-xs text-white/50 mb-4">
-          <span className="font-bold">0{index + 1}</span>
-          <div className="flex items-center gap-2">
-            <span className="uppercase text-[10px] text-white/40">{product.category}</span>
+        {/* Card Header Index & Tag with explicit separation */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginBottom: '1rem' }}>
+          <span style={{ fontWeight: 700 }}>0{index + 1}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ textTransform: 'uppercase', fontSize: '0.6875rem', color: 'rgba(255, 255, 255, 0.55)', letterSpacing: '0.1em' }}>
+              {product.category}
+            </span>
             {product.tag && (
-              <span className="px-2 py-0.5 border border-[#D58C3D] text-[#D58C3D] text-[9px] uppercase tracking-wider">
-                {product.tag}
-              </span>
+              <>
+                <span style={{ color: 'rgba(255, 255, 255, 0.3)' }}>·</span>
+                <span className="product-tag-pill">
+                  {product.tag}
+                </span>
+              </>
             )}
           </div>
         </div>
 
         {/* Product Visual Container */}
-        <div className="h-44 md:h-52 w-full bg-[#161513] border border-white/5 flex flex-col items-center justify-center mb-6 relative overflow-hidden group-hover:bg-[#1C1A17] transition-colors">
-          <div className="text-center p-4">
-            <div className="w-12 h-12 mx-auto mb-2 rounded-full border border-[#D58C3D]/30 flex items-center justify-center font-mono text-xs text-[#D58C3D]">
+        <div
+          style={{
+            height: '180px',
+            width: '100%',
+            backgroundColor: '#161513',
+            border: '1px solid var(--border-dark)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '1.25rem',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ textAlign: 'center', padding: '1rem' }}>
+            <div style={{ width: '3rem', height: '3rem', margin: '0 auto 0.5rem', borderRadius: '9999px', border: '1px solid rgba(213, 140, 61, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--accent-amber)', backgroundColor: 'rgba(213, 140, 61, 0.08)' }}>
               {product.modelType === 'bag' ? 'BAG' : product.modelType === 'cup' ? 'CUP' : 'ICED'}
             </div>
-            <p className="font-mono text-[11px] text-white/60 tracking-wider">
+            <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6875rem', color: 'rgba(255, 255, 255, 0.65)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               {product.meta}
             </p>
           </div>
 
-          <span className="absolute bottom-2 right-3 font-mono text-[9px] uppercase tracking-widest text-[#D58C3D] opacity-0 group-hover:opacity-100 transition-opacity">
+          <span style={{ position: 'absolute', bottom: '0.5rem', right: '0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.5625rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent-amber)' }}>
             CLICK TO CONFIGURE →
           </span>
         </div>
 
-        <h3 className="font-mono text-base md:text-lg font-bold uppercase mb-1 text-white group-hover:text-[#D58C3D] transition-colors">
+        <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '1rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.35rem', color: '#ffffff' }}>
           {product.name}
         </h3>
 
-        <p className="text-white/70 text-xs leading-relaxed mb-4 line-clamp-2">
+        <p style={{ color: 'var(--fg-muted-light)', fontSize: '0.75rem', lineHeight: 1.5, marginBottom: '1rem' }}>
           {product.description}
         </p>
 
-        {/* Tasting Notes */}
-        <div className="flex flex-wrap gap-1 mb-6">
+        {/* Tasting Notes as individual separated tags */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '1.5rem' }}>
           {product.notes.map((note) => (
             <span
               key={note}
-              className="font-mono text-[9px] bg-white/5 border border-white/10 px-2 py-0.5 text-white/60"
+              className="tasting-pill-dark"
             >
               {note}
             </span>
@@ -79,21 +99,24 @@ export function ProductCard({ product, index, onOpenModal, onQuickAdd }: Product
       </div>
 
       {/* Card Footer: Price & Add Button */}
-      <div className="border-t border-white/10 pt-4 flex items-center justify-between font-mono text-xs">
+      <div style={{ borderTop: '1px solid var(--border-dark)', paddingTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
         <div>
-          <span className="text-white/40 text-[10px] mr-1">FROM</span>
-          <span className="font-bold text-base text-white">
+          <span style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '0.625rem', marginRight: '0.35rem' }}>FROM</span>
+          <span style={{ fontWeight: 700, fontSize: '1.125rem', color: '#ffffff' }}>
             ${product.price.toFixed(2)}
           </span>
         </div>
 
         <button
           onClick={handleQuickAdd}
-          className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
-            added
-              ? 'bg-[#D58C3D] text-white'
-              : 'bg-white text-black hover:bg-[#D58C3D] hover:text-white'
-          }`}
+          className="btn-primary"
+          style={{
+            padding: '0.5rem 1.15rem',
+            fontSize: '0.6875rem',
+            letterSpacing: '0.08em',
+            backgroundColor: added ? 'var(--accent-amber)' : '#ffffff',
+            color: added ? '#ffffff' : '#070707',
+          }}
           aria-label={`Add ${product.name} to bag`}
         >
           {added ? '✓ ADDED' : '+ ADD'}

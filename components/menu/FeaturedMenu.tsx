@@ -13,26 +13,36 @@ export function FeaturedMenu({ onAddToCart }: FeaturedMenuProps) {
     <section
       id="menu"
       aria-label="Favorites Made Daily"
-      className="relative py-28 px-6 md:px-12 bg-[#F1F1EF] text-[#070707] transition-colors duration-500 overflow-hidden"
+      className="menu-section"
     >
-      <div className="max-w-7xl mx-auto">
+      <div className="container-max">
         {/* Editorial Section Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16 border-b border-black/15 pb-8">
+        <div className="menu-header-row">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[#D58C3D] font-mono text-sm font-bold">//</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>//</span>
               <p className="t-eyebrow-dark">OUR MENU</p>
             </div>
             <h2 className="t-headline">FAVORITES MADE DAILY</h2>
           </div>
 
-          <div className="flex flex-col md:items-end gap-3">
-            <p className="t-lede-dark max-w-md md:text-right">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.75rem' }}>
+            <p className="t-lede-dark" style={{ maxWidth: '28rem' }}>
               Quality microlot beans, hand-laminated viennoiserie, and dialed espresso drinks. Crafted fresh every morning.
             </p>
             <a
               href="#shop"
-              className="inline-flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-[#070707] hover:text-[#D58C3D] transition-colors"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                color: '#070707',
+              }}
             >
               <span>VIEW COMPLETE ROASTS & DRINKS</span>
               <span>→</span>
@@ -41,7 +51,7 @@ export function FeaturedMenu({ onAddToCart }: FeaturedMenuProps) {
         </div>
 
         {/* 4 Featured Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+        <div className="cards-grid">
           {FEATURED_MENU.map((item, index) => (
             <MenuCard
               key={item.id}
