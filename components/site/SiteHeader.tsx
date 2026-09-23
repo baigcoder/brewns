@@ -14,7 +14,6 @@ export function SiteHeader({ bagCount, onOpenBag }: SiteHeaderProps) {
 
   useEffect(() => {
     const handleScroll = () => {
-      // Check sections with light theme attribute or light background
       const probeOffset = 60;
       const menuSection = document.getElementById('menu');
       const locsSection = document.getElementById('locations');
@@ -51,49 +50,45 @@ export function SiteHeader({ bagCount, onOpenBag }: SiteHeaderProps) {
         id="hdr"
         className={`site-hdr ${isLight ? 'theme-light' : 'theme-dark'}`}
       >
-        {/* Brand Wordmark */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <a
-            href="#hero"
-            className="font-mono"
-            style={{ fontWeight: 700, letterSpacing: '0.12em', fontSize: '1.125rem', textTransform: 'uppercase' }}
-            aria-label="Veldt Coffee House Home"
-          >
-            VELDT<span style={{ color: 'var(--accent-amber)' }}>.</span>
-          </a>
-        </div>
+        {/* Left: ORDER ONLINE on desktop / wordmark on mobile */}
+        <a
+          href="#order"
+          className="hdr-order-link"
+          style={{ textTransform: 'uppercase' }}
+        >
+          <span className="status-dot" />
+          <span>ORDER ONLINE</span>
+        </a>
+
+        {/* Center: Brand Wordmark */}
+        <a
+          href="#hero"
+          className="hdr-wordmark"
+          aria-label="brewns coffee house — home"
+        >
+          brewns
+        </a>
 
         {/* Desktop Nav */}
-        <nav
-          aria-label="Primary"
-          className="hdr-nav-list"
-        >
-          <a href="#shop">01 / Shop</a>
-          <a href="#menu">02 / Menu</a>
-          <a href="#locations">03 / Locations</a>
-          <a href="#story">04 / Story</a>
+        <nav aria-label="Primary" className="hdr-nav-list">
+          <a href="#shop">Shop</a>
+          <a href="#menu">Menu</a>
+          <a href="#story">Our Story</a>
+          <a href="#locations">Locations</a>
         </nav>
 
         {/* Right Actions */}
         <div className="hdr-right-actions">
-          <a
-            href="#order"
-            className="hdr-order-link"
-          >
-            <span className="status-dot" />
-            <span>ORDER ONLINE</span>
-          </a>
-
           <button
             id="bag-open-btn"
             onClick={onOpenBag}
             className="hdr-bag-btn"
             aria-label={`Open shopping bag with ${bagCount} items`}
           >
-            <span>BAG</span> <strong style={{ marginLeft: '0.25rem' }}>({bagCount})</strong>
+            <span>Bag</span> <strong style={{ marginLeft: '0.25rem' }}>{bagCount}</strong>
           </button>
 
-          {/* Mobile Menu Toggle Button */}
+          {/* Mobile Menu Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="mobile-toggle-btn"
@@ -102,20 +97,24 @@ export function SiteHeader({ bagCount, onOpenBag }: SiteHeaderProps) {
           >
             <span
               style={{
-                width: '1.25rem',
-                height: '2px',
-                backgroundColor: isLight ? '#070707' : '#ffffff',
-                transition: 'all 0.2s',
-                transform: mobileMenuOpen ? 'rotate(45deg) translateY(6px)' : 'none',
+                position: 'absolute',
+                right: '0.5rem',
+                height: '1px',
+                width: '1.5rem',
+                backgroundColor: 'currentColor',
+                transition: 'all 250ms var(--ease-entrance)',
+                transform: mobileMenuOpen ? 'rotate(45deg)' : 'translateY(-0.25rem)',
               }}
             />
             <span
               style={{
-                width: '1.25rem',
-                height: '2px',
-                backgroundColor: isLight ? '#070707' : '#ffffff',
-                transition: 'all 0.2s',
-                transform: mobileMenuOpen ? 'rotate(-45deg) translateY(-6px)' : 'none',
+                position: 'absolute',
+                right: '0.5rem',
+                height: '1px',
+                width: mobileMenuOpen ? '1.5rem' : '1rem',
+                backgroundColor: 'currentColor',
+                transition: 'all 250ms var(--ease-entrance)',
+                transform: mobileMenuOpen ? 'rotate(-45deg)' : 'translateY(0.25rem)',
               }}
             />
           </button>

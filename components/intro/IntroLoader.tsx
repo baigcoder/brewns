@@ -110,7 +110,7 @@ export function IntroLoader({ onComplete }: IntroLoaderProps) {
           <span style={{ color: 'var(--accent-amber)' }}>//</span> NOW BREWING
         </p>
         <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-          VELDT ATELIER
+          BREWNS ATELIER
         </span>
       </div>
 
@@ -127,8 +127,8 @@ export function IntroLoader({ onComplete }: IntroLoaderProps) {
       {/* Bottom Row: Logo on left, SVG Cup on right */}
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
-          <p className="font-mono" style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff' }}>
-            VELDT<span style={{ color: 'var(--accent-amber)' }}>.</span>
+          <p style={{ fontFamily: 'var(--font-geist)', fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#fff', textTransform: 'lowercase' }}>
+            brewns
           </p>
           <p className="font-mono" style={{ fontSize: '0.625rem', letterSpacing: '0.08em', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', marginTop: '0.25rem' }}>
             SAN FRANCISCO, CA

@@ -2,21 +2,21 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'VELDT COFFEE HOUSE — Specialty Roastery in San Francisco',
-  description: 'Specialty coffee roastery in San Francisco. Small-batch seasonal roasts, dialed espresso, and zero-wait pickup across our three city locations.',
+  title: 'brewns — Specialty Coffee House in San Francisco',
+  description: 'Specialty coffee house in San Francisco. Carefully sourced beans, thoughtfully brewed. Order ahead and skip the line — three locations, open daily 07:00–21:00.',
   keywords: ['Specialty Coffee', 'San Francisco Coffee', 'Coffee Roaster', 'Single Origin', 'Espresso Bar', 'Mission District'],
-  authors: [{ name: 'Veldt Coffee Atelier' }],
+  authors: [{ name: 'brewns coffee house' }],
   openGraph: {
-    title: 'VELDT COFFEE HOUSE — Specialty Roastery in San Francisco',
-    description: 'Specialty coffee roastery in San Francisco. Thoughtfully sourced, purposefully brewed.',
+    title: 'brewns — Specialty Coffee House in San Francisco',
+    description: 'Specialty coffee house in San Francisco. Carefully sourced beans, thoughtfully brewed.',
     type: 'website',
     locale: 'en_US',
-    siteName: 'VELDT COFFEE HOUSE',
+    siteName: 'brewns',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'VELDT COFFEE HOUSE',
-    description: 'Specialty coffee roastery in San Francisco. Thoughtfully sourced, purposefully brewed.',
+    title: 'brewns — Specialty Coffee House',
+    description: 'Specialty coffee house in San Francisco. Carefully sourced beans, thoughtfully brewed.',
   },
 };
 
@@ -35,8 +35,7 @@ export default function RootLayout({
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CoffeeShop',
-    name: 'VELDT COFFEE HOUSE',
-    image: 'https://veldt.coffee/images/hero-preview.jpg',
+    name: 'brewns coffee house',
     telephone: '+1-415-529-8812',
     address: {
       '@type': 'PostalAddress',
@@ -74,6 +73,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

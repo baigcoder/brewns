@@ -170,3 +170,15 @@ Legend:
 - [ ] `T174` Resolve review comments.
 - [ ] `T175` Merge and deploy.
 - [ ] `T176` Record deployed URL in `MEMORY.md`.
+
+## Phase 16 — Next-Level Experiential & Tactile Immersion
+
+- [x] `T180` Synthesized Web Audio API Ritual Soundscape (zero external audio files; ceramic clink, bean clatter, thermal printer feed ratchet, paper tear, liquid droplet, haptic vibration, state persistence).
+- [x] `T181` Header Sound Toggle Pill with live animated equalizer wave bars and persistent mute/unmute state.
+- [x] `T182` "Find Your Pour" Interactive Taste Calibrator modal (3-step extraction quiz, accord matching engine, direct Add to Bag).
+- [x] `T183` Interactive Physical Tear-off Gesture on Order Receipt (pointer drag with resistance, audio tear, perforated detachment).
+- [x] `T184` Parabolic Liquid Droplet Cart Fly-in Animation with spring-physics bag counter bump.
+- [x] `T185` Live SF Location Wait Time Badges with time-of-day awareness (Morning Peak, Steady Brew, Midday Rush, Closed).
+- [x] `T186` Universal PDP 3D Variety Rendering Engine (3D bakery cinnamon roll with steam & glaze expansion, transparent iced drink glasses with floating ice, real-time option updates).
+
+
