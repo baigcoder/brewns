@@ -7,7 +7,7 @@
     "build": "next build",
     "build:models": "bun scripts/build-models.mjs",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -23,13 +23,16 @@
     "next": "^16.3.5",
     "react": "~19.2.8",
     "react-dom": "~19.2.8",
-    "three": "^0.186.0",
-    "typescript": "^7.0.2"
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4",
     "@gltf-transform/extensions": "^4",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "draco3dgltf": "^1.5.7",
-    "puppeteer-core": "^25.11.0"
+    "eslint": "^9.7",
+    "eslint-config-next": "^16.3.6",
+    "puppeteer-core": "^25.11.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }
