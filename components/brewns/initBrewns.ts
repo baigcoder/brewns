@@ -688,15 +688,15 @@ const ALL_MENU_CARDS = [
   { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "$2.50", file: "menu-espresso.webp", size: [1216, 1293], frame: [129, 156, 0, 0], crop: ["-12.54%", "-27.55%", "145.17%", "128.38%"], cover: false, clip: true, alt: "A brewns single-shot espresso cup" },
   { id: "latte", cat: "coffee", name: "LATTE", price: "$4.20", file: "menu-latte.webp", size: [1024, 1536], frame: [180, 205, 0, 0.5], crop: ["-16.55%", "-0.03%", "100.07%", "132.36%"], cover: false, clip: true, alt: "A brewns latte cup with a heart poured into the foam" },
   { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "$4.50", file: "menu-iced-coffee.webp", size: [1024, 1536], frame: [197, 261, 0, 0], crop: ["0.1%", "2.54%", "94.92%", "107.62%"], cover: false, clip: false, alt: "A brewns iced matcha in a clear cup with a straw" },
-  { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "$4.20", file: "menu-cardamom.jpg", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
-  { id: "cortado", cat: "coffee", name: "CORTADO", price: "$3.90", file: "menu-cortado.jpg", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
-  { id: "nitro-cold-brew", cat: "specialty", name: "NITRO COLD BREW", price: "$5.00", file: "menu-cold-brew.jpg", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head" },
+  { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "$4.20", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
+  { id: "cortado", cat: "coffee", name: "CORTADO", price: "$3.90", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
+  { id: "nitro-cold-brew", cat: "specialty", name: "NITRO COLD BREW", price: "$5.00", file: "menu-cold-brew.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head" },
   { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "$3.80", file: "menu-cinnamon.webp", size: [1536, 1024], frame: [327, 218, -8, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
-  { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "$4.00", file: "menu-financier.jpg", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
+  { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "$4.00", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
   { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "$4.80", file: "menu-iced-latte.webp", size: [1024, 1536], frame: [175, 235, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: false, alt: "A brewns iced latte in a clear cup with straw" },
-  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "$18.00", file: "menu-beans.jpg", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Brewns Slow Roast whole bean coffee" },
-  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "$22.00", file: "menu-single-origin.jpg", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Ethiopia Yirgacheffe single origin whole bean coffee" },
-  { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "$34.00", file: "menu-tumbler.jpg", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
+  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "$18.00", file: "menu-beans.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Brewns Slow Roast whole bean coffee" },
+  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "$22.00", file: "menu-single-origin.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Ethiopia Yirgacheffe single origin whole bean coffee" },
+  { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "$34.00", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
 ];
 
 const cardHTML = (c, o) => {
@@ -2459,7 +2459,7 @@ const PICKUP_COPY = "Ready in about 12 minutes at 139 Coffee Street, 310 Valenci
 const MILK = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 0.5], ["ALMOND", 0.5]] };
 const PRODUCTS = [
   {
-    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 18, photo: "menu/menu-beans.jpg", model: "bag", feature: true,
+    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 18, photo: "menu/menu-beans.webp", model: "bag", feature: true,
     meta: "250 G · WHOLE BEAN · COPENHAGEN", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
     desc: "Our house roast, taken slow and a shade past medium so the sugars caramelise without tipping into bitter. Sweet in milk, round and clean on its own.",
     options: [
@@ -2471,7 +2471,7 @@ const PRODUCTS = [
     care: "Roasted weekly in small batches and packed in a valved bag. Best within four weeks of the roast date printed on the back. Keep sealed, away from light and heat.",
   },
   {
-    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 22, photo: "menu/menu-single-origin.jpg", model: "bag",
+    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 22, photo: "menu/menu-single-origin.webp", model: "bag",
     meta: "250 G · WASHED HEIRLOOM · 2100M", notes: ["JASMINE", "BERGAMOT", "WHITE PEACH"],
     desc: "Washed heirloom varieties from high-altitude smallholders in Yirgacheffe. A delicate, tea-like body with sparkling citrus acidity, jasmine florals and a sweet peach finish.",
     options: [
@@ -2506,7 +2506,7 @@ const PRODUCTS = [
     care: "Pulled on a dialled-in grinder every morning, so the first shot of the day tastes like the last.",
   },
   {
-    id: "cortado", name: "CORTADO", cat: "drinks", tag: "BARISTA PICK", price: 3.9, photo: "menu/menu-cortado.jpg", model: "glass", alt: "A brewns cortado in a faceted glass with steamed microfoam",
+    id: "cortado", name: "CORTADO", cat: "drinks", tag: "BARISTA PICK", price: 3.9, photo: "menu/menu-cortado.webp", model: "glass", alt: "A brewns cortado in a faceted glass with steamed microfoam",
     meta: "4.5 OZ · EQUAL PARTS ESPRESSO & MILK", notes: ["VELVETY", "HAZELNUT"],
     desc: "Equal parts Slow Roast espresso and warm textured milk in a heavy Gibraltar glass. Cuts the intensity while preserving the deep caramel sweetness of the beans.",
     options: [
@@ -2518,7 +2518,7 @@ const PRODUCTS = [
     care: "Poured immediately upon arrival so the microfoam remains dense and velvety.",
   },
   {
-    id: "nitro-cold-brew", name: "NITRO COLD BREW", cat: "drinks", tag: "ON TAP", price: 5.0, photo: "menu/menu-cold-brew.jpg", model: "glass", alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head",
+    id: "nitro-cold-brew", name: "NITRO COLD BREW", cat: "drinks", tag: "ON TAP", price: 5.0, photo: "menu/menu-cold-brew.webp", model: "glass", alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head",
     meta: "STEEPED 20 HRS · NITROGEN INFUSED", notes: ["STOUT-LIKE", "CREAMY CACAO"],
     desc: "Slow steeped for twenty hours and charged with pure food-grade nitrogen on draft. Pours with a thick cascading head like a fine dry stout, naturally sweet with zero added sugar.",
     options: [
@@ -2549,7 +2549,7 @@ const PRODUCTS = [
     care: "Shots are pulled when you arrive and chilled over ice straight away, so it never waters down on the counter.",
   },
   {
-    id: "cardamom-bun", name: "CARDAMOM BUN", cat: "bakery", tag: "NORDIC RITUAL", price: 4.2, photo: "menu/menu-cardamom.jpg", model: "bakery", alt: "A freshly baked Swedish cardamom bun with pearl sugar",
+    id: "cardamom-bun", name: "CARDAMOM BUN", cat: "bakery", tag: "NORDIC RITUAL", price: 4.2, photo: "menu/menu-cardamom.webp", model: "bakery", alt: "A freshly baked Swedish cardamom bun with pearl sugar",
     meta: "STONEGROUND CARDAMOM · BROWN SUGAR", notes: ["AROMATIC", "BUTTERY"],
     desc: "Traditional twisted bun enriched with fresh stoneground green cardamom, brown sugar syrup and crunchy Swedish pearl sugar. Baked fresh every morning.",
     options: [
@@ -2570,7 +2570,7 @@ const PRODUCTS = [
     care: "Baked in the morning and gone by the afternoon. Order ahead to hold one.",
   },
   {
-    id: "matcha-financier", name: "MATCHA FINANCIER", cat: "bakery", tag: "GLUTEN-FREE", price: 4.0, photo: "menu/menu-financier.jpg", model: "bakery", alt: "A golden-green matcha financier cake with dusted icing sugar",
+    id: "matcha-financier", name: "MATCHA FINANCIER", cat: "bakery", tag: "GLUTEN-FREE", price: 4.0, photo: "menu/menu-financier.webp", model: "bakery", alt: "A golden-green matcha financier cake with dusted icing sugar",
     meta: "ALMOND FLOUR · UJI MATCHA", notes: ["NUTTY", "EARTHY SWEET"],
     desc: "Dense French almond cake infused with ceremonial Uji matcha and browned noisette butter. Crispy edges and a soft, melt-in-the-mouth center.",
     options: [
@@ -2580,7 +2580,7 @@ const PRODUCTS = [
     care: "Naturally gluten-free with California almond meal.",
   },
   {
-    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 34, photo: "menu/menu-tumbler.jpg", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
+    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 34, photo: "menu/menu-tumbler.webp", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
     meta: "12 OZ · CERAMIC LINED · DOUBLE WALL", notes: ["TRUE TASTE", "6 HR HEAT RETENTION"],
     desc: "Double-wall vacuum-insulated stainless steel tumbler with an internal ceramic coating so your coffee tastes true to the cup. Fits standard car cup holders and keeps drinks hot for 6 hours.",
     options: [
@@ -3778,7 +3778,7 @@ function renderFullMenu() {
               ${sec.items.map((p) => `
                 <article class="full-menu-item" data-fproduct="${p.id}" tabindex="0" role="button" aria-label="${p.name}, ${money(p.price)}">
                   <div class="full-menu-img-wrap">
-                    ${p.gift ? giftcardHTML(money(p.price)) : `<img src="${ASSET_BASE_URL}${p.photo || 'menu/menu-beans.jpg'}" alt="${esc(p.name)}" loading="lazy">`}
+                    ${p.gift ? giftcardHTML(money(p.price)) : `<img src="${ASSET_BASE_URL}${p.photo || 'menu/menu-beans.webp'}" alt="${esc(p.name)}" loading="lazy">`}
                   </div>
                   <div class="full-menu-item-info">
                     <div class="full-menu-item-top">

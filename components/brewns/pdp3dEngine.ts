@@ -807,7 +807,7 @@ function createEthiopiaBagTexture(T: typeof THREE): THREE.CanvasTexture {
   ctx.fillText('BREWNS', 512, 340);
   ctx.restore();
 
-  // 4. Ochre / Amber Orange Single Origin Label Band (matching menu-single-origin.jpg)
+  // 4. Ochre / Amber Orange Single Origin Label Band (matching menu-single-origin.webp)
   const bandY = 430;
   const bandH = 250;
   ctx.fillStyle = '#d98a32'; // Warm Ethiopia ochre amber
@@ -873,7 +873,7 @@ function createEthiopiaBagTexture(T: typeof THREE): THREE.CanvasTexture {
 
 /**
  * 1. SWEDISH CARDAMOM BUN (Kardemummabulle)
- * Matches menu/menu-cardamom.jpg:
+ * Matches menu/menu-cardamom.webp:
  * - Speckled ceramic saucer with contact shadow
  * - Braided knot of golden-brown brioche dough with caramelized cardamom syrup
  * - 3D white pearl sugar crystals (Pärlsocker) scattered across crown
@@ -1018,7 +1018,7 @@ export function createCardamomBunModel(T: typeof THREE, initialSel: Record<strin
 
 /**
  * 2. FRENCH MATCHA FINANCIER
- * Matches menu/menu-financier.jpg:
+ * Matches menu/menu-financier.webp:
  * - Speckled ceramic plate with contact shadow
  * - Rectangular "lingot" bar cake with beveled edges
  * - Golden-brown browned butter crust with vibrant Uji matcha crumb
@@ -1113,7 +1113,7 @@ export function createMatchaFinancierModel(T: typeof THREE, initialSel: Record<s
 
 /**
  * 3. GIBRALTAR GLASS CORTADO
- * Matches menu/menu-cortado.jpg:
+ * Matches menu/menu-cortado.webp:
  * - Heavy 4.5 oz faceted Gibraltar glass with thick glass base
  * - Octagonal faceted lower half, smooth round upper rim
  * - Warm espresso-milk gradient liquid
@@ -1223,7 +1223,7 @@ export function createCortadoModel(T: typeof THREE, initialSel: Record<string, n
 
 /**
  * 4. NITRO COLD BREW ON TAP
- * Matches menu/menu-cold-brew.jpg:
+ * Matches menu/menu-cold-brew.webp:
  * - Chilled faceted pub tumbler glass with condensation
  * - Deep dark mahogany / black stout-like cold brew liquid
  * - Thick cascading velvety nitro foam head collar domed at rim
@@ -1448,7 +1448,7 @@ export function createHotCupModel(T: typeof THREE, productId: string, initialSel
 
 /**
  * 6. CERAMIC TRAVEL TUMBLER
- * Matches menu/menu-tumbler.jpg:
+ * Matches menu/menu-tumbler.webp:
  * - 12 oz matte ceramic / powder-coated double-wall insulated body
  * - Rounded bottom corner bevel
  * - Press-fit insulated sip lid with recessed drink well and sip opening
@@ -1551,7 +1551,7 @@ export function createCeramicTumblerModel(T: typeof THREE, initialSel: Record<st
 
 /**
  * 7. ETHIOPIA YIRGACHEFFE SINGLE ORIGIN COFFEE BAG
- * Matches menu/menu-single-origin.jpg:
+ * Matches menu/menu-single-origin.webp:
  * - Stand-up pouch in crisp off-white paper
  * - Ochre / amber label band with "ETHIOPIA YIRGACHEFFE"
  * - Clear window showing whole roasted beans
@@ -1631,7 +1631,7 @@ export function createSingleOriginBagModel(T: typeof THREE, initialSel: Record<s
 
 /**
  * 8. SLOW ROAST COFFEE BAG (from GLTF + scattered beans)
- * Matches menu/menu-beans.jpg:
+ * Matches menu/menu-beans.webp:
  * - High-poly GLTF bag with twine string and wax seal
  * - Clustered 3D roasted whole coffee beans scattered across tabletop!
  * - Interactive Size scaling
