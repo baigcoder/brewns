@@ -245,3 +245,42 @@ writeGLB(
   'public/assets/shop/cinnamon-roll.glb',
   'CinnamonRoll',
 );
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Draco compression
+
+   The assets above are written raw so the writer stays dependency-free and
+   readable. This pass shrinks them for delivery: the site's loader already has
+   a DRACOLoader pointed at public/draco/gltf/, so compressed files decode with
+   no runtime change.
+
+   Quantization: positions at 14 bits is well under a hundredth of a millimetre
+   on a unit-sized cup; UVs at 12 bits give 4096 steps across a texture at most
+   2048 wide, so the printed label cannot shimmer or drift.
+   ══════════════════════════════════════════════════════════════════════════ */
+import { NodeIO } from '@gltf-transform/core';
+import { KHRDracoMeshCompression } from '@gltf-transform/extensions';
+import draco3d from 'draco3dgltf';
+import { statSync } from 'node:fs';
+
+const io = new NodeIO().registerExtensions([KHRDracoMeshCompression]).registerDependencies({
+  'draco3d.encoder': await draco3d.createEncoderModule(),
+  'draco3d.decoder': await draco3d.createDecoderModule(),
+});
+
+for (const path of ['public/assets/shop/iced-cup.glb', 'public/assets/shop/cinnamon-roll.glb']) {
+  const before = statSync(path).size;
+  const doc = await io.read(path);
+  doc
+    .createExtension(KHRDracoMeshCompression)
+    .setRequired(true)
+    .setEncoderOptions({
+      method: KHRDracoMeshCompression.EncoderMethod.EDGEBREAKER,
+      encodeSpeed: 5,
+      decodeSpeed: 5,
+      quantizationBits: { POSITION: 14, NORMAL: 10, TEX_COORD: 12 },
+    });
+  await io.write(path, doc);
+  const after = statSync(path).size;
+  console.log(`${path}: draco ${(before / 1024).toFixed(0)} KB -> ${(after / 1024).toFixed(0)} KB`);
+}

@@ -34,7 +34,7 @@ const MODEL_URL = ASSET_BASE_URL + "hero/models.glb";
    and max-age=0, so a reload revalidates — but a tab left open across a rebuild
    keeps the model it already parsed, which reads as a rendering bug rather than a
    stale file. The query string makes a changed model a different URL. */
-const MODELS_VERSION = "3";
+const MODELS_VERSION = "4";
 const ICED_CUP_URL = `${ASSET_BASE_URL}shop/iced-cup.glb?v=${MODELS_VERSION}`;
 /* Keyed by product, not by viewer kind: the cardamom bun is a bakery piece too,
    but it is modelled procedurally and has no use for the roll's half-megabyte.
