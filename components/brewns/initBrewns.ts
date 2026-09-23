@@ -167,7 +167,7 @@ const updateLiveLocations = () => {
   if (el2) el2.textContent = b2;
 };
 updateLiveLocations();
-setInterval(updateLiveLocations, 30000);
+const liveLocationsTimer = setInterval(updateLiveLocations, 30000);
 
 
 /* ═══════════ smooth scroll ═══════════ */
@@ -707,7 +707,7 @@ const cardHTML = (c, o) => {
     <p class="card-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
     <div class="card-media${c.clip ? " clip" : ""}"><span><span class="card-par">
       <div class="still" style="width: calc(${w / 16}rem * var(--size-menu-still-scale)); max-width: var(--size-menu-still-max); aspect-ratio: ${w} / ${h}; bottom: calc(${bottom / 16}rem + var(--size-menu-still-lift)); margin-left: ${offsetX / 16}rem">
-        <img src="${ASSET_BASE_URL}menu/${c.file}" alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
+        <img loading="lazy" decoding="async" src="${ASSET_BASE_URL}menu/${c.file}" alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
       </div>
     </span></span></div>
     <div class="card-foot">
@@ -4403,6 +4403,7 @@ coEl.addEventListener("submit", (e) => {
     try {
       lenis?.destroy();
       clearInterval(footerClock);
+      clearInterval(liveLocationsTimer);
       cancelAnimationFrame(tickRaf);
     } catch {}
   };
