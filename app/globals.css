@@ -2293,3 +2293,68 @@ nextjs-portal,
     justify-content: center;
   }
 }
+/* ── Brand ambassador (Hania) ──
+   A dark stage lit by three soft colour pools, an outlined band of words across
+   the top, a tilted polaroid on the left and the name on the right. */
+.hania { position: relative; overflow: hidden; background: #0a0807; color: #fff; isolation: isolate; padding: 7.5rem 1.25rem 4.5rem; }
+@media (min-width: 640px) { .hania { padding: 8.5rem 2.5rem 5.5rem; } }
+@media (min-width: 1024px) { .hania { min-height: 100lvh; display: flex; align-items: center; padding: 9rem 2.5rem 6rem; } }
+.hania-aura {
+  position: absolute; inset: -10%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(38% 45% at 6% 28%, rgb(18 128 132 / 0.55), transparent 70%),
+    radial-gradient(34% 40% at 88% 10%, rgb(150 40 98 / 0.55), transparent 70%),
+    radial-gradient(45% 45% at 62% 108%, rgb(196 104 34 / 0.5), transparent 70%);
+  filter: blur(24px);
+  animation: hania-drift 18s ease-in-out infinite alternate;
+}
+@keyframes hania-drift { to { transform: translate3d(2%, -2%, 0) scale(1.05); } }
+.hania-band {
+  position: absolute; left: 0; right: 0; top: 0.5rem; overflow: hidden; pointer-events: none;
+  font-family: var(--font-geist); font-weight: 800; font-size: clamp(3rem, 8vw, 7.5rem); line-height: 1; text-transform: uppercase;
+  color: transparent; -webkit-text-stroke: 1px rgb(255 255 255 / 0.2);
+}
+.hania-band-track { display: flex; align-items: center; width: max-content; animation: ftr-marquee 60s linear infinite; }
+.hania-band-track span { padding-inline: 0.35em; white-space: nowrap; }
+.hania-band-track i { font-style: normal; font-size: 0.45em; -webkit-text-stroke: 1px rgb(255 255 255 / 0.25); }
+.hania-in { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 3rem; width: 100%; max-width: 88rem; margin-inline: auto; align-items: center; }
+@media (min-width: 1024px) { .hania-in { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr); gap: 5rem; } }
+
+.hania-card-wrap { justify-self: center; width: min(100%, 27rem); }
+@media (min-width: 1024px) { .hania-card-wrap { justify-self: end; width: min(100%, 30rem); } }
+.hania-card {
+  position: relative; flex: 1 1 auto; width: 100%; margin: 0; padding: 1.1rem 1.1rem 3.6rem; background: #f4efe4; transform: rotate(-3.5deg);
+  box-shadow: 0 2.5rem 5rem -1.5rem rgb(0 0 0 / 0.7), 0 0.5rem 1.2rem rgb(0 0 0 / 0.35);
+}
+.hania-shot {
+  position: relative; display: grid; place-items: center; aspect-ratio: 4 / 5; overflow: hidden;
+  background:
+    radial-gradient(38% 34% at 30% 32%, #16a7b1, transparent 72%),
+    radial-gradient(34% 32% at 74% 70%, #ec4e9b, transparent 72%),
+    linear-gradient(160deg, #e7903a, #de7f3c 55%, #e6763f);
+}
+.hania-shot::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 20%, transparent 60%, rgb(0 0 0 / 0.18)); }
+.hania-initials { font-family: var(--font-geist); font-weight: 800; font-size: clamp(4.5rem, 10vw, 7rem); letter-spacing: -0.04em; line-height: 1; color: #fff; text-shadow: 0 0.3rem 1.2rem rgb(0 0 0 / 0.18); }
+.hania-tag {
+  position: absolute; right: -1rem; bottom: 1.3rem; padding: 0.5rem 1.3rem 0.7rem; border-radius: 999px; transform: rotate(8deg);
+  background: #d9924c; color: #1b120b; font-family: var(--font-allura); font-size: clamp(1.6rem, 2.6vw, 2.2rem); line-height: 1; white-space: nowrap;
+  box-shadow: 0 0.6rem 1.2rem rgb(0 0 0 / 0.35);
+}
+
+.hania-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+.hania-eyebrow { font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: var(--letter-spacing-label); text-transform: uppercase; color: rgb(255 255 255 / 0.75); }
+.hania-name { font-family: var(--font-geist); font-weight: 800; font-size: clamp(3.75rem, 9vw, 8.5rem); line-height: 0.9; letter-spacing: -0.035em; text-transform: uppercase; }
+.hania-name span { display: block; }
+.hania-script {
+  margin-top: -0.5rem; font-family: var(--font-allura); font-size: clamp(2.6rem, 5vw, 4.5rem); line-height: 1.1; color: #f1c982;
+  clip-path: inset(-12% 100% -22% -4%);
+}
+.hania-lede { max-width: 33rem; font-family: var(--font-geist); font-weight: 600; font-size: clamp(1rem, 1.3vw, 1.2rem); line-height: 1.55; color: rgb(255 255 255 / 0.85); }
+.hania-cta {
+  display: inline-flex; align-items: center; gap: 1rem; margin-top: 1rem; padding: 1.15rem 1.6rem; background: #fff; color: #0a0807;
+  font-family: var(--font-geist); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.02em; transition: background 200ms ease, color 200ms ease, transform 200ms ease;
+}
+.hania-cta span { transition: transform 200ms ease; }
+.hania-cta:hover { background: #f1c982; }
+.hania-cta:hover span { transform: translateX(0.3rem); }
+@media (prefers-reduced-motion: reduce) { .hania-aura, .hania-band-track { animation: none; } .hania-script { clip-path: none; } }
