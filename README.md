@@ -89,6 +89,13 @@ Opening hours, tax and pickup lead time are the checkout's `OPEN_MIN`,
 receipt's ready time read the same values, so they can't disagree with the
 checkout.
 
+Checkout offers pickup or delivery. Delivery areas (which shop sends the rider,
+fee, minutes), the Rs 1,000 minimum and the free-delivery threshold are in
+`DELIVERY`; payment methods are `PAY`. Punjab charges 16% sales tax on
+restaurant bills paid in cash and 5% when paid by card or wallet (`TAX` and
+`TAX_CARD`), so the total follows the payment chosen. Check the current rates
+with the Punjab Revenue Authority before going live.
+
 ## 3D product views
 
 Every product page has a 3D view. `createProduct3DModel` in `pdp3dEngine.ts`

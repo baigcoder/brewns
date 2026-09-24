@@ -2503,3 +2503,10 @@ nextjs-portal,
   background: linear-gradient(to bottom, #070707 0, rgb(7 7 7 / 0) 9%, rgb(7 7 7 / 0) 86%, #070707 100%);
 }
 @media (max-width: 1023.98px) { .phil-floor { display: none; } }
+
+/* ── Checkout: delivery, payment, notes ── */
+.co-promo-msg { margin-bottom: 1.25rem; }
+.co-note { margin-top: 0.75rem; padding: 0.7rem 0.9rem; border-left: 2px solid var(--accent); background: rgb(213 140 61 / 0.08); color: #6b4a22; line-height: 1.6; }
+@media (min-width: 640px) { .area-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.area-cards .pick-name { font-size: 0.9em; }
+.done-actions a.btn { text-decoration: none; }
