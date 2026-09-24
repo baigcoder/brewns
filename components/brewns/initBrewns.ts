@@ -808,17 +808,24 @@ $$(".lean").forEach((outer) => lean(outer.firstElementChild, outer));
    footer's clip, so it is triggered by its band, which is always in place. */
 inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C(36, 26), delay: 120, trigger: $(".ftr-brand") });
 
-/* The ambassador's polaroid shows her photo once public/assets/hania/hania.jpg
-   exists; until then (or if it fails) the initials stand in. */
+/* The ambassador's polaroid shows her photo once it is in public/assets/hania/;
+   until then (or if none loads) the initials stand in. Common names are tried in
+   turn, including the doubled extensions Windows makes when extensions are hidden
+   ("hania.jpg.png"). */
 {
   const photo = $(".hania-photo");
   if (photo) {
+    const names = ["hania.jpg", "hania.jpeg", "hania.png", "hania.webp", "hania.JPG", "hania.PNG", "hania.jpg.png", "hania.jpg.webp", "hania.jpg.jpeg", "hania.jpg.jpg", "hania.png.png", "hania.webp.webp"];
+    let tried = 0;
     const show = () => photo.closest(".hania-shot").classList.add("has-photo");
-    if (photo.complete && photo.naturalWidth) show();
-    else {
-      photo.addEventListener("load", show, { once: true });
-      photo.addEventListener("error", () => photo.remove(), { once: true });
-    }
+    photo.addEventListener("load", show);
+    photo.addEventListener("error", () => {
+      tried += 1;
+      if (tried < names.length) photo.src = `${ASSET_BASE_URL}hania/${names[tried]}`;
+      else photo.remove();
+    });
+    // The first name may have failed before these listeners existed.
+    if (photo.complete) photo.naturalWidth ? show() : photo.dispatchEvent(new Event("error"));
   }
 }
 
