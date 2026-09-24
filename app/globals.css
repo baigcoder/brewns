@@ -2511,3 +2511,11 @@ nextjs-portal,
 @media (min-width: 640px) { .area-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .area-cards .pick-name { font-size: 0.9em; }
 .done-actions a.btn { text-decoration: none; }
+
+/* ── Kitchen pictures are full-bleed studio shots: fill the frame like a photo ── */
+.pcard-media:has(img.shot) { overflow: hidden; min-height: 15rem; margin-block: 0.75rem; }
+.pcard-media img.shot { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: cover; }
+.pcard:hover .pcard-media img.shot { transform: scale(1.05); }
+.thumb.shot img { width: 100%; height: 100%; object-fit: cover; }
+.pdp-photo.shot { max-width: min(78%, 36rem); max-height: 80%; border-radius: 4px; box-shadow: 0 2rem 4rem -1rem rgb(0 0 0 / 0.45); }
+.card-media.shot .still img { border-radius: 4px; box-shadow: 0 1.25rem 2.5rem -1rem rgb(0 0 0 / 0.4); }
