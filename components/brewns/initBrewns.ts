@@ -947,9 +947,18 @@ $("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map(cardHTML).join("");
    on a slip, in the same mono, torn off at the bottom. What someone ordered is
    part of the review — it ties the words back to the menu two sections up. */
 const REVIEWS = [
-  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", product: "iced-matcha", when: "12.05", stars: 5 },
-  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", product: "latte", when: "04.05", stars: 5 },
-  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", product: "slow-roast", when: "28.04", stars: 5 },
+  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", product: "iced-matcha", when: "12.05", stars: 5, verified: true, helpful: 42 },
+  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", product: "latte", when: "04.05", stars: 5, verified: false, helpful: 31 },
+  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", product: "slow-roast", when: "28.04", stars: 5, verified: true, helpful: 27 },
+  { quote: "A smash burger with properly crispy edges, from a coffee house. Better than the burger places down the road.", name: "Hamza K.", place: "Gulberg", order: "Classic Smash Burger · Meal", product: "smash-burger", when: "19.09", stars: 5, verified: true, helpful: 18 },
+  { quote: "Ordered to Model Town in the rain. The rider messaged from the gate and the latte was still hot.", name: "Usman T.", place: "Gulberg", order: "Latte · 12 oz · Delivery", product: "latte", when: "16.09", stars: 5, verified: true, helpful: 24 },
+  { quote: "Cardamom bun and a cortado at 8am has become my whole personality. The bun sells out by ten, go early.", name: "Ayesha N.", place: "DHA", order: "Cardamom Bun", product: "cardamom-bun", when: "14.09", stars: 5, verified: false, helpful: 15 },
+  { quote: "Tikka paratha roll with the mint chutney, eaten in the car in the parking. Zero regrets.", name: "Bilal A.", place: "Johar Town", order: "Chicken Tikka Paratha Roll", product: "tikka-roll", when: "11.09", stars: 5, verified: true, helpful: 12 },
+  { quote: "Four stars only because the lounge was full on Saturday evening. The cinnamon roll was worth the wait.", name: "Sana M.", place: "Gulberg", order: "Cinnamon Roll · Warmed", product: "cinnamon-roll", when: "07.09", stars: 4, verified: false, helpful: 9 },
+  { quote: "Nitro cold brew that tastes like coffee, not like a can. Smooth all the way to the bottom.", name: "Omar F.", place: "DHA", order: "Nitro Cold Brew", product: "nitro-cold-brew", when: "02.09", stars: 5, verified: true, helpful: 14 },
+  { quote: "A margherita with real char on the crust. The kids fought over the last slice, so now we order two.", name: "Fatima Z.", place: "Johar Town", order: "Margherita Pizza · 12 in", product: "margherita-pizza", when: "29.08", stars: 5, verified: true, helpful: 21 },
+  { quote: "Bought the Ethiopia beans for home. Bright, a bit of blueberry, exactly what the bag says.", name: "Ali R.", place: "DHA", order: "Ethiopia Yirgacheffe · 250 g", product: "single-origin", when: "24.08", stars: 5, verified: false, helpful: 11 },
+  { quote: "Mango smoothie in August is the only correct decision. Real Chaunsa, not the syrup stuff.", name: "Mehak S.", place: "Gulberg", order: "Mango Smoothie · Large", product: "mango-smoothie", when: "18.08", stars: 5, verified: true, helpful: 16 },
 ];
 
 /* The breakdown behind the 4.9. A single headline number invites the question of
@@ -969,17 +978,23 @@ $("#rev-dist").innerHTML = RATINGS.map(
   </li>`,
 ).join("");
 
-$("#rev-cards").innerHTML = REVIEWS.map((r, o) => `<li><div class="lean"><div class="rev-hold"><article class="rev-slip" data-product="${r.product}" data-iv="rise" data-y="28" data-c="80,26" data-d="${o * 90}">
+// Slips reveal in threes: the carousel shows at most three at a time.
+$("#rev-cards").innerHTML = REVIEWS.map((r, o) => {
+  const d = (o % 3) * 90;
+  return `<li data-place="${r.place}" data-product="${r.product}"><div class="lean"><div class="rev-hold"><article class="rev-slip" data-product="${r.product}" data-iv="rise" data-y="28" data-c="80,26" data-d="${d}">
   <div class="rev-slip-head">
-    <p class="rev-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
-    <p class="rev-when"><span data-dr data-d="${o * 90 + 200}">${r.when}</span></p>
+    <p class="rev-idx"><span data-dr data-d="${d + 160}">${String(o + 1).padStart(2, "0")}</span></p>
+    <p class="rev-when"><span data-dr data-d="${d + 200}">${r.when}</span></p>
   </div>
-  <p class="rev-stars" role="img" aria-label="Rated ${r.stars} out of 5">${"★".repeat(r.stars)}</p>
-  <blockquote class="rev-quote"><p data-te="words" data-dur="620" data-st="12" data-d="${o * 90 + 260}" data-margin="0px 0px -15% 0px">${r.quote}</p></blockquote>
+  <p class="rev-stars" role="img" aria-label="Rated ${r.stars} out of 5">${"★".repeat(r.stars)}<span class="rev-stars-off">${"★".repeat(5 - r.stars)}</span></p>
+  <blockquote class="rev-quote"><p data-te="words" data-dur="620" data-st="12" data-d="${d + 260}" data-margin="0px 0px -15% 0px">${r.quote}</p></blockquote>
   <div class="rc-rule" aria-hidden="true"></div>
-  <div class="rev-foot"><p data-iv="print30" data-c="58,26" data-d="${o * 90 + 320}" style="clip-path: inset(0 100% -30% 0)">${r.name}</p><p>${r.place}</p></div>
+  <div class="rev-foot"><p data-iv="print30" data-c="58,26" data-d="${d + 320}" style="clip-path: inset(0 100% -30% 0)">${r.name}</p><p>${r.place}</p></div>
   <p class="rev-order"><span>Ordered</span><span>${r.order}</span></p>
-</article></div></div></li>`).join("");
+  <button type="button" class="rev-helpful" data-helpful="seed-${o}" data-base="${r.helpful}" aria-pressed="false"><span aria-hidden="true">▲</span> HELPFUL · <b>${r.helpful}</b></button>
+  ${r.verified ? '<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>' : ""}
+</article></div></div></li>`;
+}).join("");
 
 /* A slow band of one-liners under the slips — the overheard half of a review,
    the part too short to letter onto a card. Doubled so the loop has no seam. */
@@ -5344,13 +5359,14 @@ coEl.addEventListener("submit", (e) => {
           const d = new Date(r.t);
           const when = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
           const p = productById(r.product);
-          return `<li class="rev-mine"><div class="rev-hold"><article class="rev-slip is-in">
+          return `<li class="rev-mine" data-place="${esc(r.place)}" data-product="${p ? p.id : ""}"><div class="rev-hold"><article class="rev-slip is-in">
             <div class="rev-slip-head"><p>${r.order ? `ORDER #${String(r.order).padStart(5, "0")}` : "NEW"}</p><p>${when}</p></div>
             ${stars(r.stars)}
             <blockquote class="rev-quote"><p>${esc(r.text)}</p></blockquote>
             <div class="rc-rule" aria-hidden="true"></div>
             <div class="rev-foot"><p>${esc(r.name)}</p><p>${esc(r.place)}</p></div>
             <p class="rev-order">${p ? revThumb(p.id) : ""}<span>Ordered</span><span>${p ? esc(p.name) : ""}</span></p>
+            <button type="button" class="rev-helpful" data-helpful="mine-${r.t}" data-base="0" aria-pressed="false"><span aria-hidden="true">▲</span> HELPFUL · <b>0</b></button>
             ${r.order ? `<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>` : ""}
           </article></div></li>`;
         })
@@ -5364,11 +5380,94 @@ coEl.addEventListener("submit", (e) => {
     if (n && list.length) n.textContent = avg.toFixed(1);
     const c = $(".rev-score-meta .blk span", document);
     if (c && list.length) c.textContent = count.toLocaleString("en-US");
+    refreshRevBar();
   };
+  let refreshRevBar = () => {};
   renderMyReviews();
 
   // "Leave a review", next to the score.
   $(".rev-panel")?.insertAdjacentHTML("beforeend", `<button type="button" class="btn btn-dark rev-write" data-review>LEAVE A REVIEW ${ARROW_SVG}</button>`);
+
+  /* The slips are a carousel: filter by what was ordered or by shop, page
+     through with the arrows (or swipe), and mark a review helpful. */
+  const REV_FILTERS = [["all", "ALL"], ["drinks", "COFFEE & DRINKS"], ["food", "FOOD"], ["Gulberg", "GULBERG"], ["DHA", "DHA"], ["Johar Town", "JOHAR TOWN"]];
+  revCards.insertAdjacentHTML(
+    "beforebegin",
+    `<div class="rev-bar">
+      <div class="rev-filters" role="group" aria-label="Filter reviews">${REV_FILTERS.map(([k, l], i) => `<button type="button" class="rev-filter${i ? "" : " on"}" data-rev-filter="${k}" aria-pressed="${!i}">${l}</button>`).join("")}</div>
+      <div class="rev-nav"><p class="rev-count" aria-live="polite"><b id="rev-pos">01</b> / <span id="rev-total">00</span></p><button type="button" class="rev-arrow" data-rev-step="-1" aria-label="Previous reviews">←</button><button type="button" class="rev-arrow" data-rev-step="1" aria-label="Next reviews">→</button></div>
+    </div>`,
+  );
+  const revBar = revCards.previousElementSibling;
+  let revFilter = "all";
+  const revKind = (li) => {
+    const p = productById(li.dataset.product);
+    return p && ["bakery", "kitchen"].includes(p.cat) ? "food" : "drinks";
+  };
+  const revShown = () => $$(":scope > li", revCards).filter((li) => !li.hidden);
+  const revStepWidth = () => {
+    const li = revShown()[0];
+    // offsetWidth, not the bounding box: the slips are tilted a little
+    return li ? li.offsetWidth + parseFloat(getComputedStyle(revCards).columnGap || "0") : revCards.clientWidth;
+  };
+  const updateRevNav = () => {
+    const shown = revShown();
+    const step = revStepWidth();
+    const first = Math.min(shown.length - 1, Math.round(revCards.scrollLeft / step));
+    const perView = Math.max(1, Math.round(revCards.clientWidth / step));
+    $("#rev-pos", revBar).textContent = String(Math.max(0, first) + 1).padStart(2, "0") + (perView > 1 && shown.length > 1 ? `–${String(Math.min(shown.length, first + perView)).padStart(2, "0")}` : "");
+    $("#rev-total", revBar).textContent = String(shown.length).padStart(2, "0");
+    const [prev, next] = $$(".rev-arrow", revBar);
+    prev.disabled = revCards.scrollLeft < 4;
+    next.disabled = revCards.scrollLeft + revCards.clientWidth >= revCards.scrollWidth - 4;
+  };
+  refreshRevBar = () => {
+    $$(":scope > li", revCards).forEach((li) => {
+      li.hidden = !(revFilter === "all" || (revFilter === "drinks" || revFilter === "food" ? revKind(li) === revFilter : li.dataset.place === revFilter));
+    });
+    // the helpful counts, from this browser's marks
+    const liked = new Set(readStore("brewns-helpful", []));
+    $$(".rev-helpful", revCards).forEach((b) => {
+      const on = liked.has(b.dataset.helpful);
+      b.setAttribute("aria-pressed", String(on));
+      $("b", b).textContent = String(+b.dataset.base + (on ? 1 : 0));
+    });
+    updateRevNav();
+  };
+  revBar.addEventListener("click", (e) => {
+    const f = e.target.closest("[data-rev-filter]");
+    if (f) {
+      revFilter = f.dataset.revFilter;
+      $$(".rev-filter", revBar).forEach((b) => {
+        b.classList.toggle("on", b === f);
+        b.setAttribute("aria-pressed", String(b === f));
+      });
+      playSoftClick();
+      refreshRevBar();
+      revCards.scrollTo({ left: 0, behavior: "auto" });
+      return;
+    }
+    const st = e.target.closest("[data-rev-step]");
+    if (st) {
+      // a page at a time: however many whole slips fit
+      const step = revStepWidth();
+      const gap = parseFloat(getComputedStyle(revCards).columnGap || "0");
+      const perView = Math.max(1, Math.floor((revCards.clientWidth + gap + 2) / step));
+      revCards.scrollBy({ left: +st.dataset.revStep * perView * step, behavior: REDUCED ? "auto" : "smooth" });
+    }
+  });
+  revCards.addEventListener("scroll", () => requestAnimationFrame(updateRevNav), { passive: true });
+  window.addEventListener("resize", updateRevNav);
+  revCards.addEventListener("click", (e) => {
+    const b = e.target.closest(".rev-helpful");
+    if (!b) return;
+    const liked = new Set(readStore("brewns-helpful", []));
+    liked.has(b.dataset.helpful) ? liked.delete(b.dataset.helpful) : liked.add(b.dataset.helpful);
+    writeStore("brewns-helpful", [...liked]);
+    playSoftClick();
+    refreshRevBar();
+  });
+  refreshRevBar();
 
   const revForm = document.createElement("div");
   revForm.className = "rev-modal";
@@ -5433,6 +5532,7 @@ coEl.addEventListener("submit", (e) => {
     }
     closeReview();
     renderMyReviews();
+    revCards.scrollTo({ left: 0, behavior: "auto" }); // the new slip is first
     playChime();
     toast("THANK YOU — YOUR REVIEW IS UP", "SEE IT", () => {
       if (hasLayer("checkout")) closeCheckout();
