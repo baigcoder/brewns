@@ -1664,14 +1664,6 @@ address { font-style: normal; }
 }
 
 /* ═══════════ Interactive Receipt Tear Gesture ═══════════ */
-.paper.torn-state {
-  animation: receiptTearSnap 0.6s cubic-bezier(0.2, 0, 0, 1) forwards;
-}
-@keyframes receiptTearSnap {
-  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
-  40% { transform: translate3d(0, 30px, 0) rotate(2deg); opacity: 0.9; }
-  100% { transform: translate3d(0, 150px, 0) rotate(6deg); opacity: 0; pointer-events: none; }
-}
 .receipt-tear-handle {
   cursor: grab;
   padding: 0.5rem;
@@ -2396,3 +2388,91 @@ nextjs-portal,
 .hania-cta:hover { background: #f1c982; }
 .hania-cta:hover span { transform: translateX(0.3rem); }
 @media (prefers-reduced-motion: reduce) { .hania-aura, .hania-band-track { animation: none; } .hania-script { clip-path: none; } }
+
+/* ── Order: the printer's stage ──
+   A dark counter lit from above: one warm spotlight falling on the printer,
+   slow out-of-focus lights drifting behind, film grain, and the wordmark as a
+   faint watermark. Everything is decorative and sits behind the receipt. */
+.order-scene {
+  position: absolute; inset: 0; overflow: hidden; display: block;
+  background: radial-gradient(70% 60% at 50% 30%, #3b2517 0%, #1d130c 45%, #0b0806 82%), #0b0806;
+}
+.order-scene i { position: absolute; display: block; pointer-events: none; }
+.os-glow { inset: -10% 0 auto; height: 80%; background: radial-gradient(34% 55% at 50% 0%, rgb(255 196 128 / 0.32), rgb(255 170 90 / 0.08) 55%, transparent 75%); }
+.os-beam {
+  left: 0; right: 0; top: 0; height: 100%;
+  background:
+    radial-gradient(16% 100% at 50% 0%, rgb(255 216 164 / 0.2), rgb(255 190 120 / 0.06) 60%, transparent 100%),
+    radial-gradient(34% 90% at 50% 0%, rgb(255 190 120 / 0.08), transparent 100%);
+  animation: os-flicker 7s ease-in-out infinite;
+}
+@keyframes os-flicker { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; } 62% { opacity: 0.82; } }
+.os-bokeh { border-radius: 50%; filter: blur(18px); mix-blend-mode: screen; animation: os-drift 22s ease-in-out infinite alternate; }
+.os-bokeh.b1 { left: 8%; top: 22%; width: 9rem; height: 9rem; background: rgb(214 140 60 / 0.22); }
+.os-bokeh.b2 { left: 18%; top: 62%; width: 5rem; height: 5rem; background: rgb(255 200 130 / 0.18); animation-duration: 18s; }
+.os-bokeh.b3 { right: 10%; top: 18%; width: 7rem; height: 7rem; background: rgb(200 120 60 / 0.2); animation-duration: 26s; }
+.os-bokeh.b4 { right: 20%; top: 58%; width: 11rem; height: 11rem; background: rgb(150 90 50 / 0.2); animation-duration: 30s; }
+.os-bokeh.b5 { left: 38%; top: 78%; width: 4rem; height: 4rem; background: rgb(255 214 160 / 0.16); animation-duration: 16s; }
+.os-bokeh.b6 { right: 36%; top: 8%; width: 3.5rem; height: 3.5rem; background: rgb(255 214 160 / 0.14); animation-duration: 20s; }
+@keyframes os-drift { to { transform: translate3d(2.5rem, -2rem, 0) scale(1.15); } }
+.os-mark {
+  left: 50%; bottom: 14%; width: min(92%, 88rem); aspect-ratio: 2326 / 528; transform: translateX(-50%);
+  -webkit-mask: url("/assets/shared/wordmark-large.webp") left top / auto 100% no-repeat;
+  mask: url("/assets/shared/wordmark-large.webp") left top / auto 100% no-repeat;
+  background: linear-gradient(180deg, rgb(216 183 119 / 0.09), rgb(216 183 119 / 0.02));
+}
+.os-grain {
+  inset: 0; opacity: 0.12; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The printer at work: a status light that blinks amber while paper moves and
+   turns green once the slip is out, and a warm glow along the slot. */
+.printer-led {
+  position: absolute; z-index: 3; left: 884px; top: 150px; width: 7px; height: 7px; border-radius: 50%;
+  background: #3a3a36; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.4); transition: background 300ms ease, box-shadow 300ms ease;
+}
+.order.printing .printer-led { background: #ffb347; box-shadow: 0 0 8px 2px rgb(255 170 60 / 0.8); animation: led-blink 0.45s steps(2, jump-none) infinite; }
+.order.printed .printer-led { background: #7ddc8a; box-shadow: 0 0 8px 2px rgb(110 220 130 / 0.6); }
+@keyframes led-blink { 50% { opacity: 0.35; } }
+.printer-slot {
+  position: absolute; z-index: 3; left: 549px; top: 170px; width: 336px; height: 10px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 206 140 / 0.95), rgb(255 160 70 / 0.35) 60%, transparent);
+  filter: blur(3px); mix-blend-mode: screen; opacity: 0; transition: opacity 250ms ease;
+}
+.order.printing .printer-slot { opacity: 1; animation: slot-pulse 0.3s ease-in-out infinite alternate; }
+@keyframes slot-pulse { to { transform: scaleX(0.96); opacity: 0.75; } }
+
+/* Once the whole slip is out it settles with a small swing from the slot. */
+.paper .receipt { transform-origin: 50% 0; }
+.order.settle .paper .receipt { animation: receipt-settle 1.4s cubic-bezier(0.3, 0.7, 0.3, 1); }
+@keyframes receipt-settle { 0% { transform: rotate(0); } 25% { transform: rotate(1.4deg); } 50% { transform: rotate(-0.8deg); } 75% { transform: rotate(0.35deg); } 100% { transform: rotate(0); } }
+
+/* Torn off: the slip drops, turns and falls away, then a fresh one prints. */
+.paper.torn-state { animation: receipt-fall 0.9s cubic-bezier(0.55, 0, 0.8, 0.4) forwards; }
+@keyframes receipt-fall {
+  0% { transform: translate3d(0, 0, 0) rotate(0); opacity: 1; }
+  18% { transform: translate3d(0, 14px, 0) rotate(-1.5deg); opacity: 1; }
+  100% { transform: translate3d(40px, 720px, 0) rotate(14deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .os-beam, .os-bokeh, .order.printing .printer-led, .order.printing .printer-slot, .order.settle .paper .receipt { animation: none; }
+}
+
+/* The slip is the tear handle; the old strip at its foot is clipped by the slot
+   window, so a hint above the printer says what to do. */
+.receipt-tear-handle { display: none; }
+.paper { cursor: grab; touch-action: pan-x; }
+.paper:active { cursor: grabbing; }
+.tear-hint {
+  position: absolute; z-index: 3; left: 569px; top: 96px; width: 300px; padding: 7px 0; border-radius: 999px; text-align: center;
+  border: 1px solid rgb(216 183 119 / 0.45); background: rgb(12 9 7 / 0.55); backdrop-filter: blur(6px);
+  font-family: var(--font-space-mono); font-size: 9px; letter-spacing: 0.14em; color: #d8b777;
+  opacity: 0; transform: translateY(6px); transition: opacity 400ms ease, transform 400ms ease; pointer-events: none;
+}
+.order.printed .tear-hint { opacity: 1; transform: none; }
+/* The copy layer spans the whole section; let clicks through to the receipt
+   except on the copy itself. */
+.order-copy { pointer-events: none; }
+.order-copy .order-group, .order-copy .order-aside, .order-copy a { pointer-events: auto; }
+.paper, .paper img { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
