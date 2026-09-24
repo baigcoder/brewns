@@ -1000,6 +1000,8 @@ const heroHandle = $("#hero-handle");
 hover(heroCard, heroHandle, { opacity: 0, y: 18 }, { opacity: 1, y: 0 }, { config: C(210, 26) });
 
 /* ═══════════ order block: the thermal printer ═══════════ */
+// Filled in by the printer below; the tear-off gesture asks it for a fresh slip.
+const orderPrinter = { reprint: () => {} };
 (() => {
   const SCENE = { width: 1440, height: 800 };
   const STEPS = 46, BARCODE_FED = 0.88;
@@ -1070,15 +1072,61 @@ hover(heroCard, heroHandle, { opacity: 0, y: 18 }, { opacity: 1, y: 0 }, { confi
   });
   const sweep = new Spring({ v: 0 }, (o) => barEls.forEach((el, i) => (el.style.transform = `scaleY(${scaleAt(o.v, i, barEls.length, heights[i])})`)));
 
-  let progress = -1, fed = false;
-  const write = (p) => {
-    if (p === progress) return;
-    progress = p;
-    paper.style.setProperty("--p", String(p)); if (p > 0.1 && p < 0.95 && Math.random() < 0.25) playPaperFeed();
-    const now = p >= BARCODE_FED;
+  /* The paper follows the scroll through a spring, so it glides out of the slot
+     rather than jumping step to step. While it moves, the section is marked
+     "printing" (amber light, glowing slot); fully out, "printed" (green light),
+     with a one-off settle swing. */
+  let progress = -1, fed = false, reprinting = false, idle = 0, out = false;
+  const setOut = (now) => {
+    if (now === out) return;
+    out = now;
+    section.classList.toggle("printed", out);
+    if (!out || REDUCED) return;
+    section.classList.add("settle");
+    setTimeout(() => section.classList.remove("settle"), 1500);
+  };
+  const feed = new Spring({ v: 0 }, (o) => {
+    paper.style.setProperty("--p", String(o.v));
+    setOut(o.v > 0.995);
+    if (REDUCED) return;
+    section.classList.add("printing");
+    clearTimeout(idle);
+    idle = setTimeout(() => section.classList.remove("printing"), 160);
+  });
+  const barcodeTo = (now) => {
     if (now === fed) return;
     fed = now;
     sweep.start({ v: fed ? 1 : 0 }, { config: C(70, 34) });
+  };
+  const write = (p) => {
+    if (p === progress || reprinting) return;
+    progress = p;
+    if (REDUCED) feed.set({ v: p });
+    else feed.start({ v: p }, { config: C(90, 22) });
+    if (p > 0.1 && p < 0.95 && Math.random() < 0.25) playPaperFeed();
+    barcodeTo(p >= BARCODE_FED);
+  };
+
+  /* After a tear: the next order number, and a new slip fed all the way out. */
+  orderPrinter.reprint = () => {
+    const no = $("#rc-no");
+    const n = parseInt(no.textContent.replace(/\D/g, ""), 10) || 0;
+    no.textContent = `Order #${String(n + 1).padStart(5, "0")}`;
+    if (REDUCED) return;
+    reprinting = true;
+    feed.stop();
+    feed.set({ v: 0 });
+    sweep.set({ v: 0 });
+    fed = false;
+    let ticks = 0;
+    const whirr = setInterval(() => (++ticks > 7 ? clearInterval(whirr) : playPaperFeed()), 220);
+    setTimeout(() => {
+      barcodeTo(true);
+      feed.start({ v: 1 }, { config: C(26, 18) }).then(() => {
+        reprinting = false;
+        progress = 1;
+      });
+    }, 350);
   };
   const measure = () => {
     const scrolled = -section.getBoundingClientRect().top;
@@ -3108,45 +3156,56 @@ const calibrator = new TasteCalibrator(
 $("#open-calibrator")?.addEventListener("click", () => calibrator.open());
 
 const initReceiptTear = () => {
-  const handle = $("#tear-handle");
+  // The whole slip is the handle: tap it, or pull it down. The slot window clips
+  // the old strip at its foot, so the hint sits above the printer instead.
   const paperEl = $("#paper");
-  if (!handle || !paperEl) return;
+  const handle = paperEl;
+  const hint = $("#tear-hint");
+  if (!paperEl) return;
 
   let startY = 0;
   let isDragging = false;
   let isTorn = false;
 
   handle.addEventListener("pointerdown", (e) => {
-    if (isTorn) return;
+    if (isTorn || e.target.closest('[role="button"]')) return;
     isDragging = true;
     startY = e.clientY;
     try { handle.setPointerCapture(e.pointerId); } catch {}
   });
 
+  const tear = () => {
+    isTorn = true;
+    isDragging = false;
+    playPaperTear();
+    paperEl.style.transform = "";
+    paperEl.classList.add("torn-state");
+    if (hint) hint.textContent = "✓ COLLECTED. PRINTING THE NEXT ONE";
+    // Once it has fallen away, the printer runs off a fresh slip.
+    setTimeout(() => {
+      orderPrinter.reprint();
+      paperEl.classList.remove("torn-state");
+      setTimeout(() => {
+        isTorn = false;
+        if (hint) hint.textContent = "TAP OR PULL THE RECEIPT TO TEAR IT OFF";
+      }, 1800);
+    }, 900);
+  };
+
   handle.addEventListener("pointermove", (e) => {
     if (!isDragging || isTorn) return;
     const dy = Math.max(0, e.clientY - startY);
     paperEl.style.transform = `translate3d(0, ${dy * 0.5}px, 0)`;
-    if (dy > 65) {
-      isTorn = true;
-      isDragging = false;
-      playPaperTear();
-      paperEl.classList.add("torn-state");
-      handle.textContent = "✓ RECEIPT TORN / COLLECTED";
-      setTimeout(() => {
-        paperEl.classList.remove("torn-state");
-        paperEl.style.transform = "";
-        isTorn = false;
-        handle.textContent = "↓ DRAG DOWN TO TEAR OFF ↓";
-      }, 3500);
-    }
+    if (dy > 65) tear();
   });
 
   const onEnd = (e) => {
     if (!isDragging) return;
     isDragging = false;
-    if (!isTorn) paperEl.style.transform = "";
     try { handle.releasePointerCapture(e.pointerId); } catch {}
+    // A tap without a drag tears too.
+    if (!isTorn && Math.abs(e.clientY - startY) < 6 && e.type === "pointerup") return tear();
+    if (!isTorn) paperEl.style.transform = "";
   };
   handle.addEventListener("pointerup", onEnd);
   handle.addEventListener("pointercancel", onEnd);
