@@ -3588,11 +3588,12 @@ function renderProduct() {
       <div class="pdp-notes">${p.notes.map((n) => `<span class="chip">${n}</span>`).join("")}</div>
       ${options}
       ${p.gift ? `<label class="opt"><span class="opt-head mono-fine"><span>MESSAGE ON THE CARD · OPTIONAL</span></span><textarea class="pdp-msg" maxlength="120" placeholder="Happy Monday. The first one is on me." data-msg></textarea></label>` : ""}
+      <p class="pdp-total-line mono-fine" aria-hidden="true"><span>TOTAL</span><b id="pdp-total-m"></b></p>
       <div class="pdp-actions">
         <div class="pdp-total mono-fine"><span>TOTAL</span><b id="pdp-total"></b></div>
         <div class="qty" role="group" aria-label="Quantity"><button type="button" data-q="-1" aria-label="Decrease quantity">−</button><output id="pdp-qty" aria-live="polite">1</output><button type="button" data-q="1" aria-label="Increase quantity">+</button></div>
-        <button type="button" class="btn btn-line" id="pdp-add"><span>ADD TO BAG</span><span aria-hidden="true">+</span></button>
-        <button type="button" class="btn btn-solid" id="pdp-now">ORDER NOW ${ARROW_SVG}</button>
+        <button type="button" class="btn btn-line" id="pdp-add"><span>ADD<span class="lbl-long"> TO BAG</span></span><span aria-hidden="true">+</span></button>
+        <button type="button" class="btn btn-solid" id="pdp-now">ORDER<span class="lbl-long">&nbsp;NOW</span> ${ARROW_SVG}</button>
       </div>
       <div>
         <details class="acc" open><summary>DETAILS<i aria-hidden="true">+</i></summary><ul>${p.details.map(([k, v]) => `<li><span>${k}</span><span>${v}</span></li>`).join("")}</ul></details>
@@ -3628,6 +3629,8 @@ function updatePrice(immediate = false) {
   else pdpPrice.start({ v: unitNow }, { config: { duration: 420, easing: easeOutCubic } });
   $("#pdp-was", pdpEl).textContent = isSub(p, sel) ? money(basePrice(p, sel)) : "";
   $("#pdp-total", pdpEl).textContent = `${qty} × ${money(unitNow)} = ${money(unitNow * qty)}`;
+  const totalM = $("#pdp-total-m", pdpEl);
+  if (totalM) totalM.textContent = `${qty} × ${money(unitNow)} = ${money(unitNow * qty)}`;
   $("#pdp-qty", pdpEl).textContent = qty;
 }
 
