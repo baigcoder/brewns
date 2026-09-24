@@ -160,6 +160,17 @@ bun run kitchen:white --all    # redo them all from the originals
 
 It cuts each dish out of its background, centres it on a white 1000 px square with a soft shadow, and keeps the untouched original in `assets-src/kitchen/`. It runs on your own computer. The first run installs the cut-out model (about 300 MB) into `tools/kitchen-white/`, separately from the site's own install, so deploys stay small.
 
+### Sharper photos
+
+The Inside brewns photos are sharpened with Real-ESRGAN (`realesr-general-x4v3`), which recovers edges and removes blur and compression artefacts. It runs on the CPU with ONNX Runtime, no PyTorch or GPU needed:
+
+```bash
+pip install onnx onnxruntime pillow numpy
+python scripts/upscale-photos.py public/assets/locations/inside
+```
+
+Each photo gets two sizes: `<name>.webp` (1400 px, for the page) and `<name>@2x.webp` (2400 px, for big screens and the full-screen viewer); the page picks the right one with `srcset`. Originals are kept in `assets-src/`. Sharpening can't fix what isn't in the photo, such as misspelled signage in AI-made images.
+
 ### Bag and cup pictures
 
 The coffee bags and cups in the shop grid are pictures rendered from the 3D packaging, stored in `public/assets/shop/snap/`, so visitors' phones don't render them with WebGL. After changing the packaging (`pdp3dEngine.ts` or `models.glb`), run the dev server, then:
