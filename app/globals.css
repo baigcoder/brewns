@@ -1273,6 +1273,31 @@ address { font-style: normal; }
 .pcard-add { display: flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding-inline: 0.75rem; border: 1px solid rgb(255 255 255 / 0.3); font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: var(--letter-spacing-label); text-transform: uppercase; white-space: nowrap; transition: background-color 200ms, color 200ms, border-color 200ms; }
 .pcard-add:hover { background: #fff; color: #070707; border-color: #fff; }
 .pcard-add.done { background: var(--accent); border-color: var(--accent); color: #070707; }
+/* phones: two compact cards a row instead of one tall card, so the shop is a
+   browse, not a scroll marathon; the featured bag keeps the full width */
+@media (max-width: 639.98px) {
+  .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .shop-grid > li.feature { grid-column: 1 / -1; }
+  .shop-grid > li:not(.feature) .pcard { min-height: 0; padding: 0.625rem; }
+  .shop-grid > li:not(.feature) .pcard-top > span:last-child:not(.pcard-tag) { display: none; }
+  .shop-grid > li:not(.feature) .pcard-tag { font-size: 0.5625rem; padding-inline: 0.4rem; white-space: nowrap; }
+  .shop-grid > li:not(.feature) .pcard-media { min-height: 0; aspect-ratio: 1; margin-block: 0.5rem; }
+  .shop-grid > li:not(.feature) .pcard-media img, .shop-grid > li:not(.feature) .pcard-media .giftcard { max-width: 100%; max-height: 100%; }
+  .shop-grid > li:not(.feature) .pcard-media img.shot { width: 100%; height: 100%; object-fit: cover; }
+  .shop-grid > li:not(.feature) .pcard-foot { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .shop-grid > li:not(.feature) .pcard-name { font-size: 0.9375rem; line-height: 1.05; }
+  .shop-grid > li:not(.feature) .pcard-meta { display: none; }
+  .shop-grid > li:not(.feature) .pcard-buy { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.375rem; }
+  .shop-grid > li:not(.feature) .pcard-price { font-size: 0.8125rem; }
+  .shop-grid > li:not(.feature) .pcard-price .mono-fine { display: none; }
+  .shop-grid > li:not(.feature) .pcard-add { height: 2.25rem; padding-inline: 0.5rem; }
+  .shop-grid > li > .lean, .shop-grid > li > .lean > div { flex: 1; min-width: 0; display: flex; }
+  .shop-grid > li:not(.feature) .pcard-top:has(.pcard-tag) > span:first-child { display: none; }
+  .shop-grid > li:not(.feature) .giftcard { width: 92%; border-radius: 0.5rem; }
+  .shop-grid > li:not(.feature) .giftcard .gc-mark { left: 0.6rem; top: 0.6rem; width: 3.5rem; height: 0.75rem; }
+  .shop-grid > li:not(.feature) .giftcard .gc-label { display: none; }
+  .shop-grid > li:not(.feature) .giftcard .gc-amount { right: 0.6rem; bottom: 0.5rem; font-size: 0.9rem; }
+}
 
 .giftcard { position: relative; width: 17rem; aspect-ratio: 1.586; border-radius: 0.875rem; overflow: hidden; background: linear-gradient(135deg, #d58c3d 0%, #6e3e22 55%, #2a1a0f 100%); box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 0.45); transform: rotate(-6deg); color: #fff; }
 .giftcard .gc-swirl { position: absolute; inset: -20% -60% -20% -10%; background: rgb(255 255 255 / 0.1); }
@@ -2800,3 +2825,9 @@ nextjs-portal,
 .trk-stats div { padding: 0.5rem 0.65rem; border-radius: 8px; background: rgb(12 9 7 / 0.78); backdrop-filter: blur(6px); }
 .trk-stats dt { color: rgb(255 255 255 / 0.5); font-size: 0.6rem; }
 .trk-stats dd { margin: 0.15rem 0 0; font-family: var(--font-space-mono); font-size: 0.95rem; color: #d8b777; }
+
+/* touch screens: small controls get a finger-sized hit area */
+@media (pointer: coarse) {
+  .card-quick-add { padding: 0.6rem 0.75rem; font-size: 0.6875rem; }
+  .hdr-bag { padding-block: 0.625rem; margin-block: -0.625rem; }
+}
