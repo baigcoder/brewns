@@ -1979,7 +1979,8 @@ nextjs-portal,
 .full-menu-dialog {
   position: fixed;
   inset: 0;
-  z-index: 68;
+  /* Above the shared veil (70), which would otherwise blur and block it. */
+  z-index: 72;
   display: flex;
   justify-content: center;
   align-items: center;

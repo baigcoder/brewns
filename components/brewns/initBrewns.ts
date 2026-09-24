@@ -19,6 +19,7 @@ import {
   triggerHaptic
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
+import { foodArt } from './foodArt';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 
 
@@ -683,6 +684,99 @@ const PRESET = {
   "rule-y": () => [{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }],
 };
 
+/* ═══════════ the kitchen: burgers, pasta, rolls, pizza, coolers ═══════════
+   One list feeds the menu cards, the shop, the full menu and the product pages.
+   Each dish is drawn (foodArt.ts) rather than photographed. Prices are rupees. */
+const MEAL = { key: "meal", label: "MAKE IT A MEAL", choices: [["JUST THE BURGER", 0], ["+ FRIES & DRINK", 450]] };
+const SPICE = { key: "spice", label: "SPICE", def: 1, choices: [["MILD", 0], ["MEDIUM", 0], ["HOT", 0]] };
+const PIZZA_SIZE = { key: "size", label: "SIZE", def: 1, choices: [['8"', -600], ['10"', 0], ['12"', 700]] };
+const COOLER_SIZE = { key: "size", label: "SIZE", choices: [["REGULAR", 0], ["LARGE", 150]] };
+const KITCHEN = [
+  { id: "smash-burger", name: "CLASSIC SMASH BURGER", menuCat: "burgers", art: ["burger", "smash"], tag: "HOUSE FAVOURITE", price: 1350,
+    meta: "DOUBLE SMASHED BEEF · CHEDDAR · HOUSE SAUCE", notes: ["JUICY", "CRISPY EDGES"],
+    desc: "Two beef patties smashed thin on a hot griddle so the edges crisp, melted cheddar, pickles and our house sauce in a toasted brioche bun.",
+    options: [MEAL, { key: "extra", label: "EXTRA", choices: [["NONE", 0], ["+ CHEESE", 150], ["+ PATTY", 400]] }],
+    details: [["PATTY", "2 × 90 G BEEF"], ["BUN", "BRIOCHE"], ["SERVED", "WITH A PICKLE"]] },
+  { id: "zinger-burger", name: "CRISPY ZINGER BURGER", menuCat: "burgers", art: ["burger", "zinger"], price: 1150,
+    meta: "BUTTERMILK FRIED CHICKEN · SLAW · MAYO", notes: ["CRUNCHY", "SPICY"],
+    desc: "A thick fillet brined in buttermilk, fried to a loud crunch, with crisp lettuce, garlic mayo and a little heat.",
+    options: [MEAL, SPICE], details: [["FILLET", "CHICKEN THIGH"], ["COATING", "DOUBLE-DIPPED"], ["BUN", "SESAME"]] },
+  { id: "bbq-burger", name: "SMOKY BBQ BEEF BURGER", menuCat: "burgers", art: ["burger", "bbq"], price: 1550,
+    meta: "BEEF · ONION RINGS · SMOKED BBQ", notes: ["SMOKY", "STICKY"],
+    desc: "A thick beef patty glazed in smoked barbecue sauce, stacked with crisp onion rings and cheddar.",
+    options: [MEAL], details: [["PATTY", "180 G BEEF"], ["SAUCE", "HICKORY BBQ"], ["BUN", "BRIOCHE"]] },
+  { id: "alfredo-pasta", name: "CHICKEN ALFREDO FETTUCCINE", menuCat: "pasta", art: ["pasta", "alfredo"], price: 1450,
+    meta: "CREAM · PARMESAN · GRILLED CHICKEN", notes: ["CREAMY", "COMFORT"],
+    desc: "Fettuccine in a parmesan cream sauce with grilled chicken, black pepper and parsley.",
+    options: [{ key: "protein", label: "PROTEIN", choices: [["CHICKEN", 0], ["MUSHROOM", -150], ["PRAWN", 450]] }],
+    details: [["PASTA", "FETTUCCINE"], ["SAUCE", "PARMESAN CREAM"], ["SERVES", "ONE, GENEROUSLY"]] },
+  { id: "arrabbiata-pasta", name: "PENNE ARRABBIATA", menuCat: "pasta", art: ["pasta", "arrabbiata"], price: 1250,
+    meta: "TOMATO · GARLIC · CHILLI · BASIL", notes: ["FIERY", "VEGETARIAN"],
+    desc: "Penne in slow-cooked tomato with garlic and red chilli, finished with basil and olive oil.",
+    options: [SPICE, { key: "add", label: "ADD", choices: [["NOTHING", 0], ["+ CHICKEN", 300]] }],
+    details: [["PASTA", "PENNE RIGATE"], ["SAUCE", "TOMATO & CHILLI"], ["DIET", "VEGETARIAN"]] },
+  { id: "pesto-pasta", name: "PESTO CHICKEN FUSILLI", menuCat: "pasta", art: ["pasta", "pesto"], tag: "NEW", price: 1550,
+    meta: "BASIL PESTO · CHICKEN · PARMESAN", notes: ["FRESH", "HERBY"],
+    desc: "Fusilli tossed in basil pesto with grilled chicken, cherry tomatoes and shaved parmesan.",
+    options: [{ key: "protein", label: "PROTEIN", choices: [["CHICKEN", 0], ["NONE", -250]] }],
+    details: [["PASTA", "FUSILLI"], ["PESTO", "BASIL & PINE NUT"], ["TOP", "PARMESAN"]] },
+  { id: "tikka-roll", name: "CHICKEN TIKKA PARATHA ROLL", menuCat: "rolls", art: ["roll", "tikka"], tag: "LAHORE CLASSIC", price: 650,
+    meta: "CHARGRILLED TIKKA · MINT CHUTNEY · ONION", notes: ["SMOKY", "CHUTNEY"],
+    desc: "Chargrilled chicken tikka, pickled onion and mint chutney, rolled in a flaky paratha straight off the tawa.",
+    options: [SPICE, { key: "cheese", label: "CHEESE", choices: [["NO", 0], ["YES", 120]] }],
+    details: [["WRAP", "LACHHA PARATHA"], ["FILLING", "CHICKEN TIKKA"], ["CHUTNEY", "MINT & YOGURT"]] },
+  { id: "behari-roll", name: "BEHARI KEBAB ROLL", menuCat: "rolls", art: ["roll", "behari"], price: 700,
+    meta: "TENDER BEEF BEHARI · ONION · IMLI", notes: ["MELT-IN-MOUTH", "SPICED"],
+    desc: "Thin-sliced beef marinated overnight in papaya and spices, grilled soft, with onion and tamarind chutney in a paratha.",
+    options: [SPICE], details: [["MEAT", "BEEF, OVERNIGHT MARINADE"], ["WRAP", "PARATHA"], ["CHUTNEY", "IMLI"]] },
+  { id: "crispy-wrap", name: "CRISPY CHICKEN WRAP", menuCat: "rolls", art: ["roll", "crispy"], price: 850,
+    meta: "FRIED CHICKEN · LETTUCE · GARLIC MAYO", notes: ["CRUNCHY", "LIGHT"],
+    desc: "Crispy chicken strips, lettuce, tomato and garlic mayo in a toasted flour tortilla.",
+    options: [SPICE], details: [["WRAP", "FLOUR TORTILLA"], ["FILLING", "CRISPY STRIPS"], ["SAUCE", "GARLIC MAYO"]] },
+  { id: "margherita-pizza", name: "MARGHERITA PIZZA", menuCat: "pizza", art: ["pizza", "margherita"], price: 1650,
+    meta: "TOMATO · FIOR DI LATTE · BASIL", notes: ["CLASSIC", "VEGETARIAN"],
+    desc: "Hand-stretched dough, San Marzano-style tomato, fresh mozzarella and basil, baked hot until the crust blisters.",
+    options: [PIZZA_SIZE], details: [["DOUGH", "48-HOUR PROOF"], ["CHEESE", "FRESH MOZZARELLA"], ["DIET", "VEGETARIAN"]] },
+  { id: "fajita-pizza", name: "CHICKEN FAJITA PIZZA", menuCat: "pizza", art: ["pizza", "fajita"], tag: "BESTSELLER", price: 1850,
+    meta: "FAJITA CHICKEN · PEPPERS · ONION", notes: ["SPICED", "LOADED"],
+    desc: "Fajita-spiced chicken, green and red peppers and onion over mozzarella, the way Lahore likes it.",
+    options: [PIZZA_SIZE, { key: "crust", label: "CRUST", choices: [["CLASSIC", 0], ["CHEESE-STUFFED", 350]] }],
+    details: [["DOUGH", "48-HOUR PROOF"], ["TOPPING", "FAJITA CHICKEN"], ["CHEESE", "MOZZARELLA"]] },
+  { id: "pepperoni-pizza", name: "BEEF PEPPERONI PIZZA", menuCat: "pizza", art: ["pizza", "pepperoni"], price: 1950,
+    meta: "BEEF PEPPERONI · MOZZARELLA · OREGANO", notes: ["CRISPY CUPS", "SAVOURY"],
+    desc: "Halal beef pepperoni that curls and crisps in the oven, over tomato and plenty of mozzarella.",
+    options: [PIZZA_SIZE, { key: "crust", label: "CRUST", choices: [["CLASSIC", 0], ["CHEESE-STUFFED", 350]] }],
+    details: [["PEPPERONI", "HALAL BEEF"], ["DOUGH", "48-HOUR PROOF"], ["FINISH", "OREGANO"]] },
+  { id: "mint-margarita", name: "MINT MARGARITA", menuCat: "drinks", art: ["drink", "mint"], tag: "SUMMER", price: 550,
+    meta: "MINT · LIME · CRUSHED ICE", notes: ["COOLING", "ZESTY"],
+    desc: "Fresh mint and lime blended with crushed ice and a pinch of chaat masala. Alcohol-free, like everything we pour.",
+    options: [COOLER_SIZE], details: [["BASE", "FRESH MINT & LIME"], ["ICE", "CRUSHED"], ["FINISH", "CHAAT MASALA"]] },
+  { id: "peach-iced-tea", name: "PEACH ICED TEA", menuCat: "drinks", art: ["drink", "peach"], price: 600,
+    meta: "BLACK TEA · PEACH · LEMON", notes: ["LIGHT", "FRUITY"],
+    desc: "Black tea brewed strong, chilled, with peach and a squeeze of lemon.",
+    options: [COOLER_SIZE, { key: "sweet", label: "SWEETNESS", def: 1, choices: [["LESS", 0], ["REGULAR", 0], ["EXTRA", 0]] }],
+    details: [["TEA", "BLACK, COLD-STEEPED"], ["FRUIT", "PEACH"], ["SERVED", "OVER ICE"]] },
+  { id: "mango-smoothie", name: "MANGO SMOOTHIE", menuCat: "drinks", art: ["drink", "mango"], price: 750,
+    meta: "CHAUNSA MANGO · YOGURT · HONEY", notes: ["THICK", "SEASONAL"],
+    desc: "Ripe mango blended with yogurt and a little honey. Chaunsa in season.",
+    options: [COOLER_SIZE, { key: "milk", label: "BASE", choices: [["YOGURT", 0], ["OAT MILK", 150]] }],
+    details: [["FRUIT", "MANGO"], ["BASE", "YOGURT"], ["SWEETENER", "HONEY"]] },
+  { id: "lime-soda", name: "FRESH LIME SODA", menuCat: "drinks", art: ["drink", "lime"], price: 450,
+    meta: "LIME · SODA · SWEET OR SALTED", notes: ["FIZZY", "REFRESHING"],
+    desc: "Fresh lime over soda, sweet, salted or half-and-half, the way it's done across Lahore.",
+    options: [{ key: "style", label: "STYLE", choices: [["SWEET", 0], ["SALTED", 0], ["MIXED", 0]] }],
+    details: [["LIME", "FRESH-SQUEEZED"], ["SODA", "CHILLED"], ["STYLE", "YOUR CALL"]] },
+].map((k) => ({
+  ...k,
+  cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
+  photo: foodArt(k.art[0], k.art[1]),
+  alt: `An illustration of the brewns ${k.name.toLowerCase()}`,
+  care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
+}));
+const rs = (n) => `Rs ${n.toLocaleString("en-US")}`;
+// Photos are asset paths; drawn dishes arrive as data URIs.
+const photoSrc = (photo) => (photo.startsWith("data:") ? photo : `${ASSET_BASE_URL}${photo}`);
+
 /* ═══════════ generated markup: menu cards, footer columns ═══════════ */
 const ALL_MENU_CARDS = [
   { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "Rs 650", snap: "cup", size: [720, 720], frame: [170, 170, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns espresso in the short black-lidded brewns paper cup" },
@@ -697,6 +791,7 @@ const ALL_MENU_CARDS = [
   { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Slow Roast whole bean bag" },
   { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Ethiopia Yirgacheffe whole bean bag" },
   { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
+  ...KITCHEN.map((k) => ({ id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: k.photo, size: [800, 800], frame: [255, 255, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
 ];
 
 const cardHTML = (c, o) => {
@@ -707,7 +802,7 @@ const cardHTML = (c, o) => {
     <p class="card-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
     <div class="card-media${c.clip ? " clip" : ""}"><span><span class="card-par">
       <div class="still" style="width: calc(${w / 16}rem * var(--size-menu-still-scale)); max-width: var(--size-menu-still-max); aspect-ratio: ${w} / ${h}; bottom: calc(${bottom / 16}rem + var(--size-menu-still-lift)); margin-left: ${offsetX / 16}rem">
-        <img loading="lazy" decoding="async" ${c.snap ? `data-snap="${c.snap}" data-snap-product="${c.id}"` : `src="${ASSET_BASE_URL}menu/${c.file}"`} alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
+        <img loading="lazy" decoding="async" ${c.snap ? `data-snap="${c.snap}" data-snap-product="${c.id}"` : `src="${c.art || `${ASSET_BASE_URL}menu/${c.file}`}"`} alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
       </div>
     </span></span></div>
     <div class="card-foot">
@@ -2582,7 +2677,7 @@ const money = (n) => `Rs ${Math.round(n).toLocaleString("en-US")}`;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const ARROW_SVG = `<svg viewBox="0 0 12.2137 13.2551" fill="none" aria-hidden="true"><path d="M11.9501 7.26396C12.3016 6.91249 12.3016 6.34264 11.9501 5.99117L6.22254 0.263604C5.87107 -0.0878682 5.30122 -0.0878682 4.94975 0.263604C4.59828 0.615076 4.59828 1.18492 4.94975 1.5364L10.0409 6.62756L4.94975 11.7187C4.59828 12.0702 4.59828 12.6401 4.94975 12.9915C5.30122 13.343 5.87107 13.343 6.22254 12.9915L11.9501 7.26396ZM0 6.62756V7.52756H11.3137V6.62756V5.72756H0V6.62756Z" fill="currentColor"/></svg>`;
 
-const CAT_LABEL = { all: "ALL", beans: "BEANS", drinks: "DRINKS", bakery: "BAKERY", merch: "MERCH", gifts: "GIFTS" };
+const CAT_LABEL = { all: "ALL", beans: "BEANS", drinks: "DRINKS", kitchen: "KITCHEN", coolers: "COOLERS", bakery: "BAKERY", merch: "MERCH", gifts: "GIFTS" };
 const PICKUP_COPY = "Ready in about 12 minutes on MM Alam Road, in DHA Phase 5 or on Main Boulevard, Johar Town. Open daily 07:00–21:00. Show your order number at the pickup counter.";
 
 /* Option choices are [label, price delta, note]. `def` is the preselected index. */
@@ -2728,6 +2823,7 @@ const PRODUCTS = [
     details: [["DELIVERY", "EMAIL · INSTANT"], ["VALID", "ALL LOCATIONS"], ["EXPIRES", "NEVER"]],
     care: "Balances carry over between visits and never expire. Lost the email? Any barista can look it up by name.",
   },
+  ...KITCHEN,
 ];
 const productById = (id) => PRODUCTS.find((p) => p.id === id);
 const defaultSel = (p) => Object.fromEntries(p.options.map((o) => [o.key, o.def ?? 0]));
@@ -2873,7 +2969,7 @@ const thumbHTML = (p) =>
   p.gift
     ? `<span class="thumb dark">${giftcardHTML("")}</span>`
     : p.photo
-      ? `<span class="thumb"><img src="${ASSET_BASE_URL}${p.photo}" alt="" loading="lazy"></span>`
+      ? `<span class="thumb"><img src="${photoSrc(p.photo)}" alt="" loading="lazy"></span>`
       : `<span class="thumb dark"><img data-snap="${p.model}" data-snap-product="${p.id}" alt=""></span>`;
 /* Model-only products have no photograph: their pictures are rendered from the
    same .glb once three.js is up (asynchronously, so every part of the module exists). */
@@ -2901,7 +2997,7 @@ shopGrid.innerHTML = PRODUCTS.map((p, i) => {
   const media = p.gift
     ? giftcardHTML(money(p.price))
     : p.photo
-      ? `<span class="pcard-photo" aria-hidden="true"></span><img src="${ASSET_BASE_URL}${p.photo}" alt="${esc(p.alt)}" loading="lazy">`
+      ? `<span class="pcard-photo" aria-hidden="true"></span><img src="${photoSrc(p.photo)}" alt="${esc(p.alt)}" loading="lazy">`
       : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.alt || `A bag of brewns ${p.name.toLowerCase()} coffee beans`)}"><span class="pcard-loading" aria-hidden="true"></span>`;
   return `<li class="${p.feature ? "feature" : p.id === "cinnamon-roll" || p.id === "ceramic-tumbler" || p.gift ? "wide" : ""}" data-cat="${p.cat}"><div class="lean"><div>
     <article class="pcard" tabindex="0" role="link" aria-label="${esc(p.name)}, ${money(p.price)}" data-product="${p.id}">
@@ -3034,6 +3130,14 @@ const updateMenuDisplay = (immediate = false) => {
   menuCardsTrack.innerHTML = slice.map((c, idx) => cardHTML(c, idx)).join("");
   fillSnaps(menuCardsTrack);
   wireMenuCardEvents();
+  // Freshly drawn cards never pass through the page's in-view reveal, so their
+  // names would stay clipped; reveal them here.
+  $$("[data-iv]", menuCardsTrack).forEach((el, i) => {
+    const [from, to] = PRESET[el.dataset.iv](el);
+    const reveal = new Spring(from, styler(el));
+    if (immediate || REDUCED) reveal.set(to);
+    else reveal.start(to, { config: { duration: 700, easing: easeOutCubic }, delay: 120 + i * 45 });
+  });
 
   if (menuPageEl) menuPageEl.textContent = `${String(menuPage + 1).padStart(2, "0")} / ${String(totalPages).padStart(2, "0")}`;
   if (menuPrevBtn) (menuPrevBtn as HTMLButtonElement).disabled = menuPage === 0;
@@ -3385,7 +3489,7 @@ function mountMedia() {
   hint.textContent = view === "card" ? "MOVE TO TILT" : noHover() ? "TAP TO ZOOM" : "CLICK TO ZOOM";
   const wrap = document.createElement("div");
   wrap.className = `pdp-photo-wrap${pdpState.sel.warm === 1 ? " warmed-state" : ""}${pdpState.sel.glaze === 1 ? " extra-glaze-state" : ""}`;
-  wrap.innerHTML = view === "card" ? giftcardHTML(giftAmount(), true) : `<img class="pdp-photo" src="${ASSET_BASE_URL}${p.photo}" alt="${esc(p.alt)}">`;
+  wrap.innerHTML = view === "card" ? giftcardHTML(giftAmount(), true) : `<img class="pdp-photo" src="${photoSrc(p.photo)}" alt="${esc(p.alt)}">`;
   stage.append(wrap);
   const subject = wrap.firstElementChild;
 
@@ -3802,6 +3906,7 @@ veilEl.addEventListener("click", () => {
 
 function openBag() {
   if (hasLayer("bag")) return;
+  if (hasLayer("full-menu")) closeFullMenu();
   hideToast();
   renderBag();
   bagEl.hidden = false;
@@ -3838,6 +3943,11 @@ const FULL_MENU_SECTIONS = [
     cat: "bakery",
     items: PRODUCTS.filter((p) => p.cat === "bakery"),
   },
+  { title: "🍔 BURGERS", cat: "burgers", items: KITCHEN.filter((k) => k.menuCat === "burgers") },
+  { title: "🍕 WOOD-FIRED PIZZA", cat: "pizza", items: KITCHEN.filter((k) => k.menuCat === "pizza") },
+  { title: "🍝 PASTA", cat: "pasta", items: KITCHEN.filter((k) => k.menuCat === "pasta") },
+  { title: "🌯 ROLLS & WRAPS", cat: "rolls", items: KITCHEN.filter((k) => k.menuCat === "rolls") },
+  { title: "🍹 COOLERS & SHAKES", cat: "drinks", items: KITCHEN.filter((k) => k.menuCat === "drinks") },
   {
     title: "🫘 FRESH ROASTS & WHOLE BEAN",
     cat: "beans",
@@ -3849,6 +3959,8 @@ const FULL_MENU_SECTIONS = [
     items: PRODUCTS.filter((p) => p.cat === "merch" || p.cat === "gifts"),
   },
 ];
+
+const FULL_MENU_PILLS = { coffee: "COFFEE", specialty: "COLD BAR", bakery: "BAKERY", burgers: "BURGERS", pizza: "PIZZA", pasta: "PASTA", rolls: "ROLLS", drinks: "COOLERS", beans: "ROASTS", merch: "GEAR &amp; GIFTS" };
 
 function renderFullMenu() {
   if (!fullMenuEl) return;
@@ -3867,11 +3979,7 @@ function renderFullMenu() {
       </div>
       <div class="full-menu-pills" role="tablist" aria-label="Menu sections">
         <button type="button" class="full-menu-pill active" data-fsec="all">ALL (${totalCount})</button>
-        <button type="button" class="full-menu-pill" data-fsec="coffee">COFFEE (4)</button>
-        <button type="button" class="full-menu-pill" data-fsec="specialty">COLD BAR (2)</button>
-        <button type="button" class="full-menu-pill" data-fsec="bakery">BAKERY (3)</button>
-        <button type="button" class="full-menu-pill" data-fsec="beans">ROASTS (2)</button>
-        <button type="button" class="full-menu-pill" data-fsec="merch">GEAR &amp; GIFTS (2)</button>
+        ${FULL_MENU_SECTIONS.map((sec) => `<button type="button" class="full-menu-pill" data-fsec="${sec.cat}">${FULL_MENU_PILLS[sec.cat]} (${sec.items.length})</button>`).join("")}
       </div>
       <div class="full-menu-body" id="full-menu-body">
         ${FULL_MENU_SECTIONS.map((sec) => `
@@ -3884,7 +3992,7 @@ function renderFullMenu() {
               ${sec.items.map((p) => `
                 <article class="full-menu-item" data-fproduct="${p.id}" tabindex="0" role="button" aria-label="${p.name}, ${money(p.price)}">
                   <div class="full-menu-img-wrap">
-                    ${p.gift ? giftcardHTML(money(p.price)) : p.photo ? `<img src="${ASSET_BASE_URL}${p.photo}" alt="${esc(p.name)}" loading="lazy">` : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.name)}">`}
+                    ${p.gift ? giftcardHTML(money(p.price)) : p.photo ? `<img src="${photoSrc(p.photo)}" alt="${esc(p.name)}" loading="lazy">` : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.name)}">`}
                   </div>
                   <div class="full-menu-item-info">
                     <div class="full-menu-item-top">
