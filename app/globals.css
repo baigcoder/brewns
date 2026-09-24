@@ -2683,7 +2683,12 @@ nextjs-portal,
 .inside-h2 { font-family: var(--font-geist); font-weight: 700; font-size: clamp(2.6rem, 5vw, 4.25rem); line-height: 0.92; letter-spacing: var(--letter-spacing-tight); }
 .inside-lede { max-width: 26rem; font-family: var(--font-geist); font-weight: 600; line-height: 1.55; color: rgb(255 255 255 / 0.75); }
 .inside-shops { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.inside-shops span { padding: 0.4rem 0.75rem; border: 1px solid rgb(216 183 119 / 0.45); border-radius: 999px; font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.12em; color: #d8b777; }
+.inside-shops a { padding: 0.4rem 0.75rem; border: 1px solid rgb(216 183 119 / 0.45); border-radius: 999px; font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.12em; color: #d8b777; transition: background-color 200ms, color 200ms; }
+.inside-shops a:hover, .inside-shops a:focus-visible { background: #d8b777; color: #0b0806; outline: none; }
+.inside-foot { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 0.5rem; padding-top: 1.25rem; border-top: 1px solid rgb(216 183 119 / 0.2); }
+.inside-hint { font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.14em; color: rgb(255 255 255 / 0.5); }
+.inside-cta { display: inline-flex; align-items: center; gap: 0.5rem; width: fit-content; padding-bottom: 0.3rem; border-bottom: 1px solid currentColor; font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: 0.14em; color: #d8b777; transition: color 200ms, gap 200ms; }
+.inside-cta:hover, .inside-cta:focus-visible { color: #fff; gap: 0.8rem; outline: none; }
 .inside-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 11rem; gap: 0.75rem; }
 @media (min-width: 800px) { .inside-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 12.5rem; gap: 1rem; } }
 .inside-tile { position: relative; margin: 0; overflow: hidden; border-radius: 6px; background: #1a130e; }
@@ -2700,6 +2705,13 @@ nextjs-portal,
 }
 .inside-tile:hover figcaption { transform: none; opacity: 1; }
 .inside-tile figcaption b { font-weight: 400; color: #fff; letter-spacing: 0.14em; }
+/* phones: the small tiles keep just the number and the room, so the caption
+   doesn't cover the photo; the full line is in the viewer */
+@media (max-width: 799.98px) {
+  .inside-grid { grid-auto-rows: 12rem; gap: 0.5rem; }
+  .inside-tile figcaption { padding: 2.25rem 0.75rem 0.7rem; background: linear-gradient(to top, rgb(0 0 0 / 0.8), transparent); }
+  .inside-tile:not(.big):not(.wide) figcaption > span:last-child { display: none; }
+}
 .inside-n { color: #d8b777; }
 .inside-box { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: 4.5rem 1rem 2rem; background: rgb(7 7 7 / 0.92); backdrop-filter: blur(6px); }
 .inside-box[hidden] { display: none; }

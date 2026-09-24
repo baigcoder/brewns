@@ -42,6 +42,8 @@ const PUBLIC = path.join(ROOT, 'public/assets/kitchen');
 const ORIGINALS = path.join(ROOT, 'assets-src/kitchen');
 const SIZE = 1000; // output square, px
 const FILL = 0.8; // how much of the square the dish fills
+const HAZE = 40; // alpha below this is haze, not dish (0–255)
+const MIN_PART = 0.08; // a separate bit smaller than this share of the dish is dropped
 const MIME = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
 
 const redoAll = process.argv.includes('--all');
@@ -67,22 +69,70 @@ for (const name of todo) {
   const input = await sharp(readFileSync(original)).rotate().png().toBuffer();
   const cut = Buffer.from(await (await removeBackground(new Blob([input], { type: 'image/png' }), { model: 'medium', output: { format: 'image/png' } })).arrayBuffer());
 
-  // crop to the dish (ignoring faint haze), then size it to the square
+  // clean the cut-out: drop faint haze, and drop separate bits well away from
+  // the dish (a glass in the background, a stray chip) that are much smaller
+  // than it, then crop to what is left
   const { data, info } = await sharp(cut).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  let x0 = info.width, y0 = info.height, x1 = -1, y1 = -1;
-  for (let y = 0; y < info.height; y++)
-    for (let x = 0; x < info.width; x++)
-      if (data[(y * info.width + x) * 4 + 3] > 24) {
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        if (y > y1) y1 = y;
-      }
-  if (x1 < 0) {
+  const W = info.width, H = info.height, N = W * H;
+  for (let i = 0; i < N; i++) if (data[i * 4 + 3] < HAZE) data[i * 4 + 3] = 0;
+  const part = new Int32Array(N).fill(-1);
+  const parts = [];
+  const stack = new Int32Array(N);
+  for (let i = 0; i < N; i++) {
+    if (part[i] !== -1 || !data[i * 4 + 3]) continue;
+    const id = parts.length;
+    const box = { area: 0, x0: W, y0: H, x1: 0, y1: 0 };
+    let top = 0;
+    stack[top++] = i;
+    part[i] = id;
+    while (top) {
+      const j = stack[--top], x = j % W, y = (j - x) / W;
+      box.area++;
+      if (x < box.x0) box.x0 = x;
+      if (x > box.x1) box.x1 = x;
+      if (y < box.y0) box.y0 = y;
+      if (y > box.y1) box.y1 = y;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const k = ny * W + nx;
+          if (part[k] === -1 && data[k * 4 + 3]) {
+            part[k] = id;
+            stack[top++] = k;
+          }
+        }
+    }
+    parts.push(box);
+  }
+  if (!parts.length) {
     console.log('nothing found to cut out, skipped');
     continue;
   }
-  const dish = await sharp(cut)
+  const main = parts.reduce((m, p) => (p.area > m.area ? p : m));
+  const gap = Math.max(main.x1 - main.x0, main.y1 - main.y0) * 0.06;
+  const keep = parts.map(
+    (p) =>
+      p === main ||
+      (p.area >= main.area * MIN_PART &&
+        // touching or tucked against the dish, like a garnish or a sauce pot beside it
+        p.x0 <= main.x1 + gap && p.x1 >= main.x0 - gap && p.y0 <= main.y1 + gap && p.y1 >= main.y0 - gap),
+  );
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let i = 0; i < N; i++) {
+    if (!data[i * 4 + 3]) continue;
+    if (!keep[part[i]]) {
+      data[i * 4 + 3] = 0;
+      continue;
+    }
+    const x = i % W, y = (i - x) / W;
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  const cleaned = await sharp(data, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+  const dish = await sharp(cleaned)
     .extract({ left: x0, top: y0, width: x1 - x0 + 1, height: y1 - y0 + 1 })
     .resize({ width: Math.round(SIZE * FILL), height: Math.round(SIZE * FILL), fit: 'inside' })
     .png()
