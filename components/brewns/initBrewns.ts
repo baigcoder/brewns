@@ -20,6 +20,7 @@ import {
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
+import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 
 
@@ -4161,7 +4162,7 @@ function renderBag() {
   const focusedAction = document.activeElement?.dataset?.bq;
   bagEl.innerHTML = `
     <div class="bag-head"><p class="bag-title">YOUR BAG<sup>${String(n).padStart(2, "0")}</sup></p><button type="button" class="x-btn" aria-label="Close bag"></button></div>
-    <div class="bag-list">${list}</div>
+    <div class="bag-list">${list}${ordersHTML()}</div>
     ${
       items.length
         ? `<div class="bag-foot">
@@ -4202,7 +4203,28 @@ bagEl.addEventListener("click", (e) => {
     closeBag();
     openCheckout();
   }
+  const track = t.closest("[data-track]");
+  if (track) return openTracking(+track.dataset.track);
+  const again = t.closest("[data-reorder]");
+  if (again) {
+    const o = readStore("brewns-orders", []).find((x) => x.number === +again.dataset.reorder);
+    o?.items.forEach((it) => cart.add(it.id, it.sel, it.qty));
+    return;
+  }
 });
+/* Recent orders under the bag: status, track, order again. */
+function ordersHTML() {
+  const orders = readStore("brewns-orders", []).slice(0, 4);
+  if (!orders.length) return "";
+  return `<div class="bag-orders"><p class="mono-fine" style="color:rgb(255 255 255/.5)"><span class="sl">//</span><span class="sls"> </span>YOUR ORDERS</p>${orders
+    .map((o) => {
+      const st = timeline(o, LOC_TITLES[o.loc]);
+      const status = o.cancelled ? "CANCELLED" : o.collected ? "COLLECTED" : st[currentStage(o, st)].label;
+      const d = new Date(o.placed);
+      return `<div class="bag-order"><div><p class="bag-item-name">#${String(o.number).padStart(5, "0")} · ${money(o.totals.total)}</p><p class="bag-item-opts mono-fine">${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} · ${o.mode === "delivery" ? "DELIVERY" : "PICKUP"} · ${status}</p></div><button type="button" class="pcard-add" data-track="${o.number}">${isActive(o) ? "TRACK" : "VIEW"}</button><button type="button" class="pcard-add" data-reorder="${o.number}">AGAIN</button></div>`;
+    })
+    .join("")}</div>`;
+}
 cart.subscribe(() => hasLayer("bag") && renderBag());
 
 /* ═══════════ checkout ═══════════ */
@@ -4212,6 +4234,8 @@ const LOCS = [["MM ALAM ROAD", "GULBERG III, LAHORE"], ["CCA, DHA PHASE 5", "DHA
 // The same shops as they read in a sentence.
 const LOC_TITLES = ["MM Alam Road", "CCA, DHA Phase 5", "Main Boulevard, Johar Town"];
 const TAX = 0.16, PREP_MIN = 12, OPEN_MIN = 7 * 60, CLOSE_MIN = 21 * 60;
+// Printed on receipts once filled in (FBR registration numbers).
+const BUSINESS = { ntn: "", strn: "" };
 /* Punjab taxes restaurant bills at 16%, and at 5% when they are paid by card or
    a mobile wallet; the checkout shows whichever applies to the method chosen. */
 const TAX_CARD = 0.05;
@@ -4440,6 +4464,94 @@ function renderCheckout({ animate = true } = {}) {
   if (animate) staggerIn($$(".co-main > *", coEl), 140);
 }
 
+/* ═══════════ after the order: live tracking, messages, receipt ═══════════
+   The flow itself (stages, times, rider, replies) lives in orderLive.ts. */
+const SHOP_CODES = ["MMA", "DHA", "JTN"];
+const SHOP_PHONE = "+924212345678";
+const SHOP_WHATSAPP = "924212345678";
+const stageTime = (at) => {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+const orderLines = (o) =>
+  o.items.map((it) => {
+    const p = productById(it.id);
+    const unit = unitPrice(p, it.sel);
+    return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * it.qty };
+  });
+const saveOrder = (o) => writeStore("brewns-orders", readStore("brewns-orders", []).map((x) => (x.number === o.number ? o : x)));
+const chatKey = (o) => `brewns-chat-${o.number}`;
+const readChat = (o) => readStore(chatKey(o), { messages: [], said: [], seen: 0 });
+const writeChat = (o, c) => writeStore(chatKey(o), c);
+const orderWhere = (o) => (o.mode === "delivery" ? `${o.address}, ${DELIVERY.areas[o.area][0]}, Lahore` : `${LOC_TITLES[o.loc]}, Lahore`);
+const orderWhen = (o) => `${o.pickupAt.tomorrow ? "tomorrow " : ""}${hhmm(o.pickupAt.t)}`;
+const isActive = (o) => {
+  if (o.cancelled || o.collected) return false;
+  const st = timeline(o, LOC_TITLES[o.loc]);
+  return st[currentStage(o, st)].key !== (o.mode === "delivery" ? "delivered" : "collected");
+};
+
+// The same bars as orderBars(), as SVG so they survive print and download.
+const barRects = (seed) => {
+  let s = Math.imul(seed, 2654435761) >>> 0;
+  const next = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+  let x = 0, out = "";
+  while (x < 293) {
+    const w = next() < 0.55 ? 1 : 2.5;
+    if (next() > 0.22) out += `<rect x="${x.toFixed(1)}" width="${w}" height="38" fill="#111"/>`;
+    x += w + 1;
+  }
+  return out;
+};
+
+/* The tax invoice: one standalone page, used for the modal, print and download. */
+function receiptDoc(o) {
+  const st = timeline(o, LOC_TITLES[o.loc]);
+  const now = currentStage(o, st);
+  const done = st[now].key === "delivered" || st[now].key === "collected" || o.collected;
+  const d = new Date(o.placed);
+  const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${stageTime(o.placed)}`;
+  const lines = orderLines(o);
+  const t = o.totals;
+  const row = (a, b, cls = "") => `<div class="r ${cls}"><span>${a}</span><span>${b}</span></div>`;
+  const reached = st.filter((s, k) => k <= now && k > 0).map((s) => row(s.label, stageTime(s.at), "dim")).join("");
+  const body = `<main class="rc">
+    <h1>BREWNS COFFEE HOUSE</h1>
+    <p class="c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
+    ${BUSINESS.ntn ? `<p class="c">NTN ${BUSINESS.ntn}${BUSINESS.strn ? ` · STRN ${BUSINESS.strn}` : ""}</p>` : ""}
+    <h2>SALES TAX INVOICE</h2>
+    ${row("INVOICE", invoiceNo(o, SHOP_CODES[o.loc]))}
+    ${row("DATE", date)}
+    ${row("ORDER", `#${String(o.number).padStart(5, "0")} · ${o.mode === "delivery" ? "DELIVERY" : "PICKUP"}`)}
+    ${row("CUSTOMER", esc(o.name.toUpperCase()))}
+    ${row("MOBILE", esc(o.phone))}
+    ${o.mode === "delivery" ? `<p class="addr">DELIVER TO: ${esc(o.address.toUpperCase())}, ${DELIVERY.areas[o.area][0]}, LAHORE</p>` : ""}
+    <hr>
+    ${lines.map((l) => `<div class="r"><span>${l.qty} × ${esc(l.name)}</span><span>${money(l.total)}</span></div><div class="r dim"><span>${esc(l.opts)}</span><span>@ ${money(l.unit)}</span></div>`).join("")}
+    <hr>
+    ${row("SUBTOTAL", money(t.sub))}
+    ${t.discount ? row("PROMO BREWNS10", `−${money(t.discount)}`) : ""}
+    ${o.mode === "delivery" ? row("DELIVERY FEE", t.fee ? money(t.fee) : "FREE") : ""}
+    ${row("VALUE EXCL. TAX", money(t.sub - t.discount + (t.fee || 0)))}
+    ${row(`PUNJAB SALES TAX ${Math.round(t.rate * 100)}%`, money(t.tax))}
+    ${row("TOTAL", money(t.total), "big")}
+    ${row("PAYMENT", `${PAY[o.pay][0]} · ${o.cancelled ? "CANCELLED" : done ? "PAID" : o.mode === "delivery" ? "DUE ON DELIVERY" : "DUE AT PICKUP"}`)}
+    ${o.note ? `<p class="addr">NOTE: ${esc(o.note.toUpperCase())}</p>` : ""}
+    <hr>
+    ${row("PLACED", stageTime(o.placed), "dim")}${reached}
+    ${o.cancelled ? row("CANCELLED", stageTime(o.cancelled), "dim") : ""}
+    <svg class="bars" viewBox="0 0 296 38" preserveAspectRatio="none" aria-hidden="true">${barRects(o.number)}</svg>
+    <p class="c">THANK YOU. SKIP THE LINE, SEE YOU SOON.<br>BREWNS.COFFEE</p>
+  </main>`;
+  const css = `body{margin:0;background:#e9e6df;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;color:#111}
+    .rc{box-sizing:border-box;width:340px;margin:24px auto;padding:26px 22px;background:#f7f5ef;color:#111;text-align:left;text-transform:none;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.05em;line-height:1.7;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+    h1{margin:0;text-align:center;font-size:13px;letter-spacing:.16em}h2{margin:12px 0 8px;text-align:center;font-size:11px;letter-spacing:.2em;border-block:1px dashed #999;padding:4px 0}
+    .c{text-align:center;margin:4px 0}.r{display:flex;justify-content:space-between;gap:10px}.r span:last-child{text-align:right}.dim{color:#6b6b66}
+    .big{font-size:14px;font-weight:700;margin-top:6px}.addr{margin:6px 0}hr{border:0;border-top:1px dashed #999;margin:10px 0}
+    .bars{display:block;width:100%;height:38px;margin:14px 0 8px}@media print{body{background:#fff}.rc{box-shadow:none;margin:0 auto}}`;
+  return { body, css, html: `<!doctype html><html><head><meta charset="utf-8"><title>brewns receipt #${String(o.number).padStart(5, "0")}</title><style>${css}</style></head><body>${body}</body></html>` };
+}
+
 function renderDone() {
   const o = co.done;
   const loc = LOCS[o.loc];
@@ -4454,6 +4566,10 @@ function renderDone() {
       return `<div><span>${it.qty} × ${p.name}</span><span>${money(unitPrice(p, it.sel) * it.qty)}</span></div><div style="color:#5b5b58;margin-top:-3px"><span>${esc(selLabel(p, it.sel))}</span></div>`;
     })
     .join("");
+  const shop = LOC_TITLES[o.loc];
+  const stages = timeline(o, shop);
+  const r = riderFor(o);
+  const quick = QUICK_REPLIES[o.mode];
   coEl.innerHTML = `${coTop("CLOSE", true)}
     <div class="done">
       <div class="done-print" aria-hidden="true"><div class="done-machine">
@@ -4479,20 +4595,55 @@ function renderDone() {
         </div></div></div>
       </div></div>
       <div class="done-body">
-        <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · CONFIRMED</p>
-        <h2 class="done-h">${delivered ? `AT YOUR DOOR BY ${when}.` : `SEE YOU AT ${when}.`}</h2>
-        <p class="pdp-desc">${
-          delivered
-            ? `We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. ${LOC_TITLES[o.loc]} is making it now, and a rider will bring it to ${esc(o.address)}. They’ll call ${esc(o.phone)} when they’re outside. Pay ${PAY[o.pay][0].toLowerCase().replace("jazzcash / easypaisa", "by JazzCash or Easypaisa")} on arrival: ${money(o.totals.total)}.`
-            : `We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. Head to ${LOC_TITLES[o.loc]} — your order will be waiting at the pickup counter under ${num}. Pay ${money(o.totals.total)} ${o.pay === 0 ? "in cash" : o.pay === 1 ? "by card" : "by JazzCash or Easypaisa"} when you collect.`
-        }</p>
+        <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · <span id="trk-status">CONFIRMED</span></p>
+        <h2 class="done-h" id="trk-h">${delivered ? `AT YOUR DOOR BY ${when}.` : `SEE YOU AT ${when}.`}</h2>
+        <p class="pdp-desc" id="trk-sub"></p>
         <div class="done-eta">
           <div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="ring-bar" cx="50" cy="50" r="46" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="ring-num" aria-live="polite"><span><span id="ring-num">--</span><small id="ring-unit">MIN</small></span></div></div>
-          <div class="done-steps" style="flex:1">${["ORDER RECEIVED", "BARISTA ON IT", delivered ? "OUT FOR DELIVERY" : "READY FOR PICKUP"].map((s, i) => `<div class="done-step mono-fine" data-stage="${i}"><i></i>${s}</div>`).join("")}</div>
+          <ol class="trk-steps" id="trk-steps">${stages
+            .map((s, i) => `<li data-stage="${i}"><i></i><span class="trk-l"><b>${s.label}</b><small>${esc(s.detail)}</small></span><time class="mono-fine">${stageTime(s.at)}</time></li>`)
+            .join("")}</ol>
         </div>
-        <div class="done-actions"><button type="button" class="btn btn-solid" data-co="close">BACK TO BREWNS ${ARROW_SVG}</button>${
-          delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS ${ARROW_SVG}</a>`
-        }<a class="btn btn-line" href="tel:+924212345678">CALL THE SHOP</a></div>
+        ${
+          delivered
+            ? `<div class="trk-rider" id="trk-rider" hidden>
+            <span class="trk-avatar">${r.name.split(" ").map((w) => w[0]).join("")}</span>
+            <div><p><b>${r.name}</b> · ★ ${r.rating}</p><p class="mono-fine">YOUR RIDER · BIKE ${r.plate}</p></div>
+            <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button><a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
+          </div>
+          <div class="trk-map" aria-hidden="true"><svg viewBox="0 0 400 120">
+            <path d="M0 30 H400 M0 90 H400 M90 0 V120 M230 0 V120 M330 0 V120" stroke="rgb(255 255 255/.06)" stroke-width="14"/>
+            <path id="trk-route" d="M40 90 C 110 90, 120 30, 200 34 S 300 92, 360 40" stroke="rgb(216 183 119/.35)" stroke-width="3" stroke-dasharray="6 7" fill="none"/>
+            <circle cx="40" cy="90" r="9" fill="#d8b777"/><text x="30" y="112">${LOC_TITLES[o.loc].split(",")[0].toUpperCase()}</text>
+            <circle cx="360" cy="40" r="9" fill="#fff"/><text x="360" y="20" text-anchor="middle">YOU</text>
+            <g id="trk-bike"><circle r="11" fill="#d58c3d"/><path d="M-5 2 h10 M-3 -3 l3 5 l3 -5" stroke="#070707" stroke-width="2" fill="none"/></g>
+          </svg></div>`
+            : ""
+        }
+        <div class="done-actions">
+          <button type="button" class="btn btn-solid" data-co="chat">MESSAGE ${delivered ? "RIDER / CAFÉ" : "THE CAFÉ"} <span class="trk-badge" id="trk-badge" hidden>0</span></button>
+          <button type="button" class="btn btn-line" data-co="receipt">RECEIPT</button>
+        </div>
+        <div class="done-actions trk-small">
+          <a class="btn btn-line" id="trk-wa" target="_blank" rel="noopener">WHATSAPP</a>
+          <a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
+          ${delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS</a>`}
+          <button type="button" class="btn btn-line" data-co="collected" hidden>I'VE COLLECTED IT</button>
+          <button type="button" class="btn btn-line trk-cancel" data-co="cancel" hidden>CANCEL ORDER</button>
+        </div>
+        <div class="done-actions"><button type="button" class="btn btn-line" data-co="shop">KEEP SHOPPING</button><button type="button" class="btn btn-line" data-co="close">BACK TO BREWNS</button></div>
+        <p class="trk-demo mono-fine"><button type="button" data-co="ff">${o.ff ? "PREVIEWING AT FAST-FORWARD" : "PREVIEW THE WHOLE FLOW ⏩"}</button> · LIVE STATUS FOLLOWS THE CLOCK; MESSAGES ARE ANSWERED AUTOMATICALLY UNTIL THE CAFÉ IS CONNECTED.</p>
+      </div>
+      <aside class="chat" id="chat" hidden aria-label="Messages">
+        <div class="chat-head"><div><p><b>${delivered ? `${shop} · ${r.first}` : shop}</b></p><p class="mono-fine">ORDER ${num}</p></div><button type="button" class="x-btn" data-co="chat-close" aria-label="Close messages"></button></div>
+        <div class="chat-list" id="chat-list" aria-live="polite"></div>
+        <div class="chat-quick">${quick.map((q) => `<button type="button" data-quick="${esc(q)}">${esc(q)}</button>`).join("")}</div>
+        <form class="chat-form" data-chat><input name="msg" autocomplete="off" maxlength="200" placeholder="Message ${delivered ? "the rider or café" : "the café"}…" aria-label="Message"><button type="submit">SEND</button></form>
+      </aside>
+      <div class="rcpt" id="rcpt" hidden role="dialog" aria-modal="true" aria-label="Receipt">
+        <div class="rcpt-card"><div class="rcpt-paper" id="rcpt-paper"></div>
+          <div class="rcpt-actions"><button type="button" class="btn btn-solid" data-co="print">PRINT / SAVE AS PDF</button><button type="button" class="btn btn-line" data-co="download">DOWNLOAD</button><button type="button" class="btn btn-line" data-co="rcpt-close">CLOSE</button></div>
+        </div>
       </div>
     </div>`;
 
@@ -4511,25 +4662,164 @@ function renderDone() {
     REDUCED ? feed.set({ v: 1 }) : feed.start({ v: 1 }, { config: { duration: 2600, easing: easeOutCubic }, delay: 450 });
   });
   staggerIn($$(".done-body > *", coEl), 350);
+  $("#trk-wa", coEl).href = `https://wa.me/${SHOP_WHATSAPP}?text=${encodeURIComponent(whatsappText(o, orderLines(o), money, orderWhere(o), orderWhen(o)))}`;
 
+  const HEAD = delivered
+    ? { received: `AT YOUR DOOR BY ${when}.`, accepted: `AT YOUR DOOR BY ${when}.`, preparing: "BEING MADE FRESH.", rider: `${r.first.toUpperCase()} IS COLLECTING IT.`, onway: "ON ITS WAY.", arriving: "ALMOST THERE.", delivered: "DELIVERED. ENJOY." }
+    : { received: `SEE YOU AT ${when}.`, accepted: `SEE YOU AT ${when}.`, preparing: "BARISTA ON IT.", ready: "READY AT THE COUNTER.", collected: "ENJOY IT." };
+  const first = esc(titleCase(o.name.split(" ")[0]));
+  const SUB = delivered
+    ? {
+        received: `We’ve got it, ${first}. ${shop} will make it and a rider will bring it to ${esc(o.address)}.`,
+        accepted: `${shop} has accepted your order. Pay ${PAY[o.pay][0].toLowerCase()} on arrival: ${money(o.totals.total)}.`,
+        preparing: `It’s being made now. A rider is assigned just before it’s ready.`,
+        rider: `${r.name} (bike ${r.plate}) is heading to ${shop} to collect it.`,
+        onway: `${r.first} has your order and is on the way. Follow the map below.`,
+        arriving: `${r.first} is about 3 minutes away and will call ${esc(o.phone)} when outside.`,
+        delivered: `Delivered at ${stageTime(o.target)}. Thanks for ordering from brewns.`,
+      }
+    : {
+        received: `We’ve got it, ${first}. Head to ${shop}. Your order will wait at the pickup counter under ${num}.`,
+        accepted: `${shop} has accepted your order. Pay ${money(o.totals.total)} ${o.pay === 0 ? "in cash" : o.pay === 1 ? "by card" : "by JazzCash or Easypaisa"} when you collect.`,
+        preparing: `Your barista is making it now, timed to be fresh at ${when}.`,
+        ready: `It’s at the pickup counter at ${shop}. Show ${num} and it’s yours.`,
+        collected: `Collected. Thanks for ordering from brewns.`,
+      };
+
+  const chat = readChat(o);
+  let chatOpen = false;
+  const chatList = $("#chat-list", coEl);
+  const bubble = (m) =>
+    m.from === "system"
+      ? `<p class="chat-sys mono-fine">${esc(m.text)}</p>`
+      : `<div class="chat-msg ${m.from === "you" ? "me" : "them"}"><p>${m.from === "rider" ? `<b>${r.first}</b>` : m.from === "cafe" ? `<b>${shop}</b>` : ""}${esc(m.text)}</p><time class="mono-fine">${stageTime(m.t)}</time></div>`;
+  const drawChat = (typing = false) => {
+    chatList.innerHTML = chat.messages.map(bubble).join("") + (typing ? `<div class="chat-msg them typing"><p><span></span><span></span><span></span></p></div>` : "");
+    chatList.scrollTop = chatList.scrollHeight;
+    const unread = chat.messages.filter((m) => m.from !== "you" && m.from !== "system").length - chat.seen;
+    const badge = $("#trk-badge", coEl);
+    badge.hidden = chatOpen || unread <= 0;
+    badge.textContent = String(unread);
+  };
+  const post = (m) => {
+    chat.messages.push(m);
+    if (chatOpen) chat.seen = chat.messages.filter((x) => x.from !== "you" && x.from !== "system").length;
+    writeChat(o, chat);
+    drawChat();
+  };
+  const send = (text) => {
+    text = text.trim();
+    if (!text) return;
+    post({ from: "you", text, t: Date.now() });
+    drawChat(true);
+    setTimeout(() => post(autoReply(o, text, stages, shop)), 900 + Math.random() * 900);
+  };
+  const openChat = (open) => {
+    chatOpen = open;
+    $("#chat", coEl).hidden = !open;
+    if (open) {
+      chat.seen = chat.messages.filter((x) => x.from !== "you" && x.from !== "system").length;
+      writeChat(o, chat);
+      setTimeout(() => $(".chat-form input", coEl)?.focus(), 50);
+    }
+    drawChat();
+  };
+  const openReceipt = (open) => {
+    $("#rcpt", coEl).hidden = !open;
+    if (!open) return;
+    const doc = receiptDoc(o);
+    $("#rcpt-paper", coEl).innerHTML = `<style>${doc.css.replace(/body\{[^}]*\}/, "").replace(/@media print\{[^}]*\}\}/, "")}</style>${doc.body}`;
+  };
+  co.trk = { send, openChat, openReceipt };
+
+  const route = $("#trk-route", coEl), bike = $("#trk-bike", coEl);
   const tickRing = () => {
     const now = Date.now();
-    const left = Math.max(0, o.target - now);
-    const frac = 1 - left / Math.max(1, o.target - o.placed);
+    const t = orderNow(o, now);
+    const i = o.cancelled ? -1 : currentStage(o, stages, now);
+    const key = i >= 0 ? stages[i].key : "cancelled";
+    const left = Math.max(0, o.target - t);
+    const frac = o.cancelled ? 0 : 1 - left / Math.max(1, o.target - o.placed);
     $("#ring-bar", coEl)?.setAttribute("stroke-dashoffset", String(100 - frac * 100));
     const mins = Math.ceil(left / 60000);
     const numEl = $("#ring-num", coEl), unitEl = $("#ring-unit", coEl);
     if (!numEl) return;
-    if (!left) [numEl.textContent, unitEl.textContent] = ["NOW", "READY"];
+    if (o.cancelled) [numEl.textContent, unitEl.textContent] = ["—", "CANCELLED"];
+    else if (!left) [numEl.textContent, unitEl.textContent] = [delivered ? "HERE" : "NOW", delivered ? "DELIVERED" : "READY"];
     else if (mins >= 60) [numEl.textContent, unitEl.textContent] = [`${Math.floor(mins / 60)}H`, `${mins % 60} MIN`];
     else [numEl.textContent, unitEl.textContent] = [String(mins), "MIN"];
-    const stage = left === 0 ? 2 : now - o.placed > 4000 ? 1 : 0;
-    $$(".done-step", coEl).forEach((s) => s.classList.toggle("on", +s.dataset.stage <= stage));
+    $$("#trk-steps li", coEl).forEach((li, k) => {
+      li.classList.toggle("on", k <= i);
+      li.classList.toggle("now", k === i);
+    });
+    $("#trk-steps", coEl).classList.toggle("cancelled", !!o.cancelled);
+    $("#trk-status", coEl).textContent = o.cancelled ? "CANCELLED" : stages[i].label;
+    $("#trk-h", coEl).textContent = o.cancelled ? "ORDER CANCELLED." : HEAD[key];
+    $("#trk-sub", coEl).innerHTML = o.cancelled ? `Cancelled at ${stageTime(o.cancelled)}. Nothing was charged.` : SUB[key];
+    const cancel = $("[data-co='cancel']", coEl), got = $("[data-co='collected']", coEl);
+    cancel.hidden = !canCancel(o, stages, now);
+    if (got) got.hidden = delivered || o.cancelled || key !== "ready";
+    if (delivered) {
+      const riderStage = stages.findIndex((s) => s.key === "rider");
+      $("#trk-rider", coEl).hidden = o.cancelled || i < riderStage;
+      if (route && bike) {
+        const pt = route.getPointAtLength(route.getTotalLength() * riderProgress(o, stages, now));
+        bike.setAttribute("transform", `translate(${pt.x} ${pt.y})`);
+        bike.style.opacity = i >= stages.findIndex((s) => s.key === "onway") ? "1" : "0";
+      }
+    }
+    // What the café and rider say on their own as stages are reached.
+    if (!o.cancelled)
+      stages.slice(0, i + 1).forEach((s) => {
+        if (chat.said.includes(s.key)) return;
+        chat.said.push(s.key);
+        const m = stageMessage(o, s.key, shop);
+        if (m) post({ ...m, t: o.ff ? Date.now() : Math.min(Date.now(), s.at) });
+        else writeChat(o, chat);
+      });
   };
+  drawChat();
   tickRing();
   clearInterval(coTimer);
   coTimer = setInterval(tickRing, 1000);
 }
+
+/* Reopen an order's tracking from the bag or the live pill. */
+function openTracking(number) {
+  const o = readStore("brewns-orders", []).find((x) => x.number === number);
+  if (!o) return;
+  if (hasLayer("bag")) closeBag();
+  co = { step: 3, done: o, errors: {} };
+  renderCheckout();
+  if (hasLayer("checkout")) return;
+  coEl.hidden = false;
+  coEl.scrollTop = 0;
+  pushLayer("checkout", closeCheckout, coEl);
+  if (REDUCED) coClip.set({ clipPath: "inset(0% 0% 0% 0%)" });
+  else {
+    coClip.set({ clipPath: "inset(0% 0% 100% 0%)" });
+    coClip.start({ clipPath: "inset(0% 0% 0% 0%)" }, { config: { duration: 760, easing: easeOutQuart } });
+  }
+}
+
+/* A small pill on the page while an order is on its way. */
+const livePill = document.createElement("button");
+livePill.type = "button";
+livePill.className = "live-order";
+livePill.hidden = true;
+document.body.append(livePill);
+livePill.addEventListener("click", () => openTracking(+livePill.dataset.number));
+const tickPill = () => {
+  const o = readStore("brewns-orders", []).find((x) => isActive(x) && Date.now() - x.placed < 6 * 3600000);
+  livePill.hidden = !o || hasLayer("checkout");
+  if (!o) return;
+  const st = timeline(o, LOC_TITLES[o.loc]);
+  const left = Math.max(0, Math.ceil((o.target - orderNow(o)) / 60000));
+  livePill.dataset.number = String(o.number);
+  livePill.innerHTML = `<span class="dot" data-pulse></span><b>#${String(o.number).padStart(5, "0")}</b> ${st[currentStage(o, st)].label}${left ? ` · ${left} MIN` : ""}<span aria-hidden="true">→</span>`;
+};
+setInterval(tickPill, 2000);
+setTimeout(tickPill, 1500);
 
 function placeOrder() {
   const errors = {};
@@ -4571,6 +4861,48 @@ coEl.addEventListener("click", (e) => {
   const t = e.target;
   const act = t.closest("[data-co]")?.dataset.co;
   if (act === "close") return closeCheckout();
+  if (co.trk) {
+    if (act === "chat") return co.trk.openChat(true);
+    if (act === "chat-close") return co.trk.openChat(false);
+    if (act === "receipt") return co.trk.openReceipt(true);
+    if (act === "rcpt-close") return co.trk.openReceipt(false);
+    const quick = t.closest("[data-quick]");
+    if (quick) return co.trk.send(quick.dataset.quick);
+    const o = co.done;
+    if (act === "print" || act === "download") {
+      const { html } = receiptDoc(o);
+      if (act === "download") {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+        a.download = `brewns-receipt-${String(o.number).padStart(5, "0")}.html`;
+        a.click();
+        return setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      }
+      const w = window.open("", "_blank");
+      if (!w) return;
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      return setTimeout(() => w.print(), 250);
+    }
+    if (act === "cancel") {
+      if (!window.confirm("Cancel this order? The café hasn't started on it yet.")) return;
+      o.cancelled = Date.now();
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+    if (act === "collected") {
+      o.collected = orderNow(o);
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+    if (act === "ff") {
+      // Preview: run the rest of the flow in about a minute.
+      fastForward(o);
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+  }
   if (act === "back") {
     if (co.step === 2) {
       co.step = 1;
@@ -4642,6 +4974,12 @@ coEl.addEventListener("input", (e) => {
   }
 });
 coEl.addEventListener("submit", (e) => {
+  if (co?.trk && e.target.matches("[data-chat]")) {
+    e.preventDefault();
+    co.trk.send(e.target.msg.value);
+    e.target.msg.value = "";
+    return;
+  }
   if (!co || !e.target.matches("[data-promo]")) return;
   e.preventDefault();
   co.promo = e.target.promo.value.trim().toUpperCase();
