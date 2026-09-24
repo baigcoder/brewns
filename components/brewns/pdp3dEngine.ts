@@ -1351,7 +1351,13 @@ export const PACKAGING_POSE: Record<string, number> = { bag: -0.42, cup: Math.PI
  * sits in the 320px column at the left, which the pose turns to the lens.
  */
 type BagLabel = { script: string[]; notes: string[]; about: string[]; size: string };
-type CupLabel = { lines: [string, string]; option: (sel: Record<string, number>) => string };
+/* A product cup wears a coloured sleeve with the drink's name; the house cup
+   (hero, story) keeps the plain print. */
+type CupLabel = {
+  lines: [string, string];
+  option: (sel: Record<string, number>) => string;
+  sleeve?: { colour: string; ink: string; accent: string; size: number };
+};
 const HOUSE_BAG: BagLabel = {
   script: ['slow', 'roast'],
   notes: ['CARAMEL', 'BROWN SUGAR', 'ROASTED ALMOND'],
@@ -1371,8 +1377,8 @@ const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
       size: '',
     },
   },
-  latte: { cup: { lines: ['LATTE', 'SMOOTH. BALANCED.'], option: (sel) => ['8 OZ', '12 OZ', '16 OZ'][sel.size ?? 1] } },
-  espresso: { cup: { lines: ['ESPRESSO', 'SHORT. STRONG.'], option: (sel) => (sel.shots === 1 ? 'DOUBLE' : 'SINGLE') } },
+  latte: { cup: { lines: ['LATTE', 'SMOOTH · BALANCED · STEAMED'], option: (sel) => ['8 OZ', '12 OZ', '16 OZ'][sel.size ?? 1], sleeve: { colour: '#ecdfc6', ink: '#17130f', accent: '#a8763a', size: 92 } } },
+  espresso: { cup: { lines: ['ESPRESSO', 'SHORT · STRONG · ON DEMAND'], option: (sel) => (sel.shots === 1 ? 'DOUBLE SHOT' : 'SINGLE SHOT'), sleeve: { colour: '#8c4424', ink: '#f6ead6', accent: '#f1c98a', size: 66 } } },
 };
 const BAG_SIZES = ['250 G', '500 G', '1 KG'];
 
@@ -1494,12 +1500,63 @@ function paintBag(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, se
   }
 }
 
+/* The face the camera sees runs from about x 90 to 480 (centre 280) and y 170
+   to 695 of the 1536 × 921 atlas; everything that matters sits inside it. */
+function paintSleevedCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLabel, sel: Record<string, number>) {
+  const sv = label.sleeve!;
+  const surface = p === SURFACE;
+  const CX = 280;
+  // the sleeve, all the way round: corrugated card between two folded edges
+  ctx.fillStyle = surface ? 'rgb(0,235,0)' : sv.colour;
+  ctx.fillRect(0, 352, 1536, 196);
+  if (!surface) {
+    for (let x = 0; x < 1536; x += 9) {
+      ctx.fillStyle = x % 18 ? 'rgba(0,0,0,0.045)' : 'rgba(255,255,255,0.06)';
+      ctx.fillRect(x, 352, 4, 196);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(0, 352, 1536, 5);
+    ctx.fillRect(0, 543, 1536, 5);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(0, 357, 1536, 2);
+  }
+  // above the sleeve: wordmark and house line
+  drawWordmark(ctx, p.gold, CX - 150, 206, 300);
+  text(ctx, 'COFFEE HOUSE · LAHORE', CX, 312, p.cream, 17, 6, 'center');
+  rule(ctx, CX - 30, 330, CX + 30, 330, p.gold, 2);
+  // on the sleeve: the drink, big
+  const ink = surface ? SURFACE.cream : sv.ink;
+  const accent = surface ? SURFACE.gold : sv.accent;
+  ctx.fillStyle = ink;
+  ctx.font = `900 ${sv.size}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+  ctx.letterSpacing = '-2px';
+  ctx.textAlign = 'center';
+  ctx.fillText(label.lines[0], CX, 462);
+  ctx.letterSpacing = '0px';
+  ctx.textAlign = 'left';
+  rule(ctx, CX - 150, 486, CX + 150, 486, accent, 2);
+  text(ctx, label.lines[1], CX, 520, ink, 15, 3, 'center');
+  // below: size, and the promise
+  text(ctx, label.option(sel), CX - 18, 612, p.cream, 20, 2, 'right');
+  rule(ctx, CX, 588, CX, 640, p.gold, 2);
+  text(ctx, 'BREWED', CX + 18, 606, p.dim, 16, 2);
+  text(ctx, 'DAILY', CX + 18, 630, p.dim, 16, 2);
+  // a thin line of the house words round the foot
+  const band = 'BREWNS · GOOD COFFEE · NO WAITING · ';
+  for (let x = 0; x < 1536; x += 470) text(ctx, band, x, 676, p.gold, 13, 3);
+}
+
 function paintCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLabel, sel: Record<string, number>) {
   const k = ctx.canvas.width / 1536;
   ctx.fillStyle = p.ground;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.save();
   ctx.scale(k, k);
+  if (label.sleeve) {
+    paintSleevedCup(ctx, p, label, sel);
+    ctx.restore();
+    return;
+  }
   drawWordmark(ctx, p.gold, 72, 236, 296);
   text(ctx, 'COFFEE HOUSE', 220, 345, p.cream, 21, 7, 'center');
   rule(ctx, 86, 428, 356, 428, p.gold);
