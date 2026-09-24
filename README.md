@@ -96,7 +96,11 @@ chooses a model by product id:
 - **The iced drinks and the cinnamon roll** use real glTF assets:
   `public/assets/shop/iced-cup.glb` and `cinnamon-roll.glb`. Only the product
   that needs one downloads it, and both iced drinks share one file.
-- **The coffee bag and hot cup** come from `public/assets/hero/models.glb`.
+- **The coffee bag and hot cup** come from `public/assets/hero/models.glb`. Their print
+  (the dark edition: matte black stock, gold wordmark and rules, cream type) is
+  not the file's own texture. `dressPackaging` in `pdp3dEngine.ts` draws it at
+  runtime, per product, for the hero, the shop and every product view. Change
+  a product's name, notes or size on the pack in `PACKAGING_LABELS`.
 
 The glTF assets are generated from source, not hand-modelled. They are not
 meant to be edited directly:
