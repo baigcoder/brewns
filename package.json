@@ -7,7 +7,7 @@
     "build": "next build",
     "build:models": "bun scripts/build-models.mjs",
     "snapshots": "node scripts/render-snapshots.mjs",
-    "kitchen:white": "bun scripts/kitchen-white-bg.mjs",
+    "kitchen:white": "node scripts/kitchen-white-bg.mjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"

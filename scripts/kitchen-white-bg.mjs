@@ -6,14 +6,31 @@
  *   bun run kitchen:white          new photos in public/assets/kitchen/
  *   bun run kitchen:white --all    redo every photo from its original
  *
+ * It runs under Node.js (bun run starts it with node): on Windows, Bun cannot
+ * load the image libraries it needs.
+ *
  * The untouched originals are kept in assets-src/kitchen/ (not served), so a
  * photo can always be redone. The first run downloads nothing: the cut-out
  * model ships inside @imgly/background-removal-node.
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
-import { removeBackground } from '@imgly/background-removal-node';
-import sharp from 'sharp';
+
+if (process.versions.bun && process.platform === 'win32') {
+  console.error(
+    [
+      'This step needs Node.js on Windows (Bun cannot load the image libraries there).',
+      '',
+      '  1. Install Node.js:   winget install OpenJS.NodeJS.LTS',
+      '     (or download the LTS installer from https://nodejs.org)',
+      '  2. Close and reopen PowerShell',
+      '  3. Run again:         bun run kitchen:white',
+    ].join('\n'),
+  );
+  process.exit(1);
+}
+const { removeBackground } = await import('@imgly/background-removal-node');
+const sharp = (await import('sharp')).default;
 
 const ROOT = process.cwd();
 const PUBLIC = path.join(ROOT, 'public/assets/kitchen');
