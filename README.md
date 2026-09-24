@@ -72,6 +72,7 @@ Data is defined inline in `components/brewns/initBrewns.ts`:
 |---|---|
 | `PRODUCTS` | The shop grid and product pages: prices, options, 3D model. |
 | `ALL_MENU_CARDS` | The menu section's cards. |
+| `KITCHEN` | Burgers, pizza, pasta, rolls and coolers: one list for the menu cards, shop, full menu and product pages. Their pictures are drawn in `foodArt.ts`. |
 | `FULL_MENU_SECTIONS` | The full café menu dialog. |
 | `REVIEWS`, `RATINGS`, `OVERHEARD` | The reviews section: slips, rating bars, ticker. |
 | `RECEIPT_ITEMS` | The sample order printed on the receipt. |
