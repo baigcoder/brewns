@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import './globals.css';
-import './sections.css';
 import { SITE_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -30,6 +31,18 @@ export const viewport: Viewport = {
   maximumScale: 5,
   themeColor: '#070707',
 };
+
+/* The later sections' styles (checkout, tracking, reviews, Inside brewns, sound,
+   the founder, the bill, the map) go straight into the page, after the main
+   stylesheet, instead of through the CSS build — so they always arrive, even if
+   a local build serves a stale or partial stylesheet. */
+function sectionsCss() {
+  try {
+    return readFileSync(path.join(process.cwd(), 'app/sections.css'), 'utf8');
+  } catch {
+    return '';
+  }
+}
 
 export default function RootLayout({
   children,
@@ -84,6 +97,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <style id="brewns-sections" dangerouslySetInnerHTML={{ __html: sectionsCss() }} />
         {children}
       </body>
     </html>
