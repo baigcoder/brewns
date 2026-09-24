@@ -14,6 +14,7 @@
  * model ships inside @imgly/background-removal-node.
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 if (process.versions.bun && process.platform === 'win32') {
@@ -29,8 +30,12 @@ if (process.versions.bun && process.platform === 'win32') {
   );
   process.exit(1);
 }
+// Use the very sharp the cut-out library uses. Loading a second, newer sharp
+// next to it breaks on Windows: both ship a libvips-42.dll, Windows reuses
+// whichever loaded first, and the other fails with "procedure not found".
+const require = createRequire(import.meta.url);
+const sharp = createRequire(require.resolve('@imgly/background-removal-node'))('sharp');
 const { removeBackground } = await import('@imgly/background-removal-node');
-const sharp = (await import('sharp')).default;
 
 const ROOT = process.cwd();
 const PUBLIC = path.join(ROOT, 'public/assets/kitchen');
