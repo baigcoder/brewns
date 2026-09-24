@@ -23,3 +23,7 @@ development, or the next build in production.
 
 Use only photos you have the rights to: your own shoot, or a library whose
 licence allows commercial use (Unsplash, Pexels).
+
+To put photos on a clean white background like the coffee shots (dish cut out,
+centred, soft shadow), run `python scripts/kitchen-white-bg.py` after adding
+them. The untouched originals are kept in `assets-src/kitchen/`.
