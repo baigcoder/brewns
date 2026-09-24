@@ -19,7 +19,7 @@ import {
   triggerHaptic
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
-import { createBakeryModel, createIcedGlassModel, createProduct3DModel } from './pdp3dEngine';
+import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 
 
 export function initBrewns(container: HTMLElement = document.body) {
@@ -2459,7 +2459,7 @@ const PICKUP_COPY = "Ready in about 12 minutes at 139 Coffee Street, 310 Valenci
 const MILK = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 0.5], ["ALMOND", 0.5]] };
 const PRODUCTS = [
   {
-    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 18, photo: "menu/menu-beans.webp", model: "bag", feature: true,
+    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 18, model: "bag", feature: true,
     meta: "250 G · WHOLE BEAN · COPENHAGEN", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
     desc: "Our house roast, taken slow and a shade past medium so the sugars caramelise without tipping into bitter. Sweet in milk, round and clean on its own.",
     options: [
@@ -2471,7 +2471,7 @@ const PRODUCTS = [
     care: "Roasted weekly in small batches and packed in a valved bag. Best within four weeks of the roast date printed on the back. Keep sealed, away from light and heat.",
   },
   {
-    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 22, photo: "menu/menu-single-origin.webp", model: "bag",
+    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 22, model: "bag",
     meta: "250 G · WASHED HEIRLOOM · 2100M", notes: ["JASMINE", "BERGAMOT", "WHITE PEACH"],
     desc: "Washed heirloom varieties from high-altitude smallholders in Yirgacheffe. A delicate, tea-like body with sparkling citrus acidity, jasmine florals and a sweet peach finish.",
     options: [
@@ -2483,7 +2483,7 @@ const PRODUCTS = [
     care: "Roasted weekly in small batches. Best within five weeks of roast date. Brew with 93°C water for optimal clarity.",
   },
   {
-    id: "latte", name: "LATTE", cat: "drinks", price: 4.2, photo: "menu/menu-latte.webp", model: "cup", alt: "A brewns latte cup with a heart poured into the foam",
+    id: "latte", name: "LATTE", cat: "drinks", price: 4.2, model: "cup", alt: "A brewns latte in the black-lidded brewns paper cup",
     meta: "12 OZ · BREWED DAILY · TO GO", notes: ["SMOOTH", "BALANCED"],
     desc: "A double shot of Slow Roast under steamed milk, poured with a heart on top. The one most of the city starts its morning with.",
     options: [
@@ -2495,7 +2495,7 @@ const PRODUCTS = [
     care: "Poured to order when you arrive, so it is never sitting on the counter. Lids are plant-based and the sleeve is recycled paper.",
   },
   {
-    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 2.5, photo: "menu/menu-espresso.webp", model: "cup", alt: "A brewns single-shot espresso cup",
+    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 2.5, model: "cup", alt: "A brewns espresso in the short black-lidded brewns paper cup",
     meta: "SINGLE SHOT · SHORT · STRONG", notes: ["DARK CHOCOLATE", "CARAMEL"],
     desc: "Short, strong and on demand. Eighteen grams in, a little under forty out, in about twenty-eight seconds.",
     options: [
@@ -2744,15 +2744,15 @@ const thumbHTML = (p) =>
     ? `<span class="thumb dark">${giftcardHTML("")}</span>`
     : p.photo
       ? `<span class="thumb"><img src="${ASSET_BASE_URL}${p.photo}" alt="" loading="lazy"></span>`
-      : `<span class="thumb dark"><img data-snap="${p.model}" alt=""></span>`;
+      : `<span class="thumb dark"><img data-snap="${p.model}" data-snap-product="${p.id}" alt=""></span>`;
 /* Model-only products have no photograph: their pictures are rendered from the
    same .glb once three.js is up (asynchronously, so every part of the module exists). */
 const fillSnaps = (rootEl) =>
   $$("img[data-snap]", rootEl).forEach((img) => {
-    const kind = img.dataset.snap;
+    const { snap: kind, snapProduct } = img.dataset;
     img.removeAttribute("data-snap");
     threeReady
-      .then(() => getSnapshot(kind))
+      .then(() => getSnapshot(kind, snapProduct))
       .then((url) => {
         img.src = url;
         img.parentElement.querySelector(".pcard-loading")?.remove();
@@ -2772,7 +2772,7 @@ shopGrid.innerHTML = PRODUCTS.map((p, i) => {
     ? giftcardHTML(money(p.price))
     : p.photo
       ? `<span class="pcard-photo" aria-hidden="true"></span><img src="${ASSET_BASE_URL}${p.photo}" alt="${esc(p.alt)}" loading="lazy">`
-      : `<img data-snap="${p.model}" alt="A bag of brewns ${esc(p.name.toLowerCase())} coffee beans"><span class="pcard-loading" aria-hidden="true"></span>`;
+      : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.alt || `A bag of brewns ${p.name.toLowerCase()} coffee beans`)}"><span class="pcard-loading" aria-hidden="true"></span>`;
   return `<li class="${p.feature ? "feature" : p.id === "cinnamon-roll" || p.id === "ceramic-tumbler" || p.gift ? "wide" : ""}" data-cat="${p.cat}"><div class="lean"><div>
     <article class="pcard" tabindex="0" role="link" aria-label="${esc(p.name)}, ${money(p.price)}" data-product="${p.id}">
       <div class="pcard-top mono-fine"><span>${String(i + 1).padStart(2, "0")}</span>${p.tag ? `<span class="pcard-tag chip"><span class="dot"></span>${p.tag}</span>` : `<span>${CAT_LABEL[p.cat]}</span>`}</div>
@@ -3384,48 +3384,6 @@ const loadProductAssets = () =>
       }),
   ));
 
-/* The file's pieces: the bag is the tallest piece of the bag + cup composition,
-   the cup is the scene whose every material is the cup's. Returned clone is one
-   unit tall and centred on the origin. */
-const extractPiece = (T, gltf, kind) => {
-  const meshesIn = (rootNode) => {
-    const found = [];
-    rootNode.traverse((n) => n.isMesh && found.push(n));
-    return found;
-  };
-  let source = null;
-  if (kind === "cup")
-    source = gltf.scenes.find((s) => {
-      const m = meshesIn(s);
-      return m.length && m.every((mesh) => [].concat(mesh.material).every((mat) => mat.name.startsWith("CupCoffee")));
-    });
-  if (!source) {
-    const composition = gltf.scenes.find((s) => meshesIn(s).length);
-    composition.updateMatrixWorld(true);
-    const pieces = composition.children
-      .filter((n) => meshesIn(n).length)
-      .map((n) => ({ n, h: new T.Box3().setFromObject(n).getSize(new T.Vector3()).y }))
-      .sort((a, b) => b.h - a.h);
-    source = (kind === "cup" ? pieces[1] : pieces[0]).n;
-  }
-  source.updateMatrixWorld(true);
-  const clone = source.clone(true);
-  source.matrixWorld.decompose(clone.position, clone.quaternion, clone.scale);
-  const holder = new T.Group();
-  holder.add(clone);
-  holder.updateMatrixWorld(true);
-  const box = new T.Box3().setFromObject(holder);
-  const size = box.getSize(new T.Vector3());
-  clone.position.sub(box.getCenter(new T.Vector3()));
-  const unitGroup = new T.Group();
-  unitGroup.scale.setScalar(1 / (size.y || 1));
-  unitGroup.add(holder);
-  return unitGroup;
-};
-
-/* Turns each piece's printed face to the lens. */
-const PIECE_POSE = { bag: -0.42, cup: Math.PI + 1.2 };
-
 const makeStudio = (T, renderer) => {
   const scene = new T.Scene();
   const pmrem = new T.PMREMGenerator(renderer);
@@ -3462,15 +3420,17 @@ const fitDistance = (camera, fill) => {
 };
 
 const snapCache = {};
-function getSnapshot(kind) {
-  return (snapCache[kind] ||= loadProductAssets().then(({ T, gltf }) => {
+function getSnapshot(kind, productId) {
+  return (snapCache[`${kind}:${productId}`] ||= loadProductAssets().then(async ({ T, gltf }) => {
     const canvas = document.createElement("canvas");
     const renderer = new T.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
     setupRenderer(T, renderer);
     renderer.setSize(720, 720, false);
     const { scene, env } = makeStudio(T, renderer);
-    const piece = extractPiece(T, gltf, kind);
-    piece.rotation.y = PIECE_POSE[kind];
+    const piece = extractPackagingPiece(T, gltf, kind);
+    piece.rotation.y = PACKAGING_POSE[kind];
+    const dress = dressPackaging(T, piece, productId);
+    await dress.ready;
     scene.add(piece);
     const camera = new T.PerspectiveCamera(18, 1, 0.1, 100);
     const distance = fitDistance(camera, 0.86);
@@ -3481,6 +3441,7 @@ function getSnapshot(kind) {
     camera.updateProjectionMatrix();
     renderer.render(scene, camera);
     const url = canvas.toDataURL("image/png");
+    dress.dispose();
     env.texture.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
@@ -3546,7 +3507,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   const camera = new T.PerspectiveCamera(22, 1, 0.1, 100);
 
   const isBakery = product?.cat === 'bakery' || kind === 'bakery';
-  const isCupWithArt = product?.id === 'latte' || product?.id === 'espresso' || product?.id === 'cortado';
+  const isCupWithArt = product?.id === 'cortado';
   const initPitch = isBakery ? 0.45 : isCupWithArt ? 0.28 : 0.06;
   const view = { yaw: 0, pitch: initPitch, targetPitch: initPitch, spin: 0, idle: 0, zoom: 1, targetZoom: 1, intro: REDUCED ? 1 : 0, dragging: false, lastX: 0, lastY: 0 };
   let distance = 4;
@@ -3778,7 +3739,7 @@ function renderFullMenu() {
               ${sec.items.map((p) => `
                 <article class="full-menu-item" data-fproduct="${p.id}" tabindex="0" role="button" aria-label="${p.name}, ${money(p.price)}">
                   <div class="full-menu-img-wrap">
-                    ${p.gift ? giftcardHTML(money(p.price)) : `<img src="${ASSET_BASE_URL}${p.photo || 'menu/menu-beans.webp'}" alt="${esc(p.name)}" loading="lazy">`}
+                    ${p.gift ? giftcardHTML(money(p.price)) : p.photo ? `<img src="${ASSET_BASE_URL}${p.photo}" alt="${esc(p.name)}" loading="lazy">` : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.name)}">`}
                   </div>
                   <div class="full-menu-item-info">
                     <div class="full-menu-item-top">
@@ -3812,6 +3773,7 @@ function renderFullMenu() {
     </div>
   `;
 
+  fillSnaps(fullMenuEl);
   $("#full-menu-close", fullMenuEl)?.addEventListener("click", () => closeFullMenu());
   $("#full-menu-to-shop", fullMenuEl)?.addEventListener("click", () => {
     closeFullMenu();

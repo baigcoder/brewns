@@ -346,71 +346,6 @@ function createLatteArtTexture(T: typeof THREE, isEspresso = false): THREE.Canva
 }
 
 /**
- * Generates printed brewns paper cup texture with crisp typography.
- */
-function createPaperCupTexture(T: typeof THREE, productId: string): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 1024;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return new T.CanvasTexture(canvas);
-
-  // Warm off-white matte paper base
-  ctx.fillStyle = '#f8f6f2';
-  ctx.fillRect(0, 0, 1024, 1024);
-
-  // Fine paper fiber texture
-  ctx.save();
-  for (let i = 0; i < 2000; i++) {
-    const x = Math.random() * 1024;
-    const y = Math.random() * 1024;
-    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255, 255, 255, 0.6)' : 'rgba(210, 200, 185, 0.3)';
-    ctx.fillRect(x, y, 1.5, 1.5);
-  }
-  ctx.restore();
-
-  // Printed Typography on Front (centered at x = 512)
-  ctx.save();
-  ctx.textAlign = 'center';
-
-  const isEspresso = productId === 'espresso';
-
-  // "brewns®" wordmark
-  ctx.font = 'bold 56px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#111111';
-  ctx.fillText('brewns®', 512, isEspresso ? 440 : 450);
-
-  // Product Name
-  ctx.font = '600 23px monospace';
-  ctx.letterSpacing = '5px';
-  ctx.fillStyle = '#1c1c1c';
-  ctx.fillText(isEspresso ? 'SINGLE SHOT ESPRESSO' : 'LATTE', 512, isEspresso ? 505 : 515);
-
-  // Taglines
-  ctx.font = '20px monospace';
-  ctx.fillStyle = '#2c2c2c';
-  ctx.letterSpacing = '1px';
-  if (isEspresso) {
-    ctx.fillText('Short. Strong.', 512, 560);
-    ctx.fillText('On demand.', 512, 595);
-  } else {
-    ctx.fillText('Smooth. Balanced.', 512, 570);
-    ctx.fillText('Always a good idea.', 512, 605);
-  }
-
-  // Signature cursive "b."
-  ctx.font = 'italic bold 52px Georgia, serif';
-  ctx.fillStyle = '#111111';
-  ctx.fillText('b.', 512, isEspresso ? 710 : 740);
-
-  ctx.restore();
-
-  const tex = new T.CanvasTexture(canvas);
-  tex.colorSpace = T.SRGBColorSpace;
-  return tex;
-}
-
-/**
  * Procedural texture generator for iced marbled drinks (Iced Matcha, Iced Latte).
  * Recreates the authentic two-tone swirl (milk at bottom, marbled matcha/espresso at top),
  * printed brewns cup typography, microfoam bubbles, and cold condensation droplets.
@@ -756,113 +691,6 @@ function createMatchaFinancierTexture(T: typeof THREE): THREE.CanvasTexture {
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-  }
-  ctx.restore();
-
-  const tex = new T.CanvasTexture(canvas);
-  tex.colorSpace = T.SRGBColorSpace;
-  return tex;
-}
-
-/**
- * Texture for Ethiopia Yirgacheffe Single Origin stand-up coffee bag:
- * Crisp matte off-white pouch, black modern BREWNS typography,
- * warm ochre/amber origin label band, and roasted beans window.
- */
-function createEthiopiaBagTexture(T: typeof THREE): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 1024;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return new T.CanvasTexture(canvas);
-
-  // 1. Crisp matte off-white stand-up pouch
-  ctx.fillStyle = '#f5f2eb';
-  ctx.fillRect(0, 0, 1024, 1024);
-
-  // Subtle paper grain
-  ctx.save();
-  for (let i = 0; i < 3000; i++) {
-    const x = Math.random() * 1024;
-    const y = Math.random() * 1024;
-    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.7)' : 'rgba(205,195,180,0.3)';
-    ctx.fillRect(x, y, 1.6, 1.6);
-  }
-  ctx.restore();
-
-  // 2. Top heat seal notch line
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(80, 120);
-  ctx.lineTo(944, 120);
-  ctx.stroke();
-
-  // 3. Modern Black Wordmark
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#111111';
-  ctx.font = 'bold 72px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.letterSpacing = '6px';
-  ctx.fillText('BREWNS', 512, 340);
-  ctx.restore();
-
-  // 4. Ochre / Amber Orange Single Origin Label Band (matching menu-single-origin.webp)
-  const bandY = 430;
-  const bandH = 250;
-  ctx.fillStyle = '#d98a32'; // Warm Ethiopia ochre amber
-  ctx.fillRect(100, bandY, 824, bandH);
-
-  // Inner white card inset
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(140, bandY + 45, 744, 160);
-
-  // Label Typography
-  ctx.save();
-  ctx.textAlign = 'center';
-
-  // Origin Name
-  ctx.fillStyle = '#1a1a1a';
-  ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.letterSpacing = '2px';
-  ctx.fillText('ETHIOPIA YIRGACHEFFE', 512, bandY + 95);
-
-  // Subtitle
-  ctx.fillStyle = '#555555';
-  ctx.font = '600 20px monospace';
-  ctx.letterSpacing = '3px';
-  ctx.fillText('SINGLE ORIGIN · WASHED HEIRLOOM', 512, bandY + 135);
-
-  // Roast Specs
-  ctx.fillStyle = '#111111';
-  ctx.font = '600 19px monospace';
-  ctx.letterSpacing = '2px';
-  ctx.fillText('WHOLE BEAN / 250G / LIGHT ROAST', 512, bandY + 175);
-  ctx.restore();
-
-  // 5. Lower Window showing whole roasted coffee beans
-  const winY = 720;
-  const winH = 150;
-  ctx.fillStyle = '#26170d';
-  ctx.fillRect(140, winY, 744, winH);
-
-  // Render individual roasted coffee beans in the window
-  ctx.save();
-  for (let i = 0; i < 140; i++) {
-    const bx = 160 + Math.random() * 704;
-    const by = winY + 15 + Math.random() * (winH - 30);
-    const br = 7 + Math.random() * 8;
-    ctx.fillStyle = `rgba(${50 + Math.random() * 25}, ${30 + Math.random() * 15}, ${15 + Math.random() * 10}, 0.95)`;
-    ctx.beginPath();
-    ctx.ellipse(bx, by, br * 1.4, br * 0.9, Math.random() * Math.PI, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Crease line
-    ctx.strokeStyle = 'rgba(20, 10, 5, 0.8)';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.arc(bx, by, br * 0.7, 0, Math.PI);
-    ctx.stroke();
   }
   ctx.restore();
 
@@ -1354,99 +1182,6 @@ export function createNitroColdBrewModel(T: typeof THREE, initialSel: Record<str
 }
 
 /**
- * 5. HOT CAFÉ CUP (LATTE & ESPRESSO)
- * Matches menu/menu-latte.webp and menu/menu-espresso.webp:
- * - Clean tapered warm-white paper cup with rolled lip
- * - Front typography ("brewns®", "LATTE" / "SINGLE SHOT ESPRESSO", taglines, "b.")
- * - Inside microfoam latte art heart for Latte; rich hazelnut crema heart for Espresso
- * - Rising thermal steam wisps
- * - Proportions tailored to 12 oz (Latte) vs short 4 oz demitasse (Espresso)
- */
-export function createHotCupModel(T: typeof THREE, productId: string, initialSel: Record<string, number> = {}): VariantEngine {
-  const group = new T.Group();
-
-  const isEspresso = productId === 'espresso';
-  const heightScale = isEspresso ? 0.65 : 1.0;
-  const radiusScale = isEspresso ? 0.88 : 1.0;
-
-  const shadow = createShadowMesh(T, 1.3 * radiusScale, 0.6 * radiusScale);
-  shadow.mesh.position.set(0, -0.46 * heightScale, 0);
-  group.add(shadow.mesh);
-
-  // Printed Paper Cup Body
-  const cupTex = createPaperCupTexture(T, productId);
-  const cupMat = new T.MeshStandardMaterial({
-    map: cupTex,
-    roughness: 0.45,
-    metalness: 0.02,
-  });
-
-  const topR = 0.355 * radiusScale;
-  const botR = 0.252 * radiusScale;
-  const cupH = 0.84 * heightScale;
-
-  const cupGeo = new T.CylinderGeometry(topR, botR, cupH, 48, 1, false);
-  const cup = new T.Mesh(cupGeo, cupMat);
-  cup.position.y = 0.0;
-  // Rotate front of canvas (x=512) directly to camera
-  cup.rotation.y = Math.PI;
-  group.add(cup);
-
-  // Rolled Rim Lip
-  const rimGeo = new T.TorusGeometry(topR + 0.005, 0.016, 16, 48);
-  rimGeo.rotateX(Math.PI / 2);
-  rimGeo.translate(0, cupH / 2, 0);
-  const rimMat = new T.MeshStandardMaterial({ color: 0xf8f6f2, roughness: 0.35 });
-  const rim = new T.Mesh(rimGeo, rimMat);
-  group.add(rim);
-
-  // Inside Top Liquid Disc (Latte Art Heart / Crema)
-  const foamTex = createLatteArtTexture(T, isEspresso);
-  const foamMat = new T.MeshStandardMaterial({
-    map: foamTex,
-    roughness: 0.40,
-  });
-  const foamGeo = new T.CircleGeometry(topR - 0.015, 48);
-  foamGeo.rotateX(-Math.PI / 2);
-  const foam = new T.Mesh(foamGeo, foamMat);
-  foam.position.y = cupH / 2 - 0.035;
-  group.add(foam);
-
-  // Rising steam system
-  const steam = createSteamSystem(T, isEspresso ? 16 : 28, cupH / 2 + 0.05);
-  group.add(steam.group);
-  group.add(steam.light);
-  steam.setWarm(true);
-
-  const applyVariant = (sel: Record<string, number>) => {
-    if (!isEspresso && sel?.size !== undefined) {
-      const scales = [0.88, 1.0, 1.15];
-      const s = scales[sel.size] || 1.0;
-      group.scale.set(s, s, s);
-    }
-  };
-  applyVariant(initialSel);
-
-  return {
-    group,
-    updateVariant: applyVariant,
-    tick: steam.tick,
-    dispose() {
-      shadow.dispose();
-      cupTex.dispose();
-      cupMat.dispose();
-      cupGeo.dispose();
-      rimGeo.dispose();
-      rimMat.dispose();
-      foamTex.dispose();
-      foamMat.dispose();
-      foamGeo.dispose();
-      steam.dispose();
-    },
-  };
-}
-
-/**
  * 6. CERAMIC TRAVEL TUMBLER
  * Matches menu/menu-tumbler.webp:
  * - 12 oz matte ceramic / powder-coated double-wall insulated body
@@ -1549,141 +1284,177 @@ export function createCeramicTumblerModel(T: typeof THREE, initialSel: Record<st
   };
 }
 
-/**
- * 7. ETHIOPIA YIRGACHEFFE SINGLE ORIGIN COFFEE BAG
- * Matches menu/menu-single-origin.webp:
- * - Stand-up pouch in crisp off-white paper
- * - Ochre / amber label band with "ETHIOPIA YIRGACHEFFE"
- * - Clear window showing whole roasted beans
- * - Clustered 3D roasted whole coffee beans scattered across tabletop!
- * - Interactive Size scaling
- */
-export function createSingleOriginBagModel(T: typeof THREE, initialSel: Record<string, number> = {}): VariantEngine {
-  const group = new T.Group();
-
-  const shadow = createShadowMesh(T, 1.5, 0.8);
-  shadow.mesh.position.set(0, -0.47, 0);
-  group.add(shadow.mesh);
-
-  // Scattered roasted coffee beans on countertop around bag
-  const beans = createScatteredBeans(T, 30, 0.50);
-  group.add(beans.group);
-
-  // Stand-up Bag Geometry
-  const bagTex = createEthiopiaBagTexture(T);
-  const bagMat = new T.MeshStandardMaterial({
-    map: bagTex,
-    roughness: 0.70,
-    metalness: 0.02,
-  });
-
-  const bagGeo = new T.BoxGeometry(0.58, 0.88, 0.34, 12, 16, 8);
-  // Gently taper top of pouch
-  const pos = bagGeo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);
-    if (y > 0.1) {
-      const pinch = (y - 0.1) / 0.34;
-      pos.setZ(i, pos.getZ(i) * (1 - pinch * 0.65));
-      pos.setX(i, pos.getX(i) * (1 - pinch * 0.08));
-    }
-  }
-  bagGeo.computeVertexNormals();
-
-  const bag = new T.Mesh(bagGeo, bagMat);
-  bag.position.y = 0.0;
-  // Face label toward camera
-  bag.rotation.y = 0;
-  group.add(bag);
-
-  // Top Heat Seal Strip
-  const sealGeo = new T.BoxGeometry(0.56, 0.06, 0.05);
-  const sealMat = new T.MeshStandardMaterial({ color: 0xded8cc, roughness: 0.6 });
-  const seal = new T.Mesh(sealGeo, sealMat);
-  seal.position.y = 0.44;
-  group.add(seal);
-
-  const applyVariant = (sel: Record<string, number>) => {
-    if (sel?.size !== undefined) {
-      const scales = [1.0, 1.15, 1.3];
-      const s = scales[sel.size] || 1.0;
-      bag.scale.set(s, s, s);
-      seal.scale.set(s, s, s);
-    }
-  };
-  applyVariant(initialSel);
-
-  return {
-    group,
-    updateVariant: applyVariant,
-    tick: () => {},
-    dispose() {
-      shadow.dispose();
-      beans.dispose();
-      bagTex.dispose();
-      bagMat.dispose();
-      bagGeo.dispose();
-      sealGeo.dispose();
-      sealMat.dispose();
-    },
-  };
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   BREWNS PACKAGING (public/assets/hero/models.glb)
+   The cream stand-up bag and the black-lidded paper cup from the hero are the
+   packaging every bean and hot-cup product is shown in: the shop cards, the
+   product page's 3D view and the thumbnails all come from this one file.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * 8. SLOW ROAST COFFEE BAG (from GLTF + scattered beans)
- * Matches menu/menu-beans.webp:
- * - High-poly GLTF bag with twine string and wax seal
- * - Clustered 3D roasted whole coffee beans scattered across tabletop!
- * - Interactive Size scaling
+ * The file's pieces: the bag is the tallest piece of the bag + cup composition,
+ * the cup is the scene whose every material is the cup's. Returned clone is one
+ * unit tall and centred on the origin.
  */
-export function createSlowRoastBagModel(T: typeof THREE, gltf: any, initialSel: Record<string, number> = {}): VariantEngine {
-  const group = new T.Group();
-
-  const shadow = createShadowMesh(T, 1.5, 0.8);
-  shadow.mesh.position.set(0, -0.47, 0);
-  group.add(shadow.mesh);
-
-  // Scattered roasted whole beans
-  const beans = createScatteredBeans(T, 32, 0.50);
-  group.add(beans.group);
-
-  // Extract bag from GLTF
+export function extractPackagingPiece(T: typeof THREE, gltf: any, kind: string): THREE.Group {
   const meshesIn = (rootNode: any) => {
     const found: any[] = [];
     rootNode.traverse((n: any) => n.isMesh && found.push(n));
     return found;
   };
-  const composition = gltf.scenes.find((s: any) => meshesIn(s).length);
-  composition.updateMatrixWorld(true);
-  const pieces = composition.children
-    .filter((n: any) => meshesIn(n).length)
-    .map((n: any) => ({ n, h: new T.Box3().setFromObject(n).getSize(new T.Vector3()).y }))
-    .sort((a: any, b: any) => b.h - a.h);
-  const source = pieces[0].n;
-
+  let source = null;
+  if (kind === 'cup')
+    source = gltf.scenes.find((s: any) => {
+      const m = meshesIn(s);
+      return m.length && m.every((mesh: any) => [].concat(mesh.material).every((mat: any) => mat.name.startsWith('CupCoffee')));
+    });
+  if (!source) {
+    const composition = gltf.scenes.find((s: any) => meshesIn(s).length);
+    composition.updateMatrixWorld(true);
+    const pieces = composition.children
+      .filter((n: any) => meshesIn(n).length)
+      .map((n: any) => ({ n, h: new T.Box3().setFromObject(n).getSize(new T.Vector3()).y }))
+      .sort((a: any, b: any) => b.h - a.h);
+    source = (kind === 'cup' ? pieces[1] : pieces[0]).n;
+  }
   source.updateMatrixWorld(true);
   const clone = source.clone(true);
   source.matrixWorld.decompose(clone.position, clone.quaternion, clone.scale);
-
   const holder = new T.Group();
   holder.add(clone);
   holder.updateMatrixWorld(true);
   const box = new T.Box3().setFromObject(holder);
   const size = box.getSize(new T.Vector3());
   clone.position.sub(box.getCenter(new T.Vector3()));
+  const unitGroup = new T.Group();
+  unitGroup.scale.setScalar(1 / (size.y || 1));
+  unitGroup.add(holder);
+  return unitGroup;
+}
 
-  const bagUnit = new T.Group();
-  bagUnit.scale.setScalar(1 / (size.y || 1));
-  bagUnit.add(holder);
-  bagUnit.rotation.y = -0.42;
-  group.add(bagUnit);
+/** Turns each piece's printed face to the lens. */
+export const PACKAGING_POSE: Record<string, number> = { bag: -0.42, cup: Math.PI + 1.2 };
 
+/**
+ * Beans other than the house roast wear the same bag with their own name and
+ * flavour notes. The bag's print is a baked texture (both faces side by side,
+ * stored upside down), so the label is repainted over the "slow roast" script
+ * and the notes list; everything else on the bag stays as printed.
+ */
+const BAG_LABELS: Record<string, { script: string; ink: string; notes: string[] }> = {
+  'single-origin': { script: 'ethiopia', ink: '#8a5a2b', notes: ['JASMINE', 'BERGAMOT', 'WHITE PEACH'] },
+};
+const BAG_FACE_OFFSETS = [0, 786]; // x of each face in the 2048px atlas
+
+function paintBagLabel(ctx: CanvasRenderingContext2D, image: any, label: { script: string; ink: string; notes: string[] }) {
+  const k = image.width / 2048;
+  ctx.drawImage(image, 0, 0);
+  const paperAt = (x: number, y: number) => {
+    const d = ctx.getImageData(x * k, y * k, 1, 1).data;
+    return `rgb(${d[0]},${d[1]},${d[2]})`;
+  };
+  // Draws in upright local coordinates into a patch of the upside-down atlas.
+  const patch = (x: number, y: number, w: number, h: number, fill: string, draw: () => void) => {
+    ctx.save();
+    ctx.translate(x * k, (y + h) * k);
+    ctx.scale(k, -k);
+    ctx.fillStyle = fill;
+    ctx.fillRect(0, 0, w, h);
+    draw();
+    ctx.restore();
+  };
+  for (const dx of BAG_FACE_OFFSETS) {
+    patch(dx + 40, 470, 720, 270, paperAt(dx + 60, 470), () => {
+      ctx.fillStyle = label.ink;
+      ctx.font = '230px Allura, cursive';
+      ctx.translate(30, 150);
+      ctx.rotate(-0.12);
+      ctx.fillText(label.script, 0, 0);
+    });
+    patch(dx + 450, 222, 250, 122, paperAt(dx + 700, 300), () => {
+      ctx.fillStyle = '#1b1b1b';
+      ctx.font = '600 22px "Arial Narrow", "Liberation Sans Narrow", Arial, sans-serif';
+      label.notes.forEach((note, i) => ctx.fillText(note, 12, 36 + i * 33));
+    });
+  }
+}
+
+/**
+ * Dresses a packaging piece for a product: relabels the bag when the product has
+ * its own label. Materials are cloned, so the shared asset is left untouched.
+ * `ready` settles once the script face has loaded and the label is final.
+ */
+export function dressPackaging(T: typeof THREE, piece: THREE.Object3D, productId?: string): { ready: Promise<void>; dispose: () => void } {
+  const label = productId && BAG_LABELS[productId];
+  const owned: any[] = [];
+  if (!label) return { ready: Promise.resolve(), dispose() {} };
+  piece.traverse((node: any) => {
+    if (!node.isMesh || !node.material?.map) return;
+    const source = node.material.map;
+    const image = source.image;
+    if (!image?.width || image.width < 2048) return; // only the bag's printed atlas
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+    const map = source.clone();
+    map.source = new T.Source(canvas);
+    const paint = () => {
+      paintBagLabel(ctx, image, label);
+      map.needsUpdate = true;
+    };
+    paint();
+    const material = node.material.clone();
+    material.map = map;
+    node.material = material;
+    owned.push({ map, material, paint });
+  });
+  const ready = (document.fonts?.load('230px Allura') ?? Promise.resolve())
+    .catch(() => {})
+    .then(() => owned.forEach((o) => o.paint()));
+  return {
+    ready,
+    dispose() {
+      owned.forEach((o) => {
+        o.map.dispose();
+        o.material.dispose();
+      });
+    },
+  };
+}
+
+/**
+ * BREWNS BAG & CUP (Slow Roast, Ethiopia, Latte, Espresso)
+ * - The hero's bag / cup, relabelled per product
+ * - Scattered roasted beans around the bags
+ * - Size option scales the piece, standing on the same spot
+ */
+export function createPackagingModel(T: typeof THREE, gltf: any, kind: string, productId: string, initialSel: Record<string, number> = {}): VariantEngine {
+  const group = new T.Group();
+  const isBag = kind === 'bag';
+
+  const shadow = createShadowMesh(T, isBag ? 1.5 : 1.1, isBag ? 0.8 : 0.6);
+  shadow.mesh.position.set(0, -0.49, 0);
+  group.add(shadow.mesh);
+
+  const beans = isBag ? createScatteredBeans(T, 32, 0.5) : null;
+  if (beans) group.add(beans.group);
+
+  const piece = extractPackagingPiece(T, gltf, kind);
+  const dress = dressPackaging(T, piece, productId);
+  const unit = new T.Group();
+  unit.add(piece);
+  unit.rotation.y = PACKAGING_POSE[kind] ?? 0;
+  group.add(unit);
+
+  // Espresso goes out in the short cup.
+  const base = productId === 'espresso' ? 0.78 : 1;
+  const sizeScales = isBag ? [1.0, 1.15, 1.3] : [0.88, 1.0, 1.12];
   const applyVariant = (sel: Record<string, number>) => {
-    if (sel?.size !== undefined) {
-      const scales = [1.0, 1.15, 1.3];
-      const s = scales[sel.size] || 1.0;
-      bagUnit.scale.setScalar(s);
-    }
+    const s = base * (sel?.size !== undefined ? sizeScales[sel.size] || 1 : 1);
+    unit.scale.setScalar(s);
+    unit.position.y = 0.5 * (s - 1); // keep the base on the counter
   };
   applyVariant(initialSel);
 
@@ -1693,7 +1464,8 @@ export function createSlowRoastBagModel(T: typeof THREE, gltf: any, initialSel: 
     tick: () => {},
     dispose() {
       shadow.dispose();
-      beans.dispose();
+      beans?.dispose();
+      dress.dispose();
     },
   };
 }
@@ -2155,14 +1927,12 @@ export function createProduct3DModel(
     // 3. Hot Café Drinks
     case 'espresso':
     case 'latte':
-      return createHotCupModel(T, id, initialSel);
+      return createPackagingModel(T, gltf, 'cup', id, initialSel);
 
     // 4. Whole Bean Coffees
     case 'single-origin':
-      return createSingleOriginBagModel(T, initialSel);
-
     case 'slow-roast':
-      return createSlowRoastBagModel(T, gltf, initialSel);
+      return createPackagingModel(T, gltf, 'bag', id, initialSel);
 
     // 5. Merch & Equipment
     case 'ceramic-tumbler':
@@ -2172,7 +1942,6 @@ export function createProduct3DModel(
       // Fallback router by kind
       if (kind === 'bakery') return createBakeryModel(T, initialSel, shopModel);
       if (kind === 'glass') return createIcedGlassModel(T, id, initialSel, shopModel);
-      if (kind === 'bag') return createSlowRoastBagModel(T, gltf, initialSel);
-      return createHotCupModel(T, id, initialSel);
+      return createPackagingModel(T, gltf, kind === 'bag' ? 'bag' : 'cup', id, initialSel);
   }
 }
