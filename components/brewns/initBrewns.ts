@@ -1961,6 +1961,7 @@ function philosophyScene(T, mount) {
   const {
     WebGLRenderer, SRGBColorSpace, NeutralToneMapping, Scene, Fog, PerspectiveCamera, PMREMGenerator, RoomEnvironment,
     DirectionalLight, Group, Vector3, Matrix4, Box3, InstancedMesh, Quaternion, GLTFLoader, DRACOLoader,
+    Sprite, SpriteMaterial, CanvasTexture,
   } = T;
 
   const VIEW = { fov: 30, distance: 20 };
@@ -1968,14 +1969,20 @@ function philosophyScene(T, mount) {
   const BEANS = { desktop: 34, mobile: 16, length: 0.07, scale: { min: 0.55, max: 1.7 } };
   const CUP = {
     yaw: Math.PI + 1.2, tilt: 0.21, scale: 0.92, drop: 0.02, capsule: 0.36,
-    lean: { yaw: 0.26, pitch: 0.1 }, follow: 4, spin: Math.PI * 1.2, spinFollow: 6, rise: 1.1, riseRate: 2.4,
+    lean: { yaw: 0.26, pitch: 0.1 }, follow: 4, spin: Math.PI * 0.4, spinFollow: 6, rise: 1.1, riseRate: 2.4,
+    // The cup sits left of the lens, so its printed face is turned a little further round to meet it.
+    face: 0.5,
   };
   const LIGHT = {
     exposure: 1.15,
     environment: 0.55,
     key: { colour: 0xfff1e0, intensity: 2.4, position: [-5, 6, 7] },
     rim: { colour: 0xffd9b0, intensity: 1.6, position: [5, 3, -6] },
+    // Gold edge light from behind, so the black cup separates from the dark ground.
+    gold: { colour: 0xffb466, intensity: 3.2, position: [-7, 4, -5] },
   };
+  /* Steam off the lid: soft puffs that rise, widen and fade, in cup heights. */
+  const STEAM = { count: 9, life: 4.2, rise: 0.85, drift: 0.07, size: { from: 0.28, to: 0.8 }, opacity: 0.3 };
   const FOG = { colour: 0x070707, start: 4, end: 24 };
   const VORTEX = { strength: 2.4, fullSpeed: 1600, follow: 3 };
   const POINTER_SETTLE = 8;
@@ -2209,7 +2216,7 @@ function philosophyScene(T, mount) {
   scene.environment = environment.texture;
   scene.environmentIntensity = LIGHT.environment;
 
-  for (const { colour, intensity, position } of [LIGHT.key, LIGHT.rim]) {
+  for (const { colour, intensity, position } of [LIGHT.key, LIGHT.rim, LIGHT.gold]) {
     const light = new DirectionalLight(colour, intensity);
     light.position.set(position[0], position[1], position[2]);
     scene.add(light);
@@ -2221,6 +2228,45 @@ function philosophyScene(T, mount) {
   const spin = new Group();
   cup.add(spin);
   let turned = 0;
+
+  const steam = new Group();
+  steam.visible = false;
+  scene.add(steam);
+  const puffs = [];
+  if (!reduced) {
+    const puffCanvas = document.createElement("canvas");
+    puffCanvas.width = puffCanvas.height = 128;
+    const pctx = puffCanvas.getContext("2d");
+    const fade = pctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    fade.addColorStop(0, "rgba(255,255,255,1)");
+    fade.addColorStop(0.45, "rgba(255,255,255,0.35)");
+    fade.addColorStop(1, "rgba(255,255,255,0)");
+    pctx.fillStyle = fade;
+    pctx.fillRect(0, 0, 128, 128);
+    const puffMap = new CanvasTexture(puffCanvas);
+    puffMap.colorSpace = SRGBColorSpace;
+    for (let i = 0; i < STEAM.count; i++) {
+      const puff = new Sprite(new SpriteMaterial({ map: puffMap, color: 0xfff1e2, transparent: true, depthWrite: false, opacity: 0 }));
+      puff.userData = { age: (i / STEAM.count) * STEAM.life, sway: Math.random() * Math.PI * 2 };
+      steam.add(puff);
+      puffs.push(puff);
+    }
+  }
+  const lid = new Vector3();
+  const moveSteam = (dt) => {
+    steam.visible = cup.visible && puffs.length > 0;
+    if (!steam.visible) return;
+    lid.set(0, 0.5, 0).applyMatrix4(cup.matrixWorld);
+    const h = place.height;
+    for (const puff of puffs) {
+      const d = puff.userData;
+      d.age = (d.age + dt) % STEAM.life;
+      const t = d.age / STEAM.life;
+      puff.position.set(lid.x + Math.sin(d.sway + t * 3) * STEAM.drift * h * (0.3 + t), lid.y + t * STEAM.rise * h, lid.z);
+      puff.scale.setScalar(lerp(STEAM.size.from, STEAM.size.to, t) * h);
+      puff.material.opacity = Math.sin(Math.PI * t) * STEAM.opacity * (1 - rise);
+    }
+  };
 
   const tanHalf = Math.tan((VIEW.fov * Math.PI) / 360);
   const view = { distance: VIEW.distance, tanHalf, aspect: 1, near: DEPTH.near, far: DEPTH.far };
@@ -2277,6 +2323,10 @@ function philosophyScene(T, mount) {
         place.height = cell.height * u * CUP.scale;
         place.x = (cell.left + cell.width / 2 - box.left - width / 2) * u;
         place.bottom = (box.top + height / 2 - cell.bottom) * u - place.height * CUP.drop;
+        // Where the cup stands, for the glow behind it.
+        section.style.setProperty("--phil-cup-x", `${cell.left + cell.width / 2 - box.left}px`);
+        section.style.setProperty("--phil-cup-y", `${cell.top + cell.height * 0.45 - box.top}px`);
+        section.style.setProperty("--phil-cup-size", `${cell.height * 1.5}px`);
       }
     }
     poseCup();
@@ -2326,6 +2376,7 @@ function philosophyScene(T, mount) {
       turned += ((travel - 0.5) * CUP.spin - turned) * (1 - Math.exp(-CUP.spinFollow * dt));
       spin.rotation.y = turned;
       poseCup();
+      moveSteam(dt);
 
       const scrollNow = window.scrollY;
       const scrollSpeed = lastScroll === null ? 0 : (scrollNow - lastScroll) / dt;
@@ -2351,7 +2402,7 @@ function philosophyScene(T, mount) {
       const cupScene = gltf.scenes.find(isCupOnly);
       if (cupScene) {
         dressPackaging(THREE, cupScene).ready.then(() => (dirty = true));
-        cupScene.rotation.set(0, CUP.yaw, 0);
+        cupScene.rotation.set(0, CUP.yaw + CUP.face, 0);
         cupScene.updateWorldMatrix(true, true);
         const box = new Box3().setFromObject(cupScene);
         const size = box.getSize(new Vector3());
