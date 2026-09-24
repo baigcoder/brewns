@@ -193,6 +193,12 @@ This is a working demo, not a trading site:
 - **Ordering is client-side only.** "Place order" saves the order to the
   browser's `localStorage` and makes no network request. Nothing reaches the
   café. A real launch needs an ordering backend and payments.
+- **Emailing orders.** Set `ORDER_SERVICE.endpoint` in `initBrewns.ts` to a
+  form-to-email endpoint (for example a free Formspree form pointed at the
+  café's inbox) and every order is emailed to the café, with the customer's
+  email as reply-to. Until then the confirmation offers "email me this
+  receipt" and "email the café" links that open the visitor's mail app with
+  the order filled in.
 - **Order tracking runs on the clock.** After an order, `orderLive.ts` plays out
   real stages at real times (accepted, preparing, rider assigned, out for
   delivery, arriving, delivered; or ready for collection) and the café and

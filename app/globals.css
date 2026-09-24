@@ -2728,3 +2728,11 @@ nextjs-portal,
   .pdp-total-line b { color: #fff; font-weight: 400; }
 }
 @media (min-width: 640px) { .pdp-total-line { display: none; } }
+
+/* ── Checkout: errors you can see, and the order being sent ── */
+.co-err { margin-bottom: -0.5rem; padding: 0.7rem 0.9rem; border-left: 2px solid #c0392b; background: rgb(192 57 43 / 0.08); color: #a93226; line-height: 1.6; }
+.co-spin { display: inline-block; width: 0.9rem; height: 0.9rem; margin-right: 0.6rem; border: 2px solid rgb(255 255 255 / 0.35); border-top-color: #fff; border-radius: 50%; animation: co-spin 0.7s linear infinite; vertical-align: -2px; }
+@keyframes co-spin { to { transform: rotate(360deg); } }
+.btn[data-co="place"][disabled] { opacity: 1; }
+.trk-mail { color: rgb(255 255 255 / 0.55); line-height: 1.8; }
+.trk-mail a { color: #d8b777; text-decoration: underline; text-underline-offset: 3px; }

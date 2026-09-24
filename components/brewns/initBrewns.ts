@@ -4575,7 +4575,8 @@ function renderCheckout({ animate = true } = {}) {
           <div class="loc-cards" role="radiogroup" aria-label="Payment">${PAY.map(([label, atShop, atDoor], i) => radio("co-pay", i, co.pay === i, label, delivery ? atDoor : atShop)).join("")}</div>
           ${co.pay ? "" : `<p class="co-note mono-fine">PAY BY CARD OR WALLET AND PUNJAB SALES TAX DROPS FROM 16% TO 5%.</p>`}
         </div>
-        <div class="co-actions"><button type="button" class="btn btn-ghost" data-co="back">BACK</button><button type="button" class="btn btn-dark" data-co="place">PLACE ORDER · ${money(totals.total)} ${ARROW_SVG}</button></div>`;
+        ${Object.values(co.errors).some(Boolean) ? `<p class="co-err mono-fine" role="alert">CHECK ${Object.entries(co.errors).filter(([, v]) => v).map(([k]) => ({ name: "YOUR NAME", phone: "YOUR MOBILE NUMBER", address: "THE ADDRESS", email: "THE EMAIL" })[k]).join(", ")} ABOVE.</p>` : ""}
+        <div class="co-actions"><button type="button" class="btn btn-ghost" data-co="back">BACK</button><button type="button" class="btn btn-dark" data-co="place" ${co.placing ? "disabled" : ""}>${co.placing ? `<span class="co-spin" aria-hidden="true"></span>SENDING TO ${esc(isDelivery() ? LOCS[DELIVERY.areas[co.area][1]][0] : LOCS[co.loc][0])}…` : `PLACE ORDER · ${money(totals.total)} ${ARROW_SVG}`}</button></div>`;
 
   const lines = cart.items
     .map((it) => {
@@ -4772,6 +4773,11 @@ function renderDone() {
           <button type="button" class="btn btn-solid" data-co="chat">MESSAGE ${delivered ? "RIDER / CAFÉ" : "THE CAFÉ"} <span class="trk-badge" id="trk-badge" hidden>0</span></button>
           <button type="button" class="btn btn-line" data-co="receipt">RECEIPT</button>
         </div>
+        <p class="trk-mail mono-fine">${
+          o.sent
+            ? `✓ SENT TO THE CAFÉ${o.email ? ` · A COPY IS ON ITS WAY TO ${esc(o.email.toUpperCase())}` : ""}`
+            : `<a href="mailto:${o.email ? encodeURIComponent(o.email) : ""}?subject=${encodeURIComponent(`brewns receipt #${String(o.number).padStart(5, "0")}`)}&body=${encodeURIComponent(receiptText(o))}">EMAIL ME THIS RECEIPT</a> · <a href="mailto:${ORDER_SERVICE.cafeEmail}?subject=${encodeURIComponent(`Order #${String(o.number).padStart(5, "0")}`)}&body=${encodeURIComponent(receiptText(o))}">EMAIL THE CAFÉ</a>`
+        }</p>
         <div class="done-actions trk-small">
           <a class="btn btn-line" id="trk-wa" target="_blank" rel="noopener">WHATSAPP</a>
           <a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
@@ -4988,9 +4994,14 @@ function placeOrder() {
   co.errors = errors;
   if (Object.keys(errors).length) {
     renderCheckout({ animate: false });
-    $(".field.bad input", coEl)?.focus();
+    // The first problem may be well above the button: take the visitor to it.
+    const bad = $(".field.bad input, .field.bad textarea", coEl);
+    bad?.closest(".field").scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
+    setTimeout(() => bad?.focus({ preventScroll: true }), 350);
+    triggerHaptic(30);
     return;
   }
+  if (co.placing) return;
   co.phone = pkMobile(co.phone);
   writeStore("brewns-details", { name: co.name.trim(), phone: co.phone, email: co.email.trim(), loc: co.loc, mode: co.mode, area: co.area, address: co.address.trim() });
   const number = readStore("brewns-order-seq", 25) + 1;
@@ -5005,14 +5016,77 @@ function placeOrder() {
     number, placed, target, items: cart.items.map((it) => ({ ...it })), totals: orderTotals(), pickupAt, name: co.name.trim(), phone: co.phone, note: co.note.trim(), pay: co.pay,
     mode: co.mode, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "", loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
   };
-  writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
-  playChime();
-  co.done = order;
-  co.step = 3;
-  cart.clear();
-  renderCheckout();
-  coEl.scrollTop = 0;
-  $("[data-co='close']", coEl)?.focus({ preventScroll: true });
+  // Send it: to the café (and a copy to the customer) when an order service is
+  // set up, otherwise a short hand-off so the button visibly does something.
+  co.placing = true;
+  renderCheckout({ animate: false });
+  const email = co.email.trim();
+  const started = Date.now();
+  sendOrder(order, email).then((sent) => {
+    order.sent = sent;
+    order.email = email;
+    writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
+    setTimeout(() => {
+      if (!co) return;
+      co.placing = false;
+      playChime();
+      co.done = order;
+      co.step = 3;
+      cart.clear();
+      renderCheckout();
+      coEl.scrollTop = 0;
+      $("[data-co='close']", coEl)?.focus({ preventScroll: true });
+    }, Math.max(0, 1100 - (Date.now() - started)));
+  });
+}
+
+/* ── sending the order by email ──
+   Fill ORDER_SERVICE.endpoint with a form-to-email address (for example a
+   Formspree form, https://formspree.io, pointed at the café's inbox) and every
+   order is emailed to the café, with the customer's email as reply-to so the
+   café can answer; the service can also send the customer a copy. Until then
+   orders stay in the browser and the confirmation offers mail links instead. */
+const ORDER_SERVICE = { endpoint: "", cafeEmail: "orders@brewns.coffee" };
+const receiptText = (o) => {
+  const lines = orderLines(o);
+  const t = o.totals;
+  const where = o.mode === "delivery" ? `Delivery to: ${o.address}, ${DELIVERY.areas[o.area][0]}, Lahore` : `Pickup at: ${LOC_TITLES[o.loc]}, Lahore`;
+  return [
+    `BREWNS COFFEE HOUSE: ORDER #${String(o.number).padStart(5, "0")}`,
+    `Invoice ${invoiceNo(o, SHOP_CODES[o.loc])}`,
+    "",
+    `Name: ${o.name}`,
+    `Mobile: ${o.phone}`,
+    where,
+    `Time: ${o.pickupAt.tomorrow ? "tomorrow " : "today "}${hhmm(o.pickupAt.t)}`,
+    "",
+    ...lines.map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}  ${money(l.total)}`),
+    "",
+    `Subtotal: ${money(t.sub)}`,
+    ...(t.discount ? [`Promo: -${money(t.discount)}`] : []),
+    ...(o.mode === "delivery" ? [`Delivery: ${t.fee ? money(t.fee) : "free"}`] : []),
+    `Punjab sales tax ${Math.round(t.rate * 100)}%: ${money(t.tax)}`,
+    `TOTAL: ${money(t.total)}`,
+    `Payment: ${PAY[o.pay][0]} ${o.mode === "delivery" ? "on delivery" : "at pickup"}`,
+    ...(o.note ? ["", `Note: ${o.note}`] : []),
+  ].join("\n");
+};
+async function sendOrder(o, email) {
+  if (!ORDER_SERVICE.endpoint) return false;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(ORDER_SERVICE.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ _subject: `New order #${String(o.number).padStart(5, "0")} · ${money(o.totals.total)}`, _replyto: email || undefined, email: email || undefined, message: receiptText(o), order: o }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 coEl.addEventListener("click", (e) => {
