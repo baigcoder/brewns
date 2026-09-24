@@ -1859,6 +1859,7 @@ function heroModel(T, mount, handle, onPiece) {
           normalScale?.set(Math.sign(normalScale.x) * NORMAL_STRENGTH, Math.sign(normalScale.y) * NORMAL_STRENGTH);
         }
       });
+      dressPackaging(THREE, model).ready.then(() => (dirty = true));
 
       const loaded = model;
       loaded.updateWorldMatrix(true, true);
@@ -2349,6 +2350,7 @@ function philosophyScene(T, mount) {
     (gltf) => {
       const cupScene = gltf.scenes.find(isCupOnly);
       if (cupScene) {
+        dressPackaging(THREE, cupScene).ready.then(() => (dirty = true));
         cupScene.rotation.set(0, CUP.yaw, 0);
         cupScene.updateWorldMatrix(true, true);
         const box = new Box3().setFromObject(cupScene);
