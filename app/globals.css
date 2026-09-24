@@ -2476,3 +2476,30 @@ nextjs-portal,
 .order-copy { pointer-events: none; }
 .order-copy .order-group, .order-copy .order-aside, .order-copy a { pointer-events: auto; }
 .paper, .paper img { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+
+/* ── Philosophy: more room, and a stage for the cup ──
+   The board's cup and claims reach past one screen, so the section is tall
+   enough to show them whole. The cup stands on a warm pool of light with a
+   thin gold ring, and the edges fade so the bean field doesn't stop hard. */
+@media (min-width: 1024px) { .phil { height: auto; min-height: max(100lvh, 62rem); } }
+@media (min-width: 1440px) { .phil { min-height: max(100lvh, calc(var(--size-board-drop) + 62rem)); } }
+.phil-floor {
+  pointer-events: none; position: absolute; z-index: 4;
+  left: var(--phil-cup-x, 25%); top: var(--phil-cup-base, 85%);
+  width: calc(var(--phil-cup-w, 20rem) * 1.9); aspect-ratio: 5 / 1; transform: translate(-50%, -30%);
+  background:
+    radial-gradient(closest-side, rgb(236 180 104 / 0.42), rgb(190 120 60 / 0.16) 55%, transparent 76%);
+  filter: blur(6px);
+}
+.phil-floor::after {
+  content: ""; position: absolute; inset: 22% 14%; border-radius: 50%;
+  border: 1.5px solid rgb(216 183 119 / 0.8);
+  box-shadow: 0 0 1.5rem rgb(216 183 119 / 0.25), inset 0 0 1.25rem rgb(216 183 119 / 0.18);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+  mask: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+}
+.phil-fade {
+  pointer-events: none; position: absolute; inset: 0; z-index: 6;
+  background: linear-gradient(to bottom, #070707 0, rgb(7 7 7 / 0) 9%, rgb(7 7 7 / 0) 86%, #070707 100%);
+}
+@media (max-width: 1023.98px) { .phil-floor { display: none; } }

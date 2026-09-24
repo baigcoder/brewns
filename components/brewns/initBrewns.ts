@@ -2400,6 +2400,8 @@ function philosophyScene(T, mount) {
         section.style.setProperty("--phil-cup-x", `${cell.left + cell.width / 2 - box.left}px`);
         section.style.setProperty("--phil-cup-y", `${cell.top + cell.height * 0.45 - box.top}px`);
         section.style.setProperty("--phil-cup-size", `${cell.height * 1.5}px`);
+        section.style.setProperty("--phil-cup-base", `${cell.bottom - box.top}px`);
+        section.style.setProperty("--phil-cup-w", `${cell.width}px`);
       }
     }
     poseCup();
