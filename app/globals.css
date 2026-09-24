@@ -1103,6 +1103,39 @@ address { font-style: normal; }
 .ftr-vr { display: none; height: var(--size-hero-rule); width: 1px; background: rgb(255 255 255 / 0.35); transform-origin: center top; transform: scaleY(0); }
 @media (min-width: 1024px) { .ftr-vr { position: absolute; top: var(--size-footer-row-y); display: block; } .ftr-vr.a { left: var(--size-footer-divider-a); } .ftr-vr.b { left: var(--size-footer-divider-b); } }
 .ftr-legal { display: flex; flex-direction: column; gap: 0.75rem; }
+/* The brand band under the footer: a gold ribbon of what we stand for, then the
+   wordmark at full width, sinking into the bottom edge. Decorative only. */
+.ftr { --pack-gold: #d8b777; --ftr-giant-h: calc((100vw - 2.5rem) / 4.405); }
+@media (min-width: 640px) { .ftr { --ftr-giant-h: calc((100vw - 5rem) / 4.405); } }
+.ftr-brand { display: flex; flex-direction: column; gap: 2rem; margin-bottom: calc(-2rem - var(--ftr-giant-h) * 0.12); }
+@media (min-width: 640px) { .ftr-brand { gap: 2.5rem; margin-bottom: calc(-3rem - var(--ftr-giant-h) * 0.2); } }
+@media (min-width: 1024px) {
+  .ftr { height: calc(var(--size-footer-height) + 6rem + var(--ftr-giant-h) * 0.8); }
+  .ftr-brand { position: absolute; left: 2.5rem; right: 2.5rem; top: calc(var(--size-footer-height) + 0.5rem); margin: 0; }
+}
+.ftr-ribbon {
+  overflow: hidden; padding-block: 0.9rem; border-block: 1px solid rgb(216 183 119 / 0.3);
+  color: var(--pack-gold); font-size: var(--font-size-label); letter-spacing: 0.18em;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.ftr-ribbon-track { display: flex; align-items: center; width: max-content; animation: ftr-marquee 42s linear infinite; }
+.ftr-ribbon-track span { padding-inline: 1.75rem; white-space: nowrap; }
+.ftr-ribbon-track i { font-style: normal; font-size: 0.7em; opacity: 0.7; }
+.ftr-ribbon:hover .ftr-ribbon-track { animation-play-state: paused; }
+@keyframes ftr-marquee { to { transform: translateX(-50%); } }
+.ftr-giant {
+  display: block; width: 100%; aspect-ratio: 2326 / 528;
+  /* Sized by height, so the mask's ® falls past the right edge and is cropped. */
+  -webkit-mask: url("/assets/shared/wordmark-large.webp") left top / auto 100% no-repeat;
+  mask: url("/assets/shared/wordmark-large.webp") left top / auto 100% no-repeat;
+  background:
+    linear-gradient(105deg, transparent 42%, rgb(255 244 214 / 0.55) 50%, transparent 58%) 120% 0 / 250% 100% no-repeat,
+    linear-gradient(180deg, #f0d9a2 0%, #d8b777 36%, #a07c46 74%, #5e4627 100%);
+  animation: ftr-sheen 9s var(--ease-entrance, ease) infinite;
+}
+@keyframes ftr-sheen { 0%, 55% { background-position: 120% 0, 0 0; } 100% { background-position: -20% 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .ftr-ribbon-track, .ftr-giant { animation: none; } }
 @media (min-width: 640px) { .ftr-legal { flex-direction: row; align-items: baseline; justify-content: space-between; } }
 @media (min-width: 1024px) { .ftr-legal { display: contents; } }
 .ftr-legal > * { white-space: nowrap; }
