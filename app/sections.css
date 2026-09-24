@@ -345,3 +345,66 @@
 /* the stamp sits in the corner by the helpful button, clear of the words */
 .rev-slip .rev-stamp { top: auto; right: 1.1rem; bottom: calc(var(--tear) + 0.9rem); }
 @media (min-width: 1024px) { .rev-slip .rev-stamp { right: 1.4rem; bottom: calc(var(--tear) + 1.2rem); } }
+
+/* ── Inside brewns, next level: right now, drifting photos, the viewer ── */
+.inside-now { display: flex; flex-direction: column; gap: 1.1rem; padding: 1.1rem 1.2rem 1.2rem; border: 1px solid rgb(216 183 119 / 0.22); border-radius: 10px; background: linear-gradient(160deg, rgb(216 183 119 / 0.08), rgb(255 255 255 / 0.015)); }
+.inside-now-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.12em; color: rgb(255 255 255 / 0.6); }
+.inside-now-head b { font-weight: 400; color: #7fd18b; }
+.inside-now.closed .inside-now-head b { color: #e0876a; }
+.inside-now-dot { width: 7px; height: 7px; border-radius: 50%; background: #7fd18b; box-shadow: 0 0 0 0 rgb(127 209 139 / 0.6); animation: in-live 1.8s infinite; }
+.inside-now.closed .inside-now-dot { background: #e0876a; animation: none; }
+@keyframes in-live { 70% { box-shadow: 0 0 0 7px rgb(127 209 139 / 0); } 100% { box-shadow: 0 0 0 0 rgb(127 209 139 / 0); } }
+.inside-busy { display: flex; flex-direction: column; gap: 0.5rem; }
+.inside-busy-t { display: flex; justify-content: space-between; font-family: var(--font-space-mono); font-size: 0.625rem; letter-spacing: 0.14em; color: rgb(255 255 255 / 0.45); }
+.inside-bars { display: grid; grid-template-columns: repeat(14, 1fr); align-items: end; gap: 3px; height: 3.25rem; }
+.inside-bars i { display: block; height: var(--h); min-height: 3px; border-radius: 2px 2px 0 0; background: rgb(216 183 119 / 0.28); transform-origin: bottom; transition: background-color 300ms; }
+.inside-bars i.now { background: #d8b777; box-shadow: 0 0 12px rgb(216 183 119 / 0.5); }
+.inside-axis { display: flex; justify-content: space-between; font-family: var(--font-space-mono); font-size: 0.6rem; letter-spacing: 0.1em; color: rgb(255 255 255 / 0.35); }
+.inside-busy-now { font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.12em; color: #d8b777; }
+.inside-amen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem 0.9rem; padding-top: 0.9rem; border-top: 1px solid rgb(255 255 255 / 0.08); }
+.inside-amen li { display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-space-mono); font-size: 0.625rem; letter-spacing: 0.12em; color: rgb(255 255 255 / 0.7); }
+.inside-amen svg { width: 1.05rem; height: 1.05rem; flex: none; color: #d8b777; }
+
+/* photos: drift with the page (translate), zoom on hover (scale), the rest dim */
+.inside-tile img { transform: none; scale: 1.12; translate: 0 0; transition: scale 900ms var(--ease-entrance), filter 500ms; will-change: translate; }
+.inside-tile:hover img { transform: none; scale: 1.18; filter: saturate(1.1); }
+@media (hover: hover) { .inside-grid:hover .inside-tile:not(:hover) img { filter: saturate(0.75) brightness(0.62); } }
+.inside-tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgb(216 183 119 / 0); transition: box-shadow 400ms; pointer-events: none; }
+.inside-tile:hover::after { box-shadow: inset 0 0 0 1px rgb(216 183 119 / 0.55); }
+.inside-grid.has-cursor .inside-open { cursor: none; }
+.inside-cursor { position: fixed; left: 0; top: 0; z-index: 95; display: grid; place-items: center; width: 5.25rem; height: 5.25rem; border-radius: 50%; background: #d8b777; color: #0b0806; font-family: var(--font-space-mono); font-size: 0.7rem; letter-spacing: 0.16em; pointer-events: none; opacity: 0; scale: 0.4; transition: opacity 250ms, scale 350ms var(--ease-entrance); }
+.inside-cursor span { display: inline-block; margin-left: 0.2rem; }
+.inside-cursor.on { opacity: 1; scale: 1; }
+
+/* the viewer: photo, caption, thumbnails */
+.inside-box { grid-template-rows: 1fr auto; row-gap: 1.25rem; }
+.inside-box img#inside-box-img { max-height: calc(100vh - 14rem); transition: opacity 180ms, scale 300ms var(--ease-entrance); touch-action: pan-y; user-select: none; -webkit-user-drag: none; }
+.inside-box img#inside-box-img.out { opacity: 0; scale: 0.985; }
+.inside-box figcaption { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem 0.9rem; }
+.inside-box figcaption b { font-weight: 400; color: #fff; letter-spacing: 0.16em; }
+.inside-thumbs { grid-column: 1 / -1; display: flex; justify-content: center; gap: 0.5rem; overflow-x: auto; scrollbar-width: none; padding: 0.25rem; }
+.inside-thumbs::-webkit-scrollbar { display: none; }
+.inside-thumbs button { flex: none; width: 4.5rem; height: 3rem; border-radius: 4px; overflow: hidden; opacity: 0.45; outline: 1px solid transparent; outline-offset: 2px; transition: opacity 200ms, outline-color 200ms; }
+.inside-thumbs button img { width: 100%; height: 100%; object-fit: cover; }
+.inside-thumbs button:hover { opacity: 0.8; }
+.inside-thumbs button[aria-selected="true"] { opacity: 1; outline-color: #d8b777; }
+@media (max-width: 639.98px) {
+  .inside-box { grid-template-columns: 1fr; padding: 4rem 0.75rem 1.25rem; }
+  .inside-box .inside-nav { display: none; }
+  .inside-thumbs { justify-content: flex-start; }
+  .inside-thumbs button { width: 3.5rem; height: 2.5rem; }
+}
+/* desktop: a taller gallery beside the heading and the card, tags on one line */
+@media (min-width: 1100px) {
+  /* the gallery's three rows stretch to the heading column, so both sides end together */
+  .inside-in { align-items: stretch; }
+  .inside-head { position: static; }
+  .inside-grid { grid-auto-rows: unset; grid-template-rows: repeat(3, minmax(clamp(12.5rem, 16.5vw, 17rem), 1fr)); }
+  .inside-bars { height: 2.6rem; }
+  .inside-now { gap: 0.9rem; }
+  .inside-shops a { padding: 0.35rem 0.6rem; letter-spacing: 0.08em; }
+}
+@media (hover: hover) and (pointer: fine) { .inside-hint { display: none; } }
+/* the photos fill their tiles without sizing them: the grid alone decides the rows */
+.inside-open { position: relative; overflow: hidden; }
+.inside-tile img { position: absolute; inset: 0; }

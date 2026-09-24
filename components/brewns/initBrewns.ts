@@ -1065,18 +1065,138 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   }
 }
 
-/* Inside brewns: open a photo full size, step through with arrows or keys. */
+/* Inside brewns: a live "right now" card, photos that drift as you scroll, and
+   a viewer with thumbnails, swipe and crossfades. */
 {
+  const section = $("#inside");
   const box = $("#inside-box");
   const tiles = $$(".inside-open");
+  const grid = $(".inside-grid");
+
+  /* ── right now: open or closed, how busy it usually is, what's there ── */
+  // Typical busyness by hour, 07:00–20:00 (0–100). Weekends run later.
+  const BUSY = {
+    weekday: [20, 55, 72, 48, 36, 52, 78, 64, 42, 38, 48, 70, 82, 58],
+    weekend: [10, 24, 44, 60, 66, 72, 82, 76, 66, 62, 72, 88, 92, 74],
+  };
+  const ICON = {
+    wifi: '<path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1.2" fill="currentColor"/>',
+    plug: '<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    car: '<path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM7 19v1M17 19v1"/><circle cx="7.5" cy="13.5" r="0.8" fill="currentColor"/><circle cx="16.5" cy="13.5" r="0.8" fill="currentColor"/>',
+  };
+  const AMENITIES = [["wifi", "FAST WI-FI"], ["plug", "CHARGING POINTS"], ["sun", "OUTDOOR SEATING"], ["car", "PARKING NEARBY"]];
+  const svg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+  $(".inside-foot", section)?.insertAdjacentHTML(
+    "beforebegin",
+    `<div class="inside-now" data-iv="rise" data-y="16" data-d="300">
+      <p class="inside-now-head"><span class="inside-now-dot" aria-hidden="true"></span><b id="in-open">OPEN NOW</b><span id="in-close"></span></p>
+      <div class="inside-busy">
+        <p class="inside-busy-t"><span>POPULAR TIMES</span><span id="in-day"></span></p>
+        <div class="inside-bars" id="in-bars" role="img"></div>
+        <p class="inside-axis" aria-hidden="true"><span>7A</span><span>12P</span><span>5P</span><span>9P</span></p>
+        <p class="inside-busy-now" id="in-busy"></p>
+      </div>
+      <ul class="inside-amen">${AMENITIES.map(([k, l]) => `<li>${svg(k)}<span>${l}</span></li>`).join("")}</ul>
+    </div>`,
+  );
+  // Lahore time, wherever the visitor is
+  const lahore = () => {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Karachi", weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((p) => [p.type, p.value]));
+    return { day: parts.weekday, min: +parts.hour * 60 + +parts.minute };
+  };
+  const renderNow = () => {
+    const { day, min } = lahore();
+    const open = min >= OPEN_MIN && min < CLOSE_MIN;
+    const left = CLOSE_MIN - min;
+    $("#in-open").textContent = open ? "OPEN NOW" : "CLOSED NOW";
+    $("#in-close").textContent = open ? `CLOSES ${hhmm(CLOSE_MIN)} · ${left >= 60 ? `${Math.floor(left / 60)}H ` : ""}${left % 60}M LEFT` : `OPENS ${hhmm(OPEN_MIN)}`;
+    $(".inside-now", section).classList.toggle("closed", !open);
+    const weekend = day === "Saturday" || day === "Sunday";
+    const curve = weekend ? BUSY.weekend : BUSY.weekday;
+    const hour = Math.floor(min / 60);
+    const idx = hour - 7;
+    $("#in-day").textContent = `TYPICAL ${day.toUpperCase()}`;
+    const bars = $("#in-bars");
+    bars.innerHTML = curve.map((v, i) => `<i style="--h:${v}%"${open && i === idx ? ' class="now"' : ""}></i>`).join("");
+    bars.setAttribute("aria-label", `Typical busyness on ${day}s, from 7am to 9pm`);
+    const v = open && idx >= 0 && idx < curve.length ? curve[idx] : null;
+    $("#in-busy").textContent = v == null ? "QUIET: WE'RE CLOSED" : v < 35 ? "USUALLY QUIET AROUND NOW" : v < 65 ? "USUALLY A LITTLE BUSY AROUND NOW" : "USUALLY BUSY AROUND NOW";
+  };
+  queueMicrotask(renderNow); // the opening hours are declared further down
+  setInterval(renderNow, 60000);
+
+  /* ── the photos drift inside their frames as you scroll ── */
+  let onScreen = false;
+  new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
+  if (!REDUCED)
+    loop(() => {
+      if (!onScreen) return;
+      const vh = innerHeight;
+      for (const t of tiles) {
+        const r = t.getBoundingClientRect();
+        const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
+        $("img", t).style.translate = `0 ${(-p * 5).toFixed(2)}%`;
+      }
+    });
+
+  /* ── desktop: a VIEW badge follows the cursor over the photos ── */
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches && grid) {
+    const badge = document.createElement("div");
+    badge.className = "inside-cursor";
+    badge.setAttribute("aria-hidden", "true");
+    badge.innerHTML = "VIEW <span>↗</span>";
+    document.body.append(badge);
+    grid.classList.add("has-cursor");
+    const at = { x: 0, y: 0, tx: 0, ty: 0, on: false };
+    grid.addEventListener("pointermove", (e) => {
+      const over = !!e.target.closest(".inside-open");
+      at.tx = e.clientX;
+      at.ty = e.clientY;
+      if (over && !at.on) (at.x = at.tx), (at.y = at.ty);
+      at.on = over;
+      badge.classList.toggle("on", over);
+    });
+    grid.addEventListener("pointerleave", () => {
+      at.on = false;
+      badge.classList.remove("on");
+    });
+    loop(() => {
+      if (!at.on) return;
+      at.x += (at.tx - at.x) * 0.22;
+      at.y += (at.ty - at.y) * 0.22;
+      badge.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px) translate(-50%, -50%)`;
+    });
+  }
+
+  /* ── the viewer: thumbnails, crossfades, swipe, keys ── */
   let at = 0;
+  const bigImg = $("#inside-box-img");
+  box?.insertAdjacentHTML(
+    "beforeend",
+    `<div class="inside-thumbs" role="tablist" aria-label="Photos">${tiles
+      .map((t, i) => `<button type="button" role="tab" data-inside-go="${i}" aria-label="Photo ${i + 1}"><img src="${$("img", t).getAttribute("src")}" alt="" loading="lazy"></button>`)
+      .join("")}</div>`,
+  );
   const show = (i) => {
     at = (i + tiles.length) % tiles.length;
     const img = $("img", tiles[at]);
-    $("#inside-box-img").src = img.src;
-    $("#inside-box-img").alt = img.alt;
     const cap = tiles[at].parentElement.querySelector("figcaption");
-    $("#inside-box-cap").textContent = `${String(at + 1).padStart(2, "0")} / ${String(tiles.length).padStart(2, "0")} · ${cap.querySelector("b").textContent} · ${cap.querySelector("span:last-child").textContent}`;
+    const swap = () => {
+      bigImg.src = img.src;
+      bigImg.alt = img.alt;
+      bigImg.classList.remove("out");
+    };
+    if (REDUCED || !bigImg.getAttribute("src")) swap();
+    else {
+      bigImg.classList.add("out");
+      setTimeout(swap, 180);
+    }
+    $("#inside-box-cap").innerHTML = `<span class="inside-n">${String(at + 1).padStart(2, "0")} / ${String(tiles.length).padStart(2, "0")}</span><b>${cap.querySelector("b").textContent}</b><span>${cap.querySelector("span:last-child").textContent}</span>`;
+    $$("[data-inside-go]", box).forEach((b, k) => b.setAttribute("aria-selected", String(k === at)));
+    $(`[data-inside-go="${at}"]`, box)?.scrollIntoView({ block: "nearest", inline: "center" });
+    // warm the neighbours so stepping is instant
+    [at + 1, at - 1].forEach((k) => (new Image().src = $("img", tiles[(k + tiles.length) % tiles.length]).src));
   };
   const close = () => {
     box.hidden = true;
@@ -1085,16 +1205,29 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   };
   tiles.forEach((t, i) =>
     t.addEventListener("click", () => {
+      bigImg.removeAttribute("src");
       show(i);
       box.hidden = false;
       stopScroll();
+      playWhoosh();
       $("[data-inside-close]", box).focus();
     }),
   );
   box?.addEventListener("click", (e) => {
+    const go = e.target.closest("[data-inside-go]");
+    if (go) return show(+go.dataset.insideGo);
     const step = e.target.closest("[data-inside-step]");
     if (step) return show(at + +step.dataset.insideStep);
     if (e.target === box || e.target.closest("[data-inside-close]")) close();
+  });
+  // swipe between photos on touch screens
+  let sx = null;
+  bigImg?.addEventListener("pointerdown", (e) => (sx = e.clientX));
+  bigImg?.addEventListener("pointerup", (e) => {
+    if (sx == null) return;
+    const dx = e.clientX - sx;
+    sx = null;
+    if (Math.abs(dx) > 50) show(at + (dx < 0 ? 1 : -1));
   });
   document.addEventListener("keydown", (e) => {
     if (!box || box.hidden) return;
