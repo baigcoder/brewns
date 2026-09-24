@@ -769,11 +769,27 @@ const KITCHEN = [
 ].map((k) => ({
   ...k,
   cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
-  photo: foodArt(k.art[0], k.art[1]),
-  alt: `An illustration of the brewns ${k.name.toLowerCase()}`,
+  // A real photo at public/assets/kitchen/<id>.jpg wins; until one is there the
+  // drawn dish stands in (see the error handler below).
+  photo: `kitchen/${k.id}.jpg`,
+  art: foodArt(k.art[0], k.art[1]),
+  alt: `The brewns ${k.name.toLowerCase()}`,
   care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
 }));
 const rs = (n) => `Rs ${n.toLocaleString("en-US")}`;
+const KITCHEN_ART = Object.fromEntries(KITCHEN.map((k) => [k.id, k.art]));
+document.addEventListener(
+  "error",
+  (e) => {
+    const img = e.target;
+    if (img?.tagName !== "IMG" || img.dataset.artFallback) return;
+    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)\.jpg/)?.[1];
+    if (!id || !KITCHEN_ART[id]) return;
+    img.dataset.artFallback = "1";
+    img.src = KITCHEN_ART[id];
+  },
+  true,
+);
 // Photos are asset paths; drawn dishes arrive as data URIs.
 const photoSrc = (photo) => (photo.startsWith("data:") ? photo : `${ASSET_BASE_URL}${photo}`);
 
@@ -791,7 +807,7 @@ const ALL_MENU_CARDS = [
   { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Slow Roast whole bean bag" },
   { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Ethiopia Yirgacheffe whole bean bag" },
   { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
-  ...KITCHEN.map((k) => ({ id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: k.photo, size: [800, 800], frame: [255, 255, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
+  ...KITCHEN.map((k) => ({ id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: `${ASSET_BASE_URL}${k.photo}`, size: [800, 800], frame: [255, 255, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
 ];
 
 const cardHTML = (c, o) => {
