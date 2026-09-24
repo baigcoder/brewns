@@ -182,6 +182,17 @@ This is a working demo, not a trading site:
 - **Ordering is client-side only.** "Place order" saves the order to the
   browser's `localStorage` and makes no network request. Nothing reaches the
   café. A real launch needs an ordering backend and payments.
+- **Order tracking runs on the clock.** After an order, `orderLive.ts` plays out
+  real stages at real times (accepted, preparing, rider assigned, out for
+  delivery, arriving, delivered; or ready for collection) and the café and
+  rider post updates in the message panel. Messages are answered by rules in
+  `autoReply()` until the café's system is connected; with a backend, only
+  `timeline()` and `autoReply()` need to read real data. The rider names are
+  placeholders.
+- **Receipts** are sales tax invoices (print / save as PDF, or download). Fill
+  in `BUSINESS.ntn` and `strn` in `initBrewns.ts` to print the café's FBR
+  registration, and set `SHOP_PHONE` / `SHOP_WHATSAPP` to the real numbers
+  (WhatsApp messages the café with the order filled in).
 - **Some content is placeholder.** The reviews and their names, the 4.9 rating
   and its breakdown, the press quote and the "LIVE WAIT ~4 MIN" badges (which
   follow the time of day) are all invented. Replace them with real data before
