@@ -26,6 +26,8 @@ const eslintConfig = defineConfig([
     'next-env.d.ts',
     // Vendored Draco decoder and generated assets, not source.
     'public/**',
+    // The kitchen:white tool's own install.
+    'tools/**',
   ]),
 ]);
 
