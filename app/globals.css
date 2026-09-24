@@ -2534,10 +2534,15 @@ nextjs-portal,
 .trk-steps.cancelled li { color: rgb(255 255 255 / 0.25); text-decoration: line-through; }
 @keyframes trk-pulse { 50% { box-shadow: 0 0 0 8px rgb(213 140 61 / 0); } }
 .trk-rider { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem; border: 1px solid rgb(216 183 119 / 0.35); background: rgb(216 183 119 / 0.06); }
-.trk-rider > div { flex: 1; }
+.trk-rider > div { flex: 1; min-width: 0; }
 .trk-rider .mono-fine { color: rgb(255 255 255 / 0.55); }
 .trk-rider .btn { flex: 0 0 auto; padding-inline: 1rem; }
-.trk-avatar { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 50%; background: #d8b777; color: #17130f; font-weight: 700; }
+.trk-avatar { flex: 0 0 auto; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 50%; background: #d8b777; color: #17130f; font-weight: 700; }
+@media (max-width: 640px) {
+  .trk-rider { flex-wrap: wrap; }
+  .trk-rider > div { flex-basis: calc(100% - 3.7rem); }
+  .trk-rider .btn { flex: 1 1 0; justify-content: center; }
+}
 .trk-map { border: 1px solid rgb(255 255 255 / 0.12); background: #0f0c0a; }
 .trk-map svg { display: block; width: 100%; height: auto; }
 .trk-map text { fill: rgb(255 255 255 / 0.6); font-family: var(--font-space-mono); font-size: 9px; letter-spacing: 0.1em; }
