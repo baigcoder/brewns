@@ -162,7 +162,7 @@ It cuts each dish out of its background, centres it on a white 1000 px square wi
 
 ### Sharper photos
 
-The Inside brewns photos are sharpened with Real-ESRGAN (`realesr-general-x4v3`), which recovers edges and removes blur and compression artefacts. At full strength it makes photos look painted (smeared faces, flat patches), so the script tones it down: the model is blended with its no-denoise variant (`DENOISE`) and only part of its output (`MIX`) is laid over a plain resize of the original. It runs on the CPU with ONNX Runtime, no PyTorch or GPU needed:
+The Inside brewns photos are sharpened with [4xNomos8kSC](https://github.com/Phhofm/models) (CC BY 4.0), an ESRGAN model trained on real photos that were blurred, resized and compressed: it restores edges, text and texture without the painted look of general-purpose upscalers. It runs on the CPU with ONNX Runtime, no PyTorch or GPU needed (about a minute per photo):
 
 ```bash
 pip install onnx onnxruntime pillow numpy
