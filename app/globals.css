@@ -2251,3 +2251,34 @@ nextjs-portal,
     justify-content: center;
   }
 }
+/* Ambassador — Hania Aamir, polaroid on a teal/magenta/amber glow. */
+.amb { position: relative; overflow: hidden; background: var(--raw-color-espresso-950); color: #fff; }
+.amb-glow { position: absolute; inset: 0; pointer-events: none; background:
+  radial-gradient(40% 45% at 8% 30%, rgb(14 116 128 / 0.55), transparent 70%),
+  radial-gradient(35% 40% at 82% 18%, rgb(150 40 100 / 0.45), transparent 70%),
+  radial-gradient(45% 45% at 70% 95%, rgb(160 90 20 / 0.35), transparent 70%); }
+.amb-marquee { position: absolute; top: 3.5rem; left: 0; display: flex; white-space: nowrap; pointer-events: none; font-family: var(--font-geist); font-weight: 700; font-size: clamp(3rem, 7vw, 6.5rem); line-height: 1; color: transparent; -webkit-text-stroke: 1px rgb(255 255 255 / 0.14); animation: amb-marquee 40s linear infinite; }
+.amb-marquee span { padding-right: 0.3em; }
+@keyframes amb-marquee { to { transform: translateX(-50%); } }
+.amb-in { position: relative; z-index: 1; display: grid; gap: 3.5rem; align-items: center; padding: 9rem 1.25rem 5rem; max-width: 90rem; margin-inline: auto; }
+@media (min-width: 1024px) { .amb-in { grid-template-columns: 1fr 1fr; gap: 6rem; padding: 11rem 5rem 7rem; } }
+.amb-card { justify-self: center; width: min(100%, 30rem); }
+.amb-polaroid { position: relative; margin: 0; padding: 1rem 1rem 4.5rem; background: #f4efe4; box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.7); transform: rotate(-3deg); transition: transform 500ms var(--ease-entrance); }
+.amb-polaroid:hover { transform: rotate(0deg) scale(1.02); }
+.amb-photo-frame { position: relative; display: block; aspect-ratio: 4 / 5; overflow: hidden; background: linear-gradient(135deg, #e0893a, #e8618c); }
+.amb-photo { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; filter: saturate(1.08) contrast(1.03); transition: transform 700ms var(--ease-entrance); }
+.amb-polaroid:hover .amb-photo { transform: scale(1.05); }
+/* A warm wash so the photo sits in the brand palette. */
+.amb-photo-frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: soft-light; background: linear-gradient(160deg, rgb(20 170 180 / 0.25), transparent 45%, rgb(240 100 150 / 0.3)); }
+.amb-tape { position: absolute; right: -0.5rem; bottom: 1rem; padding: 0.45rem 1.25rem; background: #d8893f; color: #1b120b; font-family: var(--font-allura); font-size: clamp(1.75rem, 2.4vw, 2.25rem); line-height: 1.1; transform: rotate(6deg); box-shadow: 0 8px 18px -8px rgb(0 0 0 / 0.6); border-radius: 0.35rem; }
+.amb-heart { position: absolute; left: 1.25rem; bottom: 1.3rem; color: #e8618c; font-size: 1.75rem; line-height: 1; animation: amb-beat 1.6s ease-in-out infinite; }
+@keyframes amb-beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(0.95); } 45% { transform: scale(1.15); } }
+.amb-copy .t-eyebrow { color: rgb(255 255 255 / 0.7); }
+.amb-h2 { margin-top: 1rem; font-family: var(--font-geist); font-weight: 800; font-size: var(--font-size-display-phone); line-height: 0.92; letter-spacing: -0.02em; }
+@media (min-width: 640px) { .amb-h2 { font-size: var(--font-size-display-tablet); } }
+@media (min-width: 1024px) { .amb-h2 { font-size: 7rem; max-width: 8ch; } }
+.amb-script { margin-top: 0.25rem; font-family: var(--font-allura); font-size: clamp(3rem, 6vw, 5rem); line-height: 1; color: #f2c46d; }
+.amb-lede { margin-top: 2rem; max-width: 33rem; color: rgb(255 255 255 / 0.85); text-transform: none; }
+.amb-cta { margin-top: 2.25rem; }
+@media (prefers-reduced-motion: reduce) { .amb-marquee, .amb-heart { animation: none; } }
+@media (min-width: 1024px) { .amb-tape { right: -1.25rem; } }
