@@ -4085,7 +4085,29 @@ cart.subscribe(() => hasLayer("bag") && renderBag());
 const coEl = $("#checkout");
 const coClip = new Spring({ clipPath: "inset(0% 0% 100% 0%)" }, styler(coEl));
 const LOCS = [["MM ALAM ROAD", "GULBERG III, LAHORE"], ["CCA, DHA PHASE 5", "DHA, LAHORE"], ["MAIN BOULEVARD", "JOHAR TOWN, LAHORE"]];
+// The same shops as they read in a sentence.
+const LOC_TITLES = ["MM Alam Road", "CCA, DHA Phase 5", "Main Boulevard, Johar Town"];
 const TAX = 0.16, PREP_MIN = 12, OPEN_MIN = 7 * 60, CLOSE_MIN = 21 * 60;
+/* Punjab taxes restaurant bills at 16%, and at 5% when they are paid by card or
+   a mobile wallet; the checkout shows whichever applies to the method chosen. */
+const TAX_CARD = 0.05;
+/* Delivery areas: which shop sends the rider, the fee, and the time it takes. */
+const DELIVERY = { min: 1000, freeOver: 3000, areas: [
+  ["GULBERG", 0, 150, 30], ["MODEL TOWN", 0, 250, 40], ["GARDEN TOWN", 0, 200, 35],
+  ["DHA PHASE 1–6", 1, 200, 35], ["DHA PHASE 7–8", 1, 300, 45],
+  ["JOHAR TOWN", 2, 150, 30], ["WAPDA TOWN", 2, 250, 40],
+] };
+const PAY = [
+  ["CASH", "AT THE COUNTER", "TO THE RIDER"],
+  ["CARD", "TAP OR CHIP · 5% TAX", "ON THE RIDER'S MACHINE · 5% TAX"],
+  ["JAZZCASH / EASYPAISA", "SCAN OUR RAAST QR · 5% TAX", "SCAN THE RIDER'S QR · 5% TAX"],
+];
+// Pakistani mobile numbers: 03XX XXXXXXX, with or without +92 / 0092.
+const pkMobile = (v) => {
+  const d = v.replace(/[\s\-()]/g, "").replace(/^(\+92|0092)/, "0");
+  return /^03\d{9}$/.test(d) ? `${d.slice(0, 4)} ${d.slice(4)}` : "";
+};
+const SHOP_MAPS = (i) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${LOCS[i][0]}, ${LOCS[i][1]}`)}`;
 const readStore = (k, fallback) => {
   try {
     return JSON.parse(localStorage.getItem(k)) ?? fallback;
@@ -4120,13 +4142,17 @@ const slotList = () => {
   for (let t = start; t <= CLOSE_MIN - 15 && out.length < 20; t += 15) out.push({ t, tomorrow });
   return out;
 };
+const isDelivery = () => co.mode === "delivery";
+const leadMin = () => (isDelivery() ? DELIVERY.areas[co.area][3] : PREP_MIN);
 const pickupLabel = () =>
-  co.when === "asap" ? `ASAP · ABOUT ${hhmm(nowMin() + PREP_MIN)}` : co.slot ? `${co.slot.tomorrow ? "TOMORROW" : "TODAY"} ${hhmm(co.slot.t)}` : "CHOOSE A TIME";
+  co.when === "asap" ? `ASAP · ABOUT ${hhmm(nowMin() + leadMin())}` : co.slot ? `${co.slot.tomorrow ? "TOMORROW" : "TODAY"} ${hhmm(co.slot.t)}` : "CHOOSE A TIME";
 const orderTotals = () => {
   const sub = cart.subtotal();
-  const discount = sub * co.discount;
-  const tax = (sub - discount) * TAX;
-  return { sub, discount, tax, total: sub - discount + tax };
+  const discount = Math.round(sub * co.discount);
+  const fee = isDelivery() && sub - discount < DELIVERY.freeOver ? DELIVERY.areas[co.area][2] : 0;
+  const rate = co.pay ? TAX_CARD : TAX;
+  const tax = Math.round((sub - discount) * rate);
+  return { sub, discount, fee, rate, tax, total: sub - discount + fee + tax };
 };
 const titleCase = (s) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 const tornPath = (w) => {
@@ -4150,7 +4176,7 @@ function openCheckout() {
   if (!cart.count()) return openBag();
   if (hasLayer("bag")) closeBag();
   const saved = readStore("brewns-details", {});
-  co = { step: 1, loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
+  co = { step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
   if (co.when === "later") co.slot = slotList()[0];
   renderCheckout();
   if (hasLayer("checkout")) return;
@@ -4192,46 +4218,66 @@ function renderCheckout({ animate = true } = {}) {
   const totals = orderTotals();
   const n = cart.count();
   const slotsScroll = $(".slots", coEl)?.scrollLeft || 0;
-  const steps = ["PICKUP", "DETAILS", "CONFIRMED"].map((s, i) => `<li class="${co.step >= i + 1 ? "on" : ""}">0${i + 1} ${s}</li>`).join("");
+  const steps = ["ORDER", "DETAILS", "CONFIRMED"].map((s, i) => `<li class="${co.step >= i + 1 ? "on" : ""}">0${i + 1} ${s}</li>`).join("");
   const open = isOpenNow();
+  const delivery = isDelivery();
+  const short = delivery && totals.sub - totals.discount < DELIVERY.min;
+  const radio = (name, i, checked, title, meta) =>
+    `<label class="pick"><input type="radio" name="${name}" value="${i}" ${checked ? "checked" : ""}><span class="pick-check" aria-hidden="true"></span><span class="pick-name">${title}</span><span class="pick-meta mono-fine">${meta}</span></label>`;
 
   const main =
     co.step === 1
-      ? `<h2 class="co-h">WHERE &amp; WHEN.</h2>
+      ? `<h2 class="co-h">${delivery ? "WHERE TO?" : "WHERE &amp; WHEN."}</h2>
         <div class="co-block">
-          <p class="co-label mono-fine"><span>PICKUP LOCATION</span><span>OPEN DAILY 07:00 – 21:00</span></p>
-          <div class="loc-cards" role="radiogroup" aria-label="Pickup location">${LOCS.map(
-            ([a, b], i) =>
-              `<label class="pick"><input type="radio" name="co-loc" value="${i}" ${co.loc === i ? "checked" : ""}><span class="pick-check" aria-hidden="true"></span><span class="pick-name">${a}<br>${b}</span><span class="pick-meta mono-fine"><span class="dot"></span>${open ? "OPEN NOW" : "OPENS 07:00"} · ~${PREP_MIN} MIN</span></label>`,
-          ).join("")}</div>
+          <p class="co-label mono-fine"><span>HOW DO YOU WANT IT</span><span>OPEN DAILY 07:00 – 21:00</span></p>
+          <div class="seg" role="radiogroup" aria-label="Order type">
+            <button type="button" role="radio" data-mode="pickup" aria-checked="${!delivery}">PICKUP<small>READY IN ~${PREP_MIN} MIN · FREE</small></button>
+            <button type="button" role="radio" data-mode="delivery" aria-checked="${delivery}">DELIVERY<small>~30–45 MIN · FROM ${money(150)}</small></button>
+          </div>
         </div>
+        ${
+          delivery
+            ? `<div class="co-block">
+          <p class="co-label mono-fine"><span>YOUR AREA</span><span>FREE DELIVERY OVER ${money(DELIVERY.freeOver)}</span></p>
+          <div class="loc-cards area-cards" role="radiogroup" aria-label="Delivery area">${DELIVERY.areas
+            .map(([name, shop, fee, eta], i) => radio("co-area", i, co.area === i, name, `${money(fee)} · ~${eta} MIN · FROM ${LOCS[shop][0]}`))
+            .join("")}</div>
+          ${short ? `<p class="co-note mono-fine">DELIVERY STARTS AT ${money(DELIVERY.min)}. ADD ${money(DELIVERY.min - (totals.sub - totals.discount))} MORE, OR PICK IT UP.</p>` : ""}
+        </div>`
+            : `<div class="co-block">
+          <p class="co-label mono-fine"><span>PICKUP LOCATION</span><span>SHOW YOUR ORDER NUMBER AT THE COUNTER</span></p>
+          <div class="loc-cards" role="radiogroup" aria-label="Pickup location">${LOCS.map(([a, b], i) =>
+            radio("co-loc", i, co.loc === i, `${a}<br>${b}`, `<span class="dot"></span>${open ? "OPEN NOW" : "OPENS 07:00"} · ~${PREP_MIN} MIN`),
+          ).join("")}</div>
+        </div>`
+        }
         <div class="co-block">
-          <p class="co-label mono-fine"><span>PICKUP TIME</span><span>${pickupLabel()}</span></p>
-          <div class="seg" role="radiogroup" aria-label="Pickup time">
-            <button type="button" role="radio" data-when="asap" aria-checked="${co.when === "asap"}" ${open ? "" : "disabled"}>AS SOON AS POSSIBLE<small>${open ? `~${PREP_MIN} MIN` : "WE'RE CLOSED"}</small></button>
+          <p class="co-label mono-fine"><span>${delivery ? "DELIVERY TIME" : "PICKUP TIME"}</span><span>${pickupLabel()}</span></p>
+          <div class="seg" role="radiogroup" aria-label="${delivery ? "Delivery" : "Pickup"} time">
+            <button type="button" role="radio" data-when="asap" aria-checked="${co.when === "asap"}" ${open ? "" : "disabled"}>AS SOON AS POSSIBLE<small>${open ? `~${leadMin()} MIN` : "WE'RE CLOSED"}</small></button>
             <button type="button" role="radio" data-when="later" aria-checked="${co.when === "later"}">SCHEDULE<small>PICK A TIME</small></button>
           </div>
           ${
             co.when === "later"
-              ? `<div class="slots" role="radiogroup" aria-label="Pickup slot">${slotList()
+              ? `<div class="slots" role="radiogroup" aria-label="Time slot">${slotList()
                   .map((s) => `<button type="button" role="radio" data-slot="${s.t}|${s.tomorrow ? 1 : 0}" aria-checked="${co.slot?.t === s.t}">${s.tomorrow ? "TMRW " : ""}${hhmm(s.t)}</button>`)
                   .join("")}</div>`
               : ""
           }
         </div>
-        <div class="co-actions"><button type="button" class="btn btn-dark" data-co="next">CONTINUE TO DETAILS ${ARROW_SVG}</button></div>`
-      : `<h2 class="co-h">WHO'S COLLECTING?</h2>
+        <div class="co-actions"><button type="button" class="btn btn-dark" data-co="next" ${short ? "disabled" : ""}>CONTINUE TO DETAILS ${ARROW_SVG}</button></div>`
+      : `<h2 class="co-h">${delivery ? "WHERE'S IT GOING?" : "WHO'S COLLECTING?"}</h2>
         <div class="co-block"><div class="fields">
-          ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', "Who we call out")}
-          ${field("phone", "PHONE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="20"', "0300 0000000")}
+          ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', delivery ? "Who the rider asks for" : "Who we call out")}
+          ${field("phone", "MOBILE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="16"', "0300 1234567")}
+          ${delivery ? `<label class="field wide${co.errors.address ? " bad" : ""}"><span class="mono-fine">ADDRESS · ${DELIVERY.areas[co.area][0]}</span><textarea data-field="address" rows="2" maxlength="160" autocomplete="street-address" placeholder="House / flat, street, block, nearest landmark">${esc(co.address)}</textarea><span class="err mono-fine">${co.errors.address || ""}</span></label>` : ""}
           ${field("email", "EMAIL · OPTIONAL", "email", 'autocomplete="email" maxlength="80"', "For the receipt")}
-          <label class="field wide"><span class="mono-fine">NOTE FOR THE BARISTA · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="Extra hot, no lid…">${esc(co.note)}</textarea></label>
+          <label class="field wide"><span class="mono-fine">NOTE FOR THE ${delivery ? "RIDER" : "BARISTA"} · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="${delivery ? "Gate code, call on arrival…" : "Extra hot, less ice…"}">${esc(co.note)}</textarea></label>
         </div></div>
         <div class="co-block">
-          <p class="co-label mono-fine"><span>PAYMENT</span><span>NOTHING IS CHARGED ONLINE</span></p>
-          <div class="loc-cards" role="radiogroup" aria-label="Payment">${[["PAY AT PICKUP", "CASH OR CARD WHEN YOU COLLECT"], ["CARD AT THE COUNTER", "TAP, CHIP OR APPLE PAY"]]
-            .map(([label, meta], i) => `<label class="pick"><input type="radio" name="co-pay" value="${i}" ${co.pay === i ? "checked" : ""}><span class="pick-check" aria-hidden="true"></span><span class="pick-name">${label}</span><span class="pick-meta mono-fine">${meta}</span></label>`)
-            .join("")}</div>
+          <p class="co-label mono-fine"><span>PAYMENT</span><span>PAID ${delivery ? "ON DELIVERY" : "AT PICKUP"} · NOTHING IS CHARGED ONLINE</span></p>
+          <div class="loc-cards" role="radiogroup" aria-label="Payment">${PAY.map(([label, atShop, atDoor], i) => radio("co-pay", i, co.pay === i, label, delivery ? atDoor : atShop)).join("")}</div>
+          ${co.pay ? "" : `<p class="co-note mono-fine">PAY BY CARD OR WALLET AND PUNJAB SALES TAX DROPS FROM 16% TO 5%.</p>`}
         </div>
         <div class="co-actions"><button type="button" class="btn btn-ghost" data-co="back">BACK</button><button type="button" class="btn btn-dark" data-co="place">PLACE ORDER · ${money(totals.total)} ${ARROW_SVG}</button></div>`;
 
@@ -4253,10 +4299,15 @@ function renderCheckout({ animate = true } = {}) {
         <div class="co-sums mono-fine">
           <div class="sum-row"><span>SUBTOTAL</span><span>${money(totals.sub)}</span></div>
           ${totals.discount ? `<div class="sum-row"><span>PROMO</span><span>−${money(totals.discount)}</span></div>` : ""}
-          <div class="sum-row"><span>PUNJAB SALES TAX ${Math.round(TAX * 100)}%</span><span>${money(totals.tax)}</span></div>
+          ${delivery ? `<div class="sum-row"><span>DELIVERY · ${DELIVERY.areas[co.area][0]}</span><span>${totals.fee ? money(totals.fee) : "FREE"}</span></div>` : ""}
+          <div class="sum-row"><span>PUNJAB SALES TAX ${Math.round(totals.rate * 100)}%</span><span>${money(totals.tax)}</span></div>
           <div class="sum-row total"><span>TOTAL</span><span>${money(totals.total)}</span></div>
         </div>
-        <div class="co-pickup mono-fine"><span>PICKUP</span><b>${LOCS[co.loc][0]}</b><b>${pickupLabel()}</b></div>
+        ${
+          delivery
+            ? `<div class="co-pickup mono-fine"><span>DELIVERY</span><b>${DELIVERY.areas[co.area][0]}, LAHORE</b><b>${pickupLabel()}</b></div>`
+            : `<div class="co-pickup mono-fine"><span>PICKUP</span><b>${LOCS[co.loc][0]}</b><b>${pickupLabel()}</b></div>`
+        }
       </div></aside>
     </div>`;
   fillSnaps(coEl);
@@ -4268,6 +4319,7 @@ function renderCheckout({ animate = true } = {}) {
 function renderDone() {
   const o = co.done;
   const loc = LOCS[o.loc];
+  const delivered = o.mode === "delivery";
   const when = `${o.pickupAt.tomorrow ? "TOMORROW " : ""}${hhmm(o.pickupAt.t)}`;
   const d = new Date(o.placed);
   const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -4286,14 +4338,14 @@ function renderDone() {
           <div class="receipt-body">
             <p style="font-size:11px;font-weight:700;letter-spacing:.16em;text-align:center">BREWNS COFFEE HOUSE</p>
             <div class="rc-rule"></div>
-            <div style="display:flex;justify-content:space-between;gap:12px;font-size:8px;letter-spacing:.07em;line-height:1.85"><div><p>ORDER ${num}</p><p>FOR ${esc(o.name.toUpperCase())}</p></div><div style="text-align:right"><p>${date}</p><p>PICKUP ${when}</p></div></div>
-            <div style="font-size:8px;letter-spacing:.07em;line-height:1.85"><p>${loc[0]}</p><p>${loc[1]}</p></div>
+            <div style="display:flex;justify-content:space-between;gap:12px;font-size:8px;letter-spacing:.07em;line-height:1.85"><div><p>ORDER ${num}</p><p>FOR ${esc(o.name.toUpperCase())}</p></div><div style="text-align:right"><p>${date}</p><p>${delivered ? "DELIVERY" : "PICKUP"} ${when}</p></div></div>
+            <div style="font-size:8px;letter-spacing:.07em;line-height:1.85">${delivered ? `<p>TO ${esc(o.address.toUpperCase())}</p><p>${DELIVERY.areas[o.area][0]}, LAHORE · ${esc(o.phone)}</p>` : `<p>${loc[0]}</p><p>${loc[1]}</p>`}</div>
             <div class="rc-rule"></div>
             <div class="rc-lines">${lines}</div>
             <div class="rc-rule"></div>
-            <div class="rc-lines"><div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>${o.totals.discount ? `<div><span>PROMO</span><span>−${money(o.totals.discount)}</span></div>` : ""}<div><span>TAX</span><span>${money(o.totals.tax)}</span></div></div>
+            <div class="rc-lines"><div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>${o.totals.discount ? `<div><span>PROMO</span><span>−${money(o.totals.discount)}</span></div>` : ""}${delivered ? `<div><span>DELIVERY</span><span>${o.totals.fee ? money(o.totals.fee) : "FREE"}</span></div>` : ""}<div><span>SALES TAX ${Math.round(o.totals.rate * 100)}%</span><span>${money(o.totals.tax)}</span></div></div>
             <div class="rc-total"><span>TOTAL</span><span>${money(o.totals.total)}</span></div>
-            <p style="font-size:8px;letter-spacing:.07em;line-height:1.85">${o.pay ? "CARD AT THE COUNTER" : "PAY AT PICKUP"}${o.note ? ` · NOTE: ${esc(o.note.toUpperCase())}` : ""}</p>
+            <p style="font-size:8px;letter-spacing:.07em;line-height:1.85">PAY ${PAY[o.pay][0]} ${delivered ? "ON DELIVERY" : "AT PICKUP"}${o.note ? ` · NOTE: ${esc(o.note.toUpperCase())}` : ""}</p>
             <div class="rc-rule"></div>
             <p style="font-size:16px;font-weight:700;line-height:1.25"><span style="display:block">SKIP THE LINE.</span><span style="display:block">SEE YOU SOON.</span></p>
             <div class="barcode">${orderBars(o.number)}</div>
@@ -4304,13 +4356,19 @@ function renderDone() {
       </div></div>
       <div class="done-body">
         <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · CONFIRMED</p>
-        <h2 class="done-h">SEE YOU AT ${when}.</h2>
-        <p class="pdp-desc">We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. Head to ${titleCase(loc[0])} — your order will be waiting at the pickup counter under ${num}. No line, no waiting.</p>
+        <h2 class="done-h">${delivered ? `AT YOUR DOOR BY ${when}.` : `SEE YOU AT ${when}.`}</h2>
+        <p class="pdp-desc">${
+          delivered
+            ? `We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. ${LOC_TITLES[o.loc]} is making it now, and a rider will bring it to ${esc(o.address)}. They’ll call ${esc(o.phone)} when they’re outside. Pay ${PAY[o.pay][0].toLowerCase().replace("jazzcash / easypaisa", "by JazzCash or Easypaisa")} on arrival: ${money(o.totals.total)}.`
+            : `We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. Head to ${LOC_TITLES[o.loc]} — your order will be waiting at the pickup counter under ${num}. Pay ${money(o.totals.total)} ${o.pay === 0 ? "in cash" : o.pay === 1 ? "by card" : "by JazzCash or Easypaisa"} when you collect.`
+        }</p>
         <div class="done-eta">
           <div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="ring-bar" cx="50" cy="50" r="46" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="ring-num" aria-live="polite"><span><span id="ring-num">--</span><small id="ring-unit">MIN</small></span></div></div>
-          <div class="done-steps" style="flex:1">${["ORDER RECEIVED", "BARISTA ON IT", "READY FOR PICKUP"].map((s, i) => `<div class="done-step mono-fine" data-stage="${i}"><i></i>${s}</div>`).join("")}</div>
+          <div class="done-steps" style="flex:1">${["ORDER RECEIVED", "BARISTA ON IT", delivered ? "OUT FOR DELIVERY" : "READY FOR PICKUP"].map((s, i) => `<div class="done-step mono-fine" data-stage="${i}"><i></i>${s}</div>`).join("")}</div>
         </div>
-        <div class="done-actions"><button type="button" class="btn btn-solid" data-co="close">BACK TO BREWNS ${ARROW_SVG}</button><button type="button" class="btn btn-line" data-co="shop">KEEP SHOPPING</button></div>
+        <div class="done-actions"><button type="button" class="btn btn-solid" data-co="close">BACK TO BREWNS ${ARROW_SVG}</button>${
+          delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS ${ARROW_SVG}</a>`
+        }<a class="btn btn-line" href="tel:+924212345678">CALL THE SHOP</a></div>
       </div>
     </div>`;
 
@@ -4352,7 +4410,8 @@ function renderDone() {
 function placeOrder() {
   const errors = {};
   if (co.name.trim().length < 2) errors.name = "TELL US WHO TO CALL OUT";
-  if (co.phone.replace(/\D/g, "").length < 7) errors.phone = "WE NEED A NUMBER, JUST IN CASE";
+  if (!pkMobile(co.phone)) errors.phone = "A PAKISTANI MOBILE, LIKE 0300 1234567";
+  if (isDelivery() && co.address.trim().length < 10) errors.address = "HOUSE, STREET AND BLOCK, SO THE RIDER FINDS YOU";
   if (co.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(co.email.trim())) errors.email = "THAT EMAIL LOOKS OFF";
   co.errors = errors;
   if (Object.keys(errors).length) {
@@ -4360,15 +4419,20 @@ function placeOrder() {
     $(".field.bad input", coEl)?.focus();
     return;
   }
-  writeStore("brewns-details", { name: co.name.trim(), phone: co.phone.trim(), email: co.email.trim(), loc: co.loc });
+  co.phone = pkMobile(co.phone);
+  writeStore("brewns-details", { name: co.name.trim(), phone: co.phone, email: co.email.trim(), loc: co.loc, mode: co.mode, area: co.area, address: co.address.trim() });
   const number = readStore("brewns-order-seq", 25) + 1;
   writeStore("brewns-order-seq", number);
   const placed = Date.now();
-  const pickupAt = co.when === "asap" ? { t: nowMin() + PREP_MIN, tomorrow: false } : co.slot;
+  const pickupAt = co.when === "asap" ? { t: nowMin() + leadMin(), tomorrow: false } : co.slot;
   const midnight = new Date(placed);
   midnight.setHours(0, 0, 0, 0);
-  const target = co.when === "asap" ? placed + PREP_MIN * 60000 : midnight.getTime() + (pickupAt.tomorrow ? 86400000 : 0) + pickupAt.t * 60000;
-  const order = { number, placed, target, items: cart.items.map((it) => ({ ...it })), totals: orderTotals(), loc: co.loc, pickupAt, name: co.name.trim(), note: co.note.trim(), pay: co.pay };
+  const target = co.when === "asap" ? placed + leadMin() * 60000 : midnight.getTime() + (pickupAt.tomorrow ? 86400000 : 0) + pickupAt.t * 60000;
+  const delivery = isDelivery();
+  const order = {
+    number, placed, target, items: cart.items.map((it) => ({ ...it })), totals: orderTotals(), pickupAt, name: co.name.trim(), phone: co.phone, note: co.note.trim(), pay: co.pay,
+    mode: co.mode, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "", loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
+  };
   writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
   co.done = order;
   co.step = 3;
@@ -4403,6 +4467,12 @@ coEl.addEventListener("click", (e) => {
     closeCheckout();
     return setTimeout(() => lenis.scrollTo("#shop", { force: true }), 60);
   }
+  const mode = t.closest("[data-mode]");
+  if (mode) {
+    co.mode = mode.dataset.mode;
+    renderCheckout({ animate: false });
+    return $(`[data-mode="${co.mode}"]`, coEl)?.focus();
+  }
   const when = t.closest("[data-when]");
   if (when) {
     co.when = when.dataset.when;
@@ -4425,7 +4495,16 @@ coEl.addEventListener("change", (e) => {
     renderCheckout({ animate: false });
     $("input[name='co-loc']:checked", coEl)?.focus();
   }
-  if (e.target.name === "co-pay") co.pay = +e.target.value;
+  if (e.target.name === "co-area") {
+    co.area = +e.target.value;
+    renderCheckout({ animate: false });
+    $("input[name='co-area']:checked", coEl)?.focus();
+  }
+  if (e.target.name === "co-pay") {
+    co.pay = +e.target.value;
+    renderCheckout({ animate: false });
+    $("input[name='co-pay']:checked", coEl)?.focus();
+  }
 });
 coEl.addEventListener("input", (e) => {
   const k = e.target.dataset.field;
