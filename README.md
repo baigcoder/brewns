@@ -1,6 +1,6 @@
 # brewns
 
-Website for **brewns**, a specialty coffee house in San Francisco: menu, a shop
+Website for **brewns**, a specialty coffee house in Lahore (MM Alam Road, DHA Phase 5, Johar Town): menu, a shop
 with interactive 3D product views, three locations, and order-ahead with a
 thermal-printer receipt.
 
@@ -78,8 +78,11 @@ Data is defined inline in `components/brewns/initBrewns.ts`:
 | `LOCS` | Shop addresses. |
 | `COLUMNS` | Footer navigation. |
 
-Prices appear in `PRODUCTS` as numbers (`4.2`) and in `ALL_MENU_CARDS` and
-`FULL_MENU_SECTIONS` as strings (`"$4.20"`). Change a price in all of them.
+Prices are whole Pakistani rupees. They appear in `PRODUCTS` as numbers (`950`,
+option add-ons included) and as strings (`"Rs 950"`) in `ALL_MENU_CARDS`, the
+hero cards, the taste quiz (`TasteCalibrator.ts`) and the hero markup. Change a
+price in all of them. `money()` formats numbers the same way. `TAX` is the
+Punjab sales tax on restaurant services (16%).
 
 Opening hours, tax and pickup lead time are the checkout's `OPEN_MIN`,
 `CLOSE_MIN`, `TAX` and `PREP_MIN`. The footer's "Open now / Closed" and the
@@ -176,6 +179,11 @@ This is a working demo, not a trading site:
   follow the time of day) are all invented. Replace them with real data before
   publishing. Invented reviews presented as genuine are a legal problem, not
   just a style one.
+- **The brand ambassador section names a real person.** `#hania` presents Hania
+  Aamir as brewns' ambassador. Publish it only with a signed agreement that
+  covers her name, and use a photo only if you have the rights to it (the
+  polaroid shows initials until then). The phone number and exact shop
+  addresses are placeholders too.
 - **Products aren't indexable.** Product pages are `#shop/<id>` hash routes, and
   there is no sitemap or social-share image.
 

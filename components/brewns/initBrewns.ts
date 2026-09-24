@@ -685,18 +685,18 @@ const PRESET = {
 
 /* ═══════════ generated markup: menu cards, footer columns ═══════════ */
 const ALL_MENU_CARDS = [
-  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "$2.50", snap: "cup", size: [720, 720], frame: [170, 170, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns espresso in the short black-lidded brewns paper cup" },
-  { id: "latte", cat: "coffee", name: "LATTE", price: "$4.20", snap: "cup", size: [720, 720], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns latte in the black-lidded brewns paper cup" },
-  { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "$4.50", file: "menu-iced-coffee.webp", size: [1024, 1536], frame: [197, 261, 0, 0], crop: ["0.1%", "2.54%", "94.92%", "107.62%"], cover: false, clip: false, alt: "A brewns iced matcha in a clear cup with a straw" },
-  { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "$4.20", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
-  { id: "cortado", cat: "coffee", name: "CORTADO", price: "$3.90", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
-  { id: "nitro-cold-brew", cat: "specialty", name: "NITRO COLD BREW", price: "$5.00", file: "menu-cold-brew.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head" },
-  { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "$3.80", file: "menu-cinnamon.webp", size: [1536, 1024], frame: [327, 218, -8, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
-  { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "$4.00", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
-  { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "$4.80", file: "menu-iced-latte.webp", size: [1024, 1536], frame: [175, 235, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: false, alt: "A brewns iced latte in a clear cup with straw" },
-  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "$18.00", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Slow Roast whole bean bag" },
-  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "$22.00", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Ethiopia Yirgacheffe whole bean bag" },
-  { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "$34.00", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
+  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "Rs 650", snap: "cup", size: [720, 720], frame: [170, 170, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns espresso in the short black-lidded brewns paper cup" },
+  { id: "latte", cat: "coffee", name: "LATTE", price: "Rs 950", snap: "cup", size: [720, 720], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns latte in the black-lidded brewns paper cup" },
+  { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "Rs 1,150", file: "menu-iced-coffee.webp", size: [1024, 1536], frame: [197, 261, 0, 0], crop: ["0.1%", "2.54%", "94.92%", "107.62%"], cover: false, clip: false, alt: "A brewns iced matcha in a clear cup with a straw" },
+  { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "Rs 750", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
+  { id: "cortado", cat: "coffee", name: "CORTADO", price: "Rs 850", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
+  { id: "nitro-cold-brew", cat: "specialty", name: "NITRO COLD BREW", price: "Rs 1,100", file: "menu-cold-brew.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head" },
+  { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "Rs 700", file: "menu-cinnamon.webp", size: [1536, 1024], frame: [327, 218, -8, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
+  { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "Rs 650", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
+  { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "Rs 1,050", file: "menu-iced-latte.webp", size: [1024, 1536], frame: [175, 235, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: false, alt: "A brewns iced latte in a clear cup with straw" },
+  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Slow Roast whole bean bag" },
+  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Ethiopia Yirgacheffe whole bean bag" },
+  { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
 ];
 
 const cardHTML = (c, o) => {
@@ -726,9 +726,9 @@ $("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map(cardHTML).join("");
    on a slip, in the same mono, torn off at the bottom. What someone ordered is
    part of the review — it ties the words back to the menu two sections up. */
 const REVIEWS = [
-  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Mission", order: "Iced Matcha · 12 oz", when: "12.05", stars: 5 },
-  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "North Beach", order: "Flat White · 8 oz", when: "04.05", stars: 5 },
-  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "SoMa", order: "Slow Roast · 250 g", when: "28.04", stars: 5 },
+  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", when: "12.05", stars: 5 },
+  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", when: "04.05", stars: 5 },
+  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", when: "28.04", stars: 5 },
 ];
 
 /* The breakdown behind the 4.9. A single headline number invites the question of
@@ -763,7 +763,7 @@ $("#rev-cards").innerHTML = REVIEWS.map((r, o) => `<li><div class="lean"><div cl
 /* A slow band of one-liners under the slips — the overheard half of a review,
    the part too short to letter onto a card. Doubled so the loop has no seam. */
 const OVERHEARD = [
-  "Best flat white in the Mission",
+  "Best flat white in Gulberg",
   "The 7am queue actually moves",
   "They remember the order",
   "Oat milk done properly",
@@ -963,8 +963,8 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
 
 /* ═══════════ hero card ═══════════ */
 const HERO_CARDS = {
-  bag: { eyebrow: "in the bag", name: "SLOW ROAST", price: "$18.00", meta: ["250 G", "WHOLE BEAN", "COPENHAGEN"] },
-  cup: { eyebrow: "in the cup", name: "HOUSE LATTE", price: "$4.20", meta: ["250 ML", "BREWED DAILY", "TO GO"] },
+  bag: { eyebrow: "in the bag", name: "SLOW ROAST", price: "Rs 3,800", meta: ["250 G", "WHOLE BEAN", "COPENHAGEN"] },
+  cup: { eyebrow: "in the cup", name: "HOUSE LATTE", price: "Rs 950", meta: ["250 ML", "BREWED DAILY", "TO GO"] },
 };
 const heroCard = $("#hero-card");
 const setCard = (role) => {
@@ -2506,22 +2506,23 @@ function philosophyScene(T, mount) {
 }
 
 /* ══════════════════════════════════ SHOP ══════════════════════════════════ */
-const money = (n) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
+/* Prices are whole Pakistani rupees, written the way Lahore menus write them: "Rs 1,150". */
+const money = (n) => `Rs ${Math.round(n).toLocaleString("en-US")}`;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const ARROW_SVG = `<svg viewBox="0 0 12.2137 13.2551" fill="none" aria-hidden="true"><path d="M11.9501 7.26396C12.3016 6.91249 12.3016 6.34264 11.9501 5.99117L6.22254 0.263604C5.87107 -0.0878682 5.30122 -0.0878682 4.94975 0.263604C4.59828 0.615076 4.59828 1.18492 4.94975 1.5364L10.0409 6.62756L4.94975 11.7187C4.59828 12.0702 4.59828 12.6401 4.94975 12.9915C5.30122 13.343 5.87107 13.343 6.22254 12.9915L11.9501 7.26396ZM0 6.62756V7.52756H11.3137V6.62756V5.72756H0V6.62756Z" fill="currentColor"/></svg>`;
 
 const CAT_LABEL = { all: "ALL", beans: "BEANS", drinks: "DRINKS", bakery: "BAKERY", merch: "MERCH", gifts: "GIFTS" };
-const PICKUP_COPY = "Ready in about 12 minutes at 139 Coffee Street, 310 Valencia Street or 56 Columbus Avenue. Open daily 07:00–21:00. Show your order number at the pickup counter.";
+const PICKUP_COPY = "Ready in about 12 minutes on MM Alam Road, in DHA Phase 5 or on Main Boulevard, Johar Town. Open daily 07:00–21:00. Show your order number at the pickup counter.";
 
 /* Option choices are [label, price delta, note]. `def` is the preselected index. */
-const MILK = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 0.5], ["ALMOND", 0.5]] };
+const MILK = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 150], ["ALMOND", 150]] };
 const PRODUCTS = [
   {
-    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 18, model: "bag", feature: true,
+    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, model: "bag", feature: true,
     meta: "250 G · WHOLE BEAN · COPENHAGEN", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
     desc: "Our house roast, taken slow and a shade past medium so the sugars caramelise without tipping into bitter. Sweet in milk, round and clean on its own.",
     options: [
-      { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 14], ["1 KG", 40]] },
+      { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 3000], ["1 KG", 8700]] },
       { key: "grind", label: "GRIND", wrap: true, choices: [["WHOLE BEAN", 0], ["ESPRESSO", 0], ["FILTER", 0], ["FRENCH PRESS", 0]] },
       { key: "plan", label: "PURCHASE", choices: [["ONE-TIME", 0], ["EVERY 2 WK", 0, "SAVE 10%"], ["EVERY 4 WK", 0, "SAVE 10%"]] },
     ],
@@ -2529,11 +2530,11 @@ const PRODUCTS = [
     care: "Roasted weekly in small batches and packed in a valved bag. Best within four weeks of the roast date printed on the back. Keep sealed, away from light and heat.",
   },
   {
-    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 22, model: "bag",
+    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 4800, model: "bag",
     meta: "250 G · WASHED HEIRLOOM · 2100M", notes: ["JASMINE", "BERGAMOT", "WHITE PEACH"],
     desc: "Washed heirloom varieties from high-altitude smallholders in Yirgacheffe. A delicate, tea-like body with sparkling citrus acidity, jasmine florals and a sweet peach finish.",
     options: [
-      { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 16], ["1 KG", 48]] },
+      { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 3600], ["1 KG", 10400]] },
       { key: "grind", label: "GRIND", wrap: true, choices: [["WHOLE BEAN", 0], ["FILTER", 0], ["ESPRESSO", 0], ["FRENCH PRESS", 0]] },
       { key: "plan", label: "PURCHASE", choices: [["ONE-TIME", 0], ["EVERY 2 WK", 0, "SAVE 10%"], ["EVERY 4 WK", 0, "SAVE 10%"]] },
     ],
@@ -2541,57 +2542,57 @@ const PRODUCTS = [
     care: "Roasted weekly in small batches. Best within five weeks of roast date. Brew with 93°C water for optimal clarity.",
   },
   {
-    id: "latte", name: "LATTE", cat: "drinks", price: 4.2, model: "cup", alt: "A brewns latte in the black-lidded brewns paper cup",
+    id: "latte", name: "LATTE", cat: "drinks", price: 950, model: "cup", alt: "A brewns latte in the black-lidded brewns paper cup",
     meta: "12 OZ · BREWED DAILY · TO GO", notes: ["SMOOTH", "BALANCED"],
     desc: "A double shot of Slow Roast under steamed milk, with a heart poured on top before the lid goes on. The one most of the city starts its morning with.",
     options: [
-      { key: "size", label: "SIZE", def: 1, choices: [["8 OZ", -0.6], ["12 OZ", 0], ["16 OZ", 0.8]] },
+      { key: "size", label: "SIZE", def: 1, choices: [["8 OZ", -150], ["12 OZ", 0], ["16 OZ", 200]] },
       MILK,
-      { key: "temp", label: "TEMPERATURE", choices: [["HOT", 0], ["ICED", 0.3]] },
+      { key: "temp", label: "TEMPERATURE", choices: [["HOT", 0], ["ICED", 100]] },
     ],
     details: [["ESPRESSO", "DOUBLE · SLOW ROAST"], ["MILK", "STEAMED"], ["CUP", "COMPOSTABLE"]],
     care: "Poured to order when you arrive, so it is never sitting on the counter. Lids are plant-based and the sleeve is recycled paper.",
   },
   {
-    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 2.5, model: "cup", alt: "A brewns espresso in the short black-lidded brewns paper cup",
+    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 650, model: "cup", alt: "A brewns espresso in the short black-lidded brewns paper cup",
     meta: "SINGLE SHOT · SHORT · STRONG", notes: ["DARK CHOCOLATE", "CARAMEL"],
     desc: "Short, strong and on demand. Eighteen grams in, a little under forty out, in about twenty-eight seconds.",
     options: [
-      { key: "shots", label: "SHOTS", choices: [["SINGLE", 0], ["DOUBLE", 0.8]] },
-      { key: "style", label: "STYLE", choices: [["STRAIGHT", 0], ["MACCHIATO", 0.4], ["CORTADO", 0.9]] },
+      { key: "shots", label: "SHOTS", choices: [["SINGLE", 0], ["DOUBLE", 200]] },
+      { key: "style", label: "STYLE", choices: [["STRAIGHT", 0], ["MACCHIATO", 100], ["CORTADO", 250]] },
     ],
     details: [["DOSE", "18 G"], ["YIELD", "38 G"], ["TIME", "28 SEC"]],
     care: "Pulled on a dialled-in grinder every morning, so the first shot of the day tastes like the last.",
   },
   {
-    id: "cortado", name: "CORTADO", cat: "drinks", tag: "BARISTA PICK", price: 3.9, photo: "menu/menu-cortado.webp", model: "glass", alt: "A brewns cortado in a faceted glass with steamed microfoam",
+    id: "cortado", name: "CORTADO", cat: "drinks", tag: "BARISTA PICK", price: 850, photo: "menu/menu-cortado.webp", model: "glass", alt: "A brewns cortado in a faceted glass with steamed microfoam",
     meta: "4.5 OZ · EQUAL PARTS ESPRESSO & MILK", notes: ["VELVETY", "HAZELNUT"],
     desc: "Equal parts Slow Roast espresso and warm textured milk in a heavy Gibraltar glass. Cuts the intensity while preserving the deep caramel sweetness of the beans.",
     options: [
-      { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 0.8]] },
+      { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 200]] },
       MILK,
-      { key: "temp", label: "TEMPERATURE", choices: [["WARM (135°F)", 0], ["HOT", 0]] },
+      { key: "temp", label: "TEMPERATURE", choices: [["WARM (57°C)", 0], ["HOT", 0]] },
     ],
     details: [["RATIO", "1:1 ESPRESSO TO MILK"], ["GLASS", "4.5 OZ GIBRALTAR"], ["ORIGIN", "SLOW ROAST BLEND"]],
     care: "Poured immediately upon arrival so the microfoam remains dense and velvety.",
   },
   {
-    id: "nitro-cold-brew", name: "NITRO COLD BREW", cat: "drinks", tag: "ON TAP", price: 5.0, photo: "menu/menu-cold-brew.webp", model: "glass", alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head",
+    id: "nitro-cold-brew", name: "NITRO COLD BREW", cat: "drinks", tag: "ON TAP", price: 1100, photo: "menu/menu-cold-brew.webp", model: "glass", alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head",
     meta: "STEEPED 20 HRS · NITROGEN INFUSED", notes: ["STOUT-LIKE", "CREAMY CACAO"],
     desc: "Slow steeped for twenty hours and charged with pure food-grade nitrogen on draft. Pours with a thick cascading head like a fine dry stout, naturally sweet with zero added sugar.",
     options: [
-      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 0.9]] },
-      { key: "style", label: "POUR", choices: [["STRAIGHT NITRO", 0], ["VANILLA SWEET CREAM", 0.6]] },
+      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] },
+      { key: "style", label: "POUR", choices: [["STRAIGHT NITRO", 0], ["VANILLA SWEET CREAM", 150]] },
     ],
     details: [["STEEP TIME", "20 HOURS COLD"], ["INFUSION", "PURE NITROGEN"], ["CALORIES", "5 KCAL (BLACK)"]],
     care: "Served cold on draft without ice to maintain the smooth cascading nitrogen head.",
   },
   {
-    id: "iced-matcha", name: "ICED MATCHA", cat: "drinks", tag: "NEW", price: 4.5, photo: "menu/menu-iced-coffee.webp", model: "glass", alt: "A brewns iced matcha in a clear cup with a straw",
+    id: "iced-matcha", name: "ICED MATCHA", cat: "drinks", tag: "NEW", price: 1150, photo: "menu/menu-iced-coffee.webp", model: "glass", alt: "A brewns iced matcha in a clear cup with a straw",
     meta: "CEREMONIAL GRADE · OVER ICE", notes: ["GRASSY", "CREAMY"],
     desc: "Ceremonial-grade matcha whisked to order and poured over cold milk and ice, marbled on the way down.",
     options: [
-      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 0.8]] },
+      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] },
       MILK,
       { key: "sweet", label: "SWEETNESS", choices: [["NONE", 0], ["LIGHT", 0], ["REGULAR", 0]], def: 1 },
     ],
@@ -2599,15 +2600,15 @@ const PRODUCTS = [
     care: "Whisked by hand, never from a powder mix. Give it a stir with the straw before the first sip.",
   },
   {
-    id: "iced-latte", name: "ICED LATTE", cat: "drinks", price: 4.8, photo: "menu/menu-iced-latte.webp", model: "glass", alt: "A brewns iced latte in a clear cup",
+    id: "iced-latte", name: "ICED LATTE", cat: "drinks", price: 1050, photo: "menu/menu-iced-latte.webp", model: "glass", alt: "A brewns iced latte in a clear cup",
     meta: "DOUBLE SHOT · COLD MILK", notes: ["BOLD", "SMOOTH"],
     desc: "Two shots over ice, topped with cold milk and left to swirl. Smooth, bold and made for the walk between blocks.",
-    options: [{ key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 0.8]] }, MILK, { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 0.9]] }],
+    options: [{ key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] }, MILK, { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 200]] }],
     details: [["ESPRESSO", "DOUBLE · SLOW ROAST"], ["SERVED", "OVER ICE"], ["CUP", "RECYCLABLE PET"]],
     care: "Shots are pulled when you arrive and chilled over ice straight away, so it never waters down on the counter.",
   },
   {
-    id: "cardamom-bun", name: "CARDAMOM BUN", cat: "bakery", tag: "NORDIC RITUAL", price: 4.2, photo: "menu/menu-cardamom.webp", model: "bakery", alt: "A freshly baked Swedish cardamom bun with pearl sugar",
+    id: "cardamom-bun", name: "CARDAMOM BUN", cat: "bakery", tag: "NORDIC RITUAL", price: 750, photo: "menu/menu-cardamom.webp", model: "bakery", alt: "A freshly baked Swedish cardamom bun with pearl sugar",
     meta: "STONEGROUND CARDAMOM · BROWN SUGAR", notes: ["AROMATIC", "BUTTERY"],
     desc: "Traditional twisted bun enriched with fresh stoneground green cardamom, brown sugar syrup and crunchy Swedish pearl sugar. Baked fresh every morning.",
     options: [
@@ -2617,18 +2618,18 @@ const PRODUCTS = [
     care: "Baked fresh daily. Delicious straight or lightly warmed at the counter.",
   },
   {
-    id: "cinnamon-roll", name: "CINNAMON ROLL", cat: "bakery", price: 3.8, photo: "menu/menu-cinnamon.webp", model: "bakery", alt: "A glazed cinnamon roll on a ceramic plate",
+    id: "cinnamon-roll", name: "CINNAMON ROLL", cat: "bakery", price: 700, photo: "menu/menu-cinnamon.webp", model: "bakery", alt: "A glazed cinnamon roll on a ceramic plate",
     meta: "BAKED EVERY MORNING", notes: ["BROWN BUTTER", "CARDAMOM"],
     desc: "Laminated dough rolled with brown butter, cinnamon and a little cardamom, finished with a vanilla glaze while it is still warm.",
     options: [
       { key: "warm", label: "SERVE", choices: [["AS IT IS", 0], ["WARMED", 0]] },
-      { key: "glaze", label: "GLAZE", choices: [["REGULAR", 0], ["EXTRA", 0.5]] },
+      { key: "glaze", label: "GLAZE", choices: [["REGULAR", 0], ["EXTRA", 100]] },
     ],
     details: [["BAKED", "DAILY FROM 06:00"], ["CONTAINS", "WHEAT · MILK · EGG"], ["WEIGHT", "140 G"]],
     care: "Baked in the morning and gone by the afternoon. Order ahead to hold one.",
   },
   {
-    id: "matcha-financier", name: "MATCHA FINANCIER", cat: "bakery", tag: "GLUTEN-FREE", price: 4.0, photo: "menu/menu-financier.webp", model: "bakery", alt: "A golden-green matcha financier cake with dusted icing sugar",
+    id: "matcha-financier", name: "MATCHA FINANCIER", cat: "bakery", tag: "GLUTEN-FREE", price: 650, photo: "menu/menu-financier.webp", model: "bakery", alt: "A golden-green matcha financier cake with dusted icing sugar",
     meta: "ALMOND FLOUR · UJI MATCHA", notes: ["NUTTY", "EARTHY SWEET"],
     desc: "Dense French almond cake infused with ceremonial Uji matcha and browned noisette butter. Crispy edges and a soft, melt-in-the-mouth center.",
     options: [
@@ -2638,21 +2639,21 @@ const PRODUCTS = [
     care: "Naturally gluten-free with California almond meal.",
   },
   {
-    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 34, photo: "menu/menu-tumbler.webp", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
+    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 6500, photo: "menu/menu-tumbler.webp", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
     meta: "12 OZ · CERAMIC LINED · DOUBLE WALL", notes: ["TRUE TASTE", "6 HR HEAT RETENTION"],
     desc: "Double-wall vacuum-insulated stainless steel tumbler with an internal ceramic coating so your coffee tastes true to the cup. Fits standard car cup holders and keeps drinks hot for 6 hours.",
     options: [
       { key: "color", label: "COLORWAY", choices: [["MATTE CHARCOAL", 0], ["RAW OAT", 0], ["AMBER CREMA", 0]] },
-      { key: "lid", label: "LID TYPE", choices: [["SLIDE LOCK", 0], ["360° SIP LID", 4]] },
+      { key: "lid", label: "LID TYPE", choices: [["SLIDE LOCK", 0], ["360° SIP LID", 800]] },
     ],
     details: [["CAPACITY", "12 OZ (355 ML)"], ["LINING", "PURE CERAMIC COATING"], ["INSULATION", "DOUBLE-WALL VACUUM"]],
     care: "Hand wash recommended for finish longevity. Dishwasher safe lid.",
   },
   {
-    id: "gift-card", name: "GIFT CARD", cat: "gifts", price: 25, gift: true,
+    id: "gift-card", name: "GIFT CARD", cat: "gifts", price: 2500, gift: true,
     meta: "DIGITAL · NEVER EXPIRES", notes: ["ALL LOCATIONS", "SENT BY EMAIL"],
     desc: "Good coffee for someone else's day. Redeemable for anything at all three counters, with a note from you on the front.",
-    options: [{ key: "amount", label: "AMOUNT", plain: true, choices: [["$25", 0], ["$50", 25], ["$100", 75]] }],
+    options: [{ key: "amount", label: "AMOUNT", plain: true, choices: [["Rs 2,500", 0], ["Rs 5,000", 2500], ["Rs 10,000", 7500]] }],
     details: [["DELIVERY", "EMAIL · INSTANT"], ["VALID", "ALL LOCATIONS"], ["EXPIRES", "NEVER"]],
     care: "Balances carry over between visits and never expire. Lost the email? Any barista can look it up by name.",
   },
@@ -3774,7 +3775,7 @@ function renderFullMenu() {
     <div class="full-menu-card" role="document">
       <div class="full-menu-head">
         <div>
-          <p class="full-menu-sub mono-fine">// BREWNS COFFEE HOUSE · SAN FRANCISCO</p>
+          <p class="full-menu-sub mono-fine">// BREWNS COFFEE HOUSE · LAHORE</p>
           <h2 class="full-menu-title">FULL CAFÉ MENU BOARD</h2>
         </div>
         <div class="full-menu-head-right">
@@ -4001,8 +4002,8 @@ cart.subscribe(() => hasLayer("bag") && renderBag());
 /* ═══════════ checkout ═══════════ */
 const coEl = $("#checkout");
 const coClip = new Spring({ clipPath: "inset(0% 0% 100% 0%)" }, styler(coEl));
-const LOCS = [["139 COFFEE STREET", "SAN FRANCISCO, CA"], ["310 VALENCIA STREET", "SAN FRANCISCO, CA"], ["56 COLUMBUS AVENUE", "SAN FRANCISCO, CA"]];
-const TAX = 0.08625, PREP_MIN = 12, OPEN_MIN = 7 * 60, CLOSE_MIN = 21 * 60;
+const LOCS = [["MM ALAM ROAD", "GULBERG III, LAHORE"], ["CCA, DHA PHASE 5", "DHA, LAHORE"], ["MAIN BOULEVARD", "JOHAR TOWN, LAHORE"]];
+const TAX = 0.16, PREP_MIN = 12, OPEN_MIN = 7 * 60, CLOSE_MIN = 21 * 60;
 const readStore = (k, fallback) => {
   try {
     return JSON.parse(localStorage.getItem(k)) ?? fallback;
@@ -4140,7 +4141,7 @@ function renderCheckout({ animate = true } = {}) {
       : `<h2 class="co-h">WHO'S COLLECTING?</h2>
         <div class="co-block"><div class="fields">
           ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', "Who we call out")}
-          ${field("phone", "PHONE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="20"', "(415) 000-0000")}
+          ${field("phone", "PHONE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="20"', "0300 0000000")}
           ${field("email", "EMAIL · OPTIONAL", "email", 'autocomplete="email" maxlength="80"', "For the receipt")}
           <label class="field wide"><span class="mono-fine">NOTE FOR THE BARISTA · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="Extra hot, no lid…">${esc(co.note)}</textarea></label>
         </div></div>
@@ -4170,7 +4171,7 @@ function renderCheckout({ animate = true } = {}) {
         <div class="co-sums mono-fine">
           <div class="sum-row"><span>SUBTOTAL</span><span>${money(totals.sub)}</span></div>
           ${totals.discount ? `<div class="sum-row"><span>PROMO</span><span>−${money(totals.discount)}</span></div>` : ""}
-          <div class="sum-row"><span>SALES TAX 8.625%</span><span>${money(totals.tax)}</span></div>
+          <div class="sum-row"><span>PUNJAB SALES TAX ${Math.round(TAX * 100)}%</span><span>${money(totals.tax)}</span></div>
           <div class="sum-row total"><span>TOTAL</span><span>${money(totals.total)}</span></div>
         </div>
         <div class="co-pickup mono-fine"><span>PICKUP</span><b>${LOCS[co.loc][0]}</b><b>${pickupLabel()}</b></div>
@@ -4374,8 +4375,8 @@ coEl.addEventListener("submit", (e) => {
      The order number comes from the same counter placeOrder() increments, so the
      printed ticket and the one the bag issues belong to the same roll. */
   const RECEIPT_ITEMS = [
-    [2, "Iced Matcha", 4.5],
-    [1, "Cinnamon Roll", 3.8],
+    [2, "Iced Matcha", 1150],
+    [1, "Cinnamon Roll", 700],
   ];
   const rcSubtotal = RECEIPT_ITEMS.reduce((sum, [qty, , price]) => sum + qty * price, 0);
   const rcTaxDue = rcSubtotal * TAX;
@@ -4389,7 +4390,7 @@ coEl.addEventListener("submit", (e) => {
   ).join("");
   $("#rc-sum").innerHTML = [
     ["Subtotal", money(rcSubtotal), ""],
-    [`Sales tax ${(TAX * 100).toFixed(3)}%`, money(rcTaxDue), ""],
+    [`Punjab sales tax ${Math.round(TAX * 100)}%`, money(rcTaxDue), ""],
     ["Total", money(rcSubtotal + rcTaxDue), "rc-strong"],
   ]
     .map(([label, value, strong]) => `<span class="${strong}">${label}</span><span class="${strong}">${value}</span>`)
@@ -4398,7 +4399,7 @@ coEl.addEventListener("submit", (e) => {
   $("#rc-no").textContent = `Order #${String(readStore("brewns-order-seq", 25) + 1).padStart(5, "0")}`;
   $("#rc-date").textContent = `${rcPad2(rcPrintedAt.getDate())}/${rcPad2(rcPrintedAt.getMonth() + 1)}/${rcPrintedAt.getFullYear()}`;
   $("#rc-time").textContent = rcClock(rcPrintedAt);
-  $("#rc-ready").textContent = `Ready ${rcClock(rcReadyAt)} · 139 Coffee St`;
+  $("#rc-ready").textContent = `Ready ${rcClock(rcReadyAt)} · MM Alam Rd`;
 
 
   /* ═══════════════════════ the footer's clock ═══════════════════════

@@ -2,21 +2,21 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'brewns — Specialty Coffee House in San Francisco',
-  description: 'Specialty coffee house in San Francisco. Carefully sourced beans, thoughtfully brewed. Order ahead and skip the line — three locations, open daily 07:00–21:00.',
-  keywords: ['Specialty Coffee', 'San Francisco Coffee', 'Coffee Roaster', 'Single Origin', 'Espresso Bar', 'Mission District'],
+  title: 'brewns — Specialty Coffee House in Lahore',
+  description: 'Specialty coffee house in Lahore. Carefully sourced beans, thoughtfully brewed. Order ahead and skip the line at MM Alam Road, DHA Phase 5 and Johar Town, open daily 07:00–21:00.',
+  keywords: ['Specialty Coffee', 'Lahore Coffee', 'Coffee Roaster', 'Single Origin', 'Espresso Bar', 'MM Alam Road', 'DHA Lahore', 'Johar Town'],
   authors: [{ name: 'brewns coffee house' }],
   openGraph: {
-    title: 'brewns — Specialty Coffee House in San Francisco',
-    description: 'Specialty coffee house in San Francisco. Carefully sourced beans, thoughtfully brewed.',
+    title: 'brewns — Specialty Coffee House in Lahore',
+    description: 'Specialty coffee house in Lahore. Carefully sourced beans, thoughtfully brewed.',
     type: 'website',
-    locale: 'en_US',
+    locale: 'en_PK',
     siteName: 'brewns',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'brewns — Specialty Coffee House',
-    description: 'Specialty coffee house in San Francisco. Carefully sourced beans, thoughtfully brewed.',
+    description: 'Specialty coffee house in Lahore. Carefully sourced beans, thoughtfully brewed.',
   },
 };
 
@@ -36,19 +36,19 @@ export default function RootLayout({
     '@context': 'https://schema.org',
     '@type': 'CoffeeShop',
     name: 'brewns coffee house',
-    telephone: '+1-415-529-8812',
+    telephone: '+92-42-1234-5678',
     address: {
       '@type': 'PostalAddress',
-      streetAddress: '139 Coffee Street',
-      addressLocality: 'San Francisco',
-      addressRegion: 'CA',
-      postalCode: '94110',
-      addressCountry: 'US',
+      streetAddress: 'MM Alam Road, Gulberg III',
+      addressLocality: 'Lahore',
+      addressRegion: 'Punjab',
+      postalCode: '54660',
+      addressCountry: 'PK',
     },
     geo: {
       '@type': 'GeoCoordinates',
-      latitude: 37.7651,
-      longitude: -122.4194,
+      latitude: 31.5126,
+      longitude: 74.3513,
     },
     openingHoursSpecification: [
       {
@@ -68,6 +68,7 @@ export default function RootLayout({
     ],
     servesCuisine: 'Specialty Coffee',
     priceRange: '$$',
+    currenciesAccepted: 'PKR',
   };
 
   return (
