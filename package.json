@@ -1,13 +1,16 @@
 {
-  "name": "atelier-roast",
+  "name": "brewns",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "build:models": "bun scripts/build-models.mjs",
     "snapshots": "node scripts/render-snapshots.mjs",
-    "kitchen:white": "node scripts/kitchen-white-bg.mjs",
+    "kitchen:white": "bun install --cwd tools/kitchen-white --silent && node scripts/kitchen-white-bg.mjs",
     "fresh": "node scripts/fresh.mjs",
     "start": "next start",
     "lint": "eslint .",
@@ -27,7 +30,6 @@
   "devDependencies": {
     "@gltf-transform/core": "^4",
     "@gltf-transform/extensions": "^4",
-    "@imgly/background-removal-node": "^1.4.5",
     "@typescript/native": "npm:typescript@^7.0.2",
     "draco3dgltf": "^1.5.7",
     "eslint": "^9.7",

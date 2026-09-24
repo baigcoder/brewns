@@ -7,7 +7,8 @@
  *   bun run kitchen:white --all    redo every photo from its original
  *
  * It runs under Node.js (bun run starts it with node): on Windows, Bun cannot
- * load the image libraries it needs.
+ * load the image libraries it needs. The first run installs the cut-out model
+ * into tools/kitchen-white/ (about 300 MB, once).
  *
  * The untouched originals are kept in assets-src/kitchen/ (not served), so a
  * photo can always be redone. The first run downloads nothing: the cut-out
@@ -30,12 +31,15 @@ if (process.versions.bun && process.platform === 'win32') {
   );
   process.exit(1);
 }
-// Use the very sharp the cut-out library uses. Loading a second, newer sharp
-// next to it breaks on Windows: both ship a libvips-42.dll, Windows reuses
-// whichever loaded first, and the other fails with "procedure not found".
-const require = createRequire(import.meta.url);
-const sharp = createRequire(require.resolve('@imgly/background-removal-node'))('sharp');
-const { removeBackground } = await import('@imgly/background-removal-node');
+// The cut-out library lives in tools/kitchen-white/ (its own install, so the
+// site's doesn't carry ~300 MB). Use the very sharp it uses: loading a second,
+// newer sharp next to it breaks on Windows, where both ship a libvips-42.dll,
+// Windows reuses whichever loaded first and the other fails with "procedure
+// not found".
+const tool = createRequire(path.join(process.cwd(), 'tools/kitchen-white/package.json'));
+const imgly = tool.resolve('@imgly/background-removal-node');
+const sharp = createRequire(imgly)('sharp');
+const { removeBackground } = tool('@imgly/background-removal-node');
 
 const ROOT = process.cwd();
 const PUBLIC = path.join(ROOT, 'public/assets/kitchen');
