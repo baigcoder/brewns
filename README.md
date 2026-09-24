@@ -16,6 +16,7 @@ bun run dev        # http://localhost:3000
 | Command | What it does |
 |---|---|
 | `bun run dev` | Dev server (Turbopack). Writes to `.next/dev`, so it can run alongside a build. |
+| `bun run fresh` | Stops any dev server still running (on Windows Ctrl+C can leave one behind, and the browser keeps showing old code), clears `.next`, prints the commit, and starts the dev server. Use it after `git pull`. |
 | `bun run build` | Production build. Type-checks, then prerenders every route as static. |
 | `bun run start` | Serve the production build. |
 | `bun run typecheck` | `tsc --noEmit` with TypeScript 7. |
