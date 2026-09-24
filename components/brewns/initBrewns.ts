@@ -12,10 +12,19 @@ import {
   getIsAudioEnabled,
   playCupClink,
   playBeanClatter,
-  playPaperFeed,
   playPaperTear,
   playPourDrop,
   playSoftClick,
+  playHoverTick,
+  playWhoosh,
+  playChime,
+  playMessage,
+  printerFeed,
+  printerCut,
+  setSound,
+  getSoundSettings,
+  onSoundChange,
+  setSoundScene,
   triggerHaptic
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
@@ -83,16 +92,106 @@ window.addEventListener("resize", applyGrid);
 initAudioState();
 const soundBtn = $("#sound-toggle");
 const soundLabel = $("#sound-label");
+/* The sound panel: master switch, volume, and the three layers. The first
+   click turns sound on and opens it; after that the button opens and closes it. */
+const soundPanel = document.createElement("div");
+soundPanel.className = "sound-panel";
+soundPanel.hidden = true;
+soundPanel.setAttribute("role", "dialog");
+soundPanel.setAttribute("aria-label", "Sound");
+const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", story: "Slow afternoon", hania: "Cool vibes", reviews: "The regulars", order: "Tickets printing", footer: "Closing time" };
+let sceneName = "hero";
+const renderSoundPanel = () => {
+  const st = getSoundSettings();
+  soundPanel.innerHTML = `
+    <div class="sp-head"><div><p class="sp-title">CAFÉ SOUND</p><p class="sp-now mono-fine"><span class="sp-eq"><i></i><i></i><i></i></span>${st.on ? `NOW · ${SCENE_NAMES[sceneName] || "Brewns"}`.toUpperCase() : "OFF"}</p></div>
+      <button type="button" class="sp-switch" role="switch" aria-checked="${st.on}" data-sp="on" aria-label="Sound"><i></i></button></div>
+    <label class="sp-vol"><span class="mono-fine">VOLUME</span><input type="range" min="0" max="100" value="${Math.round(st.volume * 100)}" data-sp="volume" aria-label="Volume"></label>
+    ${[["ambience", "Café ambience", "Voices, the grinder, steam, cups"], ["music", "Music", "Slow lo-fi on the speakers"], ["ui", "Touch sounds", "Clicks, pours, the printer"]]
+      .map(([k, t, d]) => `<button type="button" class="sp-row" role="switch" aria-checked="${st[k]}" data-sp="${k}" ${st.on ? "" : "disabled"}><span><b>${t}</b><small>${d}</small></span><span class="sp-switch sm"><i></i></span></button>`)
+      .join("")}
+    <p class="sp-foot mono-fine">MIX FOLLOWS WHERE YOU ARE ON THE PAGE</p>`;
+};
+document.body.append(soundPanel);
 const updateSoundUI = () => {
   const on = getIsAudioEnabled();
   soundBtn?.classList.toggle("active", on);
-  if (soundLabel) soundLabel.textContent = on ? "SOUND: ON" : "SOUND";
+  soundBtn?.setAttribute("aria-expanded", String(!soundPanel.hidden));
+  if (soundLabel) soundLabel.textContent = on ? "SOUND ON" : "SOUND";
+  if (!soundPanel.hidden) renderSoundPanel();
 };
+const placeSoundPanel = () => {
+  const r = soundBtn.getBoundingClientRect();
+  soundPanel.style.top = `${r.bottom + 12}px`;
+  soundPanel.style.right = `${Math.max(12, window.innerWidth - r.right - 60)}px`;
+};
+onSoundChange(updateSoundUI);
 updateSoundUI();
-soundBtn?.addEventListener("click", () => {
-  toggleAudioState();
+soundBtn?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!getIsAudioEnabled()) {
+    toggleAudioState();
+    soundPanel.hidden = false;
+  } else soundPanel.hidden = !soundPanel.hidden;
+  placeSoundPanel();
   updateSoundUI();
 });
+soundPanel.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const k = e.target.closest("[data-sp]")?.dataset.sp;
+  if (!k || k === "volume") return;
+  if (k === "on") return toggleAudioState();
+  setSound({ [k]: !getSoundSettings()[k] });
+  playSoftClick();
+});
+soundPanel.addEventListener("input", (e) => {
+  if (e.target.dataset.sp === "volume") setSound({ volume: e.target.value / 100 });
+});
+document.addEventListener("click", (e) => {
+  if (!soundPanel.hidden && !e.target.closest(".sound-panel")) {
+    soundPanel.hidden = true;
+    updateSoundUI();
+  }
+});
+window.addEventListener("resize", () => !soundPanel.hidden && placeSoundPanel());
+
+/* The mix follows the section in view: busier at the counter, quieter by the
+   shelves, the music forward in the slow sections. */
+{
+  const seen = new Map();
+  const io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((en) => seen.set(en.target, en.intersectionRatio));
+      let best = null, ratio = 0;
+      seen.forEach((r, el) => {
+        if (r > ratio) [best, ratio] = [el, r];
+      });
+      if (!best) return;
+      const name = best.id === "ftr" ? "footer" : best.id === "story" ? "story" : best.id;
+      if (name !== sceneName) {
+        sceneName = name;
+        setSoundScene(name);
+        if (!soundPanel.hidden) renderSoundPanel();
+      }
+    },
+    { threshold: [0, 0.25, 0.5, 0.75, 1] },
+  );
+  document.querySelectorAll("section[id], footer#ftr").forEach((el) => io.observe(el));
+}
+
+/* The faintest tick when the pointer finds something to press (mouse only). */
+if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  let last = null, lastAt = 0;
+  document.addEventListener("pointerover", (e) => {
+    const t = e.target.closest?.("button, a[href], [role='button'], .pcard, .card, .inside-open");
+    if (!t || t === last) return;
+    last = t;
+    const now = performance.now();
+    if (now - lastAt < 70) return;
+    lastAt = now;
+    playHoverTick();
+  });
+}
 
 /* ═══════════ Liquid Pour Droplet Fly-in ═══════════ */
 const flyLiquidDrop = (fromElement) => {
@@ -1232,12 +1331,20 @@ const orderPrinter = { reprint: () => {} };
     if (now === out) return;
     out = now;
     section.classList.toggle("printed", out);
+    if (out) printerCut();
     if (!out || REDUCED) return;
     section.classList.add("settle");
     setTimeout(() => section.classList.remove("settle"), 1500);
   };
+  let lastV = 0, lastT = performance.now();
   const feed = new Spring({ v: 0 }, (o) => {
     paper.style.setProperty("--p", String(o.v));
+    // The motor runs while paper moves, pitched to how fast it's feeding.
+    const t = performance.now();
+    const speed = Math.abs(o.v - lastV) / Math.max(1, t - lastT);
+    if (o.v > lastV + 0.0005 && o.v < 0.998) printerFeed(Math.min(1, speed * 60));
+    lastV = o.v;
+    lastT = t;
     setOut(o.v > 0.995);
     if (REDUCED) return;
     section.classList.add("printing");
@@ -1254,7 +1361,6 @@ const orderPrinter = { reprint: () => {} };
     progress = p;
     if (REDUCED) feed.set({ v: p });
     else feed.start({ v: p }, { config: C(90, 22) });
-    if (p > 0.1 && p < 0.95 && Math.random() < 0.25) playPaperFeed();
     barcodeTo(p >= BARCODE_FED);
   };
 
@@ -1269,8 +1375,6 @@ const orderPrinter = { reprint: () => {} };
     feed.set({ v: 0 });
     sweep.set({ v: 0 });
     fed = false;
-    let ticks = 0;
-    const whirr = setInterval(() => (++ticks > 7 ? clearInterval(whirr) : playPaperFeed()), 220);
     setTimeout(() => {
       barcodeTo(true);
       feed.start({ v: 1 }, { config: C(26, 18) }).then(() => {
@@ -2959,6 +3063,7 @@ const layers = [];
 const hasLayer = (name) => layers.some((l) => l.name === name);
 const pushLayer = (name, close, el) => {
   if (!layers.length) stopScroll();
+  playWhoosh(true);
   layers.push({ name, close, el, focus: document.activeElement });
 };
 const popLayer = (name) => {
@@ -2966,6 +3071,7 @@ const popLayer = (name) => {
   if (i < 0) return;
   const wasTop = i === layers.length - 1;
   const [layer] = layers.splice(i, 1);
+  playWhoosh(false);
   if (!layers.length) startScroll();
   if (wasTop && layer.focus?.isConnected) layer.focus.focus({ preventScroll: true });
 };
@@ -4696,7 +4802,13 @@ function renderDone() {
   };
   window.addEventListener("resize", fitPrint);
   coCleanups.push(() => window.removeEventListener("resize", fitPrint));
-  const feed = new Spring({ v: 0 }, (x) => paper.style.setProperty("--p", String(Math.round(x.v * 46) / 46)));
+  let fedTo = 0;
+  const feed = new Spring({ v: 0 }, (x) => {
+    paper.style.setProperty("--p", String(Math.round(x.v * 46) / 46));
+    if (x.v > fedTo + 0.001 && x.v < 0.995) printerFeed(0.8);
+    if (fedTo < 0.995 && x.v >= 0.995) printerCut();
+    fedTo = x.v;
+  });
   requestAnimationFrame(() => {
     fitPrint();
     REDUCED ? feed.set({ v: 1 }) : feed.start({ v: 1 }, { config: { duration: 2600, easing: easeOutCubic }, delay: 450 });
@@ -4742,6 +4854,7 @@ function renderDone() {
     badge.textContent = String(unread);
   };
   const post = (m) => {
+    if (m.from !== "system") playMessage(m.from !== "you");
     chat.messages.push(m);
     if (chatOpen) chat.seen = chat.messages.filter((x) => x.from !== "you" && x.from !== "system").length;
     writeChat(o, chat);
@@ -4890,6 +5003,7 @@ function placeOrder() {
     mode: co.mode, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "", loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
   };
   writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
+  playChime();
   co.done = order;
   co.step = 3;
   cart.clear();
@@ -5148,6 +5262,7 @@ coEl.addEventListener("submit", (e) => {
     }
     closeReview();
     renderMyReviews();
+    playChime();
     toast("THANK YOU — YOUR REVIEW IS UP", "SEE IT", () => {
       if (hasLayer("checkout")) closeCheckout();
       setTimeout(() => lenis.scrollTo("#reviews", { force: true }), 80);

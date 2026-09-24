@@ -133,6 +133,17 @@ When writing a revolved profile in `model-kit.mjs`, walk it so the solid stays
 on your left. Walk it the other way and the surface comes out inside-out, and
 you can see straight through it.
 
+## Sound
+
+`lib/audio-ritual.ts` synthesises everything with the Web Audio API: a café
+ambience (room tone, a murmur of voices, the grinder, steam wand and cups), a
+lo-fi music bed, and touch sounds (clicks, pours, the receipt printer's motor
+and cutter, message pops, chimes). The SOUND button in the header turns it on
+and opens a panel with volume and switches for each layer; the mix follows the
+section in view. It stays off until a visitor turns it on. To use a real café
+recording instead of the synthesised ambience, add
+`public/assets/sound/cafe.mp3`.
+
 ## TypeScript and linting
 
 - **TypeScript 7 and 6 are installed side by side.** TypeScript 7 has no
