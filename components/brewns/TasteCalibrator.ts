@@ -191,14 +191,14 @@ export class TasteCalibrator {
       // Results View
       const match = this.calculateMatch();
       const productNames: Record<string, { name: string; price: string }> = {
-        'slow-roast': { name: 'SLOW ROAST NO. 4', price: '$18.00' },
-        latte: { name: 'HOUSE LATTE', price: '$4.20' },
-        espresso: { name: 'SINGLE ORIGIN ESPRESSO', price: '$2.50' },
-        'iced-matcha': { name: 'UJI ICED MATCHA', price: '$4.50' },
-        'iced-latte': { name: 'HOUSE ICED LATTE', price: '$4.80' },
-        'cinnamon-roll': { name: 'CARDAMOM CINNAMON ROLL', price: '$3.80' },
+        'slow-roast': { name: 'SLOW ROAST NO. 4', price: 'Rs 3,800' },
+        latte: { name: 'HOUSE LATTE', price: 'Rs 950' },
+        espresso: { name: 'SINGLE ORIGIN ESPRESSO', price: 'Rs 650' },
+        'iced-matcha': { name: 'UJI ICED MATCHA', price: 'Rs 1,150' },
+        'iced-latte': { name: 'HOUSE ICED LATTE', price: 'Rs 1,050' },
+        'cinnamon-roll': { name: 'CARDAMOM CINNAMON ROLL', price: 'Rs 700' },
       };
-      const p = productNames[match.productId] || { name: 'SLOW ROAST', price: '$18.00' };
+      const p = productNames[match.productId] || { name: 'SLOW ROAST', price: 'Rs 3,800' };
 
       this.overlay.innerHTML = `
         <div class="calibrator-dialog">

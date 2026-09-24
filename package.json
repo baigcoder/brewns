@@ -1,14 +1,20 @@
 {
-  "name": "atelier-roast",
+  "name": "brewns",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "build:models": "bun scripts/build-models.mjs",
+    "snapshots": "node scripts/render-snapshots.mjs",
+    "kitchen:white": "bun install --cwd tools/kitchen-white --silent && node scripts/kitchen-white-bg.mjs",
+    "fresh": "node scripts/fresh.mjs",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
   },
   "dependencies": {
     "@types/node": "^26.6.2",
@@ -29,6 +35,6 @@
     "eslint": "^9.7",
     "eslint-config-next": "^16.3.6",
     "puppeteer-core": "^25.11.0",
-    "typescript": "npm:@typescript/typescript6@^6.0.2"
+    "typescript": "~6.0.2"
   }
 }

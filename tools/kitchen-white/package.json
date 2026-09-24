@@ -1,0 +1,8 @@
+{
+  "name": "brewns-kitchen-white",
+  "private": true,
+  "description": "The cut-out model for `bun run kitchen:white`, kept out of the site's own install (it is ~300 MB).",
+  "dependencies": {
+    "@imgly/background-removal-node": "^1.4.5"
+  }
+}

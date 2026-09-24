@@ -12,17 +12,30 @@ import {
   getIsAudioEnabled,
   playCupClink,
   playBeanClatter,
-  playPaperFeed,
   playPaperTear,
   playPourDrop,
   playSoftClick,
+  playHoverTick,
+  playWhoosh,
+  playChime,
+  playMessage,
+  printerFeed,
+  printerCut,
+  setCafeRecording,
+  setSound,
+  getSoundSettings,
+  onSoundChange,
+  setSoundScene,
   triggerHaptic
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
-import { createBakeryModel, createIcedGlassModel, createProduct3DModel } from './pdp3dEngine';
+import { foodArt } from './foodArt';
+import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
+import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 
 
-export function initBrewns(container: HTMLElement = document.body) {
+export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
+  if (cafeRecording !== null) setCafeRecording(cafeRecording);
   if (typeof window === 'undefined') return () => {};
 
 
@@ -81,16 +94,110 @@ window.addEventListener("resize", applyGrid);
 initAudioState();
 const soundBtn = $("#sound-toggle");
 const soundLabel = $("#sound-label");
+/* The sound panel: master switch, volume, and the three layers. The first
+   click turns sound on and opens it; after that the button opens and closes it. */
+const soundPanel = document.createElement("div");
+soundPanel.className = "sound-panel";
+soundPanel.hidden = true;
+soundPanel.setAttribute("role", "dialog");
+soundPanel.setAttribute("aria-label", "Sound");
+const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", story: "Slow afternoon", hania: "Cool vibes", founder: "Meet the founder", reviews: "The regulars", order: "Tickets printing", footer: "Closing time" };
+let sceneName = "hero";
+const renderSoundPanel = () => {
+  const st = getSoundSettings();
+  soundPanel.innerHTML = `
+    <div class="sp-head"><div><p class="sp-title">CAFÉ SOUND</p><p class="sp-now mono-fine"><span class="sp-eq"><i></i><i></i><i></i></span>${st.on ? `NOW · ${SCENE_NAMES[sceneName] || "Brewns"}`.toUpperCase() : "OFF"}</p></div>
+      <button type="button" class="sp-switch" role="switch" aria-checked="${st.on}" data-sp="on" aria-label="Sound"><i></i></button></div>
+    <label class="sp-vol"><span class="mono-fine">VOLUME</span><input type="range" min="0" max="100" value="${Math.round(st.volume * 100)}" data-sp="volume" aria-label="Volume"></label>
+    ${[["ambience", "Café ambience", "Voices, the grinder, steam, cups"], ["music", "Music", "Slow lo-fi on the speakers"], ["ui", "Touch sounds", "Clicks, pours, the printer"]]
+      .map(([k, t, d]) => `<button type="button" class="sp-row" role="switch" aria-checked="${st[k]}" data-sp="${k}" ${st.on ? "" : "disabled"}><span><b>${t}</b><small>${d}</small></span><span class="sp-switch sm"><i></i></span></button>`)
+      .join("")}
+    <p class="sp-foot mono-fine">MIX FOLLOWS WHERE YOU ARE ON THE PAGE</p>`;
+};
+document.body.append(soundPanel);
 const updateSoundUI = () => {
   const on = getIsAudioEnabled();
   soundBtn?.classList.toggle("active", on);
-  if (soundLabel) soundLabel.textContent = on ? "SOUND: ON" : "SOUND";
+  soundBtn?.setAttribute("aria-expanded", String(!soundPanel.hidden));
+  if (soundLabel) soundLabel.textContent = on ? "SOUND ON" : "SOUND";
+  if (!soundPanel.hidden) renderSoundPanel();
 };
+const placeSoundPanel = () => {
+  const r = soundBtn.getBoundingClientRect();
+  soundPanel.style.top = `${r.bottom + 12}px`;
+  // Line the panel up under the button, but never past either edge.
+  const w = Math.min(320, window.innerWidth - 24);
+  const left = Math.min(Math.max(12, r.right - w), window.innerWidth - w - 12);
+  soundPanel.style.left = `${left}px`;
+  soundPanel.style.right = "auto";
+};
+onSoundChange(updateSoundUI);
 updateSoundUI();
-soundBtn?.addEventListener("click", () => {
-  toggleAudioState();
+soundBtn?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!getIsAudioEnabled()) {
+    toggleAudioState();
+    soundPanel.hidden = false;
+  } else soundPanel.hidden = !soundPanel.hidden;
+  placeSoundPanel();
   updateSoundUI();
 });
+soundPanel.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const k = e.target.closest("[data-sp]")?.dataset.sp;
+  if (!k || k === "volume") return;
+  if (k === "on") return toggleAudioState();
+  setSound({ [k]: !getSoundSettings()[k] });
+  playSoftClick();
+});
+soundPanel.addEventListener("input", (e) => {
+  if (e.target.dataset.sp === "volume") setSound({ volume: e.target.value / 100 });
+});
+document.addEventListener("click", (e) => {
+  if (!soundPanel.hidden && !e.target.closest(".sound-panel")) {
+    soundPanel.hidden = true;
+    updateSoundUI();
+  }
+});
+window.addEventListener("resize", () => !soundPanel.hidden && placeSoundPanel());
+
+/* The mix follows the section in view: busier at the counter, quieter by the
+   shelves, the music forward in the slow sections. */
+{
+  const seen = new Map();
+  const io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((en) => seen.set(en.target, en.intersectionRatio));
+      let best = null, ratio = 0;
+      seen.forEach((r, el) => {
+        if (r > ratio) [best, ratio] = [el, r];
+      });
+      if (!best) return;
+      const name = best.id === "ftr" ? "footer" : best.id === "story" ? "story" : best.id;
+      if (name !== sceneName) {
+        sceneName = name;
+        setSoundScene(name);
+        if (!soundPanel.hidden) renderSoundPanel();
+      }
+    },
+    { threshold: [0, 0.25, 0.5, 0.75, 1] },
+  );
+  document.querySelectorAll("section[id], footer#ftr").forEach((el) => io.observe(el));
+}
+
+/* The faintest tick when the pointer finds something to press (mouse only). */
+if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  let last = null, lastAt = 0;
+  document.addEventListener("pointerover", (e) => {
+    const t = e.target.closest?.("button, a[href], [role='button'], .pcard, .card, .inside-open");
+    if (!t || t === last) return;
+    last = t;
+    const now = performance.now();
+    if (now - lastAt < 70) return;
+    lastAt = now;
+    playHoverTick();
+  });
+}
 
 /* ═══════════ Liquid Pour Droplet Fly-in ═══════════ */
 const flyLiquidDrop = (fromElement) => {
@@ -683,20 +790,134 @@ const PRESET = {
   "rule-y": () => [{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }],
 };
 
+/* ═══════════ the kitchen: burgers, pasta, rolls, pizza, coolers ═══════════
+   One list feeds the menu cards, the shop, the full menu and the product pages.
+   Each dish is drawn (foodArt.ts) rather than photographed. Prices are rupees. */
+const MEAL = { key: "meal", label: "MAKE IT A MEAL", choices: [["JUST THE BURGER", 0], ["+ FRIES & DRINK", 450]] };
+const SPICE = { key: "spice", label: "SPICE", def: 1, choices: [["MILD", 0], ["MEDIUM", 0], ["HOT", 0]] };
+const PIZZA_SIZE = { key: "size", label: "SIZE", def: 1, choices: [['8"', -600], ['10"', 0], ['12"', 700]] };
+const COOLER_SIZE = { key: "size", label: "SIZE", choices: [["REGULAR", 0], ["LARGE", 150]] };
+const KITCHEN = [
+  { id: "smash-burger", name: "CLASSIC SMASH BURGER", menuCat: "burgers", art: ["burger", "smash"], tag: "HOUSE FAVOURITE", price: 1350,
+    meta: "DOUBLE SMASHED BEEF · CHEDDAR · HOUSE SAUCE", notes: ["JUICY", "CRISPY EDGES"],
+    desc: "Two beef patties smashed thin on a hot griddle so the edges crisp, melted cheddar, pickles and our house sauce in a toasted brioche bun.",
+    options: [MEAL, { key: "extra", label: "EXTRA", choices: [["NONE", 0], ["+ CHEESE", 150], ["+ PATTY", 400]] }],
+    details: [["PATTY", "2 × 90 G BEEF"], ["BUN", "BRIOCHE"], ["SERVED", "WITH A PICKLE"]] },
+  { id: "zinger-burger", name: "CRISPY ZINGER BURGER", menuCat: "burgers", art: ["burger", "zinger"], price: 1150,
+    meta: "BUTTERMILK FRIED CHICKEN · SLAW · MAYO", notes: ["CRUNCHY", "SPICY"],
+    desc: "A thick fillet brined in buttermilk, fried to a loud crunch, with crisp lettuce, garlic mayo and a little heat.",
+    options: [MEAL, SPICE], details: [["FILLET", "CHICKEN THIGH"], ["COATING", "DOUBLE-DIPPED"], ["BUN", "SESAME"]] },
+  { id: "bbq-burger", name: "SMOKY BBQ BEEF BURGER", menuCat: "burgers", art: ["burger", "bbq"], price: 1550,
+    meta: "BEEF · ONION RINGS · SMOKED BBQ", notes: ["SMOKY", "STICKY"],
+    desc: "A thick beef patty glazed in smoked barbecue sauce, stacked with crisp onion rings and cheddar.",
+    options: [MEAL], details: [["PATTY", "180 G BEEF"], ["SAUCE", "HICKORY BBQ"], ["BUN", "BRIOCHE"]] },
+  { id: "alfredo-pasta", name: "CHICKEN ALFREDO FETTUCCINE", menuCat: "pasta", art: ["pasta", "alfredo"], price: 1450,
+    meta: "CREAM · PARMESAN · GRILLED CHICKEN", notes: ["CREAMY", "COMFORT"],
+    desc: "Fettuccine in a parmesan cream sauce with grilled chicken, black pepper and parsley.",
+    options: [{ key: "protein", label: "PROTEIN", choices: [["CHICKEN", 0], ["MUSHROOM", -150], ["PRAWN", 450]] }],
+    details: [["PASTA", "FETTUCCINE"], ["SAUCE", "PARMESAN CREAM"], ["SERVES", "ONE, GENEROUSLY"]] },
+  { id: "arrabbiata-pasta", name: "PENNE ARRABBIATA", menuCat: "pasta", art: ["pasta", "arrabbiata"], price: 1250,
+    meta: "TOMATO · GARLIC · CHILLI · BASIL", notes: ["FIERY", "VEGETARIAN"],
+    desc: "Penne in slow-cooked tomato with garlic and red chilli, finished with basil and olive oil.",
+    options: [SPICE, { key: "add", label: "ADD", choices: [["NOTHING", 0], ["+ CHICKEN", 300]] }],
+    details: [["PASTA", "PENNE RIGATE"], ["SAUCE", "TOMATO & CHILLI"], ["DIET", "VEGETARIAN"]] },
+  { id: "pesto-pasta", name: "PESTO CHICKEN FUSILLI", menuCat: "pasta", art: ["pasta", "pesto"], tag: "NEW", price: 1550,
+    meta: "BASIL PESTO · CHICKEN · PARMESAN", notes: ["FRESH", "HERBY"],
+    desc: "Fusilli tossed in basil pesto with grilled chicken, cherry tomatoes and shaved parmesan.",
+    options: [{ key: "protein", label: "PROTEIN", choices: [["CHICKEN", 0], ["NONE", -250]] }],
+    details: [["PASTA", "FUSILLI"], ["PESTO", "BASIL & PINE NUT"], ["TOP", "PARMESAN"]] },
+  { id: "tikka-roll", name: "CHICKEN TIKKA PARATHA ROLL", menuCat: "rolls", art: ["roll", "tikka"], tag: "LAHORE CLASSIC", price: 650,
+    meta: "CHARGRILLED TIKKA · MINT CHUTNEY · ONION", notes: ["SMOKY", "CHUTNEY"],
+    desc: "Chargrilled chicken tikka, pickled onion and mint chutney, rolled in a flaky paratha straight off the tawa.",
+    options: [SPICE, { key: "cheese", label: "CHEESE", choices: [["NO", 0], ["YES", 120]] }],
+    details: [["WRAP", "LACHHA PARATHA"], ["FILLING", "CHICKEN TIKKA"], ["CHUTNEY", "MINT & YOGURT"]] },
+  { id: "behari-roll", name: "BEHARI KEBAB ROLL", menuCat: "rolls", art: ["roll", "behari"], price: 700,
+    meta: "TENDER BEEF BEHARI · ONION · IMLI", notes: ["MELT-IN-MOUTH", "SPICED"],
+    desc: "Thin-sliced beef marinated overnight in papaya and spices, grilled soft, with onion and tamarind chutney in a paratha.",
+    options: [SPICE], details: [["MEAT", "BEEF, OVERNIGHT MARINADE"], ["WRAP", "PARATHA"], ["CHUTNEY", "IMLI"]] },
+  { id: "crispy-wrap", name: "CRISPY CHICKEN WRAP", menuCat: "rolls", art: ["roll", "crispy"], price: 850,
+    meta: "FRIED CHICKEN · LETTUCE · GARLIC MAYO", notes: ["CRUNCHY", "LIGHT"],
+    desc: "Crispy chicken strips, lettuce, tomato and garlic mayo in a toasted flour tortilla.",
+    options: [SPICE], details: [["WRAP", "FLOUR TORTILLA"], ["FILLING", "CRISPY STRIPS"], ["SAUCE", "GARLIC MAYO"]] },
+  { id: "margherita-pizza", name: "MARGHERITA PIZZA", menuCat: "pizza", art: ["pizza", "margherita"], price: 1650,
+    meta: "TOMATO · FIOR DI LATTE · BASIL", notes: ["CLASSIC", "VEGETARIAN"],
+    desc: "Hand-stretched dough, San Marzano-style tomato, fresh mozzarella and basil, baked hot until the crust blisters.",
+    options: [PIZZA_SIZE], details: [["DOUGH", "48-HOUR PROOF"], ["CHEESE", "FRESH MOZZARELLA"], ["DIET", "VEGETARIAN"]] },
+  { id: "fajita-pizza", name: "CHICKEN FAJITA PIZZA", menuCat: "pizza", art: ["pizza", "fajita"], tag: "BESTSELLER", price: 1850,
+    meta: "FAJITA CHICKEN · PEPPERS · ONION", notes: ["SPICED", "LOADED"],
+    desc: "Fajita-spiced chicken, green and red peppers and onion over mozzarella, the way Lahore likes it.",
+    options: [PIZZA_SIZE, { key: "crust", label: "CRUST", choices: [["CLASSIC", 0], ["CHEESE-STUFFED", 350]] }],
+    details: [["DOUGH", "48-HOUR PROOF"], ["TOPPING", "FAJITA CHICKEN"], ["CHEESE", "MOZZARELLA"]] },
+  { id: "pepperoni-pizza", name: "BEEF PEPPERONI PIZZA", menuCat: "pizza", art: ["pizza", "pepperoni"], price: 1950,
+    meta: "BEEF PEPPERONI · MOZZARELLA · OREGANO", notes: ["CRISPY CUPS", "SAVOURY"],
+    desc: "Halal beef pepperoni that curls and crisps in the oven, over tomato and plenty of mozzarella.",
+    options: [PIZZA_SIZE, { key: "crust", label: "CRUST", choices: [["CLASSIC", 0], ["CHEESE-STUFFED", 350]] }],
+    details: [["PEPPERONI", "HALAL BEEF"], ["DOUGH", "48-HOUR PROOF"], ["FINISH", "OREGANO"]] },
+  { id: "mint-margarita", name: "MINT MARGARITA", menuCat: "drinks", art: ["drink", "mint"], tag: "SUMMER", price: 550,
+    meta: "MINT · LIME · CRUSHED ICE", notes: ["COOLING", "ZESTY"],
+    desc: "Fresh mint and lime blended with crushed ice and a pinch of chaat masala. Alcohol-free, like everything we pour.",
+    options: [COOLER_SIZE], details: [["BASE", "FRESH MINT & LIME"], ["ICE", "CRUSHED"], ["FINISH", "CHAAT MASALA"]] },
+  { id: "peach-iced-tea", name: "PEACH ICED TEA", menuCat: "drinks", art: ["drink", "peach"], price: 600,
+    meta: "BLACK TEA · PEACH · LEMON", notes: ["LIGHT", "FRUITY"],
+    desc: "Black tea brewed strong, chilled, with peach and a squeeze of lemon.",
+    options: [COOLER_SIZE, { key: "sweet", label: "SWEETNESS", def: 1, choices: [["LESS", 0], ["REGULAR", 0], ["EXTRA", 0]] }],
+    details: [["TEA", "BLACK, COLD-STEEPED"], ["FRUIT", "PEACH"], ["SERVED", "OVER ICE"]] },
+  { id: "mango-smoothie", name: "MANGO SMOOTHIE", menuCat: "drinks", art: ["drink", "mango"], price: 750,
+    meta: "CHAUNSA MANGO · YOGURT · HONEY", notes: ["THICK", "SEASONAL"],
+    desc: "Ripe mango blended with yogurt and a little honey. Chaunsa in season.",
+    options: [COOLER_SIZE, { key: "milk", label: "BASE", choices: [["YOGURT", 0], ["OAT MILK", 150]] }],
+    details: [["FRUIT", "MANGO"], ["BASE", "YOGURT"], ["SWEETENER", "HONEY"]] },
+  { id: "lime-soda", name: "FRESH LIME SODA", menuCat: "drinks", art: ["drink", "lime"], price: 450,
+    meta: "LIME · SODA · SWEET OR SALTED", notes: ["FIZZY", "REFRESHING"],
+    desc: "Fresh lime over soda, sweet, salted or half-and-half, the way it's done across Lahore.",
+    options: [{ key: "style", label: "STYLE", choices: [["SWEET", 0], ["SALTED", 0], ["MIXED", 0]] }],
+    details: [["LIME", "FRESH-SQUEEZED"], ["SODA", "CHILLED"], ["STYLE", "YOUR CALL"]] },
+].map((k) => {
+  const art = foodArt(k.art[0], k.art[1]);
+  return {
+    ...k,
+    cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
+    // A real photo in public/assets/kitchen/ wins; until one is there the drawn
+    // dish stands in. The server lists the photos that exist, so a missing one is
+    // never requested; without that list, try <id>.jpg and fall back on error.
+    photo: kitchenPhotos ? (kitchenPhotos[k.id] ? `kitchen/${kitchenPhotos[k.id]}` : art) : `kitchen/${k.id}.jpg`,
+    art,
+    alt: `The brewns ${k.name.toLowerCase()}`,
+    care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
+  };
+});
+const rs = (n) => `Rs ${n.toLocaleString("en-US")}`;
+const KITCHEN_ART = Object.fromEntries(KITCHEN.map((k) => [k.id, k.art]));
+document.addEventListener(
+  "error",
+  (e) => {
+    const img = e.target;
+    if (img?.tagName !== "IMG" || img.dataset.artFallback) return;
+    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)\.\w+$/)?.[1];
+    if (!id || !KITCHEN_ART[id]) return;
+    img.dataset.artFallback = "1";
+    img.src = KITCHEN_ART[id];
+  },
+  true,
+);
+// Photos are asset paths; drawn dishes arrive as data URIs.
+const photoSrc = (photo) => (photo.startsWith("data:") ? photo : `${ASSET_BASE_URL}${photo}`);
+
 /* ═══════════ generated markup: menu cards, footer columns ═══════════ */
 const ALL_MENU_CARDS = [
-  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "$2.50", file: "menu-espresso.webp", size: [1216, 1293], frame: [129, 156, 0, 0], crop: ["-12.54%", "-27.55%", "145.17%", "128.38%"], cover: false, clip: true, alt: "A brewns single-shot espresso cup" },
-  { id: "latte", cat: "coffee", name: "LATTE", price: "$4.20", file: "menu-latte.webp", size: [1024, 1536], frame: [180, 205, 0, 0.5], crop: ["-16.55%", "-0.03%", "100.07%", "132.36%"], cover: false, clip: true, alt: "A brewns latte cup with a heart poured into the foam" },
-  { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "$4.50", file: "menu-iced-coffee.webp", size: [1024, 1536], frame: [197, 261, 0, 0], crop: ["0.1%", "2.54%", "94.92%", "107.62%"], cover: false, clip: false, alt: "A brewns iced matcha in a clear cup with a straw" },
-  { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "$4.20", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
-  { id: "cortado", cat: "coffee", name: "CORTADO", price: "$3.90", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
-  { id: "nitro-cold-brew", cat: "specialty", name: "NITRO COLD BREW", price: "$5.00", file: "menu-cold-brew.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head" },
-  { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "$3.80", file: "menu-cinnamon.webp", size: [1536, 1024], frame: [327, 218, -8, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
-  { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "$4.00", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
-  { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "$4.80", file: "menu-iced-latte.webp", size: [1024, 1536], frame: [175, 235, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: false, alt: "A brewns iced latte in a clear cup with straw" },
-  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "$18.00", file: "menu-beans.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Brewns Slow Roast whole bean coffee" },
-  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "$22.00", file: "menu-single-origin.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Ethiopia Yirgacheffe single origin whole bean coffee" },
-  { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "$34.00", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
+  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "Rs 650", snap: "cup", size: [720, 720], frame: [170, 170, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns espresso in the short black-lidded brewns paper cup" },
+  { id: "latte", cat: "coffee", name: "LATTE", price: "Rs 950", snap: "cup", size: [720, 720], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns latte in the black-lidded brewns paper cup" },
+  { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "Rs 1,150", file: "menu-iced-coffee.webp", size: [1024, 1536], frame: [197, 261, 0, 0], crop: ["0.1%", "2.54%", "94.92%", "107.62%"], cover: false, clip: false, alt: "A brewns iced matcha in a clear cup with a straw" },
+  { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "Rs 750", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
+  { id: "cortado", cat: "coffee", name: "CORTADO", price: "Rs 850", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
+  { id: "nitro-cold-brew", cat: "specialty", name: "NITRO COLD BREW", price: "Rs 1,100", file: "menu-cold-brew.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head" },
+  { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "Rs 700", file: "menu-cinnamon.webp", size: [1536, 1024], frame: [327, 218, -8, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
+  { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "Rs 650", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
+  { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "Rs 1,050", file: "menu-iced-latte.webp", size: [1024, 1536], frame: [175, 235, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: false, alt: "A brewns iced latte in a clear cup with straw" },
+  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Slow Roast whole bean bag" },
+  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Ethiopia Yirgacheffe whole bean bag" },
+  { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
+  ...KITCHEN.map((k) => ({ shot: true, id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: `${ASSET_BASE_URL}${k.photo}`, size: [800, 800], frame: [255, 255, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
 ];
 
 const cardHTML = (c, o) => {
@@ -705,9 +926,9 @@ const cardHTML = (c, o) => {
   return `<li><div class="lean"><div><article class="card" data-iv="rise" data-y="28" data-c="80,26" data-d="${o * 90}" data-menu-id="${c.id}">
     <div aria-hidden="true" class="card-range"></div>
     <p class="card-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
-    <div class="card-media${c.clip ? " clip" : ""}"><span><span class="card-par">
+    <div class="card-media${c.clip ? " clip" : ""}${c.shot ? " shot" : ""}"><span><span class="card-par">
       <div class="still" style="width: calc(${w / 16}rem * var(--size-menu-still-scale)); max-width: var(--size-menu-still-max); aspect-ratio: ${w} / ${h}; bottom: calc(${bottom / 16}rem + var(--size-menu-still-lift)); margin-left: ${offsetX / 16}rem">
-        <img loading="lazy" decoding="async" src="${ASSET_BASE_URL}menu/${c.file}" alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
+        <img loading="lazy" decoding="async" ${c.snap ? `data-snap="${c.snap}" data-snap-product="${c.id}"` : `src="${c.art || `${ASSET_BASE_URL}menu/${c.file}`}"`} alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
       </div>
     </span></span></div>
     <div class="card-foot">
@@ -726,9 +947,18 @@ $("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map(cardHTML).join("");
    on a slip, in the same mono, torn off at the bottom. What someone ordered is
    part of the review — it ties the words back to the menu two sections up. */
 const REVIEWS = [
-  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Mission", order: "Iced Matcha · 12 oz", when: "12.05", stars: 5 },
-  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "North Beach", order: "Flat White · 8 oz", when: "04.05", stars: 5 },
-  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "SoMa", order: "Slow Roast · 250 g", when: "28.04", stars: 5 },
+  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", product: "iced-matcha", when: "12.05", stars: 5, verified: true, helpful: 42 },
+  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", product: "latte", when: "04.05", stars: 5, verified: false, helpful: 31 },
+  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", product: "slow-roast", when: "28.04", stars: 5, verified: true, helpful: 27 },
+  { quote: "A smash burger with properly crispy edges, from a coffee house. Better than the burger places down the road.", name: "Hamza K.", place: "Gulberg", order: "Classic Smash Burger · Meal", product: "smash-burger", when: "19.09", stars: 5, verified: true, helpful: 18 },
+  { quote: "Ordered to Model Town in the rain. The rider messaged from the gate and the latte was still hot.", name: "Usman T.", place: "Gulberg", order: "Latte · 12 oz · Delivery", product: "latte", when: "16.09", stars: 5, verified: true, helpful: 24 },
+  { quote: "Cardamom bun and a cortado at 8am has become my whole personality. The bun sells out by ten, go early.", name: "Ayesha N.", place: "DHA", order: "Cardamom Bun", product: "cardamom-bun", when: "14.09", stars: 5, verified: false, helpful: 15 },
+  { quote: "Tikka paratha roll with the mint chutney, eaten in the car in the parking. Zero regrets.", name: "Bilal A.", place: "Johar Town", order: "Chicken Tikka Paratha Roll", product: "tikka-roll", when: "11.09", stars: 5, verified: true, helpful: 12 },
+  { quote: "Four stars only because the lounge was full on Saturday evening. The cinnamon roll was worth the wait.", name: "Sana M.", place: "Gulberg", order: "Cinnamon Roll · Warmed", product: "cinnamon-roll", when: "07.09", stars: 4, verified: false, helpful: 9 },
+  { quote: "Nitro cold brew that tastes like coffee, not like a can. Smooth all the way to the bottom.", name: "Omar F.", place: "DHA", order: "Nitro Cold Brew", product: "nitro-cold-brew", when: "02.09", stars: 5, verified: true, helpful: 14 },
+  { quote: "A margherita with real char on the crust. The kids fought over the last slice, so now we order two.", name: "Fatima Z.", place: "Johar Town", order: "Margherita Pizza · 12 in", product: "margherita-pizza", when: "29.08", stars: 5, verified: true, helpful: 21 },
+  { quote: "Bought the Ethiopia beans for home. Bright, a bit of blueberry, exactly what the bag says.", name: "Ali R.", place: "DHA", order: "Ethiopia Yirgacheffe · 250 g", product: "single-origin", when: "24.08", stars: 5, verified: false, helpful: 11 },
+  { quote: "Mango smoothie in August is the only correct decision. Real Chaunsa, not the syrup stuff.", name: "Mehak S.", place: "Gulberg", order: "Mango Smoothie · Large", product: "mango-smoothie", when: "18.08", stars: 5, verified: true, helpful: 16 },
 ];
 
 /* The breakdown behind the 4.9. A single headline number invites the question of
@@ -748,22 +978,28 @@ $("#rev-dist").innerHTML = RATINGS.map(
   </li>`,
 ).join("");
 
-$("#rev-cards").innerHTML = REVIEWS.map((r, o) => `<li><div class="lean"><div class="rev-hold"><article class="rev-slip" data-iv="rise" data-y="28" data-c="80,26" data-d="${o * 90}">
+// Slips reveal in threes: the carousel shows at most three at a time.
+$("#rev-cards").innerHTML = REVIEWS.map((r, o) => {
+  const d = (o % 3) * 90;
+  return `<li data-place="${r.place}" data-product="${r.product}"><div class="lean"><div class="rev-hold"><article class="rev-slip" data-product="${r.product}" data-iv="rise" data-y="28" data-c="80,26" data-d="${d}">
   <div class="rev-slip-head">
-    <p class="rev-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
-    <p class="rev-when"><span data-dr data-d="${o * 90 + 200}">${r.when}</span></p>
+    <p class="rev-idx"><span data-dr data-d="${d + 160}">${String(o + 1).padStart(2, "0")}</span></p>
+    <p class="rev-when"><span data-dr data-d="${d + 200}">${r.when}</span></p>
   </div>
-  <p class="rev-stars" role="img" aria-label="Rated ${r.stars} out of 5">${"★".repeat(r.stars)}</p>
-  <blockquote class="rev-quote"><p data-te="words" data-dur="620" data-st="12" data-d="${o * 90 + 260}" data-margin="0px 0px -15% 0px">${r.quote}</p></blockquote>
+  <p class="rev-stars" role="img" aria-label="Rated ${r.stars} out of 5">${"★".repeat(r.stars)}<span class="rev-stars-off">${"★".repeat(5 - r.stars)}</span></p>
+  <blockquote class="rev-quote"><p data-te="words" data-dur="620" data-st="12" data-d="${d + 260}" data-margin="0px 0px -15% 0px">${r.quote}</p></blockquote>
   <div class="rc-rule" aria-hidden="true"></div>
-  <div class="rev-foot"><p data-iv="print30" data-c="58,26" data-d="${o * 90 + 320}" style="clip-path: inset(0 100% -30% 0)">${r.name}</p><p>${r.place}</p></div>
+  <div class="rev-foot"><p data-iv="print30" data-c="58,26" data-d="${d + 320}" style="clip-path: inset(0 100% -30% 0)">${r.name}</p><p>${r.place}</p></div>
   <p class="rev-order"><span>Ordered</span><span>${r.order}</span></p>
-</article></div></div></li>`).join("");
+  <button type="button" class="rev-helpful" data-helpful="seed-${o}" data-base="${r.helpful}" aria-pressed="false"><span aria-hidden="true">▲</span> HELPFUL · <b>${r.helpful}</b></button>
+  ${r.verified ? '<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>' : ""}
+</article></div></div></li>`;
+}).join("");
 
 /* A slow band of one-liners under the slips — the overheard half of a review,
    the part too short to letter onto a card. Doubled so the loop has no seam. */
 const OVERHEARD = [
-  "Best flat white in the Mission",
+  "Best flat white in Gulberg",
   "The 7am queue actually moves",
   "They remember the order",
   "Oat milk done properly",
@@ -803,6 +1039,70 @@ $$("[data-iv]").forEach((el) => {
 });
 $$("[data-pulse]").forEach(pulse);
 $$(".lean").forEach((outer) => lean(outer.firstElementChild, outer));
+
+/* The footer's giant wordmark rises out of the bottom edge. It starts below the
+   footer's clip, so it is triggered by its band, which is always in place. */
+inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C(36, 26), delay: 120, trigger: $(".ftr-brand") });
+
+/* The ambassador's polaroid shows her photo once it is in public/assets/hania/;
+   until then (or if none loads) the initials stand in. Common names are tried in
+   turn, including the doubled extensions Windows makes when extensions are hidden
+   ("hania.jpg.png"). */
+{
+  const photo = $(".hania-photo");
+  if (photo) {
+    const names = ["hania.jpg", "hania.jpeg", "hania.png", "hania.webp", "hania.JPG", "hania.PNG", "hania.jpg.png", "hania.jpg.webp", "hania.jpg.jpeg", "hania.jpg.jpg", "hania.png.png", "hania.webp.webp"];
+    let tried = 0;
+    const show = () => photo.closest(".hania-shot").classList.add("has-photo");
+    photo.addEventListener("load", show);
+    photo.addEventListener("error", () => {
+      tried += 1;
+      if (tried < names.length) photo.src = `${ASSET_BASE_URL}hania/${names[tried]}`;
+      else photo.remove();
+    });
+    // The first name may have failed before these listeners existed.
+    if (photo.complete) photo.naturalWidth ? show() : photo.dispatchEvent(new Event("error"));
+  }
+}
+
+/* Inside brewns: open a photo full size, step through with arrows or keys. */
+{
+  const box = $("#inside-box");
+  const tiles = $$(".inside-open");
+  let at = 0;
+  const show = (i) => {
+    at = (i + tiles.length) % tiles.length;
+    const img = $("img", tiles[at]);
+    $("#inside-box-img").src = img.src;
+    $("#inside-box-img").alt = img.alt;
+    const cap = tiles[at].parentElement.querySelector("figcaption");
+    $("#inside-box-cap").textContent = `${String(at + 1).padStart(2, "0")} / ${String(tiles.length).padStart(2, "0")} · ${cap.querySelector("b").textContent} · ${cap.querySelector("span:last-child").textContent}`;
+  };
+  const close = () => {
+    box.hidden = true;
+    startScroll();
+    tiles[at]?.focus();
+  };
+  tiles.forEach((t, i) =>
+    t.addEventListener("click", () => {
+      show(i);
+      box.hidden = false;
+      stopScroll();
+      $("[data-inside-close]", box).focus();
+    }),
+  );
+  box?.addEventListener("click", (e) => {
+    const step = e.target.closest("[data-inside-step]");
+    if (step) return show(at + +step.dataset.insideStep);
+    if (e.target === box || e.target.closest("[data-inside-close]")) close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!box || box.hidden) return;
+    if (e.key === "Escape") close();
+    if (e.key === "ArrowRight") show(at + 1);
+    if (e.key === "ArrowLeft") show(at - 1);
+  });
+}
 
 /* ═══════════ header ═══════════ */
 const header = $("#hdr");
@@ -882,7 +1182,8 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
       page.set({ revealing: true, ready: true });
       startScroll();
       if (window.location.hash) {
-        const target = $(window.location.hash);
+        // "#shop/<id>" is a product route: land on the shop, the router opens the product.
+        const target = document.getElementById(decodeURIComponent(window.location.hash.slice(1)).split("/")[0]);
         if (target) setTimeout(() => lenis.scrollTo(target, { immediate: true }), 60);
       }
     }
@@ -899,8 +1200,9 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
   setTimeout(done, MAX_WAIT + 2000);
 })();
 
-/* specks for the GPU warm-up */
-$("#warm-specks").innerHTML = [50, 95]
+/* specks for the GPU warm-up; they live in the preloader, which reduced motion removes */
+const warmSpecks = $("#warm-specks");
+if (warmSpecks) warmSpecks.innerHTML = [50, 95]
   .flatMap((fill) => [
     `<span class="swirl-fill" style="display:block;width:8px;height:8px;--fill:${fill};-webkit-mask-image:${blobMask("ltr")};mask-image:${blobMask("ltr")}"></span>`,
     `<span class="swirl-fill" style="display:block;width:8px;height:8px;transform:scale(.95);--fill:${fill};-webkit-mask-image:${blobMask("ltr")};mask-image:${blobMask("ltr")}"></span>`,
@@ -958,8 +1260,8 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
 
 /* ═══════════ hero card ═══════════ */
 const HERO_CARDS = {
-  bag: { eyebrow: "in the bag", name: "SLOW ROAST", price: "$18.00", meta: ["250 G", "WHOLE BEAN", "COPENHAGEN"] },
-  cup: { eyebrow: "in the cup", name: "HOUSE LATTE", price: "$4.20", meta: ["250 ML", "BREWED DAILY", "TO GO"] },
+  bag: { eyebrow: "in the bag", name: "SLOW ROAST", price: "Rs 3,800", meta: ["250 G", "WHOLE BEAN", "COPENHAGEN"] },
+  cup: { eyebrow: "in the cup", name: "HOUSE LATTE", price: "Rs 950", meta: ["250 ML", "BREWED DAILY", "TO GO"] },
 };
 const heroCard = $("#hero-card");
 const setCard = (role) => {
@@ -974,6 +1276,8 @@ const heroHandle = $("#hero-handle");
 hover(heroCard, heroHandle, { opacity: 0, y: 18 }, { opacity: 1, y: 0 }, { config: C(210, 26) });
 
 /* ═══════════ order block: the thermal printer ═══════════ */
+// Filled in by the printer below; the tear-off gesture asks it for a fresh slip.
+const orderPrinter = { reprint: () => {} };
 (() => {
   const SCENE = { width: 1440, height: 800 };
   const STEPS = 46, BARCODE_FED = 0.88;
@@ -1044,15 +1348,66 @@ hover(heroCard, heroHandle, { opacity: 0, y: 18 }, { opacity: 1, y: 0 }, { confi
   });
   const sweep = new Spring({ v: 0 }, (o) => barEls.forEach((el, i) => (el.style.transform = `scaleY(${scaleAt(o.v, i, barEls.length, heights[i])})`)));
 
-  let progress = -1, fed = false;
-  const write = (p) => {
-    if (p === progress) return;
-    progress = p;
-    paper.style.setProperty("--p", String(p)); if (p > 0.1 && p < 0.95 && Math.random() < 0.25) playPaperFeed();
-    const now = p >= BARCODE_FED;
+  /* The paper follows the scroll through a spring, so it glides out of the slot
+     rather than jumping step to step. While it moves, the section is marked
+     "printing" (amber light, glowing slot); fully out, "printed" (green light),
+     with a one-off settle swing. */
+  let progress = -1, fed = false, reprinting = false, idle = 0, out = false;
+  const setOut = (now) => {
+    if (now === out) return;
+    out = now;
+    section.classList.toggle("printed", out);
+    if (out) printerCut();
+    if (!out || REDUCED) return;
+    section.classList.add("settle");
+    setTimeout(() => section.classList.remove("settle"), 1500);
+  };
+  let lastV = 0, lastT = performance.now();
+  const feed = new Spring({ v: 0 }, (o) => {
+    paper.style.setProperty("--p", String(o.v));
+    // The motor runs while paper moves, pitched to how fast it's feeding.
+    const t = performance.now();
+    const speed = Math.abs(o.v - lastV) / Math.max(1, t - lastT);
+    if (o.v > lastV + 0.0005 && o.v < 0.998) printerFeed(Math.min(1, speed * 60));
+    lastV = o.v;
+    lastT = t;
+    setOut(o.v > 0.995);
+    if (REDUCED) return;
+    section.classList.add("printing");
+    clearTimeout(idle);
+    idle = setTimeout(() => section.classList.remove("printing"), 160);
+  });
+  const barcodeTo = (now) => {
     if (now === fed) return;
     fed = now;
     sweep.start({ v: fed ? 1 : 0 }, { config: C(70, 34) });
+  };
+  const write = (p) => {
+    if (p === progress || reprinting) return;
+    progress = p;
+    if (REDUCED) feed.set({ v: p });
+    else feed.start({ v: p }, { config: C(90, 22) });
+    barcodeTo(p >= BARCODE_FED);
+  };
+
+  /* After a tear: the next order number, and a new slip fed all the way out. */
+  orderPrinter.reprint = () => {
+    const no = $("#rc-no");
+    const n = parseInt(no.textContent.replace(/\D/g, ""), 10) || 0;
+    no.textContent = `Order #${String(n + 1).padStart(5, "0")}`;
+    if (REDUCED) return;
+    reprinting = true;
+    feed.stop();
+    feed.set({ v: 0 });
+    sweep.set({ v: 0 });
+    fed = false;
+    setTimeout(() => {
+      barcodeTo(true);
+      feed.start({ v: 1 }, { config: C(26, 18) }).then(() => {
+        reprinting = false;
+        progress = 1;
+      });
+    }, 350);
   };
   const measure = () => {
     const scrolled = -section.getBoundingClientRect().top;
@@ -1858,6 +2213,7 @@ function heroModel(T, mount, handle, onPiece) {
           normalScale?.set(Math.sign(normalScale.x) * NORMAL_STRENGTH, Math.sign(normalScale.y) * NORMAL_STRENGTH);
         }
       });
+      dressPackaging(THREE, model).ready.then(() => (dirty = true));
 
       const loaded = model;
       loaded.updateWorldMatrix(true, true);
@@ -1959,6 +2315,7 @@ function philosophyScene(T, mount) {
   const {
     WebGLRenderer, SRGBColorSpace, NeutralToneMapping, Scene, Fog, PerspectiveCamera, PMREMGenerator, RoomEnvironment,
     DirectionalLight, Group, Vector3, Matrix4, Box3, InstancedMesh, Quaternion, GLTFLoader, DRACOLoader,
+    Sprite, SpriteMaterial, CanvasTexture,
   } = T;
 
   const VIEW = { fov: 30, distance: 20 };
@@ -1966,14 +2323,20 @@ function philosophyScene(T, mount) {
   const BEANS = { desktop: 34, mobile: 16, length: 0.07, scale: { min: 0.55, max: 1.7 } };
   const CUP = {
     yaw: Math.PI + 1.2, tilt: 0.21, scale: 0.92, drop: 0.02, capsule: 0.36,
-    lean: { yaw: 0.26, pitch: 0.1 }, follow: 4, spin: Math.PI * 1.2, spinFollow: 6, rise: 1.1, riseRate: 2.4,
+    lean: { yaw: 0.26, pitch: 0.1 }, follow: 4, spin: Math.PI * 0.4, spinFollow: 6, rise: 1.1, riseRate: 2.4,
+    // The cup sits left of the lens, so its printed face is turned a little further round to meet it.
+    face: 0.5,
   };
   const LIGHT = {
     exposure: 1.15,
     environment: 0.55,
     key: { colour: 0xfff1e0, intensity: 2.4, position: [-5, 6, 7] },
     rim: { colour: 0xffd9b0, intensity: 1.6, position: [5, 3, -6] },
+    // Gold edge light from behind, so the black cup separates from the dark ground.
+    gold: { colour: 0xffb466, intensity: 3.2, position: [-7, 4, -5] },
   };
+  /* Steam off the lid: soft puffs that rise, widen and fade, in cup heights. */
+  const STEAM = { count: 9, life: 4.2, rise: 0.85, drift: 0.07, size: { from: 0.28, to: 0.8 }, opacity: 0.3 };
   const FOG = { colour: 0x070707, start: 4, end: 24 };
   const VORTEX = { strength: 2.4, fullSpeed: 1600, follow: 3 };
   const POINTER_SETTLE = 8;
@@ -2207,7 +2570,7 @@ function philosophyScene(T, mount) {
   scene.environment = environment.texture;
   scene.environmentIntensity = LIGHT.environment;
 
-  for (const { colour, intensity, position } of [LIGHT.key, LIGHT.rim]) {
+  for (const { colour, intensity, position } of [LIGHT.key, LIGHT.rim, LIGHT.gold]) {
     const light = new DirectionalLight(colour, intensity);
     light.position.set(position[0], position[1], position[2]);
     scene.add(light);
@@ -2219,6 +2582,45 @@ function philosophyScene(T, mount) {
   const spin = new Group();
   cup.add(spin);
   let turned = 0;
+
+  const steam = new Group();
+  steam.visible = false;
+  scene.add(steam);
+  const puffs = [];
+  if (!reduced) {
+    const puffCanvas = document.createElement("canvas");
+    puffCanvas.width = puffCanvas.height = 128;
+    const pctx = puffCanvas.getContext("2d");
+    const fade = pctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    fade.addColorStop(0, "rgba(255,255,255,1)");
+    fade.addColorStop(0.45, "rgba(255,255,255,0.35)");
+    fade.addColorStop(1, "rgba(255,255,255,0)");
+    pctx.fillStyle = fade;
+    pctx.fillRect(0, 0, 128, 128);
+    const puffMap = new CanvasTexture(puffCanvas);
+    puffMap.colorSpace = SRGBColorSpace;
+    for (let i = 0; i < STEAM.count; i++) {
+      const puff = new Sprite(new SpriteMaterial({ map: puffMap, color: 0xfff1e2, transparent: true, depthWrite: false, opacity: 0 }));
+      puff.userData = { age: (i / STEAM.count) * STEAM.life, sway: Math.random() * Math.PI * 2 };
+      steam.add(puff);
+      puffs.push(puff);
+    }
+  }
+  const lid = new Vector3();
+  const moveSteam = (dt) => {
+    steam.visible = cup.visible && puffs.length > 0;
+    if (!steam.visible) return;
+    lid.set(0, 0.5, 0).applyMatrix4(cup.matrixWorld);
+    const h = place.height;
+    for (const puff of puffs) {
+      const d = puff.userData;
+      d.age = (d.age + dt) % STEAM.life;
+      const t = d.age / STEAM.life;
+      puff.position.set(lid.x + Math.sin(d.sway + t * 3) * STEAM.drift * h * (0.3 + t), lid.y + t * STEAM.rise * h, lid.z);
+      puff.scale.setScalar(lerp(STEAM.size.from, STEAM.size.to, t) * h);
+      puff.material.opacity = Math.sin(Math.PI * t) * STEAM.opacity * (1 - rise);
+    }
+  };
 
   const tanHalf = Math.tan((VIEW.fov * Math.PI) / 360);
   const view = { distance: VIEW.distance, tanHalf, aspect: 1, near: DEPTH.near, far: DEPTH.far };
@@ -2275,6 +2677,12 @@ function philosophyScene(T, mount) {
         place.height = cell.height * u * CUP.scale;
         place.x = (cell.left + cell.width / 2 - box.left - width / 2) * u;
         place.bottom = (box.top + height / 2 - cell.bottom) * u - place.height * CUP.drop;
+        // Where the cup stands, for the glow behind it.
+        section.style.setProperty("--phil-cup-x", `${cell.left + cell.width / 2 - box.left}px`);
+        section.style.setProperty("--phil-cup-y", `${cell.top + cell.height * 0.45 - box.top}px`);
+        section.style.setProperty("--phil-cup-size", `${cell.height * 1.5}px`);
+        section.style.setProperty("--phil-cup-base", `${cell.bottom - box.top}px`);
+        section.style.setProperty("--phil-cup-w", `${cell.width}px`);
       }
     }
     poseCup();
@@ -2324,6 +2732,7 @@ function philosophyScene(T, mount) {
       turned += ((travel - 0.5) * CUP.spin - turned) * (1 - Math.exp(-CUP.spinFollow * dt));
       spin.rotation.y = turned;
       poseCup();
+      moveSteam(dt);
 
       const scrollNow = window.scrollY;
       const scrollSpeed = lastScroll === null ? 0 : (scrollNow - lastScroll) / dt;
@@ -2348,7 +2757,8 @@ function philosophyScene(T, mount) {
     (gltf) => {
       const cupScene = gltf.scenes.find(isCupOnly);
       if (cupScene) {
-        cupScene.rotation.set(0, CUP.yaw, 0);
+        dressPackaging(THREE, cupScene).ready.then(() => (dirty = true));
+        cupScene.rotation.set(0, CUP.yaw + CUP.face, 0);
         cupScene.updateWorldMatrix(true, true);
         const box = new Box3().setFromObject(cupScene);
         const size = box.getSize(new Vector3());
@@ -2448,22 +2858,23 @@ function philosophyScene(T, mount) {
 }
 
 /* ══════════════════════════════════ SHOP ══════════════════════════════════ */
-const money = (n) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
+/* Prices are whole Pakistani rupees, written the way Lahore menus write them: "Rs 1,150". */
+const money = (n) => `Rs ${Math.round(n).toLocaleString("en-US")}`;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const ARROW_SVG = `<svg viewBox="0 0 12.2137 13.2551" fill="none" aria-hidden="true"><path d="M11.9501 7.26396C12.3016 6.91249 12.3016 6.34264 11.9501 5.99117L6.22254 0.263604C5.87107 -0.0878682 5.30122 -0.0878682 4.94975 0.263604C4.59828 0.615076 4.59828 1.18492 4.94975 1.5364L10.0409 6.62756L4.94975 11.7187C4.59828 12.0702 4.59828 12.6401 4.94975 12.9915C5.30122 13.343 5.87107 13.343 6.22254 12.9915L11.9501 7.26396ZM0 6.62756V7.52756H11.3137V6.62756V5.72756H0V6.62756Z" fill="currentColor"/></svg>`;
 
-const CAT_LABEL = { all: "ALL", beans: "BEANS", drinks: "DRINKS", bakery: "BAKERY", merch: "MERCH", gifts: "GIFTS" };
-const PICKUP_COPY = "Ready in about 12 minutes at 139 Coffee Street, 310 Valencia Street or 56 Columbus Avenue. Open daily 07:00–21:00. Show your order number at the pickup counter.";
+const CAT_LABEL = { all: "ALL", beans: "BEANS", drinks: "DRINKS", kitchen: "KITCHEN", coolers: "COOLERS", bakery: "BAKERY", merch: "MERCH", gifts: "GIFTS" };
+const PICKUP_COPY = "Ready in about 12 minutes on MM Alam Road, in DHA Phase 5 or on Main Boulevard, Johar Town. Open daily 07:00–21:00. Show your order number at the pickup counter.";
 
 /* Option choices are [label, price delta, note]. `def` is the preselected index. */
-const MILK = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 0.5], ["ALMOND", 0.5]] };
+const MILK = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 150], ["ALMOND", 150]] };
 const PRODUCTS = [
   {
-    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 18, photo: "menu/menu-beans.webp", model: "bag", feature: true,
+    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, model: "bag", feature: true,
     meta: "250 G · WHOLE BEAN · COPENHAGEN", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
     desc: "Our house roast, taken slow and a shade past medium so the sugars caramelise without tipping into bitter. Sweet in milk, round and clean on its own.",
     options: [
-      { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 14], ["1 KG", 40]] },
+      { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 3000], ["1 KG", 8700]] },
       { key: "grind", label: "GRIND", wrap: true, choices: [["WHOLE BEAN", 0], ["ESPRESSO", 0], ["FILTER", 0], ["FRENCH PRESS", 0]] },
       { key: "plan", label: "PURCHASE", choices: [["ONE-TIME", 0], ["EVERY 2 WK", 0, "SAVE 10%"], ["EVERY 4 WK", 0, "SAVE 10%"]] },
     ],
@@ -2471,11 +2882,11 @@ const PRODUCTS = [
     care: "Roasted weekly in small batches and packed in a valved bag. Best within four weeks of the roast date printed on the back. Keep sealed, away from light and heat.",
   },
   {
-    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 22, photo: "menu/menu-single-origin.webp", model: "bag",
+    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 4800, model: "bag",
     meta: "250 G · WASHED HEIRLOOM · 2100M", notes: ["JASMINE", "BERGAMOT", "WHITE PEACH"],
     desc: "Washed heirloom varieties from high-altitude smallholders in Yirgacheffe. A delicate, tea-like body with sparkling citrus acidity, jasmine florals and a sweet peach finish.",
     options: [
-      { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 16], ["1 KG", 48]] },
+      { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 3600], ["1 KG", 10400]] },
       { key: "grind", label: "GRIND", wrap: true, choices: [["WHOLE BEAN", 0], ["FILTER", 0], ["ESPRESSO", 0], ["FRENCH PRESS", 0]] },
       { key: "plan", label: "PURCHASE", choices: [["ONE-TIME", 0], ["EVERY 2 WK", 0, "SAVE 10%"], ["EVERY 4 WK", 0, "SAVE 10%"]] },
     ],
@@ -2483,57 +2894,57 @@ const PRODUCTS = [
     care: "Roasted weekly in small batches. Best within five weeks of roast date. Brew with 93°C water for optimal clarity.",
   },
   {
-    id: "latte", name: "LATTE", cat: "drinks", price: 4.2, photo: "menu/menu-latte.webp", model: "cup", alt: "A brewns latte cup with a heart poured into the foam",
+    id: "latte", name: "LATTE", cat: "drinks", price: 950, model: "cup", alt: "A brewns latte in the black-lidded brewns paper cup",
     meta: "12 OZ · BREWED DAILY · TO GO", notes: ["SMOOTH", "BALANCED"],
-    desc: "A double shot of Slow Roast under steamed milk, poured with a heart on top. The one most of the city starts its morning with.",
+    desc: "A double shot of Slow Roast under steamed milk, with a heart poured on top before the lid goes on. The one most of the city starts its morning with.",
     options: [
-      { key: "size", label: "SIZE", def: 1, choices: [["8 OZ", -0.6], ["12 OZ", 0], ["16 OZ", 0.8]] },
+      { key: "size", label: "SIZE", def: 1, choices: [["8 OZ", -150], ["12 OZ", 0], ["16 OZ", 200]] },
       MILK,
-      { key: "temp", label: "TEMPERATURE", choices: [["HOT", 0], ["ICED", 0.3]] },
+      { key: "temp", label: "TEMPERATURE", choices: [["HOT", 0], ["ICED", 100]] },
     ],
     details: [["ESPRESSO", "DOUBLE · SLOW ROAST"], ["MILK", "STEAMED"], ["CUP", "COMPOSTABLE"]],
     care: "Poured to order when you arrive, so it is never sitting on the counter. Lids are plant-based and the sleeve is recycled paper.",
   },
   {
-    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 2.5, photo: "menu/menu-espresso.webp", model: "cup", alt: "A brewns single-shot espresso cup",
+    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 650, model: "cup", alt: "A brewns espresso in the short black-lidded brewns paper cup",
     meta: "SINGLE SHOT · SHORT · STRONG", notes: ["DARK CHOCOLATE", "CARAMEL"],
     desc: "Short, strong and on demand. Eighteen grams in, a little under forty out, in about twenty-eight seconds.",
     options: [
-      { key: "shots", label: "SHOTS", choices: [["SINGLE", 0], ["DOUBLE", 0.8]] },
-      { key: "style", label: "STYLE", choices: [["STRAIGHT", 0], ["MACCHIATO", 0.4], ["CORTADO", 0.9]] },
+      { key: "shots", label: "SHOTS", choices: [["SINGLE", 0], ["DOUBLE", 200]] },
+      { key: "style", label: "STYLE", choices: [["STRAIGHT", 0], ["MACCHIATO", 100], ["CORTADO", 250]] },
     ],
     details: [["DOSE", "18 G"], ["YIELD", "38 G"], ["TIME", "28 SEC"]],
     care: "Pulled on a dialled-in grinder every morning, so the first shot of the day tastes like the last.",
   },
   {
-    id: "cortado", name: "CORTADO", cat: "drinks", tag: "BARISTA PICK", price: 3.9, photo: "menu/menu-cortado.webp", model: "glass", alt: "A brewns cortado in a faceted glass with steamed microfoam",
+    id: "cortado", name: "CORTADO", cat: "drinks", tag: "BARISTA PICK", price: 850, photo: "menu/menu-cortado.webp", model: "glass", alt: "A brewns cortado in a faceted glass with steamed microfoam",
     meta: "4.5 OZ · EQUAL PARTS ESPRESSO & MILK", notes: ["VELVETY", "HAZELNUT"],
     desc: "Equal parts Slow Roast espresso and warm textured milk in a heavy Gibraltar glass. Cuts the intensity while preserving the deep caramel sweetness of the beans.",
     options: [
-      { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 0.8]] },
+      { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 200]] },
       MILK,
-      { key: "temp", label: "TEMPERATURE", choices: [["WARM (135°F)", 0], ["HOT", 0]] },
+      { key: "temp", label: "TEMPERATURE", choices: [["WARM (57°C)", 0], ["HOT", 0]] },
     ],
     details: [["RATIO", "1:1 ESPRESSO TO MILK"], ["GLASS", "4.5 OZ GIBRALTAR"], ["ORIGIN", "SLOW ROAST BLEND"]],
     care: "Poured immediately upon arrival so the microfoam remains dense and velvety.",
   },
   {
-    id: "nitro-cold-brew", name: "NITRO COLD BREW", cat: "drinks", tag: "ON TAP", price: 5.0, photo: "menu/menu-cold-brew.webp", model: "glass", alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head",
+    id: "nitro-cold-brew", name: "NITRO COLD BREW", cat: "drinks", tag: "ON TAP", price: 1100, photo: "menu/menu-cold-brew.webp", model: "glass", alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head",
     meta: "STEEPED 20 HRS · NITROGEN INFUSED", notes: ["STOUT-LIKE", "CREAMY CACAO"],
     desc: "Slow steeped for twenty hours and charged with pure food-grade nitrogen on draft. Pours with a thick cascading head like a fine dry stout, naturally sweet with zero added sugar.",
     options: [
-      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 0.9]] },
-      { key: "style", label: "POUR", choices: [["STRAIGHT NITRO", 0], ["VANILLA SWEET CREAM", 0.6]] },
+      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] },
+      { key: "style", label: "POUR", choices: [["STRAIGHT NITRO", 0], ["VANILLA SWEET CREAM", 150]] },
     ],
     details: [["STEEP TIME", "20 HOURS COLD"], ["INFUSION", "PURE NITROGEN"], ["CALORIES", "5 KCAL (BLACK)"]],
     care: "Served cold on draft without ice to maintain the smooth cascading nitrogen head.",
   },
   {
-    id: "iced-matcha", name: "ICED MATCHA", cat: "drinks", tag: "NEW", price: 4.5, photo: "menu/menu-iced-coffee.webp", model: "glass", alt: "A brewns iced matcha in a clear cup with a straw",
+    id: "iced-matcha", name: "ICED MATCHA", cat: "drinks", tag: "NEW", price: 1150, photo: "menu/menu-iced-coffee.webp", model: "glass", alt: "A brewns iced matcha in a clear cup with a straw",
     meta: "CEREMONIAL GRADE · OVER ICE", notes: ["GRASSY", "CREAMY"],
     desc: "Ceremonial-grade matcha whisked to order and poured over cold milk and ice, marbled on the way down.",
     options: [
-      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 0.8]] },
+      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] },
       MILK,
       { key: "sweet", label: "SWEETNESS", choices: [["NONE", 0], ["LIGHT", 0], ["REGULAR", 0]], def: 1 },
     ],
@@ -2541,15 +2952,15 @@ const PRODUCTS = [
     care: "Whisked by hand, never from a powder mix. Give it a stir with the straw before the first sip.",
   },
   {
-    id: "iced-latte", name: "ICED LATTE", cat: "drinks", price: 4.8, photo: "menu/menu-iced-latte.webp", model: "glass", alt: "A brewns iced latte in a clear cup",
+    id: "iced-latte", name: "ICED LATTE", cat: "drinks", price: 1050, photo: "menu/menu-iced-latte.webp", model: "glass", alt: "A brewns iced latte in a clear cup",
     meta: "DOUBLE SHOT · COLD MILK", notes: ["BOLD", "SMOOTH"],
     desc: "Two shots over ice, topped with cold milk and left to swirl. Smooth, bold and made for the walk between blocks.",
-    options: [{ key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 0.8]] }, MILK, { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 0.9]] }],
+    options: [{ key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] }, MILK, { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 200]] }],
     details: [["ESPRESSO", "DOUBLE · SLOW ROAST"], ["SERVED", "OVER ICE"], ["CUP", "RECYCLABLE PET"]],
     care: "Shots are pulled when you arrive and chilled over ice straight away, so it never waters down on the counter.",
   },
   {
-    id: "cardamom-bun", name: "CARDAMOM BUN", cat: "bakery", tag: "NORDIC RITUAL", price: 4.2, photo: "menu/menu-cardamom.webp", model: "bakery", alt: "A freshly baked Swedish cardamom bun with pearl sugar",
+    id: "cardamom-bun", name: "CARDAMOM BUN", cat: "bakery", tag: "NORDIC RITUAL", price: 750, photo: "menu/menu-cardamom.webp", model: "bakery", alt: "A freshly baked Swedish cardamom bun with pearl sugar",
     meta: "STONEGROUND CARDAMOM · BROWN SUGAR", notes: ["AROMATIC", "BUTTERY"],
     desc: "Traditional twisted bun enriched with fresh stoneground green cardamom, brown sugar syrup and crunchy Swedish pearl sugar. Baked fresh every morning.",
     options: [
@@ -2559,18 +2970,18 @@ const PRODUCTS = [
     care: "Baked fresh daily. Delicious straight or lightly warmed at the counter.",
   },
   {
-    id: "cinnamon-roll", name: "CINNAMON ROLL", cat: "bakery", price: 3.8, photo: "menu/menu-cinnamon.webp", model: "bakery", alt: "A glazed cinnamon roll on a ceramic plate",
+    id: "cinnamon-roll", name: "CINNAMON ROLL", cat: "bakery", price: 700, photo: "menu/menu-cinnamon.webp", model: "bakery", alt: "A glazed cinnamon roll on a ceramic plate",
     meta: "BAKED EVERY MORNING", notes: ["BROWN BUTTER", "CARDAMOM"],
     desc: "Laminated dough rolled with brown butter, cinnamon and a little cardamom, finished with a vanilla glaze while it is still warm.",
     options: [
       { key: "warm", label: "SERVE", choices: [["AS IT IS", 0], ["WARMED", 0]] },
-      { key: "glaze", label: "GLAZE", choices: [["REGULAR", 0], ["EXTRA", 0.5]] },
+      { key: "glaze", label: "GLAZE", choices: [["REGULAR", 0], ["EXTRA", 100]] },
     ],
     details: [["BAKED", "DAILY FROM 06:00"], ["CONTAINS", "WHEAT · MILK · EGG"], ["WEIGHT", "140 G"]],
     care: "Baked in the morning and gone by the afternoon. Order ahead to hold one.",
   },
   {
-    id: "matcha-financier", name: "MATCHA FINANCIER", cat: "bakery", tag: "GLUTEN-FREE", price: 4.0, photo: "menu/menu-financier.webp", model: "bakery", alt: "A golden-green matcha financier cake with dusted icing sugar",
+    id: "matcha-financier", name: "MATCHA FINANCIER", cat: "bakery", tag: "GLUTEN-FREE", price: 650, photo: "menu/menu-financier.webp", model: "bakery", alt: "A golden-green matcha financier cake with dusted icing sugar",
     meta: "ALMOND FLOUR · UJI MATCHA", notes: ["NUTTY", "EARTHY SWEET"],
     desc: "Dense French almond cake infused with ceremonial Uji matcha and browned noisette butter. Crispy edges and a soft, melt-in-the-mouth center.",
     options: [
@@ -2580,24 +2991,25 @@ const PRODUCTS = [
     care: "Naturally gluten-free with California almond meal.",
   },
   {
-    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 34, photo: "menu/menu-tumbler.webp", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
+    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 6500, photo: "menu/menu-tumbler.webp", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
     meta: "12 OZ · CERAMIC LINED · DOUBLE WALL", notes: ["TRUE TASTE", "6 HR HEAT RETENTION"],
     desc: "Double-wall vacuum-insulated stainless steel tumbler with an internal ceramic coating so your coffee tastes true to the cup. Fits standard car cup holders and keeps drinks hot for 6 hours.",
     options: [
       { key: "color", label: "COLORWAY", choices: [["MATTE CHARCOAL", 0], ["RAW OAT", 0], ["AMBER CREMA", 0]] },
-      { key: "lid", label: "LID TYPE", choices: [["SLIDE LOCK", 0], ["360° SIP LID", 4]] },
+      { key: "lid", label: "LID TYPE", choices: [["SLIDE LOCK", 0], ["360° SIP LID", 800]] },
     ],
     details: [["CAPACITY", "12 OZ (355 ML)"], ["LINING", "PURE CERAMIC COATING"], ["INSULATION", "DOUBLE-WALL VACUUM"]],
     care: "Hand wash recommended for finish longevity. Dishwasher safe lid.",
   },
   {
-    id: "gift-card", name: "GIFT CARD", cat: "gifts", price: 25, gift: true,
+    id: "gift-card", name: "GIFT CARD", cat: "gifts", price: 2500, gift: true,
     meta: "DIGITAL · NEVER EXPIRES", notes: ["ALL LOCATIONS", "SENT BY EMAIL"],
     desc: "Good coffee for someone else's day. Redeemable for anything at all three counters, with a note from you on the front.",
-    options: [{ key: "amount", label: "AMOUNT", plain: true, choices: [["$25", 0], ["$50", 25], ["$100", 75]] }],
+    options: [{ key: "amount", label: "AMOUNT", plain: true, choices: [["Rs 2,500", 0], ["Rs 5,000", 2500], ["Rs 10,000", 7500]] }],
     details: [["DELIVERY", "EMAIL · INSTANT"], ["VALID", "ALL LOCATIONS"], ["EXPIRES", "NEVER"]],
     care: "Balances carry over between visits and never expire. Lost the email? Any barista can look it up by name.",
   },
+  ...KITCHEN,
 ];
 const productById = (id) => PRODUCTS.find((p) => p.id === id);
 const defaultSel = (p) => Object.fromEntries(p.options.map((o) => [o.key, o.def ?? 0]));
@@ -2677,6 +3089,7 @@ const layers = [];
 const hasLayer = (name) => layers.some((l) => l.name === name);
 const pushLayer = (name, close, el) => {
   if (!layers.length) stopScroll();
+  playWhoosh(true);
   layers.push({ name, close, el, focus: document.activeElement });
 };
 const popLayer = (name) => {
@@ -2684,6 +3097,7 @@ const popLayer = (name) => {
   if (i < 0) return;
   const wasTop = i === layers.length - 1;
   const [layer] = layers.splice(i, 1);
+  playWhoosh(false);
   if (!layers.length) startScroll();
   if (wasTop && layer.focus?.isConnected) layer.focus.focus({ preventScroll: true });
 };
@@ -2743,21 +3157,32 @@ const thumbHTML = (p) =>
   p.gift
     ? `<span class="thumb dark">${giftcardHTML("")}</span>`
     : p.photo
-      ? `<span class="thumb"><img src="${ASSET_BASE_URL}${p.photo}" alt="" loading="lazy"></span>`
-      : `<span class="thumb dark"><img data-snap="${p.model}" alt=""></span>`;
+      ? `<span class="thumb${p.art ? " shot" : ""}"><img src="${photoSrc(p.photo)}" alt="" loading="lazy"></span>`
+      : `<span class="thumb dark"><img data-snap="${p.model}" data-snap-product="${p.id}" alt=""></span>`;
 /* Model-only products have no photograph: their pictures are rendered from the
-   same .glb once three.js is up (asynchronously, so every part of the module exists). */
+   same .glb. `bun run snapshots` renders them once into shop/snap/, so a visitor's
+   phone just loads an image; if one is missing (or with ?live-snaps, which is how
+   the script renders them) the page renders it here once three.js is up. */
+const SNAP_VERSION = "1";
+const LIVE_SNAPS = new URLSearchParams(location.search).has("live-snaps");
 const fillSnaps = (rootEl) =>
   $$("img[data-snap]", rootEl).forEach((img) => {
-    const kind = img.dataset.snap;
+    const { snap: kind, snapProduct } = img.dataset;
     img.removeAttribute("data-snap");
-    threeReady
-      .then(() => getSnapshot(kind))
-      .then((url) => {
-        img.src = url;
-        img.parentElement.querySelector(".pcard-loading")?.remove();
-      })
-      .catch((error) => console.error("snapshot", error));
+    img.dataset.snapKey = `${kind}-${snapProduct}`;
+    const done = () => img.parentElement?.querySelector(".pcard-loading")?.remove();
+    const live = () =>
+      threeReady
+        .then(() => getSnapshot(kind, snapProduct))
+        .then((url) => {
+          img.src = url;
+          done();
+        })
+        .catch((error) => console.error("snapshot", error));
+    if (LIVE_SNAPS) return live();
+    img.addEventListener("load", done, { once: true });
+    img.addEventListener("error", live, { once: true });
+    img.src = `${ASSET_BASE_URL}shop/snap/${kind}-${snapProduct}.webp?v=${SNAP_VERSION}`;
   });
 
 /* ═══════════ the grid ═══════════ */
@@ -2771,8 +3196,8 @@ shopGrid.innerHTML = PRODUCTS.map((p, i) => {
   const media = p.gift
     ? giftcardHTML(money(p.price))
     : p.photo
-      ? `<span class="pcard-photo" aria-hidden="true"></span><img src="${ASSET_BASE_URL}${p.photo}" alt="${esc(p.alt)}" loading="lazy">`
-      : `<img data-snap="${p.model}" alt="A bag of brewns ${esc(p.name.toLowerCase())} coffee beans"><span class="pcard-loading" aria-hidden="true"></span>`;
+      ? `<span class="pcard-photo" aria-hidden="true"></span><img${p.art ? ' class="shot"' : ""} src="${photoSrc(p.photo)}" alt="${esc(p.alt)}" loading="lazy">`
+      : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.alt || `A bag of brewns ${p.name.toLowerCase()} coffee beans`)}"><span class="pcard-loading" aria-hidden="true"></span>`;
   return `<li class="${p.feature ? "feature" : p.id === "cinnamon-roll" || p.id === "ceramic-tumbler" || p.gift ? "wide" : ""}" data-cat="${p.cat}"><div class="lean"><div>
     <article class="pcard" tabindex="0" role="link" aria-label="${esc(p.name)}, ${money(p.price)}" data-product="${p.id}">
       <div class="pcard-top mono-fine"><span>${String(i + 1).padStart(2, "0")}</span>${p.tag ? `<span class="pcard-tag chip"><span class="dot"></span>${p.tag}</span>` : `<span>${CAT_LABEL[p.cat]}</span>`}</div>
@@ -2785,6 +3210,7 @@ shopGrid.innerHTML = PRODUCTS.map((p, i) => {
 }).join("");
 shopCountEl.textContent = String(PRODUCTS.length).padStart(2, "0");
 fillSnaps(shopGrid);
+fillSnaps($("#cards")); // the menu cards were built before fillSnaps existed
 $$(".lean", shopGrid).forEach((outer) => lean(outer.firstElementChild, outer, 6));
 $$(".pcard", shopGrid).forEach((card, i) => inview(card, { opacity: 0, y: 28 }, { opacity: 1, y: 0 }, { config: C(80, 26), delay: (i % 4) * 90 }));
 
@@ -2901,7 +3327,16 @@ const updateMenuDisplay = (immediate = false) => {
 
   const slice = filtered.slice(menuPage * 4, menuPage * 4 + 4);
   menuCardsTrack.innerHTML = slice.map((c, idx) => cardHTML(c, idx)).join("");
+  fillSnaps(menuCardsTrack);
   wireMenuCardEvents();
+  // Freshly drawn cards never pass through the page's in-view reveal, so their
+  // names would stay clipped; reveal them here.
+  $$("[data-iv]", menuCardsTrack).forEach((el, i) => {
+    const [from, to] = PRESET[el.dataset.iv](el);
+    const reveal = new Spring(from, styler(el));
+    if (immediate || REDUCED) reveal.set(to);
+    else reveal.start(to, { config: { duration: 700, easing: easeOutCubic }, delay: 120 + i * 45 });
+  });
 
   if (menuPageEl) menuPageEl.textContent = `${String(menuPage + 1).padStart(2, "0")} / ${String(totalPages).padStart(2, "0")}`;
   if (menuPrevBtn) (menuPrevBtn as HTMLButtonElement).disabled = menuPage === 0;
@@ -3011,6 +3446,8 @@ const routeFromHash = () => {
   } else if (currentProductId()) closeProduct({ fromPop: true });
 };
 window.addEventListener("popstate", routeFromHash);
+// A product link opened fresh: route once the rest of the engine is set up.
+queueMicrotask(routeFromHash);
 
 /* ═══════════ Taste Calibrator & Receipt Tear Gesture ═══════════ */
 const calibrator = new TasteCalibrator(
@@ -3024,45 +3461,56 @@ const calibrator = new TasteCalibrator(
 $("#open-calibrator")?.addEventListener("click", () => calibrator.open());
 
 const initReceiptTear = () => {
-  const handle = $("#tear-handle");
+  // The whole slip is the handle: tap it, or pull it down. The slot window clips
+  // the old strip at its foot, so the hint sits above the printer instead.
   const paperEl = $("#paper");
-  if (!handle || !paperEl) return;
+  const handle = paperEl;
+  const hint = $("#tear-hint");
+  if (!paperEl) return;
 
   let startY = 0;
   let isDragging = false;
   let isTorn = false;
 
   handle.addEventListener("pointerdown", (e) => {
-    if (isTorn) return;
+    if (isTorn || e.target.closest('[role="button"]')) return;
     isDragging = true;
     startY = e.clientY;
     try { handle.setPointerCapture(e.pointerId); } catch {}
   });
 
+  const tear = () => {
+    isTorn = true;
+    isDragging = false;
+    playPaperTear();
+    paperEl.style.transform = "";
+    paperEl.classList.add("torn-state");
+    if (hint) hint.textContent = "✓ COLLECTED. PRINTING THE NEXT ONE";
+    // Once it has fallen away, the printer runs off a fresh slip.
+    setTimeout(() => {
+      orderPrinter.reprint();
+      paperEl.classList.remove("torn-state");
+      setTimeout(() => {
+        isTorn = false;
+        if (hint) hint.textContent = "TAP OR PULL THE RECEIPT TO TEAR IT OFF";
+      }, 1800);
+    }, 900);
+  };
+
   handle.addEventListener("pointermove", (e) => {
     if (!isDragging || isTorn) return;
     const dy = Math.max(0, e.clientY - startY);
     paperEl.style.transform = `translate3d(0, ${dy * 0.5}px, 0)`;
-    if (dy > 65) {
-      isTorn = true;
-      isDragging = false;
-      playPaperTear();
-      paperEl.classList.add("torn-state");
-      handle.textContent = "✓ RECEIPT TORN / COLLECTED";
-      setTimeout(() => {
-        paperEl.classList.remove("torn-state");
-        paperEl.style.transform = "";
-        isTorn = false;
-        handle.textContent = "↓ DRAG DOWN TO TEAR OFF ↓";
-      }, 3500);
-    }
+    if (dy > 65) tear();
   });
 
   const onEnd = (e) => {
     if (!isDragging) return;
     isDragging = false;
-    if (!isTorn) paperEl.style.transform = "";
     try { handle.releasePointerCapture(e.pointerId); } catch {}
+    // A tap without a drag tears too.
+    if (!isTorn && Math.abs(e.clientY - startY) < 6 && e.type === "pointerup") return tear();
+    if (!isTorn) paperEl.style.transform = "";
   };
   handle.addEventListener("pointerup", onEnd);
   handle.addEventListener("pointercancel", onEnd);
@@ -3177,11 +3625,12 @@ function renderProduct() {
       <div class="pdp-notes">${p.notes.map((n) => `<span class="chip">${n}</span>`).join("")}</div>
       ${options}
       ${p.gift ? `<label class="opt"><span class="opt-head mono-fine"><span>MESSAGE ON THE CARD · OPTIONAL</span></span><textarea class="pdp-msg" maxlength="120" placeholder="Happy Monday. The first one is on me." data-msg></textarea></label>` : ""}
+      <p class="pdp-total-line mono-fine" aria-hidden="true"><span>TOTAL</span><b id="pdp-total-m"></b></p>
       <div class="pdp-actions">
         <div class="pdp-total mono-fine"><span>TOTAL</span><b id="pdp-total"></b></div>
         <div class="qty" role="group" aria-label="Quantity"><button type="button" data-q="-1" aria-label="Decrease quantity">−</button><output id="pdp-qty" aria-live="polite">1</output><button type="button" data-q="1" aria-label="Increase quantity">+</button></div>
-        <button type="button" class="btn btn-line" id="pdp-add"><span>ADD TO BAG</span><span aria-hidden="true">+</span></button>
-        <button type="button" class="btn btn-solid" id="pdp-now">ORDER NOW ${ARROW_SVG}</button>
+        <button type="button" class="btn btn-line" id="pdp-add"><span>ADD<span class="lbl-long"> TO BAG</span></span><span aria-hidden="true">+</span></button>
+        <button type="button" class="btn btn-solid" id="pdp-now">ORDER<span class="lbl-long">&nbsp;NOW</span> ${ARROW_SVG}</button>
       </div>
       <div>
         <details class="acc" open><summary>DETAILS<i aria-hidden="true">+</i></summary><ul>${p.details.map(([k, v]) => `<li><span>${k}</span><span>${v}</span></li>`).join("")}</ul></details>
@@ -3217,6 +3666,8 @@ function updatePrice(immediate = false) {
   else pdpPrice.start({ v: unitNow }, { config: { duration: 420, easing: easeOutCubic } });
   $("#pdp-was", pdpEl).textContent = isSub(p, sel) ? money(basePrice(p, sel)) : "";
   $("#pdp-total", pdpEl).textContent = `${qty} × ${money(unitNow)} = ${money(unitNow * qty)}`;
+  const totalM = $("#pdp-total-m", pdpEl);
+  if (totalM) totalM.textContent = `${qty} × ${money(unitNow)} = ${money(unitNow * qty)}`;
   $("#pdp-qty", pdpEl).textContent = qty;
 }
 
@@ -3240,7 +3691,7 @@ function mountMedia() {
   hint.textContent = view === "card" ? "MOVE TO TILT" : noHover() ? "TAP TO ZOOM" : "CLICK TO ZOOM";
   const wrap = document.createElement("div");
   wrap.className = `pdp-photo-wrap${pdpState.sel.warm === 1 ? " warmed-state" : ""}${pdpState.sel.glaze === 1 ? " extra-glaze-state" : ""}`;
-  wrap.innerHTML = view === "card" ? giftcardHTML(giftAmount(), true) : `<img class="pdp-photo" src="${ASSET_BASE_URL}${p.photo}" alt="${esc(p.alt)}">`;
+  wrap.innerHTML = view === "card" ? giftcardHTML(giftAmount(), true) : `<img class="pdp-photo${p.art ? " shot" : ""}" src="${photoSrc(p.photo)}" alt="${esc(p.alt)}">`;
   stage.append(wrap);
   const subject = wrap.firstElementChild;
 
@@ -3384,48 +3835,6 @@ const loadProductAssets = () =>
       }),
   ));
 
-/* The file's pieces: the bag is the tallest piece of the bag + cup composition,
-   the cup is the scene whose every material is the cup's. Returned clone is one
-   unit tall and centred on the origin. */
-const extractPiece = (T, gltf, kind) => {
-  const meshesIn = (rootNode) => {
-    const found = [];
-    rootNode.traverse((n) => n.isMesh && found.push(n));
-    return found;
-  };
-  let source = null;
-  if (kind === "cup")
-    source = gltf.scenes.find((s) => {
-      const m = meshesIn(s);
-      return m.length && m.every((mesh) => [].concat(mesh.material).every((mat) => mat.name.startsWith("CupCoffee")));
-    });
-  if (!source) {
-    const composition = gltf.scenes.find((s) => meshesIn(s).length);
-    composition.updateMatrixWorld(true);
-    const pieces = composition.children
-      .filter((n) => meshesIn(n).length)
-      .map((n) => ({ n, h: new T.Box3().setFromObject(n).getSize(new T.Vector3()).y }))
-      .sort((a, b) => b.h - a.h);
-    source = (kind === "cup" ? pieces[1] : pieces[0]).n;
-  }
-  source.updateMatrixWorld(true);
-  const clone = source.clone(true);
-  source.matrixWorld.decompose(clone.position, clone.quaternion, clone.scale);
-  const holder = new T.Group();
-  holder.add(clone);
-  holder.updateMatrixWorld(true);
-  const box = new T.Box3().setFromObject(holder);
-  const size = box.getSize(new T.Vector3());
-  clone.position.sub(box.getCenter(new T.Vector3()));
-  const unitGroup = new T.Group();
-  unitGroup.scale.setScalar(1 / (size.y || 1));
-  unitGroup.add(holder);
-  return unitGroup;
-};
-
-/* Turns each piece's printed face to the lens. */
-const PIECE_POSE = { bag: -0.42, cup: Math.PI + 1.2 };
-
 const makeStudio = (T, renderer) => {
   const scene = new T.Scene();
   const pmrem = new T.PMREMGenerator(renderer);
@@ -3462,15 +3871,17 @@ const fitDistance = (camera, fill) => {
 };
 
 const snapCache = {};
-function getSnapshot(kind) {
-  return (snapCache[kind] ||= loadProductAssets().then(({ T, gltf }) => {
+function getSnapshot(kind, productId) {
+  return (snapCache[`${kind}:${productId}`] ||= loadProductAssets().then(async ({ T, gltf }) => {
     const canvas = document.createElement("canvas");
     const renderer = new T.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
     setupRenderer(T, renderer);
     renderer.setSize(720, 720, false);
     const { scene, env } = makeStudio(T, renderer);
-    const piece = extractPiece(T, gltf, kind);
-    piece.rotation.y = PIECE_POSE[kind];
+    const piece = extractPackagingPiece(T, gltf, kind);
+    piece.rotation.y = PACKAGING_POSE[kind];
+    const dress = dressPackaging(T, piece, productId);
+    await dress.ready;
     scene.add(piece);
     const camera = new T.PerspectiveCamera(18, 1, 0.1, 100);
     const distance = fitDistance(camera, 0.86);
@@ -3481,6 +3892,7 @@ function getSnapshot(kind) {
     camera.updateProjectionMatrix();
     renderer.render(scene, camera);
     const url = canvas.toDataURL("image/png");
+    dress.dispose();
     env.texture.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
@@ -3546,7 +3958,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   const camera = new T.PerspectiveCamera(22, 1, 0.1, 100);
 
   const isBakery = product?.cat === 'bakery' || kind === 'bakery';
-  const isCupWithArt = product?.id === 'latte' || product?.id === 'espresso' || product?.id === 'cortado';
+  const isCupWithArt = product?.id === 'cortado';
   const initPitch = isBakery ? 0.45 : isCupWithArt ? 0.28 : 0.06;
   const view = { yaw: 0, pitch: initPitch, targetPitch: initPitch, spin: 0, idle: 0, zoom: 1, targetZoom: 1, intro: REDUCED ? 1 : 0, dragging: false, lastX: 0, lastY: 0 };
   let distance = 4;
@@ -3696,6 +4108,7 @@ veilEl.addEventListener("click", () => {
 
 function openBag() {
   if (hasLayer("bag")) return;
+  if (hasLayer("full-menu")) closeFullMenu();
   hideToast();
   renderBag();
   bagEl.hidden = false;
@@ -3732,6 +4145,11 @@ const FULL_MENU_SECTIONS = [
     cat: "bakery",
     items: PRODUCTS.filter((p) => p.cat === "bakery"),
   },
+  { title: "🍔 BURGERS", cat: "burgers", items: KITCHEN.filter((k) => k.menuCat === "burgers") },
+  { title: "🍕 WOOD-FIRED PIZZA", cat: "pizza", items: KITCHEN.filter((k) => k.menuCat === "pizza") },
+  { title: "🍝 PASTA", cat: "pasta", items: KITCHEN.filter((k) => k.menuCat === "pasta") },
+  { title: "🌯 ROLLS & WRAPS", cat: "rolls", items: KITCHEN.filter((k) => k.menuCat === "rolls") },
+  { title: "🍹 COOLERS & SHAKES", cat: "drinks", items: KITCHEN.filter((k) => k.menuCat === "drinks") },
   {
     title: "🫘 FRESH ROASTS & WHOLE BEAN",
     cat: "beans",
@@ -3744,6 +4162,8 @@ const FULL_MENU_SECTIONS = [
   },
 ];
 
+const FULL_MENU_PILLS = { coffee: "COFFEE", specialty: "COLD BAR", bakery: "BAKERY", burgers: "BURGERS", pizza: "PIZZA", pasta: "PASTA", rolls: "ROLLS", drinks: "COOLERS", beans: "ROASTS", merch: "GEAR &amp; GIFTS" };
+
 function renderFullMenu() {
   if (!fullMenuEl) return;
   const totalCount = PRODUCTS.length;
@@ -3751,7 +4171,7 @@ function renderFullMenu() {
     <div class="full-menu-card" role="document">
       <div class="full-menu-head">
         <div>
-          <p class="full-menu-sub mono-fine">// BREWNS COFFEE HOUSE · SAN FRANCISCO</p>
+          <p class="full-menu-sub mono-fine">// BREWNS COFFEE HOUSE · LAHORE</p>
           <h2 class="full-menu-title">FULL CAFÉ MENU BOARD</h2>
         </div>
         <div class="full-menu-head-right">
@@ -3761,11 +4181,7 @@ function renderFullMenu() {
       </div>
       <div class="full-menu-pills" role="tablist" aria-label="Menu sections">
         <button type="button" class="full-menu-pill active" data-fsec="all">ALL (${totalCount})</button>
-        <button type="button" class="full-menu-pill" data-fsec="coffee">COFFEE (4)</button>
-        <button type="button" class="full-menu-pill" data-fsec="specialty">COLD BAR (2)</button>
-        <button type="button" class="full-menu-pill" data-fsec="bakery">BAKERY (3)</button>
-        <button type="button" class="full-menu-pill" data-fsec="beans">ROASTS (2)</button>
-        <button type="button" class="full-menu-pill" data-fsec="merch">GEAR &amp; GIFTS (2)</button>
+        ${FULL_MENU_SECTIONS.map((sec) => `<button type="button" class="full-menu-pill" data-fsec="${sec.cat}">${FULL_MENU_PILLS[sec.cat]} (${sec.items.length})</button>`).join("")}
       </div>
       <div class="full-menu-body" id="full-menu-body">
         ${FULL_MENU_SECTIONS.map((sec) => `
@@ -3778,7 +4194,7 @@ function renderFullMenu() {
               ${sec.items.map((p) => `
                 <article class="full-menu-item" data-fproduct="${p.id}" tabindex="0" role="button" aria-label="${p.name}, ${money(p.price)}">
                   <div class="full-menu-img-wrap">
-                    ${p.gift ? giftcardHTML(money(p.price)) : `<img src="${ASSET_BASE_URL}${p.photo || 'menu/menu-beans.webp'}" alt="${esc(p.name)}" loading="lazy">`}
+                    ${p.gift ? giftcardHTML(money(p.price)) : p.photo ? `<img${p.art ? ' class="shot"' : ""} src="${photoSrc(p.photo)}" alt="${esc(p.name)}" loading="lazy">` : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.name)}">`}
                   </div>
                   <div class="full-menu-item-info">
                     <div class="full-menu-item-top">
@@ -3812,6 +4228,7 @@ function renderFullMenu() {
     </div>
   `;
 
+  fillSnaps(fullMenuEl);
   $("#full-menu-close", fullMenuEl)?.addEventListener("click", () => closeFullMenu());
   $("#full-menu-to-shop", fullMenuEl)?.addEventListener("click", () => {
     closeFullMenu();
@@ -3930,7 +4347,7 @@ function renderBag() {
   const focusedAction = document.activeElement?.dataset?.bq;
   bagEl.innerHTML = `
     <div class="bag-head"><p class="bag-title">YOUR BAG<sup>${String(n).padStart(2, "0")}</sup></p><button type="button" class="x-btn" aria-label="Close bag"></button></div>
-    <div class="bag-list">${list}</div>
+    <div class="bag-list">${list}${ordersHTML()}</div>
     ${
       items.length
         ? `<div class="bag-foot">
@@ -3971,14 +4388,60 @@ bagEl.addEventListener("click", (e) => {
     closeBag();
     openCheckout();
   }
+  const track = t.closest("[data-track]");
+  if (track) return openTracking(+track.dataset.track);
+  const again = t.closest("[data-reorder]");
+  if (again) {
+    const o = readStore("brewns-orders", []).find((x) => x.number === +again.dataset.reorder);
+    o?.items.forEach((it) => cart.add(it.id, it.sel, it.qty));
+    return;
+  }
 });
+/* Recent orders under the bag: status, track, order again. */
+function ordersHTML() {
+  const orders = readStore("brewns-orders", []).slice(0, 4);
+  if (!orders.length) return "";
+  return `<div class="bag-orders"><p class="mono-fine" style="color:rgb(255 255 255/.5)"><span class="sl">//</span><span class="sls"> </span>YOUR ORDERS</p>${orders
+    .map((o) => {
+      const st = timeline(o, LOC_TITLES[o.loc]);
+      const status = o.cancelled ? "CANCELLED" : o.collected ? "COLLECTED" : st[currentStage(o, st)].label;
+      const d = new Date(o.placed);
+      return `<div class="bag-order"><div><p class="bag-item-name">#${String(o.number).padStart(5, "0")} · ${money(o.totals.total)}</p><p class="bag-item-opts mono-fine">${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} · ${o.mode === "delivery" ? "DELIVERY" : "PICKUP"} · ${status}</p></div><button type="button" class="pcard-add" data-track="${o.number}">${isActive(o) ? "TRACK" : "VIEW"}</button><button type="button" class="pcard-add" data-reorder="${o.number}">AGAIN</button></div>`;
+    })
+    .join("")}</div>`;
+}
 cart.subscribe(() => hasLayer("bag") && renderBag());
 
 /* ═══════════ checkout ═══════════ */
 const coEl = $("#checkout");
 const coClip = new Spring({ clipPath: "inset(0% 0% 100% 0%)" }, styler(coEl));
-const LOCS = [["139 COFFEE STREET", "SAN FRANCISCO, CA"], ["310 VALENCIA STREET", "SAN FRANCISCO, CA"], ["56 COLUMBUS AVENUE", "SAN FRANCISCO, CA"]];
-const TAX = 0.08625, PREP_MIN = 12, OPEN_MIN = 7 * 60, CLOSE_MIN = 21 * 60;
+const LOCS = [["MM ALAM ROAD", "GULBERG III, LAHORE"], ["CCA, DHA PHASE 5", "DHA, LAHORE"], ["MAIN BOULEVARD", "JOHAR TOWN, LAHORE"]];
+// The same shops as they read in a sentence.
+const LOC_TITLES = ["MM Alam Road", "CCA, DHA Phase 5", "Main Boulevard, Johar Town"];
+const TAX = 0.16, PREP_MIN = 12, OPEN_MIN = 7 * 60, CLOSE_MIN = 21 * 60;
+// Printed on receipts once filled in (FBR registration numbers).
+const BUSINESS = { ntn: "", strn: "" };
+/* Punjab taxes restaurant bills at 16%, and at 5% when they are paid by card or
+   a mobile wallet; the checkout shows whichever applies to the method chosen. */
+const TAX_CARD = 0.05;
+/* Delivery areas: which shop sends the rider, the fee, and the time it takes. */
+const DELIVERY = { min: 1000, freeOver: 3000, areas: [
+  // [area, shop that sends the rider, fee, minutes, km by road]
+  ["GULBERG", 0, 150, 30, 3.4], ["MODEL TOWN", 0, 250, 40, 6.8], ["GARDEN TOWN", 0, 200, 35, 5.1],
+  ["DHA PHASE 1–6", 1, 200, 35, 4.6], ["DHA PHASE 7–8", 1, 300, 45, 8.2],
+  ["JOHAR TOWN", 2, 150, 30, 3.9], ["WAPDA TOWN", 2, 250, 40, 6.6],
+] };
+const PAY = [
+  ["CASH", "AT THE COUNTER", "TO THE RIDER"],
+  ["CARD", "TAP OR CHIP · 5% TAX", "ON THE RIDER'S MACHINE · 5% TAX"],
+  ["JAZZCASH / EASYPAISA", "SCAN OUR RAAST QR · 5% TAX", "SCAN THE RIDER'S QR · 5% TAX"],
+];
+// Pakistani mobile numbers: 03XX XXXXXXX, with or without +92 / 0092.
+const pkMobile = (v) => {
+  const d = v.replace(/[\s\-()]/g, "").replace(/^(\+92|0092)/, "0");
+  return /^03\d{9}$/.test(d) ? `${d.slice(0, 4)} ${d.slice(4)}` : "";
+};
+const SHOP_MAPS = (i) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${LOCS[i][0]}, ${LOCS[i][1]}`)}`;
 const readStore = (k, fallback) => {
   try {
     return JSON.parse(localStorage.getItem(k)) ?? fallback;
@@ -4013,13 +4476,17 @@ const slotList = () => {
   for (let t = start; t <= CLOSE_MIN - 15 && out.length < 20; t += 15) out.push({ t, tomorrow });
   return out;
 };
+const isDelivery = () => co.mode === "delivery";
+const leadMin = () => (isDelivery() ? DELIVERY.areas[co.area][3] : PREP_MIN);
 const pickupLabel = () =>
-  co.when === "asap" ? `ASAP · ABOUT ${hhmm(nowMin() + PREP_MIN)}` : co.slot ? `${co.slot.tomorrow ? "TOMORROW" : "TODAY"} ${hhmm(co.slot.t)}` : "CHOOSE A TIME";
+  co.when === "asap" ? `ASAP · ABOUT ${hhmm(nowMin() + leadMin())}` : co.slot ? `${co.slot.tomorrow ? "TOMORROW" : "TODAY"} ${hhmm(co.slot.t)}` : "CHOOSE A TIME";
 const orderTotals = () => {
   const sub = cart.subtotal();
-  const discount = sub * co.discount;
-  const tax = (sub - discount) * TAX;
-  return { sub, discount, tax, total: sub - discount + tax };
+  const discount = Math.round(sub * co.discount);
+  const fee = isDelivery() && sub - discount < DELIVERY.freeOver ? DELIVERY.areas[co.area][2] : 0;
+  const rate = co.pay ? TAX_CARD : TAX;
+  const tax = Math.round((sub - discount) * rate);
+  return { sub, discount, fee, rate, tax, total: sub - discount + fee + tax };
 };
 const titleCase = (s) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 const tornPath = (w) => {
@@ -4043,7 +4510,7 @@ function openCheckout() {
   if (!cart.count()) return openBag();
   if (hasLayer("bag")) closeBag();
   const saved = readStore("brewns-details", {});
-  co = { step: 1, loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
+  co = { step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
   if (co.when === "later") co.slot = slotList()[0];
   renderCheckout();
   if (hasLayer("checkout")) return;
@@ -4085,48 +4552,69 @@ function renderCheckout({ animate = true } = {}) {
   const totals = orderTotals();
   const n = cart.count();
   const slotsScroll = $(".slots", coEl)?.scrollLeft || 0;
-  const steps = ["PICKUP", "DETAILS", "CONFIRMED"].map((s, i) => `<li class="${co.step >= i + 1 ? "on" : ""}">0${i + 1} ${s}</li>`).join("");
+  const steps = ["ORDER", "DETAILS", "CONFIRMED"].map((s, i) => `<li class="${co.step >= i + 1 ? "on" : ""}">0${i + 1} ${s}</li>`).join("");
   const open = isOpenNow();
+  const delivery = isDelivery();
+  const short = delivery && totals.sub - totals.discount < DELIVERY.min;
+  const radio = (name, i, checked, title, meta) =>
+    `<label class="pick"><input type="radio" name="${name}" value="${i}" ${checked ? "checked" : ""}><span class="pick-check" aria-hidden="true"></span><span class="pick-name">${title}</span><span class="pick-meta mono-fine">${meta}</span></label>`;
 
   const main =
     co.step === 1
-      ? `<h2 class="co-h">WHERE &amp; WHEN.</h2>
+      ? `<h2 class="co-h">${delivery ? "WHERE TO?" : "WHERE &amp; WHEN."}</h2>
         <div class="co-block">
-          <p class="co-label mono-fine"><span>PICKUP LOCATION</span><span>OPEN DAILY 07:00 – 21:00</span></p>
-          <div class="loc-cards" role="radiogroup" aria-label="Pickup location">${LOCS.map(
-            ([a, b], i) =>
-              `<label class="pick"><input type="radio" name="co-loc" value="${i}" ${co.loc === i ? "checked" : ""}><span class="pick-check" aria-hidden="true"></span><span class="pick-name">${a}<br>${b}</span><span class="pick-meta mono-fine"><span class="dot"></span>${open ? "OPEN NOW" : "OPENS 07:00"} · ~${PREP_MIN} MIN</span></label>`,
-          ).join("")}</div>
+          <p class="co-label mono-fine"><span>HOW DO YOU WANT IT</span><span>OPEN DAILY 07:00 – 21:00</span></p>
+          <div class="seg" role="radiogroup" aria-label="Order type">
+            <button type="button" role="radio" data-mode="pickup" aria-checked="${!delivery}">PICKUP<small>READY IN ~${PREP_MIN} MIN · FREE</small></button>
+            <button type="button" role="radio" data-mode="delivery" aria-checked="${delivery}">DELIVERY<small>~30–45 MIN · FROM ${money(150)}</small></button>
+          </div>
         </div>
+        ${
+          delivery
+            ? `<div class="co-block">
+          <p class="co-label mono-fine"><span>YOUR AREA</span><span>FREE DELIVERY OVER ${money(DELIVERY.freeOver)}</span></p>
+          <div class="loc-cards area-cards" role="radiogroup" aria-label="Delivery area">${DELIVERY.areas
+            .map(([name, shop, fee, eta], i) => radio("co-area", i, co.area === i, name, `${money(fee)} · ~${eta} MIN · FROM ${LOCS[shop][0]}`))
+            .join("")}</div>
+          ${short ? `<p class="co-note mono-fine">DELIVERY STARTS AT ${money(DELIVERY.min)}. ADD ${money(DELIVERY.min - (totals.sub - totals.discount))} MORE, OR PICK IT UP.</p>` : ""}
+        </div>`
+            : `<div class="co-block">
+          <p class="co-label mono-fine"><span>PICKUP LOCATION</span><span>SHOW YOUR ORDER NUMBER AT THE COUNTER</span></p>
+          <div class="loc-cards" role="radiogroup" aria-label="Pickup location">${LOCS.map(([a, b], i) =>
+            radio("co-loc", i, co.loc === i, `${a}<br>${b}`, `<span class="dot"></span>${open ? "OPEN NOW" : "OPENS 07:00"} · ~${PREP_MIN} MIN`),
+          ).join("")}</div>
+        </div>`
+        }
         <div class="co-block">
-          <p class="co-label mono-fine"><span>PICKUP TIME</span><span>${pickupLabel()}</span></p>
-          <div class="seg" role="radiogroup" aria-label="Pickup time">
-            <button type="button" role="radio" data-when="asap" aria-checked="${co.when === "asap"}" ${open ? "" : "disabled"}>AS SOON AS POSSIBLE<small>${open ? `~${PREP_MIN} MIN` : "WE'RE CLOSED"}</small></button>
+          <p class="co-label mono-fine"><span>${delivery ? "DELIVERY TIME" : "PICKUP TIME"}</span><span>${pickupLabel()}</span></p>
+          <div class="seg" role="radiogroup" aria-label="${delivery ? "Delivery" : "Pickup"} time">
+            <button type="button" role="radio" data-when="asap" aria-checked="${co.when === "asap"}" ${open ? "" : "disabled"}>AS SOON AS POSSIBLE<small>${open ? `~${leadMin()} MIN` : "WE'RE CLOSED"}</small></button>
             <button type="button" role="radio" data-when="later" aria-checked="${co.when === "later"}">SCHEDULE<small>PICK A TIME</small></button>
           </div>
           ${
             co.when === "later"
-              ? `<div class="slots" role="radiogroup" aria-label="Pickup slot">${slotList()
+              ? `<div class="slots" role="radiogroup" aria-label="Time slot">${slotList()
                   .map((s) => `<button type="button" role="radio" data-slot="${s.t}|${s.tomorrow ? 1 : 0}" aria-checked="${co.slot?.t === s.t}">${s.tomorrow ? "TMRW " : ""}${hhmm(s.t)}</button>`)
                   .join("")}</div>`
               : ""
           }
         </div>
-        <div class="co-actions"><button type="button" class="btn btn-dark" data-co="next">CONTINUE TO DETAILS ${ARROW_SVG}</button></div>`
-      : `<h2 class="co-h">WHO'S COLLECTING?</h2>
+        <div class="co-actions"><button type="button" class="btn btn-dark" data-co="next" ${short ? "disabled" : ""}>CONTINUE TO DETAILS ${ARROW_SVG}</button></div>`
+      : `<h2 class="co-h">${delivery ? "WHERE'S IT GOING?" : "WHO'S COLLECTING?"}</h2>
         <div class="co-block"><div class="fields">
-          ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', "Who we call out")}
-          ${field("phone", "PHONE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="20"', "(415) 000-0000")}
+          ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', delivery ? "Who the rider asks for" : "Who we call out")}
+          ${field("phone", "MOBILE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="16"', "0300 1234567")}
+          ${delivery ? `<label class="field wide${co.errors.address ? " bad" : ""}"><span class="mono-fine">ADDRESS · ${DELIVERY.areas[co.area][0]}</span><textarea data-field="address" rows="2" maxlength="160" autocomplete="street-address" placeholder="House / flat, street, block, nearest landmark">${esc(co.address)}</textarea><span class="err mono-fine">${co.errors.address || ""}</span></label>` : ""}
           ${field("email", "EMAIL · OPTIONAL", "email", 'autocomplete="email" maxlength="80"', "For the receipt")}
-          <label class="field wide"><span class="mono-fine">NOTE FOR THE BARISTA · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="Extra hot, no lid…">${esc(co.note)}</textarea></label>
+          <label class="field wide"><span class="mono-fine">NOTE FOR THE ${delivery ? "RIDER" : "BARISTA"} · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="${delivery ? "Gate code, call on arrival…" : "Extra hot, less ice…"}">${esc(co.note)}</textarea></label>
         </div></div>
         <div class="co-block">
-          <p class="co-label mono-fine"><span>PAYMENT</span><span>NOTHING IS CHARGED ONLINE</span></p>
-          <div class="loc-cards" role="radiogroup" aria-label="Payment">${[["PAY AT PICKUP", "CASH OR CARD WHEN YOU COLLECT"], ["CARD AT THE COUNTER", "TAP, CHIP OR APPLE PAY"]]
-            .map(([label, meta], i) => `<label class="pick"><input type="radio" name="co-pay" value="${i}" ${co.pay === i ? "checked" : ""}><span class="pick-check" aria-hidden="true"></span><span class="pick-name">${label}</span><span class="pick-meta mono-fine">${meta}</span></label>`)
-            .join("")}</div>
+          <p class="co-label mono-fine"><span>PAYMENT</span><span>PAID ${delivery ? "ON DELIVERY" : "AT PICKUP"} · NOTHING IS CHARGED ONLINE</span></p>
+          <div class="loc-cards" role="radiogroup" aria-label="Payment">${PAY.map(([label, atShop, atDoor], i) => radio("co-pay", i, co.pay === i, label, delivery ? atDoor : atShop)).join("")}</div>
+          ${co.pay ? "" : `<p class="co-note mono-fine">PAY BY CARD OR WALLET AND PUNJAB SALES TAX DROPS FROM 16% TO 5%.</p>`}
         </div>
-        <div class="co-actions"><button type="button" class="btn btn-ghost" data-co="back">BACK</button><button type="button" class="btn btn-dark" data-co="place">PLACE ORDER · ${money(totals.total)} ${ARROW_SVG}</button></div>`;
+        ${Object.values(co.errors).some(Boolean) ? `<p class="co-err mono-fine" role="alert">CHECK ${Object.entries(co.errors).filter(([, v]) => v).map(([k]) => ({ name: "YOUR NAME", phone: "YOUR MOBILE NUMBER", address: "THE ADDRESS", email: "THE EMAIL" })[k]).join(", ")} ABOVE.</p>` : ""}
+        <div class="co-actions"><button type="button" class="btn btn-ghost" data-co="back">BACK</button><button type="button" class="btn btn-dark" data-co="place" ${co.placing ? "disabled" : ""}>${co.placing ? `<span class="co-spin" aria-hidden="true"></span>SENDING TO ${esc(isDelivery() ? LOCS[DELIVERY.areas[co.area][1]][0] : LOCS[co.loc][0])}…` : `PLACE ORDER · ${money(totals.total)} ${ARROW_SVG}`}</button></div>`;
 
   const lines = cart.items
     .map((it) => {
@@ -4146,10 +4634,15 @@ function renderCheckout({ animate = true } = {}) {
         <div class="co-sums mono-fine">
           <div class="sum-row"><span>SUBTOTAL</span><span>${money(totals.sub)}</span></div>
           ${totals.discount ? `<div class="sum-row"><span>PROMO</span><span>−${money(totals.discount)}</span></div>` : ""}
-          <div class="sum-row"><span>SALES TAX 8.625%</span><span>${money(totals.tax)}</span></div>
+          ${delivery ? `<div class="sum-row"><span>DELIVERY · ${DELIVERY.areas[co.area][0]}</span><span>${totals.fee ? money(totals.fee) : "FREE"}</span></div>` : ""}
+          <div class="sum-row"><span>PUNJAB SALES TAX ${Math.round(totals.rate * 100)}%</span><span>${money(totals.tax)}</span></div>
           <div class="sum-row total"><span>TOTAL</span><span>${money(totals.total)}</span></div>
         </div>
-        <div class="co-pickup mono-fine"><span>PICKUP</span><b>${LOCS[co.loc][0]}</b><b>${pickupLabel()}</b></div>
+        ${
+          delivery
+            ? `<div class="co-pickup mono-fine"><span>DELIVERY</span><b>${DELIVERY.areas[co.area][0]}, LAHORE</b><b>${pickupLabel()}</b></div>`
+            : `<div class="co-pickup mono-fine"><span>PICKUP</span><b>${LOCS[co.loc][0]}</b><b>${pickupLabel()}</b></div>`
+        }
       </div></aside>
     </div>`;
   fillSnaps(coEl);
@@ -4158,9 +4651,98 @@ function renderCheckout({ animate = true } = {}) {
   if (animate) staggerIn($$(".co-main > *", coEl), 140);
 }
 
+/* ═══════════ after the order: live tracking, messages, receipt ═══════════
+   The flow itself (stages, times, rider, replies) lives in orderLive.ts. */
+const SHOP_CODES = ["MMA", "DHA", "JTN"];
+const SHOP_PHONE = "+924212345678";
+const SHOP_WHATSAPP = "924212345678";
+const stageTime = (at) => {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+const orderLines = (o) =>
+  o.items.map((it) => {
+    const p = productById(it.id);
+    const unit = unitPrice(p, it.sel);
+    return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * it.qty };
+  });
+const saveOrder = (o) => writeStore("brewns-orders", readStore("brewns-orders", []).map((x) => (x.number === o.number ? o : x)));
+const chatKey = (o) => `brewns-chat-${o.number}`;
+const readChat = (o) => readStore(chatKey(o), { messages: [], said: [], seen: 0 });
+const writeChat = (o, c) => writeStore(chatKey(o), c);
+const orderWhere = (o) => (o.mode === "delivery" ? `${o.address}, ${DELIVERY.areas[o.area][0]}, Lahore` : `${LOC_TITLES[o.loc]}, Lahore`);
+const orderWhen = (o) => `${o.pickupAt.tomorrow ? "tomorrow " : ""}${hhmm(o.pickupAt.t)}`;
+const isActive = (o) => {
+  if (o.cancelled || o.collected) return false;
+  const st = timeline(o, LOC_TITLES[o.loc]);
+  return st[currentStage(o, st)].key !== (o.mode === "delivery" ? "delivered" : "collected");
+};
+
+// The same bars as orderBars(), as SVG so they survive print and download.
+const barRects = (seed) => {
+  let s = Math.imul(seed, 2654435761) >>> 0;
+  const next = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+  let x = 0, out = "";
+  while (x < 293) {
+    const w = next() < 0.55 ? 1 : 2.5;
+    if (next() > 0.22) out += `<rect x="${x.toFixed(1)}" width="${w}" height="38" fill="#111"/>`;
+    x += w + 1;
+  }
+  return out;
+};
+
+/* The tax invoice: one standalone page, used for the modal, print and download. */
+function receiptDoc(o) {
+  const st = timeline(o, LOC_TITLES[o.loc]);
+  const now = currentStage(o, st);
+  const done = st[now].key === "delivered" || st[now].key === "collected" || o.collected;
+  const d = new Date(o.placed);
+  const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${stageTime(o.placed)}`;
+  const lines = orderLines(o);
+  const t = o.totals;
+  const row = (a, b, cls = "") => `<div class="r ${cls}"><span>${a}</span><span>${b}</span></div>`;
+  const reached = st.filter((s, k) => k <= now && k > 0).map((s) => row(s.label, stageTime(s.at), "dim")).join("");
+  const body = `<main class="rc">
+    <h1>BREWNS COFFEE HOUSE</h1>
+    <p class="c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
+    ${BUSINESS.ntn ? `<p class="c">NTN ${BUSINESS.ntn}${BUSINESS.strn ? ` · STRN ${BUSINESS.strn}` : ""}</p>` : ""}
+    <h2>SALES TAX INVOICE</h2>
+    ${row("INVOICE", invoiceNo(o, SHOP_CODES[o.loc]))}
+    ${row("DATE", date)}
+    ${row("ORDER", `#${String(o.number).padStart(5, "0")} · ${o.mode === "delivery" ? "DELIVERY" : "PICKUP"}`)}
+    ${row("CUSTOMER", esc(o.name.toUpperCase()))}
+    ${row("MOBILE", esc(o.phone))}
+    ${o.mode === "delivery" ? `<p class="addr">DELIVER TO: ${esc(o.address.toUpperCase())}, ${DELIVERY.areas[o.area][0]}, LAHORE</p>` : ""}
+    <hr>
+    ${lines.map((l) => `<div class="r"><span>${l.qty} × ${esc(l.name)}</span><span>${money(l.total)}</span></div><div class="r dim"><span>${esc(l.opts)}</span><span>@ ${money(l.unit)}</span></div>`).join("")}
+    <hr>
+    ${row("SUBTOTAL", money(t.sub))}
+    ${t.discount ? row("PROMO BREWNS10", `−${money(t.discount)}`) : ""}
+    ${o.mode === "delivery" ? row("DELIVERY FEE", t.fee ? money(t.fee) : "FREE") : ""}
+    ${row("VALUE EXCL. TAX", money(t.sub - t.discount + (t.fee || 0)))}
+    ${row(`PUNJAB SALES TAX ${Math.round(t.rate * 100)}%`, money(t.tax))}
+    ${row("TOTAL", money(t.total), "big")}
+    ${row("PAYMENT", `${PAY[o.pay][0]} · ${o.cancelled ? "CANCELLED" : done ? "PAID" : o.mode === "delivery" ? "DUE ON DELIVERY" : "DUE AT PICKUP"}`)}
+    ${o.note ? `<p class="addr">NOTE: ${esc(o.note.toUpperCase())}</p>` : ""}
+    <hr>
+    ${row("PLACED", stageTime(o.placed), "dim")}${reached}
+    ${o.cancelled ? row("CANCELLED", stageTime(o.cancelled), "dim") : ""}
+    <svg class="bars" viewBox="0 0 296 38" preserveAspectRatio="none" aria-hidden="true">${barRects(o.number)}</svg>
+    <p class="c">THANK YOU. SKIP THE LINE, SEE YOU SOON.<br>BREWNS.COFFEE</p>
+  </main>`;
+  const css = `body{margin:0;background:#e9e6df;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;color:#111}
+    .rc{box-sizing:border-box;width:340px;margin:24px auto;padding:26px 22px;background:#f7f5ef;color:#111;text-align:left;text-transform:none;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.05em;line-height:1.7;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+    h1{margin:0;text-align:center;font-size:13px;letter-spacing:.16em}h2{margin:12px 0 8px;text-align:center;font-size:11px;letter-spacing:.2em;border-block:1px dashed #999;padding:4px 0}
+    .c{text-align:center;margin:4px 0}.r{display:flex;justify-content:space-between;gap:10px}.r span:last-child{text-align:right}.dim{color:#6b6b66}
+    .big{font-size:14px;font-weight:700;margin-top:6px}.addr{margin:6px 0}hr{border:0;border-top:1px dashed #999;margin:10px 0}
+    .bars{display:block;width:100%;height:38px;margin:14px 0 8px}@media print{body{background:#fff}.rc{box-shadow:none;margin:0 auto}}`;
+  return { body, css, html: `<!doctype html><html><head><meta charset="utf-8"><title>brewns receipt #${String(o.number).padStart(5, "0")}</title><style>${css}</style></head><body>${body}</body></html>` };
+}
+
 function renderDone() {
   const o = co.done;
   const loc = LOCS[o.loc];
+  const delivered = o.mode === "delivery";
   const when = `${o.pickupAt.tomorrow ? "TOMORROW " : ""}${hhmm(o.pickupAt.t)}`;
   const d = new Date(o.placed);
   const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -4171,39 +4753,120 @@ function renderDone() {
       return `<div><span>${it.qty} × ${p.name}</span><span>${money(unitPrice(p, it.sel) * it.qty)}</span></div><div style="color:#5b5b58;margin-top:-3px"><span>${esc(selLabel(p, it.sel))}</span></div>`;
     })
     .join("");
+  const shop = LOC_TITLES[o.loc];
+  const stages = timeline(o, shop);
+  const r = riderFor(o);
+  const quick = QUICK_REPLIES[o.mode];
   coEl.innerHTML = `${coTop("CLOSE", true)}
     <div class="done">
       <div class="done-print" aria-hidden="true"><div class="done-machine">
         <img src="${ASSET_BASE_URL}order/printer.webp" alt="" width="404" height="72">
         <div class="done-window"><div class="paper" id="done-paper"><div class="receipt">
-          <div class="receipt-body">
-            <p style="font-size:11px;font-weight:700;letter-spacing:.16em;text-align:center">BREWNS COFFEE HOUSE</p>
+          <div class="receipt-body bill">
+            <p class="bill-brand">BREWNS COFFEE HOUSE</p>
+            <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
+            <p class="bill-h">${delivered ? "DELIVERY" : "PICKUP"} · SALES TAX INVOICE</p>
+            <div class="bill-rows">
+              <div><span>INVOICE</span><span>${invoiceNo(o, SHOP_CODES[o.loc])}</span></div>
+              <div><span>ORDER</span><span>${num}</span></div>
+              <div><span>PLACED</span><span>${date} ${stageTime(o.placed)}</span></div>
+              <div><span>${delivered ? "DELIVER BY" : "READY AT"}</span><span>${when}${o.pickupAt.tomorrow ? "" : " TODAY"}</span></div>
+            </div>
             <div class="rc-rule"></div>
-            <div style="display:flex;justify-content:space-between;gap:12px;font-size:8px;letter-spacing:.07em;line-height:1.85"><div><p>ORDER ${num}</p><p>FOR ${esc(o.name.toUpperCase())}</p></div><div style="text-align:right"><p>${date}</p><p>PICKUP ${when}</p></div></div>
-            <div style="font-size:8px;letter-spacing:.07em;line-height:1.85"><p>${loc[0]}</p><p>${loc[1]}</p></div>
+            <div class="bill-rows">
+              <div><span>CUSTOMER</span><span>${esc(o.name.toUpperCase())}</span></div>
+              <div><span>MOBILE</span><span>${esc(o.phone)}</span></div>
+              ${o.email ? `<div><span>EMAIL</span><span>${esc(o.email.toUpperCase())}</span></div>` : ""}
+            </div>
+            <p class="bill-addr">${delivered ? `DELIVER TO<br><b>${esc(o.address.toUpperCase())}</b><br>${DELIVERY.areas[o.area][0]}, LAHORE · ~${DELIVERY.areas[o.area][4].toFixed(1)} KM<br>RIDER FROM ${LOCS[o.loc][0]}` : `COLLECT FROM<br><b>${LOCS[o.loc][0]}</b><br>${LOCS[o.loc][1]} · PICKUP COUNTER`}</p>
             <div class="rc-rule"></div>
-            <div class="rc-lines">${lines}</div>
+            <div class="bill-items">${o.items
+              .map((it) => {
+                const p = productById(it.id);
+                const unit = unitPrice(p, it.sel);
+                return `<div class="bill-item"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}</span><span>@ ${money(unit)}</span></div></div>`;
+              })
+              .join("")}</div>
+            <p class="bill-count">${o.items.reduce((a, it) => a + it.qty, 0)} ITEM${o.items.reduce((a, it) => a + it.qty, 0) === 1 ? "" : "S"}</p>
             <div class="rc-rule"></div>
-            <div class="rc-lines"><div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>${o.totals.discount ? `<div><span>PROMO</span><span>−${money(o.totals.discount)}</span></div>` : ""}<div><span>TAX</span><span>${money(o.totals.tax)}</span></div></div>
+            <div class="bill-rows">
+              <div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>
+              ${o.totals.discount ? `<div><span>PROMO BREWNS10</span><span>−${money(o.totals.discount)}</span></div>` : ""}
+              ${delivered ? `<div><span>DELIVERY FEE</span><span>${o.totals.fee ? money(o.totals.fee) : "FREE"}</span></div>` : ""}
+              <div><span>VALUE EXCL. TAX</span><span>${money(o.totals.sub - o.totals.discount + (o.totals.fee || 0))}</span></div>
+              <div><span>PUNJAB SALES TAX ${Math.round(o.totals.rate * 100)}%</span><span>${money(o.totals.tax)}</span></div>
+            </div>
             <div class="rc-total"><span>TOTAL</span><span>${money(o.totals.total)}</span></div>
-            <p style="font-size:8px;letter-spacing:.07em;line-height:1.85">${o.pay ? "CARD AT THE COUNTER" : "PAY AT PICKUP"}${o.note ? ` · NOTE: ${esc(o.note.toUpperCase())}` : ""}</p>
+            <div class="bill-rows">
+              <div><span>PAYMENT</span><span>${PAY[o.pay][0]}</span></div>
+              <div><span>STATUS</span><span>DUE ${delivered ? "ON DELIVERY" : "AT PICKUP"}</span></div>
+            </div>
+            ${o.note ? `<p class="bill-addr">NOTE: ${esc(o.note.toUpperCase())}</p>` : ""}
             <div class="rc-rule"></div>
             <p style="font-size:16px;font-weight:700;line-height:1.25"><span style="display:block">SKIP THE LINE.</span><span style="display:block">SEE YOU SOON.</span></p>
             <div class="barcode">${orderBars(o.number)}</div>
-            <p style="font-size:7px;letter-spacing:.16em;text-align:center">BREWNS.COFFEE</p>
+            <p class="bill-c">TRACK ${num} AT BREWNS.COFFEE<br>THANK YOU · SHUKRIYA</p>
           </div>
           <svg width="328" height="9" viewBox="0 0 328 9" preserveAspectRatio="none" style="display:block"><path d="${tornPath(328)}" fill="#F2F0EA"/></svg>
         </div></div></div>
       </div></div>
       <div class="done-body">
-        <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · CONFIRMED</p>
-        <h2 class="done-h">SEE YOU AT ${when}.</h2>
-        <p class="pdp-desc">We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. Head to ${titleCase(loc[0])} — your order will be waiting at the pickup counter under ${num}. No line, no waiting.</p>
+        <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · <span id="trk-status">CONFIRMED</span></p>
+        <h2 class="done-h" id="trk-h">${delivered ? `AT YOUR DOOR BY ${when}.` : `SEE YOU AT ${when}.`}</h2>
+        <p class="pdp-desc" id="trk-sub"></p>
         <div class="done-eta">
           <div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="ring-bar" cx="50" cy="50" r="46" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="ring-num" aria-live="polite"><span><span id="ring-num">--</span><small id="ring-unit">MIN</small></span></div></div>
-          <div class="done-steps" style="flex:1">${["ORDER RECEIVED", "BARISTA ON IT", "READY FOR PICKUP"].map((s, i) => `<div class="done-step mono-fine" data-stage="${i}"><i></i>${s}</div>`).join("")}</div>
+          <ol class="trk-steps" id="trk-steps">${stages
+            .map((s, i) => `<li data-stage="${i}"><i></i><span class="trk-l"><b>${s.label}</b><small>${esc(s.detail)}</small></span><time class="mono-fine">${stageTime(s.at)}</time></li>`)
+            .join("")}</ol>
         </div>
-        <div class="done-actions"><button type="button" class="btn btn-solid" data-co="close">BACK TO BREWNS ${ARROW_SVG}</button><button type="button" class="btn btn-line" data-co="shop">KEEP SHOPPING</button></div>
+        ${
+          delivered
+            ? `<div class="trk-rider" id="trk-rider" hidden>
+            <span class="trk-avatar">${r.name.split(" ").map((w) => w[0]).join("")}</span>
+            <div><p><b>${r.name}</b> · ★ ${r.rating}</p><p class="mono-fine">YOUR RIDER · BIKE ${r.plate}</p></div>
+            <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button><a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
+          </div>
+          <div class="trk-map3d" id="trk-map3d" role="img" aria-label="Live map of your delivery">
+            <div class="trk-live mono-fine"><span class="dot" data-pulse></span><span id="trk-live-l">WAITING FOR THE RIDER</span></div>
+            <dl class="trk-stats">
+              <div><dt class="mono-fine">DISTANCE LEFT</dt><dd id="trk-km">${DELIVERY.areas[o.area][4].toFixed(1)} KM</dd></div>
+              <div><dt class="mono-fine">SPEED</dt><dd id="trk-speed">0 KM/H</dd></div>
+              <div><dt class="mono-fine">ARRIVES</dt><dd id="trk-eta">${hhmm(o.pickupAt.t)}</dd></div>
+            </dl>
+          </div>`
+            : ""
+        }
+        <div class="done-actions">
+          <button type="button" class="btn btn-solid" data-co="chat">MESSAGE ${delivered ? "RIDER / CAFÉ" : "THE CAFÉ"} <span class="trk-badge" id="trk-badge" hidden>0</span></button>
+          <button type="button" class="btn btn-line" data-co="receipt">RECEIPT</button>
+        </div>
+        <p class="trk-mail mono-fine">${
+          o.sent
+            ? `✓ SENT TO THE CAFÉ${o.email ? ` · A COPY IS ON ITS WAY TO ${esc(o.email.toUpperCase())}` : ""}`
+            : `<a href="mailto:${o.email ? encodeURIComponent(o.email) : ""}?subject=${encodeURIComponent(`brewns receipt #${String(o.number).padStart(5, "0")}`)}&body=${encodeURIComponent(receiptText(o))}">EMAIL ME THIS RECEIPT</a> · <a href="mailto:${ORDER_SERVICE.cafeEmail}?subject=${encodeURIComponent(`Order #${String(o.number).padStart(5, "0")}`)}&body=${encodeURIComponent(receiptText(o))}">EMAIL THE CAFÉ</a>`
+        }</p>
+        <div class="done-actions trk-small">
+          <a class="btn btn-line" id="trk-wa" target="_blank" rel="noopener">WHATSAPP</a>
+          <a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
+          ${delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS</a>`}
+          <button type="button" class="btn btn-line" data-co="collected" hidden>I'VE COLLECTED IT</button>
+          <button type="button" class="btn btn-line trk-rate" data-co="rate" hidden>★ RATE YOUR ORDER</button>
+          <button type="button" class="btn btn-line trk-cancel" data-co="cancel" hidden>CANCEL ORDER</button>
+        </div>
+        <div class="done-actions"><button type="button" class="btn btn-line" data-co="shop">KEEP SHOPPING</button><button type="button" class="btn btn-line" data-co="close">BACK TO BREWNS</button></div>
+        <p class="trk-demo mono-fine"><button type="button" data-co="ff">${o.ff ? "PREVIEWING AT FAST-FORWARD" : "PREVIEW THE WHOLE FLOW ⏩"}</button> · LIVE STATUS FOLLOWS THE CLOCK; MESSAGES ARE ANSWERED AUTOMATICALLY UNTIL THE CAFÉ IS CONNECTED.</p>
+      </div>
+      <aside class="chat" id="chat" hidden aria-label="Messages">
+        <div class="chat-head"><div><p><b>${delivered ? `${shop} · ${r.first}` : shop}</b></p><p class="mono-fine">ORDER ${num}</p></div><button type="button" class="x-btn" data-co="chat-close" aria-label="Close messages"></button></div>
+        <div class="chat-list" id="chat-list" aria-live="polite"></div>
+        <div class="chat-quick">${quick.map((q) => `<button type="button" data-quick="${esc(q)}">${esc(q)}</button>`).join("")}</div>
+        <form class="chat-form" data-chat><input name="msg" autocomplete="off" maxlength="200" placeholder="Message ${delivered ? "the rider or café" : "the café"}…" aria-label="Message"><button type="submit">SEND</button></form>
+      </aside>
+      <div class="rcpt" id="rcpt" hidden role="dialog" aria-modal="true" aria-label="Receipt">
+        <div class="rcpt-card"><div class="rcpt-paper" id="rcpt-paper"></div>
+          <div class="rcpt-actions"><button type="button" class="btn btn-solid" data-co="print">PRINT / SAVE AS PDF</button><button type="button" class="btn btn-line" data-co="download">DOWNLOAD</button><button type="button" class="btn btn-line" data-co="rcpt-close">CLOSE</button></div>
+        </div>
       </div>
     </div>`;
 
@@ -4216,59 +4879,323 @@ function renderDone() {
   };
   window.addEventListener("resize", fitPrint);
   coCleanups.push(() => window.removeEventListener("resize", fitPrint));
-  const feed = new Spring({ v: 0 }, (x) => paper.style.setProperty("--p", String(Math.round(x.v * 46) / 46)));
+  let fedTo = 0;
+  const feed = new Spring({ v: 0 }, (x) => {
+    paper.style.setProperty("--p", String(Math.round(x.v * 46) / 46));
+    if (x.v > fedTo + 0.001 && x.v < 0.995) printerFeed(0.8);
+    if (fedTo < 0.995 && x.v >= 0.995) printerCut();
+    fedTo = x.v;
+  });
   requestAnimationFrame(() => {
     fitPrint();
     REDUCED ? feed.set({ v: 1 }) : feed.start({ v: 1 }, { config: { duration: 2600, easing: easeOutCubic }, delay: 450 });
   });
   staggerIn($$(".done-body > *", coEl), 350);
+  $("#trk-wa", coEl).href = `https://wa.me/${SHOP_WHATSAPP}?text=${encodeURIComponent(whatsappText(o, orderLines(o), money, orderWhere(o), orderWhen(o)))}`;
 
+  const HEAD = delivered
+    ? { received: `AT YOUR DOOR BY ${when}.`, accepted: `AT YOUR DOOR BY ${when}.`, preparing: "BEING MADE FRESH.", rider: `${r.first.toUpperCase()} IS COLLECTING IT.`, onway: "ON ITS WAY.", arriving: "ALMOST THERE.", delivered: "DELIVERED. ENJOY." }
+    : { received: `SEE YOU AT ${when}.`, accepted: `SEE YOU AT ${when}.`, preparing: "BARISTA ON IT.", ready: "READY AT THE COUNTER.", collected: "ENJOY IT." };
+  const first = esc(titleCase(o.name.split(" ")[0]));
+  const SUB = delivered
+    ? {
+        received: `We’ve got it, ${first}. ${shop} will make it and a rider will bring it to ${esc(o.address)}.`,
+        accepted: `${shop} has accepted your order. Pay ${PAY[o.pay][0].toLowerCase()} on arrival: ${money(o.totals.total)}.`,
+        preparing: `It’s being made now. A rider is assigned just before it’s ready.`,
+        rider: `${r.name} (bike ${r.plate}) is heading to ${shop} to collect it.`,
+        onway: `${r.first} has your order and is on the way. Follow the map below.`,
+        arriving: `${r.first} is about 3 minutes away and will call ${esc(o.phone)} when outside.`,
+        delivered: `Delivered at ${stageTime(o.target)}. Thanks for ordering from brewns.`,
+      }
+    : {
+        received: `We’ve got it, ${first}. Head to ${shop}. Your order will wait at the pickup counter under ${num}.`,
+        accepted: `${shop} has accepted your order. Pay ${money(o.totals.total)} ${o.pay === 0 ? "in cash" : o.pay === 1 ? "by card" : "by JazzCash or Easypaisa"} when you collect.`,
+        preparing: `Your barista is making it now, timed to be fresh at ${when}.`,
+        ready: `It’s at the pickup counter at ${shop}. Show ${num} and it’s yours.`,
+        collected: `Collected. Thanks for ordering from brewns.`,
+      };
+
+  const chat = readChat(o);
+  let chatOpen = false;
+  const chatList = $("#chat-list", coEl);
+  const bubble = (m) =>
+    m.from === "system"
+      ? `<p class="chat-sys mono-fine">${esc(m.text)}</p>`
+      : `<div class="chat-msg ${m.from === "you" ? "me" : "them"}"><p>${m.from === "rider" ? `<b>${r.first}</b>` : m.from === "cafe" ? `<b>${shop}</b>` : ""}${esc(m.text)}</p><time class="mono-fine">${stageTime(m.t)}</time></div>`;
+  const drawChat = (typing = false) => {
+    chatList.innerHTML = chat.messages.map(bubble).join("") + (typing ? `<div class="chat-msg them typing"><p><span></span><span></span><span></span></p></div>` : "");
+    chatList.scrollTop = chatList.scrollHeight;
+    const unread = chat.messages.filter((m) => m.from !== "you" && m.from !== "system").length - chat.seen;
+    const badge = $("#trk-badge", coEl);
+    badge.hidden = chatOpen || unread <= 0;
+    badge.textContent = String(unread);
+  };
+  const post = (m) => {
+    if (m.from !== "system") playMessage(m.from !== "you");
+    chat.messages.push(m);
+    if (chatOpen) chat.seen = chat.messages.filter((x) => x.from !== "you" && x.from !== "system").length;
+    writeChat(o, chat);
+    drawChat();
+  };
+  const send = (text) => {
+    text = text.trim();
+    if (!text) return;
+    post({ from: "you", text, t: Date.now() });
+    drawChat(true);
+    setTimeout(() => post(autoReply(o, text, stages, shop)), 900 + Math.random() * 900);
+  };
+  const openChat = (open) => {
+    chatOpen = open;
+    $("#chat", coEl).hidden = !open;
+    if (open) {
+      chat.seen = chat.messages.filter((x) => x.from !== "you" && x.from !== "system").length;
+      writeChat(o, chat);
+      setTimeout(() => $(".chat-form input", coEl)?.focus(), 50);
+    }
+    drawChat();
+  };
+  const openReceipt = (open) => {
+    $("#rcpt", coEl).hidden = !open;
+    if (!open) return;
+    const doc = receiptDoc(o);
+    $("#rcpt-paper", coEl).innerHTML = `<style>${doc.css.replace(/body\{[^}]*\}/, "").replace(/@media print\{[^}]*\}\}/, "")}</style>${doc.body}`;
+  };
+  co.trk = { send, openChat, openReceipt };
+
+  const mapEl = $("#trk-map3d", coEl);
+  // the 3D map (and its bloom) loads only once someone is tracking a delivery
+  let map = null, mapGone = false, mapState = null;
+  if (mapEl)
+    import("./riderMap3D")
+      .then(({ createRiderMap }) => {
+        if (mapGone) return;
+        map = createRiderMap(THREE, mapEl, o.number * 7919, r.first.toUpperCase());
+        if (!map) mapEl.classList.add("no-3d");
+        else if (mapState) map.update(...mapState);
+      })
+      .catch(() => mapEl.classList.add("no-3d"));
+  coCleanups.push(() => {
+    mapGone = true;
+    map?.destroy();
+  });
   const tickRing = () => {
     const now = Date.now();
-    const left = Math.max(0, o.target - now);
-    const frac = 1 - left / Math.max(1, o.target - o.placed);
+    const t = orderNow(o, now);
+    const i = o.cancelled ? -1 : currentStage(o, stages, now);
+    const key = i >= 0 ? stages[i].key : "cancelled";
+    const left = Math.max(0, o.target - t);
+    const frac = o.cancelled ? 0 : 1 - left / Math.max(1, o.target - o.placed);
     $("#ring-bar", coEl)?.setAttribute("stroke-dashoffset", String(100 - frac * 100));
     const mins = Math.ceil(left / 60000);
     const numEl = $("#ring-num", coEl), unitEl = $("#ring-unit", coEl);
     if (!numEl) return;
-    if (!left) [numEl.textContent, unitEl.textContent] = ["NOW", "READY"];
+    if (o.cancelled) [numEl.textContent, unitEl.textContent] = ["—", "CANCELLED"];
+    else if (!left) [numEl.textContent, unitEl.textContent] = [delivered ? "HERE" : "NOW", delivered ? "DELIVERED" : "READY"];
     else if (mins >= 60) [numEl.textContent, unitEl.textContent] = [`${Math.floor(mins / 60)}H`, `${mins % 60} MIN`];
     else [numEl.textContent, unitEl.textContent] = [String(mins), "MIN"];
-    const stage = left === 0 ? 2 : now - o.placed > 4000 ? 1 : 0;
-    $$(".done-step", coEl).forEach((s) => s.classList.toggle("on", +s.dataset.stage <= stage));
+    $$("#trk-steps li", coEl).forEach((li, k) => {
+      li.classList.toggle("on", k <= i);
+      li.classList.toggle("now", k === i);
+    });
+    $("#trk-steps", coEl).classList.toggle("cancelled", !!o.cancelled);
+    $("#trk-status", coEl).textContent = o.cancelled ? "CANCELLED" : stages[i].label;
+    $("#trk-h", coEl).textContent = o.cancelled ? "ORDER CANCELLED." : HEAD[key];
+    $("#trk-sub", coEl).innerHTML = o.cancelled ? `Cancelled at ${stageTime(o.cancelled)}. Nothing was charged.` : SUB[key];
+    const cancel = $("[data-co='cancel']", coEl), got = $("[data-co='collected']", coEl);
+    cancel.hidden = !canCancel(o, stages, now);
+    if (got) got.hidden = delivered || o.cancelled || key !== "ready";
+    const finished = key === "delivered" || key === "collected" || !!o.collected;
+    $("[data-co='rate']", coEl).hidden = !finished || !!o.reviewed || !!o.cancelled;
+    if (delivered) {
+      const riderStage = stages.findIndex((s) => s.key === "rider");
+      $("#trk-rider", coEl).hidden = o.cancelled || i < riderStage;
+      const onway = stages.findIndex((s) => s.key === "onway");
+      const prog = riderProgress(o, stages, now);
+      const riding = !o.cancelled && i >= onway && key !== "delivered";
+      mapState = [prog, { riding, show: !o.cancelled && i >= riderStage }];
+      map?.update(...mapState);
+      const km = DELIVERY.areas[o.area][4] * (1 - prog);
+      // speed in Lahore traffic: 18–32 km/h, easing off near the door
+      const speed = riding ? Math.round((22 + 7 * Math.sin(now / 5300) + 3 * Math.sin(now / 1700)) * (prog > 0.9 ? 0.5 : 1)) : 0;
+      $("#trk-km", coEl).textContent = `${km.toFixed(1)} KM`;
+      $("#trk-speed", coEl).textContent = `${speed} KM/H`;
+      $("#trk-eta", coEl).textContent = key === "delivered" ? `DELIVERED ${stageTime(o.target)}` : stageTime(o.target);
+      $("#trk-live-l", coEl).textContent = o.cancelled ? "CANCELLED" : key === "delivered" ? "DELIVERED" : riding ? `LIVE · ${r.first.toUpperCase()} IS ON THE WAY · UPDATED JUST NOW` : i >= riderStage ? `${r.first.toUpperCase()} IS AT ${LOCS[o.loc][0]}` : "WAITING FOR THE RIDER";
+    }
+    // What the café and rider say on their own as stages are reached.
+    if (!o.cancelled)
+      stages.slice(0, i + 1).forEach((s) => {
+        if (chat.said.includes(s.key)) return;
+        chat.said.push(s.key);
+        const m = stageMessage(o, s.key, shop);
+        if (m) post({ ...m, t: o.ff ? Date.now() : Math.min(Date.now(), s.at) });
+        else writeChat(o, chat);
+      });
   };
+  drawChat();
   tickRing();
   clearInterval(coTimer);
   coTimer = setInterval(tickRing, 1000);
 }
 
+/* Reopen an order's tracking from the bag or the live pill. */
+function openTracking(number) {
+  const o = readStore("brewns-orders", []).find((x) => x.number === number);
+  if (!o) return;
+  if (hasLayer("bag")) closeBag();
+  co = { step: 3, done: o, errors: {} };
+  renderCheckout();
+  if (hasLayer("checkout")) return;
+  coEl.hidden = false;
+  coEl.scrollTop = 0;
+  pushLayer("checkout", closeCheckout, coEl);
+  if (REDUCED) coClip.set({ clipPath: "inset(0% 0% 0% 0%)" });
+  else {
+    coClip.set({ clipPath: "inset(0% 0% 100% 0%)" });
+    coClip.start({ clipPath: "inset(0% 0% 0% 0%)" }, { config: { duration: 760, easing: easeOutQuart } });
+  }
+}
+
+/* A small pill on the page while an order is on its way. */
+const livePill = document.createElement("button");
+livePill.type = "button";
+livePill.className = "live-order";
+livePill.hidden = true;
+document.body.append(livePill);
+livePill.addEventListener("click", () => openTracking(+livePill.dataset.number));
+const tickPill = () => {
+  const o = readStore("brewns-orders", []).find((x) => isActive(x) && Date.now() - x.placed < 6 * 3600000);
+  livePill.hidden = !o || hasLayer("checkout");
+  if (!o) return;
+  const st = timeline(o, LOC_TITLES[o.loc]);
+  const left = Math.max(0, Math.ceil((o.target - orderNow(o)) / 60000));
+  livePill.dataset.number = String(o.number);
+  livePill.innerHTML = `<span class="dot" data-pulse></span><b>#${String(o.number).padStart(5, "0")}</b> ${st[currentStage(o, st)].label}${left ? ` · ${left} MIN` : ""}<span aria-hidden="true">→</span>`;
+};
+setInterval(tickPill, 2000);
+setTimeout(tickPill, 1500);
+
 function placeOrder() {
   const errors = {};
   if (co.name.trim().length < 2) errors.name = "TELL US WHO TO CALL OUT";
-  if (co.phone.replace(/\D/g, "").length < 7) errors.phone = "WE NEED A NUMBER, JUST IN CASE";
+  if (!pkMobile(co.phone)) errors.phone = "A PAKISTANI MOBILE, LIKE 0300 1234567";
+  if (isDelivery() && co.address.trim().length < 10) errors.address = "HOUSE, STREET AND BLOCK, SO THE RIDER FINDS YOU";
   if (co.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(co.email.trim())) errors.email = "THAT EMAIL LOOKS OFF";
   co.errors = errors;
   if (Object.keys(errors).length) {
     renderCheckout({ animate: false });
-    $(".field.bad input", coEl)?.focus();
+    // The first problem may be well above the button: take the visitor to it.
+    const bad = $(".field.bad input, .field.bad textarea", coEl);
+    bad?.closest(".field").scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
+    setTimeout(() => bad?.focus({ preventScroll: true }), 350);
+    triggerHaptic(30);
     return;
   }
-  writeStore("brewns-details", { name: co.name.trim(), phone: co.phone.trim(), email: co.email.trim(), loc: co.loc });
+  if (co.placing) return;
+  co.phone = pkMobile(co.phone);
+  writeStore("brewns-details", { name: co.name.trim(), phone: co.phone, email: co.email.trim(), loc: co.loc, mode: co.mode, area: co.area, address: co.address.trim() });
   const number = readStore("brewns-order-seq", 25) + 1;
   writeStore("brewns-order-seq", number);
   const placed = Date.now();
-  const pickupAt = co.when === "asap" ? { t: nowMin() + PREP_MIN, tomorrow: false } : co.slot;
+  const pickupAt = co.when === "asap" ? { t: nowMin() + leadMin(), tomorrow: false } : co.slot;
   const midnight = new Date(placed);
   midnight.setHours(0, 0, 0, 0);
-  const target = co.when === "asap" ? placed + PREP_MIN * 60000 : midnight.getTime() + (pickupAt.tomorrow ? 86400000 : 0) + pickupAt.t * 60000;
-  const order = { number, placed, target, items: cart.items.map((it) => ({ ...it })), totals: orderTotals(), loc: co.loc, pickupAt, name: co.name.trim(), note: co.note.trim(), pay: co.pay };
-  writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
-  co.done = order;
-  co.step = 3;
-  cart.clear();
-  renderCheckout();
-  coEl.scrollTop = 0;
-  $("[data-co='close']", coEl)?.focus({ preventScroll: true });
+  const target = co.when === "asap" ? placed + leadMin() * 60000 : midnight.getTime() + (pickupAt.tomorrow ? 86400000 : 0) + pickupAt.t * 60000;
+  const delivery = isDelivery();
+  const order = {
+    number, placed, target, items: cart.items.map((it) => ({ ...it })), totals: orderTotals(), pickupAt, name: co.name.trim(), phone: co.phone, note: co.note.trim(), pay: co.pay,
+    mode: co.mode, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "", loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
+  };
+  // Send it: to the café (and a copy to the customer) when an order service is
+  // set up, otherwise a short hand-off so the button visibly does something.
+  co.placing = true;
+  renderCheckout({ animate: false });
+  const email = co.email.trim();
+  const started = Date.now();
+  sendOrder(order, email).then((sent) => {
+    order.sent = sent;
+    order.email = email;
+    writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
+    setTimeout(() => {
+      if (!co) return;
+      co.placing = false;
+      playChime();
+      co.done = order;
+      co.step = 3;
+      cart.clear();
+      renderCheckout();
+      coEl.scrollTop = 0;
+      $("[data-co='close']", coEl)?.focus({ preventScroll: true });
+    }, Math.max(0, 1100 - (Date.now() - started)));
+  });
+}
+
+/* ── sending the order by email ──
+   Fill ORDER_SERVICE.endpoint with a form-to-email address (for example a
+   Formspree form, https://formspree.io, pointed at the café's inbox) and every
+   order is emailed to the café, with the customer's email as reply-to so the
+   café can answer; the service can also send the customer a copy. Until then
+   orders stay in the browser and the confirmation offers mail links instead. */
+// Set NEXT_PUBLIC_ORDER_ENDPOINT in .env.local (and in the host's settings)
+// rather than editing this line.
+const ORDER_SERVICE = { endpoint: process.env.NEXT_PUBLIC_ORDER_ENDPOINT || "", cafeEmail: process.env.NEXT_PUBLIC_CAFE_EMAIL || "orders@brewns.coffee" };
+const receiptText = (o) => {
+  const lines = orderLines(o);
+  const t = o.totals;
+  const where = o.mode === "delivery" ? `Delivery to: ${o.address}, ${DELIVERY.areas[o.area][0]}, Lahore` : `Pickup at: ${LOC_TITLES[o.loc]}, Lahore`;
+  return [
+    `BREWNS COFFEE HOUSE: ORDER #${String(o.number).padStart(5, "0")}`,
+    `Invoice ${invoiceNo(o, SHOP_CODES[o.loc])}`,
+    "",
+    `Name: ${o.name}`,
+    `Mobile: ${o.phone}`,
+    where,
+    `Time: ${o.pickupAt.tomorrow ? "tomorrow " : "today "}${hhmm(o.pickupAt.t)}`,
+    "",
+    ...lines.map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}  ${money(l.total)}`),
+    "",
+    `Subtotal: ${money(t.sub)}`,
+    ...(t.discount ? [`Promo: -${money(t.discount)}`] : []),
+    ...(o.mode === "delivery" ? [`Delivery: ${t.fee ? money(t.fee) : "free"}`] : []),
+    `Punjab sales tax ${Math.round(t.rate * 100)}%: ${money(t.tax)}`,
+    `TOTAL: ${money(t.total)}`,
+    `Payment: ${PAY[o.pay][0]} ${o.mode === "delivery" ? "on delivery" : "at pickup"}`,
+    ...(o.note ? ["", `Note: ${o.note}`] : []),
+  ].join("\n");
+};
+async function sendOrder(o, email) {
+  if (!ORDER_SERVICE.endpoint) return false;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(ORDER_SERVICE.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      // Separate fields, so the email the café receives reads as a tidy table.
+      body: JSON.stringify({
+        _subject: `New ${o.mode} order #${String(o.number).padStart(5, "0")} · ${money(o.totals.total)} · ${o.name}`,
+        _replyto: email || undefined,
+        email: email || undefined,
+        "Order": `#${String(o.number).padStart(5, "0")} (${invoiceNo(o, SHOP_CODES[o.loc])})`,
+        "Type": o.mode === "delivery" ? "Delivery" : "Pickup",
+        "Customer": o.name,
+        "Mobile": o.phone,
+        [o.mode === "delivery" ? "Deliver to" : "Pickup at"]: o.mode === "delivery" ? `${o.address}, ${DELIVERY.areas[o.area][0]}, Lahore` : `${LOC_TITLES[o.loc]}, Lahore`,
+        "Shop": LOC_TITLES[o.loc],
+        "Time": `${o.pickupAt.tomorrow ? "Tomorrow" : "Today"} ${hhmm(o.pickupAt.t)}`,
+        "Items": orderLines(o).map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}: ${money(l.total)}`).join("\n"),
+        "Total": `${money(o.totals.total)} (incl. ${Math.round(o.totals.rate * 100)}% sales tax${o.totals.fee ? `, ${money(o.totals.fee)} delivery` : ""})`,
+        "Payment": `${PAY[o.pay][0]} ${o.mode === "delivery" ? "on delivery" : "at pickup"}`,
+        "Note": o.note || "-",
+        message: receiptText(o),
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 coEl.addEventListener("click", (e) => {
@@ -4276,6 +5203,52 @@ coEl.addEventListener("click", (e) => {
   const t = e.target;
   const act = t.closest("[data-co]")?.dataset.co;
   if (act === "close") return closeCheckout();
+  if (co.trk) {
+    if (act === "chat") return co.trk.openChat(true);
+    if (act === "chat-close") return co.trk.openChat(false);
+    if (act === "receipt") return co.trk.openReceipt(true);
+    if (act === "rcpt-close") return co.trk.openReceipt(false);
+    const quick = t.closest("[data-quick]");
+    if (quick) return co.trk.send(quick.dataset.quick);
+    const o = co.done;
+    if (act === "print" || act === "download") {
+      const { html } = receiptDoc(o);
+      if (act === "download") {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+        a.download = `brewns-receipt-${String(o.number).padStart(5, "0")}.html`;
+        a.click();
+        return setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      }
+      const w = window.open("", "_blank");
+      if (!w) return;
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      return setTimeout(() => w.print(), 250);
+    }
+    if (act === "cancel") {
+      if (!window.confirm("Cancel this order? The café hasn't started on it yet.")) return;
+      o.cancelled = Date.now();
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+    if (act === "rate") {
+      const first = o.items[0];
+      return window.__brewnsReview?.({ order: o.number, loc: o.loc, product: first?.id, name: o.name.split(" ")[0] + (o.name.split(" ")[1] ? ` ${o.name.split(" ")[1][0]}.` : "") });
+    }
+    if (act === "collected") {
+      o.collected = orderNow(o);
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+    if (act === "ff") {
+      // Preview: run the rest of the flow in about a minute.
+      fastForward(o);
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+  }
   if (act === "back") {
     if (co.step === 2) {
       co.step = 1;
@@ -4295,6 +5268,12 @@ coEl.addEventListener("click", (e) => {
   if (act === "shop") {
     closeCheckout();
     return setTimeout(() => lenis.scrollTo("#shop", { force: true }), 60);
+  }
+  const mode = t.closest("[data-mode]");
+  if (mode) {
+    co.mode = mode.dataset.mode;
+    renderCheckout({ animate: false });
+    return $(`[data-mode="${co.mode}"]`, coEl)?.focus();
   }
   const when = t.closest("[data-when]");
   if (when) {
@@ -4318,7 +5297,16 @@ coEl.addEventListener("change", (e) => {
     renderCheckout({ animate: false });
     $("input[name='co-loc']:checked", coEl)?.focus();
   }
-  if (e.target.name === "co-pay") co.pay = +e.target.value;
+  if (e.target.name === "co-area") {
+    co.area = +e.target.value;
+    renderCheckout({ animate: false });
+    $("input[name='co-area']:checked", coEl)?.focus();
+  }
+  if (e.target.name === "co-pay") {
+    co.pay = +e.target.value;
+    renderCheckout({ animate: false });
+    $("input[name='co-pay']:checked", coEl)?.focus();
+  }
 });
 coEl.addEventListener("input", (e) => {
   const k = e.target.dataset.field;
@@ -4332,12 +5320,230 @@ coEl.addEventListener("input", (e) => {
   }
 });
 coEl.addEventListener("submit", (e) => {
+  if (co?.trk && e.target.matches("[data-chat]")) {
+    e.preventDefault();
+    co.trk.send(e.target.msg.value);
+    e.target.msg.value = "";
+    return;
+  }
   if (!co || !e.target.matches("[data-promo]")) return;
   e.preventDefault();
   co.promo = e.target.promo.value.trim().toUpperCase();
   co.discount = co.promo === "BREWNS10" ? 0.1 : 0;
   renderCheckout({ animate: false });
 });
+
+  /* ═══════════════════════ customer reviews ═══════════════════════
+     Reviews written on the site (from the section, or "rate your order" after an
+     order) are kept and shown first; one written from an order carries a
+     VERIFIED ORDER stamp. Stored in the browser until a backend collects them. */
+  const BASE_SCORE = { avg: 4.9, count: 1284 };
+  const revCards = $("#rev-cards");
+  const myReviews = () => readStore("brewns-reviews", []);
+  const stars = (n) => `<p class="rev-stars" role="img" aria-label="Rated ${n} out of 5">${"★".repeat(n)}<span class="rev-stars-off">${"★".repeat(5 - n)}</span></p>`;
+  const revThumb = (id) => {
+    const p = productById(id);
+    return p ? `<span class="rev-thumb">${thumbHTML(p)}</span>` : "";
+  };
+  // The placeholder slips get a picture of what was ordered.
+  $$(".rev-slip[data-product]", revCards).forEach((slip) => {
+    $(".rev-order", slip)?.insertAdjacentHTML("afterbegin", revThumb(slip.dataset.product));
+  });
+  const renderMyReviews = () => {
+    $$(".rev-mine", revCards).forEach((li) => li.remove());
+    const list = myReviews();
+    revCards.insertAdjacentHTML(
+      "afterbegin",
+      list
+        .map((r) => {
+          const d = new Date(r.t);
+          const when = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const p = productById(r.product);
+          return `<li class="rev-mine" data-place="${esc(r.place)}" data-product="${p ? p.id : ""}"><div class="rev-hold"><article class="rev-slip is-in">
+            <div class="rev-slip-head"><p>${r.order ? `ORDER #${String(r.order).padStart(5, "0")}` : "NEW"}</p><p>${when}</p></div>
+            ${stars(r.stars)}
+            <blockquote class="rev-quote"><p>${esc(r.text)}</p></blockquote>
+            <div class="rc-rule" aria-hidden="true"></div>
+            <div class="rev-foot"><p>${esc(r.name)}</p><p>${esc(r.place)}</p></div>
+            <p class="rev-order">${p ? revThumb(p.id) : ""}<span>Ordered</span><span>${p ? esc(p.name) : ""}</span></p>
+            <button type="button" class="rev-helpful" data-helpful="mine-${r.t}" data-base="0" aria-pressed="false"><span aria-hidden="true">▲</span> HELPFUL · <b>0</b></button>
+            ${r.order ? `<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>` : ""}
+          </article></div></li>`;
+        })
+        .join(""),
+    );
+    fillSnaps(revCards);
+    const sum = list.reduce((a, r) => a + r.stars, 0);
+    const count = BASE_SCORE.count + list.length;
+    const avg = (BASE_SCORE.avg * BASE_SCORE.count + sum) / count;
+    const n = $(".rev-score-n span", document);
+    if (n && list.length) n.textContent = avg.toFixed(1);
+    const c = $(".rev-score-meta .blk span", document);
+    if (c && list.length) c.textContent = count.toLocaleString("en-US");
+    refreshRevBar();
+  };
+  let refreshRevBar = () => {};
+  renderMyReviews();
+
+  // "Leave a review", next to the score.
+  $(".rev-panel")?.insertAdjacentHTML("beforeend", `<button type="button" class="btn btn-dark rev-write" data-review>LEAVE A REVIEW ${ARROW_SVG}</button>`);
+
+  /* The slips are a carousel: filter by what was ordered or by shop, page
+     through with the arrows (or swipe), and mark a review helpful. */
+  const REV_FILTERS = [["all", "ALL"], ["drinks", "COFFEE & DRINKS"], ["food", "FOOD"], ["Gulberg", "GULBERG"], ["DHA", "DHA"], ["Johar Town", "JOHAR TOWN"]];
+  revCards.insertAdjacentHTML(
+    "beforebegin",
+    `<div class="rev-bar">
+      <div class="rev-filters" role="group" aria-label="Filter reviews">${REV_FILTERS.map(([k, l], i) => `<button type="button" class="rev-filter${i ? "" : " on"}" data-rev-filter="${k}" aria-pressed="${!i}">${l}</button>`).join("")}</div>
+      <div class="rev-nav"><p class="rev-count" aria-live="polite"><b id="rev-pos">01</b> / <span id="rev-total">00</span></p><button type="button" class="rev-arrow" data-rev-step="-1" aria-label="Previous reviews">←</button><button type="button" class="rev-arrow" data-rev-step="1" aria-label="Next reviews">→</button></div>
+    </div>`,
+  );
+  const revBar = revCards.previousElementSibling;
+  let revFilter = "all";
+  const revKind = (li) => {
+    const p = productById(li.dataset.product);
+    return p && ["bakery", "kitchen"].includes(p.cat) ? "food" : "drinks";
+  };
+  const revShown = () => $$(":scope > li", revCards).filter((li) => !li.hidden);
+  const revStepWidth = () => {
+    const li = revShown()[0];
+    // offsetWidth, not the bounding box: the slips are tilted a little
+    return li ? li.offsetWidth + parseFloat(getComputedStyle(revCards).columnGap || "0") : revCards.clientWidth;
+  };
+  const updateRevNav = () => {
+    const shown = revShown();
+    const step = revStepWidth();
+    const first = Math.min(shown.length - 1, Math.round(revCards.scrollLeft / step));
+    const perView = Math.max(1, Math.round(revCards.clientWidth / step));
+    $("#rev-pos", revBar).textContent = String(Math.max(0, first) + 1).padStart(2, "0") + (perView > 1 && shown.length > 1 ? `–${String(Math.min(shown.length, first + perView)).padStart(2, "0")}` : "");
+    $("#rev-total", revBar).textContent = String(shown.length).padStart(2, "0");
+    const [prev, next] = $$(".rev-arrow", revBar);
+    prev.disabled = revCards.scrollLeft < 4;
+    next.disabled = revCards.scrollLeft + revCards.clientWidth >= revCards.scrollWidth - 4;
+  };
+  refreshRevBar = () => {
+    $$(":scope > li", revCards).forEach((li) => {
+      li.hidden = !(revFilter === "all" || (revFilter === "drinks" || revFilter === "food" ? revKind(li) === revFilter : li.dataset.place === revFilter));
+    });
+    // the helpful counts, from this browser's marks
+    const liked = new Set(readStore("brewns-helpful", []));
+    $$(".rev-helpful", revCards).forEach((b) => {
+      const on = liked.has(b.dataset.helpful);
+      b.setAttribute("aria-pressed", String(on));
+      $("b", b).textContent = String(+b.dataset.base + (on ? 1 : 0));
+    });
+    updateRevNav();
+  };
+  revBar.addEventListener("click", (e) => {
+    const f = e.target.closest("[data-rev-filter]");
+    if (f) {
+      revFilter = f.dataset.revFilter;
+      $$(".rev-filter", revBar).forEach((b) => {
+        b.classList.toggle("on", b === f);
+        b.setAttribute("aria-pressed", String(b === f));
+      });
+      playSoftClick();
+      refreshRevBar();
+      revCards.scrollTo({ left: 0, behavior: "auto" });
+      return;
+    }
+    const st = e.target.closest("[data-rev-step]");
+    if (st) {
+      // a page at a time: however many whole slips fit
+      const step = revStepWidth();
+      const gap = parseFloat(getComputedStyle(revCards).columnGap || "0");
+      const perView = Math.max(1, Math.floor((revCards.clientWidth + gap + 2) / step));
+      revCards.scrollBy({ left: +st.dataset.revStep * perView * step, behavior: REDUCED ? "auto" : "smooth" });
+    }
+  });
+  revCards.addEventListener("scroll", () => requestAnimationFrame(updateRevNav), { passive: true });
+  window.addEventListener("resize", updateRevNav);
+  revCards.addEventListener("click", (e) => {
+    const b = e.target.closest(".rev-helpful");
+    if (!b) return;
+    const liked = new Set(readStore("brewns-helpful", []));
+    liked.has(b.dataset.helpful) ? liked.delete(b.dataset.helpful) : liked.add(b.dataset.helpful);
+    writeStore("brewns-helpful", [...liked]);
+    playSoftClick();
+    refreshRevBar();
+  });
+  refreshRevBar();
+
+  const revForm = document.createElement("div");
+  revForm.className = "rev-modal";
+  revForm.hidden = true;
+  revForm.setAttribute("role", "dialog");
+  revForm.setAttribute("aria-modal", "true");
+  revForm.setAttribute("aria-label", "Leave a review");
+  revForm.setAttribute("data-lenis-prevent", "");
+  document.body.append(revForm);
+  let revCtx = null;
+  const closeReview = () => {
+    revForm.hidden = true;
+    revCtx = null;
+    if (!hasLayer("checkout")) startScroll();
+  };
+  const openReview = (ctx = {}) => {
+    revCtx = { stars: 5, ...ctx };
+    const saved = readStore("brewns-details", {});
+    const food = PRODUCTS.filter((p) => !p.gift);
+    revForm.innerHTML = `<form class="rev-modal-card" data-rev-form novalidate>
+      <div class="rev-modal-head"><div><p class="mono-fine"><span class="sl">//</span> ${ctx.order ? `ORDER #${String(ctx.order).padStart(5, "0")}` : "BREWNS REVIEWS"}</p><h3>${ctx.order ? "HOW WAS IT?" : "TELL US HOW IT WAS."}</h3></div><button type="button" class="x-btn" data-rev-close aria-label="Close"></button></div>
+      <div class="rev-rate" role="radiogroup" aria-label="Rating">${[1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="${n <= revCtx.stars}" data-rate="${n}" aria-label="${n} star${n > 1 ? "s" : ""}">★</button>`).join("")}<span class="mono-fine" id="rev-rate-l">${["", "NOT GREAT", "COULD BE BETTER", "GOOD", "REALLY GOOD", "PERFECT"][revCtx.stars]}</span></div>
+      <label class="field"><span class="mono-fine">YOUR REVIEW</span><textarea name="text" rows="3" maxlength="240" placeholder="What did you have, and how was it?"></textarea></label>
+      <div class="rev-modal-row">
+        <label class="field"><span class="mono-fine">NAME</span><input name="name" maxlength="30" value="${esc(ctx.name || (saved.name ? saved.name.split(" ")[0] + (saved.name.split(" ")[1] ? ` ${saved.name.split(" ")[1][0]}.` : "") : ""))}" placeholder="First name and initial"></label>
+        <label class="field"><span class="mono-fine">SHOP</span><select name="place">${LOC_TITLES.map((t, i) => `<option value="${i}" ${i === (ctx.loc ?? saved.loc ?? 0) ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      </div>
+      <label class="field"><span class="mono-fine">WHAT YOU ORDERED</span><select name="product">${food.map((p) => `<option value="${p.id}" ${p.id === ctx.product ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
+      <p class="rev-err mono-fine" id="rev-err"></p>
+      <button type="submit" class="btn btn-solid">POST REVIEW ${ARROW_SVG}</button>
+    </form>`;
+    revForm.hidden = false;
+    stopScroll();
+    setTimeout(() => $("textarea", revForm)?.focus(), 50);
+  };
+  revForm.addEventListener("click", (e) => {
+    if (e.target === revForm || e.target.closest("[data-rev-close]")) return closeReview();
+    const rate = e.target.closest("[data-rate]");
+    if (rate) {
+      revCtx.stars = +rate.dataset.rate;
+      $$("[data-rate]", revForm).forEach((b) => b.setAttribute("aria-checked", String(+b.dataset.rate <= revCtx.stars)));
+      $("#rev-rate-l", revForm).textContent = ["", "NOT GREAT", "COULD BE BETTER", "GOOD", "REALLY GOOD", "PERFECT"][revCtx.stars];
+    }
+  });
+  revForm.addEventListener("keydown", (e) => e.key === "Escape" && closeReview());
+  revForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const text = f.text.value.trim(), name = f.name.value.trim();
+    const err = text.length < 12 ? "A FEW MORE WORDS, PLEASE" : name.length < 2 ? "ADD YOUR NAME" : "";
+    $("#rev-err", revForm).textContent = err;
+    if (err) return;
+    const place = ["Gulberg", "DHA", "Johar Town"][+f.place.value];
+    writeStore("brewns-reviews", [{ t: Date.now(), stars: revCtx.stars, text, name, place, product: f.product.value, order: revCtx.order || null }, ...myReviews()].slice(0, 30));
+    if (revCtx.order) {
+      const o = readStore("brewns-orders", []).find((x) => x.number === revCtx.order);
+      if (o) {
+        o.reviewed = true;
+        saveOrder(o);
+        if (co?.done?.number === o.number) co.done.reviewed = true;
+      }
+    }
+    closeReview();
+    renderMyReviews();
+    revCards.scrollTo({ left: 0, behavior: "auto" }); // the new slip is first
+    playChime();
+    toast("THANK YOU — YOUR REVIEW IS UP", "SEE IT", () => {
+      if (hasLayer("checkout")) closeCheckout();
+      setTimeout(() => lenis.scrollTo("#reviews", { force: true }), 80);
+    });
+    if (co?.trk) renderCheckout({ animate: false });
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-review]")) openReview();
+  });
+  window.__brewnsReview = openReview;
 
   /* ═══════════════════════ the printed receipt ═══════════════════════
      The receipt feeds out of the printer as you scroll to it, so it carries the
@@ -4350,8 +5556,8 @@ coEl.addEventListener("submit", (e) => {
      The order number comes from the same counter placeOrder() increments, so the
      printed ticket and the one the bag issues belong to the same roll. */
   const RECEIPT_ITEMS = [
-    [2, "Iced Matcha", 4.5],
-    [1, "Cinnamon Roll", 3.8],
+    [2, "Iced Matcha", 1150],
+    [1, "Cinnamon Roll", 700],
   ];
   const rcSubtotal = RECEIPT_ITEMS.reduce((sum, [qty, , price]) => sum + qty * price, 0);
   const rcTaxDue = rcSubtotal * TAX;
@@ -4365,7 +5571,7 @@ coEl.addEventListener("submit", (e) => {
   ).join("");
   $("#rc-sum").innerHTML = [
     ["Subtotal", money(rcSubtotal), ""],
-    [`Sales tax ${(TAX * 100).toFixed(3)}%`, money(rcTaxDue), ""],
+    [`Punjab sales tax ${Math.round(TAX * 100)}%`, money(rcTaxDue), ""],
     ["Total", money(rcSubtotal + rcTaxDue), "rc-strong"],
   ]
     .map(([label, value, strong]) => `<span class="${strong}">${label}</span><span class="${strong}">${value}</span>`)
@@ -4374,7 +5580,7 @@ coEl.addEventListener("submit", (e) => {
   $("#rc-no").textContent = `Order #${String(readStore("brewns-order-seq", 25) + 1).padStart(5, "0")}`;
   $("#rc-date").textContent = `${rcPad2(rcPrintedAt.getDate())}/${rcPad2(rcPrintedAt.getMonth() + 1)}/${rcPrintedAt.getFullYear()}`;
   $("#rc-time").textContent = rcClock(rcPrintedAt);
-  $("#rc-ready").textContent = `Ready ${rcClock(rcReadyAt)} · 139 Coffee St`;
+  $("#rc-ready").textContent = `Ready ${rcClock(rcReadyAt)} · MM Alam Rd`;
 
 
   /* ═══════════════════════ the footer's clock ═══════════════════════

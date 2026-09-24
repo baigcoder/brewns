@@ -577,7 +577,7 @@ address { font-style: normal; }
 @media (min-width: 1024px) { .hdr-nav ul { gap: 3rem; } }
 .hdr-mark { position: absolute; left: 50%; height: 100%; width: var(--size-logo-width); transform: translateX(-50%); }
 .hdr-mark a { display: block; width: 100%; height: 100%; transition: background-color var(--duration-normal) var(--ease-entrance); }
-@media (max-width: 639.98px) { .hdr-mark { position: static; order: -9999; transform: none; } }
+@media (max-width: 639.98px) { .hdr-mark { position: static; order: -9999; transform: none; } .hdr-sound { margin-left: 0.75rem; } }
 .hdr-order { display: flex; align-items: center; gap: 0.375rem; white-space: nowrap; transition: opacity var(--duration-fast) var(--ease-entrance); }
 .hdr-order:hover { opacity: 0.6; }
 @media (max-width: 639.98px) { .hdr-order { display: none; } }
@@ -932,9 +932,17 @@ address { font-style: normal; }
 @media (min-width: 1440px) { .locs-hours { bottom: auto; top: var(--size-locations-hours-y); } }
 
 /* ── 5 Philosophy ── */
-.phil { position: relative; display: flex; flex-direction: column; width: 100%; overflow: hidden; background: var(--background); }
+.phil { --pack-gold: #d8b777; position: relative; display: flex; flex-direction: column; width: 100%; overflow: hidden; background: var(--background); }
 @media (min-width: 1024px) { .phil { min-height: 100lvh; height: 100lvh; } }
 .phil-scene { pointer-events: none; position: absolute; inset: 0; z-index: 5; transform: translateZ(0); backface-visibility: hidden; }
+/* A warm pool of light behind the cup, set where the scene says the cup stands. */
+.phil-glow {
+  pointer-events: none; position: absolute; z-index: 4;
+  left: var(--phil-cup-x, 25%); top: var(--phil-cup-y, 60%);
+  width: var(--phil-cup-size, 40rem); aspect-ratio: 1; transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, rgb(222 160 84 / 0.42), rgb(170 102 44 / 0.18) 45%, transparent 74%);
+  filter: blur(8px);
+}
 .phil-in { position: relative; z-index: 10; display: flex; flex: 1 1 0%; flex-direction: column; justify-content: center; gap: 2rem; padding: 5rem 1.25rem 3.5rem; }
 @media (max-width: 639.98px) { .phil-in { gap: 1.25rem; } }
 @media (min-width: 640px) { .phil-in { gap: 2.5rem; padding: 6rem 2.5rem 4rem; } }
@@ -969,11 +977,12 @@ address { font-style: normal; }
    was the one place on the page carrying no figures at all. */
 .phil-spec { order: 5; display: flex; flex-direction: column; gap: 0.75rem; font-family: var(--font-space-mono); text-transform: uppercase; color: var(--foreground); }
 .phil-spec-head { font-size: var(--font-size-label); line-height: var(--line-height-copy); letter-spacing: var(--letter-spacing-label); color: rgb(255 255 255 / 0.55); }
+.phil-spec-head .sl, .phil-eyebrow .sl { color: var(--pack-gold); }
 .phil-spec dl { display: flex; flex-direction: column; gap: 0.375rem; font-size: var(--font-size-label); line-height: var(--line-height-copy); letter-spacing: var(--letter-spacing-tight); }
-.phil-spec dl > div { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 0.75rem; border-bottom: 1px solid rgb(255 255 255 / 0.14); padding-bottom: 0.375rem; }
+.phil-spec dl > div { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 0.75rem; border-bottom: 1px solid rgb(216 183 119 / 0.22); padding-bottom: 0.375rem; }
 .phil-spec dl > div:last-child { border-bottom: 0; padding-bottom: 0; }
 .phil-spec dt { color: rgb(255 255 255 / 0.55); }
-.phil-spec dd { margin: 0; text-align: right; }
+.phil-spec dd { margin: 0; text-align: right; color: var(--pack-gold); }
 @media (max-width: 639.98px) { .phil-spec { gap: 0.625rem; } .phil-spec dl { gap: 0.25rem; } }
 @media (min-width: 640px) and (max-width: 1023.98px) { .phil-spec { grid-column: span 2 / span 2; max-width: 22rem; } }
 @media (min-width: 1024px) { .phil-spec { position: absolute; right: 2.5rem; top: var(--size-philosophy-spec-y); width: var(--size-philosophy-spec); } }
@@ -1094,6 +1103,73 @@ address { font-style: normal; }
 .ftr-vr { display: none; height: var(--size-hero-rule); width: 1px; background: rgb(255 255 255 / 0.35); transform-origin: center top; transform: scaleY(0); }
 @media (min-width: 1024px) { .ftr-vr { position: absolute; top: var(--size-footer-row-y); display: block; } .ftr-vr.a { left: var(--size-footer-divider-a); } .ftr-vr.b { left: var(--size-footer-divider-b); } }
 .ftr-legal { display: flex; flex-direction: column; gap: 0.75rem; }
+/* The brand band under the footer: a gold ribbon of what we stand for, then the
+   wordmark at full width, sinking into the bottom edge. Decorative only. */
+.ftr { --pack-gold: #d8b777; --ftr-giant-h: calc((100vw - 2.5rem) / 4.405); }
+@media (min-width: 640px) { .ftr { --ftr-giant-h: calc((100vw - 5rem) / 4.405); } }
+.ftr-brand { display: flex; flex-direction: column; gap: 2rem; margin-bottom: calc(-2rem - var(--ftr-giant-h) * 0.12); }
+@media (min-width: 640px) { .ftr-brand { gap: 2.5rem; margin-bottom: calc(-3rem - var(--ftr-giant-h) * 0.2); } }
+@media (min-width: 1024px) {
+  .ftr { height: calc(var(--size-footer-height) + 6rem + var(--ftr-giant-h) * 0.8); }
+  .ftr-brand { position: absolute; left: 2.5rem; right: 2.5rem; top: calc(var(--size-footer-height) + 0.5rem); margin: 0; }
+}
+.ftr-ribbon {
+  overflow: hidden; padding-block: 0.9rem; border-block: 1px solid rgb(216 183 119 / 0.3);
+  color: var(--pack-gold); font-size: var(--font-size-label); letter-spacing: 0.18em;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.ftr-ribbon-track { display: flex; align-items: center; width: max-content; animation: ftr-marquee 42s linear infinite; }
+.ftr-ribbon-track span { padding-inline: 1.75rem; white-space: nowrap; }
+.ftr-ribbon-track i { font-style: normal; font-size: 0.7em; opacity: 0.7; }
+.ftr-ribbon:hover .ftr-ribbon-track { animation-play-state: paused; }
+@keyframes ftr-marquee { to { transform: translateX(-50%); } }
+.ftr-giant {
+  display: block; width: 100%; aspect-ratio: 2326 / 528;
+  /* Sized by height, so the mask's ® falls past the right edge and is cropped. */
+  -webkit-mask: url("/assets/shared/wordmark-large.webp") left top / auto 100% no-repeat;
+  mask: url("/assets/shared/wordmark-large.webp") left top / auto 100% no-repeat;
+  background:
+    linear-gradient(105deg, transparent 42%, rgb(255 244 214 / 0.55) 50%, transparent 58%) 120% 0 / 250% 100% no-repeat,
+    linear-gradient(180deg, #f0d9a2 0%, #d8b777 36%, #a07c46 74%, #5e4627 100%);
+  animation: ftr-sheen 9s var(--ease-entrance, ease) infinite;
+}
+@keyframes ftr-sheen { 0%, 55% { background-position: 120% 0, 0 0; } 100% { background-position: -20% 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .ftr-ribbon-track, .ftr-giant { animation: none; } }
+
+/* ── Footer finish: one gold thread through the whole footer ── */
+.ftr-logo { color: var(--pack-gold); }
+.ftr-col > p, .ftr-contact > p { color: var(--pack-gold); letter-spacing: 0.14em; }
+.ftr-list a:hover, .ftr .dim-link:hover { color: #f3e6cc; }
+.ftr-rule { background: linear-gradient(90deg, rgb(216 183 119 / 0.5), rgb(216 183 119 / 0.14) 55%, rgb(216 183 119 / 0.04)); }
+.ftr-vr { background: rgb(216 183 119 / 0.5); }
+.ftr-locs { color: var(--pack-gold); }
+.ftr-locs .dot, .ftr-open .dot { background: var(--pack-gold); }
+.ftr-open { padding: 0.3rem 0.75rem; border: 1px solid rgb(216 183 119 / 0.45); border-radius: 999px; color: var(--pack-gold); }
+.ftr-open.shut { border-color: rgb(255 255 255 / 0.2); color: rgb(255 255 255 / 0.6); }
+.ftr-addr.h > span + span { display: block; margin-top: 0.5rem; }
+.ftr-order {
+  margin-top: 0.75rem; padding: 0.75rem 1.15rem; border: 1px solid var(--pack-gold); color: var(--pack-gold);
+  transition: background 200ms ease, color 200ms ease;
+}
+.ftr-order:hover { opacity: 1; background: var(--pack-gold); color: #0a0807; }
+.ftr-order { align-self: flex-start; }
+.ftr-order .dot { display: none; }
+.ftr-order::after { content: "\2192"; transition: transform 200ms ease; }
+.ftr-order:hover::after { transform: translateX(0.25rem); }
+@media (min-width: 1024px) { .ftr-addr.a { white-space: nowrap; width: auto; } }
+
+/* The wordmark sits closer under the ribbon and is lit from below, so it reads
+   as metal catching light rather than a flat fill. */
+.ftr-brand { isolation: isolate; }
+@media (max-width: 1023.98px) { .ftr-brand { position: relative; } }
+.ftr-brand::before {
+  content: ""; position: absolute; z-index: -1; left: 5%; right: 5%; bottom: -25%; height: 110%; pointer-events: none;
+  background: radial-gradient(50% 55% at 50% 100%, rgb(214 150 72 / 0.32), rgb(214 150 72 / 0.08) 55%, transparent 75%);
+  filter: blur(24px);
+}
+@media (min-width: 640px) { .ftr-brand { gap: 1.5rem; } }
+@media (min-width: 1024px) { .ftr { height: calc(var(--size-footer-height) + 5rem + var(--ftr-giant-h) * 0.8); } }
 @media (min-width: 640px) { .ftr-legal { flex-direction: row; align-items: baseline; justify-content: space-between; } }
 @media (min-width: 1024px) { .ftr-legal { display: contents; } }
 .ftr-legal > * { white-space: nowrap; }
@@ -1197,6 +1273,36 @@ address { font-style: normal; }
 .pcard-add { display: flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding-inline: 0.75rem; border: 1px solid rgb(255 255 255 / 0.3); font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: var(--letter-spacing-label); text-transform: uppercase; white-space: nowrap; transition: background-color 200ms, color 200ms, border-color 200ms; }
 .pcard-add:hover { background: #fff; color: #070707; border-color: #fff; }
 .pcard-add.done { background: var(--accent); border-color: var(--accent); color: #070707; }
+/* phones: two compact cards a row instead of one tall card, so the shop is a
+   browse, not a scroll marathon; the featured bag keeps the full width */
+@media (max-width: 639.98px) {
+  .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .shop-grid > li.feature { grid-column: 1 / -1; }
+  .shop-grid > li:not(.feature) .pcard { min-height: 0; padding: 0.625rem; }
+  .shop-grid > li:not(.feature) .pcard-top > span:last-child:not(.pcard-tag) { display: none; }
+  .shop-grid > li:not(.feature) .pcard-tag { font-size: 0.5625rem; padding-inline: 0.4rem; white-space: nowrap; }
+  .shop-grid > li:not(.feature) .pcard-media { min-height: 0; aspect-ratio: 1; margin-block: 0.5rem; }
+  .shop-grid > li:not(.feature) .pcard-media img, .shop-grid > li:not(.feature) .pcard-media .giftcard { max-width: 100%; max-height: 100%; }
+  /* the photo fills a square frame and never spills over the name and price;
+     tall shots (the iced drinks) fit inside it rather than overflowing */
+  .shop-grid > li:not(.feature) .pcard-media:has(img) { overflow: hidden; }
+  .shop-grid > li:not(.feature) .pcard-media img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
+  .shop-grid > li:not(.feature) .pcard-media img.shot { object-fit: cover; }
+  .shop-grid > li:not(.feature) .pcard:hover .pcard-media img { transform: none; }
+  .shop-grid > li:not(.feature) .pcard-foot { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .shop-grid > li:not(.feature) .pcard-name { font-size: 0.9375rem; line-height: 1.05; }
+  .shop-grid > li:not(.feature) .pcard-meta { display: none; }
+  .shop-grid > li:not(.feature) .pcard-buy { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.375rem; }
+  .shop-grid > li:not(.feature) .pcard-price { font-size: 0.8125rem; }
+  .shop-grid > li:not(.feature) .pcard-price .mono-fine { display: none; }
+  .shop-grid > li:not(.feature) .pcard-add { height: 2.25rem; padding-inline: 0.5rem; }
+  .shop-grid > li > .lean, .shop-grid > li > .lean > div { flex: 1; min-width: 0; display: flex; }
+  .shop-grid > li:not(.feature) .pcard-top:has(.pcard-tag) > span:first-child { display: none; }
+  .shop-grid > li:not(.feature) .giftcard { width: 92%; border-radius: 0.5rem; }
+  .shop-grid > li:not(.feature) .giftcard .gc-mark { left: 0.6rem; top: 0.6rem; width: 3.5rem; height: 0.75rem; }
+  .shop-grid > li:not(.feature) .giftcard .gc-label { display: none; }
+  .shop-grid > li:not(.feature) .giftcard .gc-amount { right: 0.6rem; bottom: 0.5rem; font-size: 0.9rem; }
+}
 
 .giftcard { position: relative; width: 17rem; aspect-ratio: 1.586; border-radius: 0.875rem; overflow: hidden; background: linear-gradient(135deg, #d58c3d 0%, #6e3e22 55%, #2a1a0f 100%); box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 0.45); transform: rotate(-6deg); color: #fff; }
 .giftcard .gc-swirl { position: absolute; inset: -20% -60% -20% -10%; background: rgb(255 255 255 / 0.1); }
@@ -1588,14 +1694,6 @@ address { font-style: normal; }
 }
 
 /* ═══════════ Interactive Receipt Tear Gesture ═══════════ */
-.paper.torn-state {
-  animation: receiptTearSnap 0.6s cubic-bezier(0.2, 0, 0, 1) forwards;
-}
-@keyframes receiptTearSnap {
-  0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
-  40% { transform: translate3d(0, 30px, 0) rotate(2deg); opacity: 0.9; }
-  100% { transform: translate3d(0, 150px, 0) rotate(6deg); opacity: 0; pointer-events: none; }
-}
 .receipt-tear-handle {
   cursor: grab;
   padding: 0.5rem;
@@ -1806,8 +1904,8 @@ nextjs-portal,
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgb(216 183 119 / 0.32);
+  background: linear-gradient(90deg, rgb(216 183 119 / 0.08), rgb(255 255 255 / 0.02));
   font-family: var(--font-space-mono);
   font-size: 0.75rem;
   letter-spacing: 0.08em;
@@ -1816,7 +1914,7 @@ nextjs-portal,
   backdrop-filter: blur(4px);
 }
 .phil-claim-num {
-  color: #c98a4b;
+  color: var(--pack-gold);
   font-weight: 700;
 }
 
@@ -1911,7 +2009,8 @@ nextjs-portal,
 .full-menu-dialog {
   position: fixed;
   inset: 0;
-  z-index: 68;
+  /* Above the shared veil (70), which would otherwise blur and block it. */
+  z-index: 72;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -2251,3 +2350,187 @@ nextjs-portal,
     justify-content: center;
   }
 }
+/* ── Brand ambassador (Hania) ──
+   A dark stage lit by three soft colour pools, an outlined band of words across
+   the top, a tilted polaroid on the left and the name on the right. */
+.hania { position: relative; overflow: hidden; background: #0a0807; color: #fff; isolation: isolate; padding: 7.5rem 1.25rem 4.5rem; }
+@media (min-width: 640px) { .hania { padding: 8.5rem 2.5rem 5.5rem; } }
+@media (min-width: 1024px) { .hania { min-height: 100lvh; display: flex; align-items: center; padding: 9rem 2.5rem 6rem; } }
+.hania-aura {
+  position: absolute; inset: -10%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(38% 45% at 6% 28%, rgb(18 128 132 / 0.55), transparent 70%),
+    radial-gradient(34% 40% at 88% 10%, rgb(150 40 98 / 0.55), transparent 70%),
+    radial-gradient(45% 45% at 62% 108%, rgb(196 104 34 / 0.5), transparent 70%);
+  filter: blur(24px);
+  animation: hania-drift 18s ease-in-out infinite alternate;
+}
+@keyframes hania-drift { to { transform: translate3d(2%, -2%, 0) scale(1.05); } }
+.hania-band {
+  position: absolute; left: 0; right: 0; top: 0.5rem; overflow: hidden; pointer-events: none;
+  font-family: var(--font-geist); font-weight: 800; font-size: clamp(3rem, 8vw, 7.5rem); line-height: 1; text-transform: uppercase;
+  color: transparent; -webkit-text-stroke: 1px rgb(255 255 255 / 0.2);
+}
+.hania-band-track { display: flex; align-items: center; width: max-content; animation: ftr-marquee 60s linear infinite; }
+.hania-band-track span { padding-inline: 0.35em; white-space: nowrap; }
+.hania-band-track i { font-style: normal; font-size: 0.45em; -webkit-text-stroke: 1px rgb(255 255 255 / 0.25); }
+.hania-in { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 3rem; width: 100%; max-width: 88rem; margin-inline: auto; align-items: center; }
+@media (min-width: 1024px) { .hania-in { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr); gap: 5rem; } }
+
+.hania-card-wrap { justify-self: center; width: min(100%, 27rem); }
+@media (min-width: 1024px) { .hania-card-wrap { justify-self: end; width: min(100%, 30rem); } }
+.hania-card {
+  position: relative; flex: 1 1 auto; width: 100%; margin: 0; padding: 1.1rem 1.1rem 3.6rem; background: #f4efe4; transform: rotate(-3.5deg);
+  box-shadow: 0 2.5rem 5rem -1.5rem rgb(0 0 0 / 0.7), 0 0.5rem 1.2rem rgb(0 0 0 / 0.35);
+}
+.hania-shot {
+  position: relative; display: grid; place-items: center; aspect-ratio: 4 / 5; overflow: hidden;
+  background:
+    radial-gradient(38% 34% at 30% 32%, #16a7b1, transparent 72%),
+    radial-gradient(34% 32% at 74% 70%, #ec4e9b, transparent 72%),
+    linear-gradient(160deg, #e7903a, #de7f3c 55%, #e6763f);
+}
+.hania-shot::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 20%, transparent 60%, rgb(0 0 0 / 0.18)); }
+.hania-photo { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; object-position: 38% 30%; opacity: 0; transition: opacity 600ms ease; }
+.hania-shot.has-photo .hania-photo { opacity: 1; }
+.hania-shot.has-photo .hania-initials { visibility: hidden; }
+.hania-shot::after { z-index: 2; }
+.hania-initials { font-family: var(--font-geist); font-weight: 800; font-size: clamp(4.5rem, 10vw, 7rem); letter-spacing: -0.04em; line-height: 1; color: #fff; text-shadow: 0 0.3rem 1.2rem rgb(0 0 0 / 0.18); }
+.hania-tag {
+  position: absolute; z-index: 3; right: -1rem; bottom: 1.3rem; padding: 0.5rem 1.3rem 0.7rem; border-radius: 999px; transform: rotate(8deg);
+  background: #d9924c; color: #1b120b; font-family: var(--font-allura); font-size: clamp(1.6rem, 2.6vw, 2.2rem); line-height: 1; white-space: nowrap;
+  box-shadow: 0 0.6rem 1.2rem rgb(0 0 0 / 0.35);
+}
+
+.hania-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+.hania-eyebrow { font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: var(--letter-spacing-label); text-transform: uppercase; color: rgb(255 255 255 / 0.75); }
+.hania-name { font-family: var(--font-geist); font-weight: 800; font-size: clamp(3.75rem, 9vw, 8.5rem); line-height: 0.9; letter-spacing: -0.035em; text-transform: uppercase; }
+.hania-name span { display: block; }
+.hania-script {
+  margin-top: -0.5rem; font-family: var(--font-allura); font-size: clamp(2.6rem, 5vw, 4.5rem); line-height: 1.1; color: #f1c982;
+  clip-path: inset(-12% 100% -22% -4%);
+}
+.hania-lede { max-width: 33rem; font-family: var(--font-geist); font-weight: 600; font-size: clamp(1rem, 1.3vw, 1.2rem); line-height: 1.55; color: rgb(255 255 255 / 0.85); }
+.hania-cta {
+  display: inline-flex; align-items: center; gap: 1rem; margin-top: 1rem; padding: 1.15rem 1.6rem; background: #fff; color: #0a0807;
+  font-family: var(--font-geist); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.02em; transition: background 200ms ease, color 200ms ease, transform 200ms ease;
+}
+.hania-cta span { transition: transform 200ms ease; }
+.hania-cta:hover { background: #f1c982; }
+.hania-cta:hover span { transform: translateX(0.3rem); }
+@media (prefers-reduced-motion: reduce) { .hania-aura, .hania-band-track { animation: none; } .hania-script { clip-path: none; } }
+
+/* ── Order: the printer's stage ──
+   A dark counter lit from above: one warm spotlight falling on the printer,
+   slow out-of-focus lights drifting behind, film grain, and the wordmark as a
+   faint watermark. Everything is decorative and sits behind the receipt. */
+.order-scene {
+  position: absolute; inset: 0; overflow: hidden; display: block;
+  background: radial-gradient(70% 60% at 50% 30%, #3b2517 0%, #1d130c 45%, #0b0806 82%), #0b0806;
+}
+.order-scene i { position: absolute; display: block; pointer-events: none; }
+.os-glow { inset: -10% 0 auto; height: 80%; background: radial-gradient(34% 55% at 50% 0%, rgb(255 196 128 / 0.32), rgb(255 170 90 / 0.08) 55%, transparent 75%); }
+.os-beam {
+  left: 0; right: 0; top: 0; height: 100%;
+  background:
+    radial-gradient(16% 100% at 50% 0%, rgb(255 216 164 / 0.2), rgb(255 190 120 / 0.06) 60%, transparent 100%),
+    radial-gradient(34% 90% at 50% 0%, rgb(255 190 120 / 0.08), transparent 100%);
+  animation: os-flicker 7s ease-in-out infinite;
+}
+@keyframes os-flicker { 0%, 100% { opacity: 0.9; } 50% { opacity: 1; } 62% { opacity: 0.82; } }
+.os-bokeh { border-radius: 50%; filter: blur(18px); mix-blend-mode: screen; animation: os-drift 22s ease-in-out infinite alternate; }
+.os-bokeh.b1 { left: 8%; top: 22%; width: 9rem; height: 9rem; background: rgb(214 140 60 / 0.22); }
+.os-bokeh.b2 { left: 18%; top: 62%; width: 5rem; height: 5rem; background: rgb(255 200 130 / 0.18); animation-duration: 18s; }
+.os-bokeh.b3 { right: 10%; top: 18%; width: 7rem; height: 7rem; background: rgb(200 120 60 / 0.2); animation-duration: 26s; }
+.os-bokeh.b4 { right: 20%; top: 58%; width: 11rem; height: 11rem; background: rgb(150 90 50 / 0.2); animation-duration: 30s; }
+.os-bokeh.b5 { left: 38%; top: 78%; width: 4rem; height: 4rem; background: rgb(255 214 160 / 0.16); animation-duration: 16s; }
+.os-bokeh.b6 { right: 36%; top: 8%; width: 3.5rem; height: 3.5rem; background: rgb(255 214 160 / 0.14); animation-duration: 20s; }
+@keyframes os-drift { to { transform: translate3d(2.5rem, -2rem, 0) scale(1.15); } }
+.os-mark {
+  left: 50%; bottom: 14%; width: min(92%, 88rem); aspect-ratio: 2326 / 528; transform: translateX(-50%);
+  -webkit-mask: url("/assets/shared/wordmark-large.webp") left top / auto 100% no-repeat;
+  mask: url("/assets/shared/wordmark-large.webp") left top / auto 100% no-repeat;
+  background: linear-gradient(180deg, rgb(216 183 119 / 0.09), rgb(216 183 119 / 0.02));
+}
+.os-grain {
+  inset: 0; opacity: 0.12; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The printer at work: a status light that blinks amber while paper moves and
+   turns green once the slip is out, and a warm glow along the slot. */
+.printer-led {
+  position: absolute; z-index: 3; left: 884px; top: 150px; width: 7px; height: 7px; border-radius: 50%;
+  background: #3a3a36; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.4); transition: background 300ms ease, box-shadow 300ms ease;
+}
+.order.printing .printer-led { background: #ffb347; box-shadow: 0 0 8px 2px rgb(255 170 60 / 0.8); animation: led-blink 0.45s steps(2, jump-none) infinite; }
+.order.printed .printer-led { background: #7ddc8a; box-shadow: 0 0 8px 2px rgb(110 220 130 / 0.6); }
+@keyframes led-blink { 50% { opacity: 0.35; } }
+.printer-slot {
+  position: absolute; z-index: 3; left: 549px; top: 170px; width: 336px; height: 10px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 206 140 / 0.95), rgb(255 160 70 / 0.35) 60%, transparent);
+  filter: blur(3px); mix-blend-mode: screen; opacity: 0; transition: opacity 250ms ease;
+}
+.order.printing .printer-slot { opacity: 1; animation: slot-pulse 0.3s ease-in-out infinite alternate; }
+@keyframes slot-pulse { to { transform: scaleX(0.96); opacity: 0.75; } }
+
+/* Once the whole slip is out it settles with a small swing from the slot. */
+.paper .receipt { transform-origin: 50% 0; }
+.order.settle .paper .receipt { animation: receipt-settle 1.4s cubic-bezier(0.3, 0.7, 0.3, 1); }
+@keyframes receipt-settle { 0% { transform: rotate(0); } 25% { transform: rotate(1.4deg); } 50% { transform: rotate(-0.8deg); } 75% { transform: rotate(0.35deg); } 100% { transform: rotate(0); } }
+
+/* Torn off: the slip drops, turns and falls away, then a fresh one prints. */
+.paper.torn-state { animation: receipt-fall 0.9s cubic-bezier(0.55, 0, 0.8, 0.4) forwards; }
+@keyframes receipt-fall {
+  0% { transform: translate3d(0, 0, 0) rotate(0); opacity: 1; }
+  18% { transform: translate3d(0, 14px, 0) rotate(-1.5deg); opacity: 1; }
+  100% { transform: translate3d(40px, 720px, 0) rotate(14deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .os-beam, .os-bokeh, .order.printing .printer-led, .order.printing .printer-slot, .order.settle .paper .receipt { animation: none; }
+}
+
+/* The slip is the tear handle; the old strip at its foot is clipped by the slot
+   window, so a hint above the printer says what to do. */
+.receipt-tear-handle { display: none; }
+.paper { cursor: grab; touch-action: pan-x; }
+.paper:active { cursor: grabbing; }
+.tear-hint {
+  position: absolute; z-index: 3; left: 569px; top: 96px; width: 300px; padding: 7px 0; border-radius: 999px; text-align: center;
+  border: 1px solid rgb(216 183 119 / 0.45); background: rgb(12 9 7 / 0.55); backdrop-filter: blur(6px);
+  font-family: var(--font-space-mono); font-size: 9px; letter-spacing: 0.14em; color: #d8b777;
+  opacity: 0; transform: translateY(6px); transition: opacity 400ms ease, transform 400ms ease; pointer-events: none;
+}
+.order.printed .tear-hint { opacity: 1; transform: none; }
+/* The copy layer spans the whole section; let clicks through to the receipt
+   except on the copy itself. */
+.order-copy { pointer-events: none; }
+.order-copy .order-group, .order-copy .order-aside, .order-copy a { pointer-events: auto; }
+.paper, .paper img { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+
+/* ── Philosophy: more room, and a stage for the cup ──
+   The board's cup and claims reach past one screen, so the section is tall
+   enough to show them whole. The cup stands on a warm pool of light with a
+   thin gold ring, and the edges fade so the bean field doesn't stop hard. */
+@media (min-width: 1024px) { .phil { height: auto; min-height: max(100lvh, 62rem); } }
+@media (min-width: 1440px) { .phil { min-height: max(100lvh, calc(var(--size-board-drop) + 62rem)); } }
+.phil-floor {
+  pointer-events: none; position: absolute; z-index: 4;
+  left: var(--phil-cup-x, 25%); top: var(--phil-cup-base, 85%);
+  width: calc(var(--phil-cup-w, 20rem) * 1.9); aspect-ratio: 5 / 1; transform: translate(-50%, -30%);
+  background:
+    radial-gradient(closest-side, rgb(236 180 104 / 0.42), rgb(190 120 60 / 0.16) 55%, transparent 76%);
+  filter: blur(6px);
+}
+.phil-floor::after {
+  content: ""; position: absolute; inset: 22% 14%; border-radius: 50%;
+  border: 1.5px solid rgb(216 183 119 / 0.8);
+  box-shadow: 0 0 1.5rem rgb(216 183 119 / 0.25), inset 0 0 1.25rem rgb(216 183 119 / 0.18);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+  mask: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+}
+.phil-fade {
+  pointer-events: none; position: absolute; inset: 0; z-index: 6;
+  background: linear-gradient(to bottom, #070707 0, rgb(7 7 7 / 0) 9%, rgb(7 7 7 / 0) 86%, #070707 100%);
+}
+@media (max-width: 1023.98px) { .phil-floor { display: none; } }
