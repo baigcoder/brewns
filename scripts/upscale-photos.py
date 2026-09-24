@@ -3,6 +3,12 @@ Sharpens photos with Real-ESRGAN (realesr-general-x4v3, BSD-3-Clause, by
 Xintao Wang et al.), a small network made for real-world photos: soft focus,
 upscaling blur and compression artefacts.
 
+Used at full strength it paints: faces smear and textures turn to flat
+patches. So its weights are blended with the no-denoise variant
+(realesr-general-wdn-x4v3) at DENOISE, as Real-ESRGAN's own
+--denoise_strength does, and only MIX of its output is laid over a plain
+Lanczos resize of the original. Edges get crisper, the photo stays a photo.
+
 It needs no PyTorch: the weights are read straight from the .pth file, the
 network (SRVGGNetCompact) is rebuilt as an ONNX graph, and ONNX Runtime runs
 it on the CPU.
@@ -30,9 +36,11 @@ from onnx import TensorProto, helper, numpy_helper
 from PIL import Image, ImageFilter
 
 ROOT = Path(__file__).resolve().parent.parent
-WEIGHTS_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth"
+WEIGHTS_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/{}.pth"
 CACHE = ROOT / "tools" / "upscale"
 SIZES = {"": 1400, "@2x": 2400}
+DENOISE = 0.3  # 1 = realesr-general-x4v3 alone (painterly), 0 = the wdn model alone
+MIX = 0.35  # share of the network's output over the Lanczos resize
 TILE, PAD = 192, 12
 
 
@@ -98,12 +106,17 @@ def build_onnx(sd, upscale=4):
 
 def session():
     CACHE.mkdir(parents=True, exist_ok=True)
-    pth, onx = CACHE / "realesr-general-x4v3.pth", CACHE / "realesr-general-x4v3.onnx"
+    onx = CACHE / f"realesr-general-x4v3-dn{DENOISE}.onnx"
     if not onx.exists():
-        if not pth.exists():
-            print("downloading the model (5 MB)…")
-            urllib.request.urlretrieve(WEIGHTS_URL, pth)
-        onnx.save(build_onnx(load_pth(pth)), onx)
+        weights = []
+        for name in ("realesr-general-x4v3", "realesr-general-wdn-x4v3"):
+            pth = CACHE / f"{name}.pth"
+            if not pth.exists():
+                print(f"downloading {name} (5 MB)…")
+                urllib.request.urlretrieve(WEIGHTS_URL.format(name), pth)
+            weights.append(load_pth(pth))
+        full, wdn = weights
+        onnx.save(build_onnx({k: DENOISE * full[k] + (1 - DENOISE) * wdn[k] for k in full}), onx)
     return ort.InferenceSession(str(onx), providers=["CPUExecutionProvider"])
 
 
@@ -134,13 +147,15 @@ def main():
         keep = originals / p.name
         if not keep.exists():
             shutil.copy2(p, keep)
-        src = Image.open(keep)
+        src = Image.open(keep).convert("RGB")
         big = upscale(sess, src)
         for suffix, width in SIZES.items():
             h = round(big.height * width / big.width)
-            im = big.resize((width, h), Image.LANCZOS).filter(ImageFilter.UnsharpMask(radius=1.2, percent=35, threshold=2))
+            plain = src.resize((width, h), Image.LANCZOS)
+            im = Image.blend(plain, big.resize((width, h), Image.LANCZOS), MIX)
+            im = im.filter(ImageFilter.UnsharpMask(radius=1.0, percent=30, threshold=2))
             dest = folder / f"{p.stem}{suffix}.webp"
-            im.save(dest, "WEBP", quality=82, method=6)
+            im.save(dest, "WEBP", quality=88, method=6)
             print(f"{dest.relative_to(ROOT)}  {width}x{h}  {dest.stat().st_size // 1024} KB")
 
 

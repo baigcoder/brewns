@@ -1075,13 +1075,26 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   // Each photo comes in two sizes (scripts/upscale-photos.py): 1400 px for the
   // page, 2400 px for big screens and the viewer. The browser picks per tile.
   const hiRes = (src) => src.replace(/(@2x)?\.webp(\?.*)?$/, "@2x.webp");
+  // `sizes` is the width the photo is drawn at: object-fit: cover in a tall tile
+  // draws a wide photo much wider than the tile, then the hover zoom adds 11%.
+  const fitSizes = () =>
+    tiles.forEach((t) => {
+      const img = $("img", t);
+      if (!img.naturalWidth) return;
+      const r = t.getBoundingClientRect();
+      const drawn = Math.max(r.width, (r.height * img.naturalWidth) / img.naturalHeight) * 1.11;
+      img.sizes = `${Math.ceil(drawn)}px`;
+    });
   tiles.forEach((t) => {
     const img = $("img", t);
     const src = img.getAttribute("src");
     const tile = t.parentElement;
     img.srcset = `${src} 1400w, ${hiRes(src)} 2400w`;
     img.sizes = tile.matches(".big, .wide") ? "(min-width: 1100px) 38vw, (min-width: 800px) 50vw, 100vw" : "(min-width: 1100px) 19vw, (min-width: 800px) 25vw, 50vw";
+    if (img.complete) fitSizes();
+    else img.addEventListener("load", fitSizes, { once: true });
   });
+  window.addEventListener("resize", fitSizes);
 
   /* ── right now: open or closed, how busy it usually is, what's there ── */
   // Typical busyness by hour, 07:00–20:00 (0–100). Weekends run later.
