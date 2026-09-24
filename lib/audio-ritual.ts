@@ -31,7 +31,9 @@ let musicBus: GainNode | null = null;
 let reverb: ConvolverNode | null = null;
 let started = false;
 let scene = { room: 1, bar: 1, music: 1 };
-const timers: number[] = [];
+// The layers reschedule themselves forever; their timer ids aren't needed, and
+// keeping them all grew an array by thousands an hour.
+const timers = { push: (id: number) => id };
 const listeners = new Set<(s: Settings) => void>();
 
 const clamp = (v: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
@@ -46,19 +48,19 @@ export function initAudioState(): boolean {
     if (saved) settings = { ...DEFAULTS, ...saved };
     else settings.on = localStorage.getItem('brewns-audio-enabled') === 'true';
   } catch {}
-  // Browsers only allow audio after a gesture: resume on the first one.
+  // Browsers only allow audio after a gesture: resume on the first one. On
+  // phones a finger going down doesn't count, a tap (finger up) does.
   if (settings.on) {
+    const GESTURES = ['pointerup', 'touchend', 'click', 'keydown'];
     const wake = () => {
       start();
-      window.removeEventListener('pointerdown', wake);
-      window.removeEventListener('keydown', wake);
+      if (ctx?.state === 'running') GESTURES.forEach((g) => window.removeEventListener(g, wake, true));
     };
-    window.addEventListener('pointerdown', wake);
-    window.addEventListener('keydown', wake);
+    GESTURES.forEach((g) => window.addEventListener(g, wake, true));
   }
   document.addEventListener('visibilitychange', () => {
     if (!ctx || !master) return;
-    fade(master.gain, document.hidden || !settings.on ? 0 : settings.volume, 0.6);
+    apply();
   });
   return settings.on;
 }
@@ -100,9 +102,25 @@ function fade(p: AudioParam, to: number, secs = 1.2) {
   p.linearRampToValueAtTime(to, now + secs);
 }
 
+let sleepTimer = 0;
 function apply() {
   if (!ctx || !master || !roomBus || !barBus || !musicBus || !uiBus) return;
-  fade(master.gain, settings.on && !document.hidden ? settings.volume : 0, settings.on ? 1.5 : 0.5);
+  const audible = settings.on && !document.hidden;
+  // Off or in a background tab, the whole graph sleeps after fading out: no
+  // CPU, no battery, and nothing piles up to play at once on return.
+  window.clearTimeout(sleepTimer);
+  if (audible) {
+    if (ctx.state === 'suspended') ctx.resume();
+    iosSession(true);
+  } else
+    sleepTimer = window.setTimeout(() => {
+      if (!settings.on || document.hidden) {
+        ctx?.suspend();
+        iosSession(false);
+      }
+    }, 700);
+  // volume is a loudness control: the square makes the low half of the slider useful
+  fade(master.gain, audible ? settings.volume * settings.volume * 1.4 + 0.02 : 0, audible ? 1.5 : 0.5);
   fade(roomBus.gain, settings.ambience ? 0.9 * scene.room : 0, 1.8);
   fade(barBus.gain, settings.ambience ? 0.8 * scene.bar : 0, 1.8);
   fade(musicBus.gain, settings.music ? 0.55 * scene.music : 0, 2.2);
@@ -117,10 +135,23 @@ function ensure(): AudioContext | null {
     ctx = new C();
     master = ctx.createGain();
     master.gain.value = 0;
+    // make-up gain into a gentle compressor, then a limiter so nothing clips:
+    // the mix sits around -20 dBFS, loud enough for laptop and phone speakers
+    const makeup = ctx.createGain();
+    makeup.gain.value = 2.6;
     const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -18;
+    comp.threshold.value = -22;
+    comp.knee.value = 12;
     comp.ratio.value = 3;
-    master.connect(comp).connect(ctx.destination);
+    comp.attack.value = 0.01;
+    comp.release.value = 0.25;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.1;
+    master.connect(makeup).connect(comp).connect(limiter).connect(ctx.destination);
     reverb = ctx.createConvolver();
     reverb.buffer = roomImpulse(ctx, 1.6);
     const wet = ctx.createGain();
@@ -143,8 +174,52 @@ function ensure(): AudioContext | null {
     uiBus = bus(0.15);
     uiBus.gain.value = 1;
   }
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended' && settings.on && !document.hidden) ctx.resume();
   return ctx;
+}
+
+/** Scheduled layers only add events while the graph is running and audible. */
+const live = () => !!ctx && ctx.state === 'running' && settings.on;
+
+/* iPhones mute Web Audio with the silent switch on, unless a media element is
+   playing: a looping, silent <audio> puts the page in the "playback" session so
+   the café is heard like music. iOS only; elsewhere it isn't needed. */
+let iosKeepAlive: HTMLAudioElement | null = null;
+const isIOS = () => typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1));
+function iosSession(on: boolean) {
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (session && on) {
+    try {
+      session.type = 'playback';
+    } catch {}
+  }
+  if (!isIOS()) return;
+  if (on) {
+    if (!iosKeepAlive) {
+      // 0.25 s of 8 kHz silence as a WAV
+      const n = 2000;
+      const bytes = new Uint8Array(44 + n);
+      const v = new DataView(bytes.buffer);
+      const str = (o: number, t: string) => [...t].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+      str(0, 'RIFF');
+      v.setUint32(4, 36 + n, true);
+      str(8, 'WAVEfmt ');
+      v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true);
+      v.setUint16(22, 1, true);
+      v.setUint32(24, 8000, true);
+      v.setUint32(28, 8000, true);
+      v.setUint16(32, 1, true);
+      v.setUint16(34, 8, true);
+      str(36, 'data');
+      v.setUint32(40, n, true);
+      bytes.fill(128, 44);
+      iosKeepAlive = new Audio(URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })));
+      iosKeepAlive.loop = true;
+      iosKeepAlive.setAttribute('playsinline', '');
+    }
+    iosKeepAlive.play().catch(() => {});
+  } else iosKeepAlive?.pause();
 }
 
 /** A decaying burst of noise, the reverb of a small, soft-furnished room. */
@@ -252,6 +327,7 @@ function startRoom() {
     src.connect(bp).connect(formant).connect(g).connect(pan).connect(roomBus!);
     src.start();
     const speak = () => {
+      if (!live()) return void timers.push(window.setTimeout(speak, 2000));
       const now = c.currentTime;
       const words = Math.floor(rand(3, 12));
       let t = now;
@@ -271,6 +347,7 @@ function startRoom() {
 
   // Now and then a laugh somewhere across the room.
   const laugh = () => {
+    if (!live()) return void timers.push(window.setTimeout(laugh, rand(14000, 38000)));
     const now = c.currentTime;
     const o = c.createOscillator();
     o.type = 'sawtooth';
@@ -371,12 +448,14 @@ function startBar() {
   };
   // An espresso shot is a small sequence: knock, grind, then later the steam.
   const order = () => {
+    if (!live()) return void timers.push(window.setTimeout(order, rand(22000, 42000)));
     knock();
     timers.push(window.setTimeout(grinder, 900));
     if (Math.random() < 0.7) timers.push(window.setTimeout(steam, rand(9000, 14000)));
     timers.push(window.setTimeout(order, rand(22000, 42000)));
   };
   const clatter = () => {
+    if (!live()) return void timers.push(window.setTimeout(clatter, rand(3500, 11000)));
     Math.random() < 0.3 ? spoon() : cups();
     timers.push(window.setTimeout(clatter, rand(3500, 11000)));
   };
@@ -467,6 +546,9 @@ function startMusic() {
   let bar = 0;
   let next = c.currentTime + 0.3;
   const schedule = () => {
+    if (!live()) return void timers.push(window.setTimeout(schedule, 500));
+    // after a pause, start from now rather than replaying every missed bar
+    if (next < c.currentTime) next = c.currentTime + 0.1;
     while (next < c.currentTime + 2) {
       const ch = CHORDS[bar % 4];
       ch.forEach((m, i) => key(m, next + i * 0.015, beat * 4, i === 0 ? 0.05 : 0.028));
