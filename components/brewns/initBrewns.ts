@@ -685,8 +685,8 @@ const PRESET = {
 
 /* ═══════════ generated markup: menu cards, footer columns ═══════════ */
 const ALL_MENU_CARDS = [
-  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "$2.50", file: "menu-espresso.webp", size: [1216, 1293], frame: [129, 156, 0, 0], crop: ["-12.54%", "-27.55%", "145.17%", "128.38%"], cover: false, clip: true, alt: "A brewns single-shot espresso cup" },
-  { id: "latte", cat: "coffee", name: "LATTE", price: "$4.20", file: "menu-latte.webp", size: [1024, 1536], frame: [180, 205, 0, 0.5], crop: ["-16.55%", "-0.03%", "100.07%", "132.36%"], cover: false, clip: true, alt: "A brewns latte cup with a heart poured into the foam" },
+  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "$2.50", snap: "cup", size: [720, 720], frame: [170, 170, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns espresso in the short black-lidded brewns paper cup" },
+  { id: "latte", cat: "coffee", name: "LATTE", price: "$4.20", snap: "cup", size: [720, 720], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns latte in the black-lidded brewns paper cup" },
   { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "$4.50", file: "menu-iced-coffee.webp", size: [1024, 1536], frame: [197, 261, 0, 0], crop: ["0.1%", "2.54%", "94.92%", "107.62%"], cover: false, clip: false, alt: "A brewns iced matcha in a clear cup with a straw" },
   { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "$4.20", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
   { id: "cortado", cat: "coffee", name: "CORTADO", price: "$3.90", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
@@ -694,8 +694,8 @@ const ALL_MENU_CARDS = [
   { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "$3.80", file: "menu-cinnamon.webp", size: [1536, 1024], frame: [327, 218, -8, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
   { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "$4.00", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
   { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "$4.80", file: "menu-iced-latte.webp", size: [1024, 1536], frame: [175, 235, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: false, alt: "A brewns iced latte in a clear cup with straw" },
-  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "$18.00", file: "menu-beans.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Brewns Slow Roast whole bean coffee" },
-  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "$22.00", file: "menu-single-origin.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Ethiopia Yirgacheffe single origin whole bean coffee" },
+  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "$18.00", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Slow Roast whole bean bag" },
+  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "$22.00", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Ethiopia Yirgacheffe whole bean bag" },
   { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "$34.00", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
 ];
 
@@ -707,7 +707,7 @@ const cardHTML = (c, o) => {
     <p class="card-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
     <div class="card-media${c.clip ? " clip" : ""}"><span><span class="card-par">
       <div class="still" style="width: calc(${w / 16}rem * var(--size-menu-still-scale)); max-width: var(--size-menu-still-max); aspect-ratio: ${w} / ${h}; bottom: calc(${bottom / 16}rem + var(--size-menu-still-lift)); margin-left: ${offsetX / 16}rem">
-        <img loading="lazy" decoding="async" src="${ASSET_BASE_URL}menu/${c.file}" alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
+        <img loading="lazy" decoding="async" ${c.snap ? `data-snap="${c.snap}" data-snap-product="${c.id}"` : `src="${ASSET_BASE_URL}menu/${c.file}"`} alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
       </div>
     </span></span></div>
     <div class="card-foot">
@@ -882,7 +882,8 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
       page.set({ revealing: true, ready: true });
       startScroll();
       if (window.location.hash) {
-        const target = $(window.location.hash);
+        // "#shop/<id>" is a product route: land on the shop, the router opens the product.
+        const target = document.getElementById(decodeURIComponent(window.location.hash.slice(1)).split("/")[0]);
         if (target) setTimeout(() => lenis.scrollTo(target, { immediate: true }), 60);
       }
     }
@@ -2485,7 +2486,7 @@ const PRODUCTS = [
   {
     id: "latte", name: "LATTE", cat: "drinks", price: 4.2, model: "cup", alt: "A brewns latte in the black-lidded brewns paper cup",
     meta: "12 OZ · BREWED DAILY · TO GO", notes: ["SMOOTH", "BALANCED"],
-    desc: "A double shot of Slow Roast under steamed milk, poured with a heart on top. The one most of the city starts its morning with.",
+    desc: "A double shot of Slow Roast under steamed milk, with a heart poured on top before the lid goes on. The one most of the city starts its morning with.",
     options: [
       { key: "size", label: "SIZE", def: 1, choices: [["8 OZ", -0.6], ["12 OZ", 0], ["16 OZ", 0.8]] },
       MILK,
@@ -2785,6 +2786,7 @@ shopGrid.innerHTML = PRODUCTS.map((p, i) => {
 }).join("");
 shopCountEl.textContent = String(PRODUCTS.length).padStart(2, "0");
 fillSnaps(shopGrid);
+fillSnaps($("#cards")); // the menu cards were built before fillSnaps existed
 $$(".lean", shopGrid).forEach((outer) => lean(outer.firstElementChild, outer, 6));
 $$(".pcard", shopGrid).forEach((card, i) => inview(card, { opacity: 0, y: 28 }, { opacity: 1, y: 0 }, { config: C(80, 26), delay: (i % 4) * 90 }));
 
@@ -2901,6 +2903,7 @@ const updateMenuDisplay = (immediate = false) => {
 
   const slice = filtered.slice(menuPage * 4, menuPage * 4 + 4);
   menuCardsTrack.innerHTML = slice.map((c, idx) => cardHTML(c, idx)).join("");
+  fillSnaps(menuCardsTrack);
   wireMenuCardEvents();
 
   if (menuPageEl) menuPageEl.textContent = `${String(menuPage + 1).padStart(2, "0")} / ${String(totalPages).padStart(2, "0")}`;
@@ -3011,6 +3014,8 @@ const routeFromHash = () => {
   } else if (currentProductId()) closeProduct({ fromPop: true });
 };
 window.addEventListener("popstate", routeFromHash);
+// A product link opened fresh: route once the rest of the engine is set up.
+queueMicrotask(routeFromHash);
 
 /* ═══════════ Taste Calibrator & Receipt Tear Gesture ═══════════ */
 const calibrator = new TasteCalibrator(
