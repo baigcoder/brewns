@@ -1072,6 +1072,16 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   const box = $("#inside-box");
   const tiles = $$(".inside-open");
   const grid = $(".inside-grid");
+  // Each photo comes in two sizes (scripts/upscale-photos.py): 1400 px for the
+  // page, 2400 px for big screens and the viewer. The browser picks per tile.
+  const hiRes = (src) => src.replace(/(@2x)?\.webp(\?.*)?$/, "@2x.webp");
+  tiles.forEach((t) => {
+    const img = $("img", t);
+    const src = img.getAttribute("src");
+    const tile = t.parentElement;
+    img.srcset = `${src} 1400w, ${hiRes(src)} 2400w`;
+    img.sizes = tile.matches(".big, .wide") ? "(min-width: 1100px) 38vw, (min-width: 800px) 50vw, 100vw" : "(min-width: 1100px) 19vw, (min-width: 800px) 25vw, 50vw";
+  });
 
   /* ── right now: open or closed, how busy it usually is, what's there ── */
   // Typical busyness by hour, 07:00–20:00 (0–100). Weekends run later.
@@ -1136,7 +1146,7 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
       for (const t of tiles) {
         const r = t.getBoundingClientRect();
         const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
-        $("img", t).style.translate = `0 ${(-p * 5).toFixed(2)}%`;
+        $("img", t).style.translate = `0 ${(-p * 3).toFixed(2)}%`;
       }
     });
 
@@ -1183,7 +1193,7 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
     const img = $("img", tiles[at]);
     const cap = tiles[at].parentElement.querySelector("figcaption");
     const swap = () => {
-      bigImg.src = img.src;
+      bigImg.src = hiRes(img.getAttribute("src"));
       bigImg.alt = img.alt;
       bigImg.classList.remove("out");
     };
@@ -1196,7 +1206,7 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
     $$("[data-inside-go]", box).forEach((b, k) => b.setAttribute("aria-selected", String(k === at)));
     $(`[data-inside-go="${at}"]`, box)?.scrollIntoView({ block: "nearest", inline: "center" });
     // warm the neighbours so stepping is instant
-    [at + 1, at - 1].forEach((k) => (new Image().src = $("img", tiles[(k + tiles.length) % tiles.length]).src));
+    [at + 1, at - 1].forEach((k) => (new Image().src = hiRes($("img", tiles[(k + tiles.length) % tiles.length]).getAttribute("src"))));
   };
   const close = () => {
     box.hidden = true;
