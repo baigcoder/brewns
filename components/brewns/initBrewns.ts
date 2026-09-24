@@ -804,6 +804,10 @@ $$("[data-iv]").forEach((el) => {
 $$("[data-pulse]").forEach(pulse);
 $$(".lean").forEach((outer) => lean(outer.firstElementChild, outer));
 
+/* The footer's giant wordmark rises out of the bottom edge. It starts below the
+   footer's clip, so it is triggered by its band, which is always in place. */
+inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C(36, 26), delay: 120, trigger: $(".ftr-brand") });
+
 /* ═══════════ header ═══════════ */
 const header = $("#hdr");
 const themed = $$("[data-header-theme]");

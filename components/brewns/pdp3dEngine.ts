@@ -1393,7 +1393,7 @@ const loadPrint = () =>
         resolve();
       };
       img.onerror = () => resolve();
-      img.src = '/assets/shared/wordmark-mask.webp';
+      img.src = '/assets/shared/wordmark-large.webp';
     }),
     document.fonts?.load('190px Allura').catch(() => {}),
     document.fonts?.load('24px "Space Mono"').catch(() => {}),
@@ -1402,7 +1402,7 @@ const loadPrint = () =>
 // The wordmark is an alpha mask; tint it by filling through it.
 const tinted: Record<string, HTMLCanvasElement> = {};
 function drawWordmark(ctx: CanvasRenderingContext2D, colour: string, x: number, y: number, w: number) {
-  const h = w * (44 / 208);
+  const h = w * (528 / 2496);
   if (!wordmark) {
     ctx.fillStyle = colour;
     ctx.font = `700 ${h * 1.1}px Arial, sans-serif`;
@@ -1414,8 +1414,8 @@ function drawWordmark(ctx: CanvasRenderingContext2D, colour: string, x: number, 
   let mark = tinted[colour];
   if (!mark) {
     mark = tinted[colour] = document.createElement('canvas');
-    mark.width = wordmark.naturalWidth * 4;
-    mark.height = wordmark.naturalHeight * 4;
+    mark.width = wordmark.naturalWidth;
+    mark.height = wordmark.naturalHeight;
     const m = mark.getContext('2d')!;
     m.imageSmoothingQuality = 'high';
     m.drawImage(wordmark, 0, 0, mark.width, mark.height);
