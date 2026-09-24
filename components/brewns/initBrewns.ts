@@ -29,6 +29,7 @@ import {
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
+import { createRiderMap } from './riderMap3D';
 import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 
@@ -4393,9 +4394,10 @@ const BUSINESS = { ntn: "", strn: "" };
 const TAX_CARD = 0.05;
 /* Delivery areas: which shop sends the rider, the fee, and the time it takes. */
 const DELIVERY = { min: 1000, freeOver: 3000, areas: [
-  ["GULBERG", 0, 150, 30], ["MODEL TOWN", 0, 250, 40], ["GARDEN TOWN", 0, 200, 35],
-  ["DHA PHASE 1–6", 1, 200, 35], ["DHA PHASE 7–8", 1, 300, 45],
-  ["JOHAR TOWN", 2, 150, 30], ["WAPDA TOWN", 2, 250, 40],
+  // [area, shop that sends the rider, fee, minutes, km by road]
+  ["GULBERG", 0, 150, 30, 3.4], ["MODEL TOWN", 0, 250, 40, 6.8], ["GARDEN TOWN", 0, 200, 35, 5.1],
+  ["DHA PHASE 1–6", 1, 200, 35, 4.6], ["DHA PHASE 7–8", 1, 300, 45, 8.2],
+  ["JOHAR TOWN", 2, 150, 30, 3.9], ["WAPDA TOWN", 2, 250, 40, 6.6],
 ] };
 const PAY = [
   ["CASH", "AT THE COUNTER", "TO THE RIDER"],
@@ -4728,21 +4730,50 @@ function renderDone() {
       <div class="done-print" aria-hidden="true"><div class="done-machine">
         <img src="${ASSET_BASE_URL}order/printer.webp" alt="" width="404" height="72">
         <div class="done-window"><div class="paper" id="done-paper"><div class="receipt">
-          <div class="receipt-body">
-            <p style="font-size:11px;font-weight:700;letter-spacing:.16em;text-align:center">BREWNS COFFEE HOUSE</p>
+          <div class="receipt-body bill">
+            <p class="bill-brand">BREWNS COFFEE HOUSE</p>
+            <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
+            <p class="bill-h">${delivered ? "DELIVERY" : "PICKUP"} · SALES TAX INVOICE</p>
+            <div class="bill-rows">
+              <div><span>INVOICE</span><span>${invoiceNo(o, SHOP_CODES[o.loc])}</span></div>
+              <div><span>ORDER</span><span>${num}</span></div>
+              <div><span>PLACED</span><span>${date} ${stageTime(o.placed)}</span></div>
+              <div><span>${delivered ? "DELIVER BY" : "READY AT"}</span><span>${when}${o.pickupAt.tomorrow ? "" : " TODAY"}</span></div>
+            </div>
             <div class="rc-rule"></div>
-            <div style="display:flex;justify-content:space-between;gap:12px;font-size:8px;letter-spacing:.07em;line-height:1.85"><div><p>ORDER ${num}</p><p>FOR ${esc(o.name.toUpperCase())}</p></div><div style="text-align:right"><p>${date}</p><p>${delivered ? "DELIVERY" : "PICKUP"} ${when}</p></div></div>
-            <div style="font-size:8px;letter-spacing:.07em;line-height:1.85">${delivered ? `<p>TO ${esc(o.address.toUpperCase())}</p><p>${DELIVERY.areas[o.area][0]}, LAHORE · ${esc(o.phone)}</p>` : `<p>${loc[0]}</p><p>${loc[1]}</p>`}</div>
+            <div class="bill-rows">
+              <div><span>CUSTOMER</span><span>${esc(o.name.toUpperCase())}</span></div>
+              <div><span>MOBILE</span><span>${esc(o.phone)}</span></div>
+              ${o.email ? `<div><span>EMAIL</span><span>${esc(o.email.toUpperCase())}</span></div>` : ""}
+            </div>
+            <p class="bill-addr">${delivered ? `DELIVER TO<br><b>${esc(o.address.toUpperCase())}</b><br>${DELIVERY.areas[o.area][0]}, LAHORE · ~${DELIVERY.areas[o.area][4].toFixed(1)} KM<br>RIDER FROM ${LOCS[o.loc][0]}` : `COLLECT FROM<br><b>${LOCS[o.loc][0]}</b><br>${LOCS[o.loc][1]} · PICKUP COUNTER`}</p>
             <div class="rc-rule"></div>
-            <div class="rc-lines">${lines}</div>
+            <div class="bill-items">${o.items
+              .map((it) => {
+                const p = productById(it.id);
+                const unit = unitPrice(p, it.sel);
+                return `<div class="bill-item"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}</span><span>@ ${money(unit)}</span></div></div>`;
+              })
+              .join("")}</div>
+            <p class="bill-count">${o.items.reduce((a, it) => a + it.qty, 0)} ITEM${o.items.reduce((a, it) => a + it.qty, 0) === 1 ? "" : "S"}</p>
             <div class="rc-rule"></div>
-            <div class="rc-lines"><div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>${o.totals.discount ? `<div><span>PROMO</span><span>−${money(o.totals.discount)}</span></div>` : ""}${delivered ? `<div><span>DELIVERY</span><span>${o.totals.fee ? money(o.totals.fee) : "FREE"}</span></div>` : ""}<div><span>SALES TAX ${Math.round(o.totals.rate * 100)}%</span><span>${money(o.totals.tax)}</span></div></div>
+            <div class="bill-rows">
+              <div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>
+              ${o.totals.discount ? `<div><span>PROMO BREWNS10</span><span>−${money(o.totals.discount)}</span></div>` : ""}
+              ${delivered ? `<div><span>DELIVERY FEE</span><span>${o.totals.fee ? money(o.totals.fee) : "FREE"}</span></div>` : ""}
+              <div><span>VALUE EXCL. TAX</span><span>${money(o.totals.sub - o.totals.discount + (o.totals.fee || 0))}</span></div>
+              <div><span>PUNJAB SALES TAX ${Math.round(o.totals.rate * 100)}%</span><span>${money(o.totals.tax)}</span></div>
+            </div>
             <div class="rc-total"><span>TOTAL</span><span>${money(o.totals.total)}</span></div>
-            <p style="font-size:8px;letter-spacing:.07em;line-height:1.85">PAY ${PAY[o.pay][0]} ${delivered ? "ON DELIVERY" : "AT PICKUP"}${o.note ? ` · NOTE: ${esc(o.note.toUpperCase())}` : ""}</p>
+            <div class="bill-rows">
+              <div><span>PAYMENT</span><span>${PAY[o.pay][0]}</span></div>
+              <div><span>STATUS</span><span>DUE ${delivered ? "ON DELIVERY" : "AT PICKUP"}</span></div>
+            </div>
+            ${o.note ? `<p class="bill-addr">NOTE: ${esc(o.note.toUpperCase())}</p>` : ""}
             <div class="rc-rule"></div>
             <p style="font-size:16px;font-weight:700;line-height:1.25"><span style="display:block">SKIP THE LINE.</span><span style="display:block">SEE YOU SOON.</span></p>
             <div class="barcode">${orderBars(o.number)}</div>
-            <p style="font-size:7px;letter-spacing:.16em;text-align:center">BREWNS.COFFEE</p>
+            <p class="bill-c">TRACK ${num} AT BREWNS.COFFEE<br>THANK YOU · SHUKRIYA</p>
           </div>
           <svg width="328" height="9" viewBox="0 0 328 9" preserveAspectRatio="none" style="display:block"><path d="${tornPath(328)}" fill="#F2F0EA"/></svg>
         </div></div></div>
@@ -4764,13 +4795,14 @@ function renderDone() {
             <div><p><b>${r.name}</b> · ★ ${r.rating}</p><p class="mono-fine">YOUR RIDER · BIKE ${r.plate}</p></div>
             <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button><a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
           </div>
-          <div class="trk-map" aria-hidden="true"><svg viewBox="0 0 400 120">
-            <path d="M0 30 H400 M0 90 H400 M90 0 V120 M230 0 V120 M330 0 V120" stroke="rgb(255 255 255/.06)" stroke-width="14"/>
-            <path id="trk-route" d="M40 90 C 110 90, 120 30, 200 34 S 300 92, 360 40" stroke="rgb(216 183 119/.35)" stroke-width="3" stroke-dasharray="6 7" fill="none"/>
-            <circle cx="40" cy="90" r="9" fill="#d8b777"/><text x="30" y="112">${LOC_TITLES[o.loc].split(",")[0].toUpperCase()}</text>
-            <circle cx="360" cy="40" r="9" fill="#fff"/><text x="360" y="20" text-anchor="middle">YOU</text>
-            <g id="trk-bike"><circle r="11" fill="#d58c3d"/><path d="M-5 2 h10 M-3 -3 l3 5 l3 -5" stroke="#070707" stroke-width="2" fill="none"/></g>
-          </svg></div>`
+          <div class="trk-map3d" id="trk-map3d" role="img" aria-label="Live map of your delivery">
+            <div class="trk-live mono-fine"><span class="dot" data-pulse></span><span id="trk-live-l">WAITING FOR THE RIDER</span></div>
+            <dl class="trk-stats">
+              <div><dt class="mono-fine">DISTANCE LEFT</dt><dd id="trk-km">${DELIVERY.areas[o.area][4].toFixed(1)} KM</dd></div>
+              <div><dt class="mono-fine">SPEED</dt><dd id="trk-speed">0 KM/H</dd></div>
+              <div><dt class="mono-fine">ARRIVES</dt><dd id="trk-eta">${hhmm(o.pickupAt.t)}</dd></div>
+            </dl>
+          </div>`
             : ""
         }
         <div class="done-actions">
@@ -4898,7 +4930,10 @@ function renderDone() {
   };
   co.trk = { send, openChat, openReceipt };
 
-  const route = $("#trk-route", coEl), bike = $("#trk-bike", coEl);
+  const mapEl = $("#trk-map3d", coEl);
+  const map = mapEl ? createRiderMap(THREE, mapEl, o.number * 7919, r.first.toUpperCase()) : null;
+  if (map) coCleanups.push(() => map.destroy());
+  else mapEl?.classList.add("no-3d");
   const tickRing = () => {
     const now = Date.now();
     const t = orderNow(o, now);
@@ -4930,11 +4965,17 @@ function renderDone() {
     if (delivered) {
       const riderStage = stages.findIndex((s) => s.key === "rider");
       $("#trk-rider", coEl).hidden = o.cancelled || i < riderStage;
-      if (route && bike) {
-        const pt = route.getPointAtLength(route.getTotalLength() * riderProgress(o, stages, now));
-        bike.setAttribute("transform", `translate(${pt.x} ${pt.y})`);
-        bike.style.opacity = i >= stages.findIndex((s) => s.key === "onway") ? "1" : "0";
-      }
+      const onway = stages.findIndex((s) => s.key === "onway");
+      const prog = riderProgress(o, stages, now);
+      const riding = !o.cancelled && i >= onway && key !== "delivered";
+      map?.update(prog, { riding, show: !o.cancelled && i >= riderStage });
+      const km = DELIVERY.areas[o.area][4] * (1 - prog);
+      // speed in Lahore traffic: 18–32 km/h, easing off near the door
+      const speed = riding ? Math.round((22 + 7 * Math.sin(now / 5300) + 3 * Math.sin(now / 1700)) * (prog > 0.9 ? 0.5 : 1)) : 0;
+      $("#trk-km", coEl).textContent = `${km.toFixed(1)} KM`;
+      $("#trk-speed", coEl).textContent = `${speed} KM/H`;
+      $("#trk-eta", coEl).textContent = key === "delivered" ? `DELIVERED ${stageTime(o.target)}` : stageTime(o.target);
+      $("#trk-live-l", coEl).textContent = o.cancelled ? "CANCELLED" : key === "delivered" ? "DELIVERED" : riding ? `LIVE · ${r.first.toUpperCase()} IS ON THE WAY · UPDATED JUST NOW` : i >= riderStage ? `${r.first.toUpperCase()} IS AT ${LOCS[o.loc][0]}` : "WAITING FOR THE RIDER";
     }
     // What the café and rider say on their own as stages are reached.
     if (!o.cancelled)
@@ -5050,7 +5091,9 @@ function placeOrder() {
    order is emailed to the café, with the customer's email as reply-to so the
    café can answer; the service can also send the customer a copy. Until then
    orders stay in the browser and the confirmation offers mail links instead. */
-const ORDER_SERVICE = { endpoint: "", cafeEmail: "orders@brewns.coffee" };
+// Set NEXT_PUBLIC_ORDER_ENDPOINT in .env.local (and in the host's settings)
+// rather than editing this line.
+const ORDER_SERVICE = { endpoint: process.env.NEXT_PUBLIC_ORDER_ENDPOINT || "", cafeEmail: process.env.NEXT_PUBLIC_CAFE_EMAIL || "orders@brewns.coffee" };
 const receiptText = (o) => {
   const lines = orderLines(o);
   const t = o.totals;
@@ -5083,7 +5126,24 @@ async function sendOrder(o, email) {
     const res = await fetch(ORDER_SERVICE.endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ _subject: `New order #${String(o.number).padStart(5, "0")} · ${money(o.totals.total)}`, _replyto: email || undefined, email: email || undefined, message: receiptText(o), order: o }),
+      // Separate fields, so the email the café receives reads as a tidy table.
+      body: JSON.stringify({
+        _subject: `New ${o.mode} order #${String(o.number).padStart(5, "0")} · ${money(o.totals.total)} · ${o.name}`,
+        _replyto: email || undefined,
+        email: email || undefined,
+        "Order": `#${String(o.number).padStart(5, "0")} (${invoiceNo(o, SHOP_CODES[o.loc])})`,
+        "Type": o.mode === "delivery" ? "Delivery" : "Pickup",
+        "Customer": o.name,
+        "Mobile": o.phone,
+        [o.mode === "delivery" ? "Deliver to" : "Pickup at"]: o.mode === "delivery" ? `${o.address}, ${DELIVERY.areas[o.area][0]}, Lahore` : `${LOC_TITLES[o.loc]}, Lahore`,
+        "Shop": LOC_TITLES[o.loc],
+        "Time": `${o.pickupAt.tomorrow ? "Tomorrow" : "Today"} ${hhmm(o.pickupAt.t)}`,
+        "Items": orderLines(o).map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}: ${money(l.total)}`).join("\n"),
+        "Total": `${money(o.totals.total)} (incl. ${Math.round(o.totals.rate * 100)}% sales tax${o.totals.fee ? `, ${money(o.totals.fee)} delivery` : ""})`,
+        "Payment": `${PAY[o.pay][0]} ${o.mode === "delivery" ? "on delivery" : "at pickup"}`,
+        "Note": o.note || "-",
+        message: receiptText(o),
+      }),
       signal: ctrl.signal,
     });
     clearTimeout(timer);

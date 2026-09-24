@@ -2768,3 +2768,30 @@ nextjs-portal,
   .sound-panel { left: 0.75rem !important; right: 0.75rem !important; width: auto; }
   .live-order { left: 0.75rem; right: 0.75rem; bottom: 0.75rem; justify-content: center; padding: 0.6rem 0.9rem; font-size: 0.7rem; }
 }
+
+/* ── The printed bill, with every detail ── */
+.bill { gap: 8px; }
+.bill-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-align: center; }
+.bill-c { font-size: 7.5px; letter-spacing: 0.1em; line-height: 1.7; text-align: center; color: #3b3b38; }
+.bill-h { margin: 2px 0; padding: 3px 0; border-block: 1px dashed rgb(17 17 17 / 0.35); font-size: 9px; font-weight: 700; letter-spacing: 0.18em; text-align: center; }
+.bill-rows { display: flex; flex-direction: column; gap: 3px; font-size: 8.5px; letter-spacing: 0.05em; line-height: 1.4; }
+.bill-rows div, .bill-item > div { display: flex; justify-content: space-between; gap: 10px; }
+.bill-rows span:last-child { text-align: right; }
+.bill-addr { font-size: 8.5px; letter-spacing: 0.06em; line-height: 1.6; }
+.bill-addr b { font-weight: 700; }
+.bill-items { display: flex; flex-direction: column; gap: 6px; font-size: 9px; letter-spacing: 0.05em; line-height: 1.4; }
+.bill-opt { color: #5b5b58; font-size: 8px; }
+.bill-count { font-size: 7.5px; letter-spacing: 0.12em; color: #5b5b58; text-align: right; }
+
+/* ── Live 3D delivery map ── */
+.trk-map3d { position: relative; height: 18rem; overflow: hidden; border: 1px solid rgb(216 183 119 / 0.3); border-radius: 10px; background: radial-gradient(80% 80% at 50% 30%, #2a211a, #0d0a08); }
+@media (min-width: 1024px) { .trk-map3d { height: 20rem; } }
+.trk-map3d canvas { display: block; width: 100% !important; height: 100% !important; }
+.trk-map3d.no-3d { height: auto; }
+.trk-live { position: absolute; left: 0.75rem; top: 0.75rem; z-index: 1; display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.7rem; border-radius: 999px; background: rgb(12 9 7 / 0.75); backdrop-filter: blur(6px); color: #fff; font-size: 0.68rem; letter-spacing: 0.08em; }
+.trk-live .dot { background: #7ddc8a; }
+.trk-stats { position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0.75rem; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; margin: 0; }
+.trk-map3d.no-3d .trk-stats, .trk-map3d.no-3d .trk-live { position: static; margin: 0.75rem; }
+.trk-stats div { padding: 0.5rem 0.65rem; border-radius: 8px; background: rgb(12 9 7 / 0.78); backdrop-filter: blur(6px); }
+.trk-stats dt { color: rgb(255 255 255 / 0.5); font-size: 0.6rem; }
+.trk-stats dd { margin: 0.15rem 0 0; font-family: var(--font-space-mono); font-size: 0.95rem; color: #d8b777; }
