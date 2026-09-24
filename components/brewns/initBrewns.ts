@@ -941,6 +941,45 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   }
 }
 
+/* Inside brewns: open a photo full size, step through with arrows or keys. */
+{
+  const box = $("#inside-box");
+  const tiles = $$(".inside-open");
+  let at = 0;
+  const show = (i) => {
+    at = (i + tiles.length) % tiles.length;
+    const img = $("img", tiles[at]);
+    $("#inside-box-img").src = img.src;
+    $("#inside-box-img").alt = img.alt;
+    const cap = tiles[at].parentElement.querySelector("figcaption");
+    $("#inside-box-cap").textContent = `${String(at + 1).padStart(2, "0")} / ${String(tiles.length).padStart(2, "0")} · ${cap.querySelector("b").textContent} · ${cap.querySelector("span:last-child").textContent}`;
+  };
+  const close = () => {
+    box.hidden = true;
+    startScroll();
+    tiles[at]?.focus();
+  };
+  tiles.forEach((t, i) =>
+    t.addEventListener("click", () => {
+      show(i);
+      box.hidden = false;
+      stopScroll();
+      $("[data-inside-close]", box).focus();
+    }),
+  );
+  box?.addEventListener("click", (e) => {
+    const step = e.target.closest("[data-inside-step]");
+    if (step) return show(at + +step.dataset.insideStep);
+    if (e.target === box || e.target.closest("[data-inside-close]")) close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!box || box.hidden) return;
+    if (e.key === "Escape") close();
+    if (e.key === "ArrowRight") show(at + 1);
+    if (e.key === "ArrowLeft") show(at - 1);
+  });
+}
+
 /* ═══════════ header ═══════════ */
 const header = $("#hdr");
 const themed = $$("[data-header-theme]");
