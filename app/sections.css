@@ -315,3 +315,33 @@
   .card-quick-add { padding: 0.6rem 0.75rem; font-size: 0.6875rem; }
   .hdr-bag { padding-block: 0.625rem; margin-block: -0.625rem; }
 }
+
+/* ── Reviews carousel: filters, arrows, helpful ── */
+.rev-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: -0.5rem; }
+.rev-filters { display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none; margin-inline: -1.25rem; padding-inline: 1.25rem; }
+.rev-filters::-webkit-scrollbar { display: none; }
+@media (min-width: 640px) { .rev-filters { flex-wrap: wrap; margin-inline: 0; padding-inline: 0; } }
+.rev-filter { flex: none; padding: 0.5rem 0.85rem; border: 1px solid rgb(7 7 7 / 0.18); border-radius: 999px; font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.12em; color: rgb(7 7 7 / 0.65); transition: background-color 200ms, color 200ms, border-color 200ms; }
+.rev-filter:hover { border-color: rgb(7 7 7 / 0.5); color: #070707; }
+.rev-filter.on { background: #070707; border-color: #070707; color: #f4f2ec; }
+.rev-nav { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.rev-count { min-width: 5.5rem; margin-right: 0.5rem; text-align: right; font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: 0.12em; color: rgb(7 7 7 / 0.55); }
+.rev-count b { font-weight: 400; color: #070707; }
+.rev-arrow { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border: 1px solid rgb(7 7 7 / 0.25); border-radius: 50%; font-size: 1.1rem; color: #070707; transition: background-color 200ms, color 200ms, opacity 200ms; }
+.rev-arrow:hover:not(:disabled) { background: #070707; color: #f4f2ec; }
+.rev-arrow:disabled { opacity: 0.3; cursor: default; }
+
+.rev-slips { display: flex; gap: 1rem; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; padding: 1.4rem 0.4rem 2rem; margin: -1.4rem -0.4rem -2rem; scroll-padding-inline: 0.4rem; }
+.rev-slips::-webkit-scrollbar { display: none; }
+.rev-slips > li { flex: 0 0 86%; scroll-snap-align: start; }
+.rev-slips > li[hidden] { display: none; }
+@media (min-width: 640px) { .rev-slips { gap: 1.25rem; } .rev-slips > li { flex-basis: calc((100% - 1.25rem) / 2); } }
+@media (min-width: 1024px) { .rev-slips { gap: 1.75rem; } .rev-slips > li { flex-basis: calc((100% - 3.5rem) / 3); } }
+
+.rev-helpful { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.6rem; border: 1px solid rgb(7 7 7 / 0.15); border-radius: 999px; font-family: var(--font-space-mono); font-size: 0.65rem; letter-spacing: 0.12em; color: rgb(7 7 7 / 0.55); transition: background-color 200ms, color 200ms, border-color 200ms; }
+.rev-helpful b { font-weight: 400; }
+.rev-helpful:hover { border-color: rgb(7 7 7 / 0.45); color: #070707; }
+.rev-helpful[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #070707; }
+/* the stamp sits in the corner by the helpful button, clear of the words */
+.rev-slip .rev-stamp { top: auto; right: 1.1rem; bottom: calc(var(--tear) + 0.9rem); }
+@media (min-width: 1024px) { .rev-slip .rev-stamp { right: 1.4rem; bottom: calc(var(--tear) + 1.2rem); } }
