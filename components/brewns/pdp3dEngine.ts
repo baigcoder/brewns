@@ -1336,79 +1336,187 @@ export function extractPackagingPiece(T: typeof THREE, gltf: any, kind: string):
 export const PACKAGING_POSE: Record<string, number> = { bag: -0.42, cup: Math.PI + 1.2 };
 
 /**
- * Each product wears the shared bag or cup with its own print. The print is a
- * baked texture, so the product's lines are repainted over the generic ones and
- * everything else stays as printed.
+ * The packaging's print. The asset's own print (cream bag, white cup) is
+ * replaced wholesale by the dark edition: matte espresso-black stock, the
+ * wordmark and rules in metallic gold, type in cream. Each product carries its
+ * own name, notes and size; anything without an entry (the hero) wears the
+ * house label.
  *
- * Bag atlas (2048px): both faces side by side, stored upside down. The "slow
- * roast" script and the flavour notes are repainted.
- * Cup atlas (1536px): upright. "GOOD COFFEE / GOOD MOOD" becomes the drink's
- * name and tagline, and "250 ML" follows the selected option.
+ * Every print is drawn twice from the same layout: once in colour, and once as
+ * a surface map (G = roughness, B = metalness, as three.js reads them) so the
+ * gold is foil and the stock stays matte.
+ *
+ * Bag atlas (2048px): both faces side by side, stored upside down; each face is
+ * drawn upright in a 770 × 1300 frame. Cup atlas (1536px): upright; the label
+ * sits in the 320px column at the left, which the pose turns to the lens.
  */
-type BagLabel = { script: string; ink: string; notes: string[] };
+type BagLabel = { script: string[]; notes: string[]; about: string[]; size: string };
 type CupLabel = { lines: [string, string]; option: (sel: Record<string, number>) => string };
+const HOUSE_BAG: BagLabel = {
+  script: ['slow', 'roast'],
+  notes: ['CARAMEL', 'BROWN SUGAR', 'ROASTED ALMOND'],
+  about: ['CRAFT ROASTED IN', 'SMALL BATCHES FOR', 'CLEAN SWEETNESS', 'AND A SMOOTH FINISH.'],
+  size: '250 G',
+};
+const HOUSE_CUP: CupLabel = { lines: ['GOOD COFFEE', 'GOOD MOOD'], option: () => '250 ML' };
 const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
-  'single-origin': { bag: { script: 'ethiopia', ink: '#8a5a2b', notes: ['JASMINE', 'BERGAMOT', 'WHITE PEACH'] } },
+  'slow-roast': {
+    bag: { ...HOUSE_BAG, size: '' },
+  },
+  'single-origin': {
+    bag: {
+      script: ['ethiopia'],
+      notes: ['JASMINE', 'BERGAMOT', 'WHITE PEACH'],
+      about: ['WASHED HEIRLOOM', 'FROM SMALLHOLDERS', 'IN YIRGACHEFFE,', 'GROWN AT 2,100 M.'],
+      size: '',
+    },
+  },
   latte: { cup: { lines: ['LATTE', 'SMOOTH. BALANCED.'], option: (sel) => ['8 OZ', '12 OZ', '16 OZ'][sel.size ?? 1] } },
   espresso: { cup: { lines: ['ESPRESSO', 'SHORT. STRONG.'], option: (sel) => (sel.shots === 1 ? 'DOUBLE' : 'SINGLE') } },
 };
-const BAG_FACE_OFFSETS = [0, 786]; // x of each face in the 2048px atlas
-const PRINT_FONT = '"Arial Narrow", "Liberation Sans Narrow", Arial, sans-serif';
+const BAG_SIZES = ['250 G', '500 G', '1 KG'];
 
-// Covers a patch of the atlas in paper colour and draws into it in upright local
-// coordinates (flipped for the upside-down bag atlas). Units are atlas pixels at
-// the atlas's authored width, scaled by `k` to the image actually loaded.
-function printPatch(ctx: CanvasRenderingContext2D, k: number, flip: boolean, [x, y, w, h]: number[], paperAt: number[], draw: () => void) {
-  const d = ctx.getImageData(paperAt[0] * k, paperAt[1] * k, 1, 1).data;
-  ctx.save();
-  ctx.translate(x * k, (flip ? y + h : y) * k);
-  ctx.scale(k, flip ? -k : k);
-  ctx.fillStyle = `rgb(${d[0]},${d[1]},${d[2]})`;
-  ctx.fillRect(0, 0, w, h);
-  draw();
-  ctx.restore();
+type Palette = { ground: string; gold: string; cream: string; dim: string };
+const INK: Palette = { ground: '#17130f', gold: '#d8b777', cream: '#efe5d2', dim: 'rgba(239,229,210,0.62)' };
+const SURFACE: Palette = { ground: 'rgb(0,205,0)', gold: 'rgb(0,100,160)', cream: 'rgb(0,175,0)', dim: 'rgb(0,185,0)' };
+const MONO = '"Space Mono", ui-monospace, monospace';
+
+// Loaded on first use, not at import: this module is also evaluated on the server.
+let wordmark: HTMLImageElement | null = null;
+let printReady: Promise<void> | null = null;
+const loadPrint = () =>
+  (printReady ||= Promise.all([
+    new Promise<void>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        wordmark = img;
+        resolve();
+      };
+      img.onerror = () => resolve();
+      img.src = '/assets/shared/wordmark-mask.webp';
+    }),
+    document.fonts?.load('190px Allura').catch(() => {}),
+    document.fonts?.load('24px "Space Mono"').catch(() => {}),
+  ]).then(() => {}));
+
+// The wordmark is an alpha mask; tint it by filling through it.
+const tinted: Record<string, HTMLCanvasElement> = {};
+function drawWordmark(ctx: CanvasRenderingContext2D, colour: string, x: number, y: number, w: number) {
+  const h = w * (44 / 208);
+  if (!wordmark) {
+    ctx.fillStyle = colour;
+    ctx.font = `700 ${h * 1.1}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('brewns', x + w / 2, y + h * 0.85);
+    ctx.textAlign = 'left';
+    return;
+  }
+  let mark = tinted[colour];
+  if (!mark) {
+    mark = tinted[colour] = document.createElement('canvas');
+    mark.width = wordmark.naturalWidth * 4;
+    mark.height = wordmark.naturalHeight * 4;
+    const m = mark.getContext('2d')!;
+    m.imageSmoothingQuality = 'high';
+    m.drawImage(wordmark, 0, 0, mark.width, mark.height);
+    m.globalCompositeOperation = 'source-in';
+    m.fillStyle = colour;
+    m.fillRect(0, 0, mark.width, mark.height);
+  }
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(mark, x, y, w, h);
 }
 
-function paintBagLabel(ctx: CanvasRenderingContext2D, image: any, label: BagLabel) {
-  const k = image.width / 2048;
-  ctx.drawImage(image, 0, 0);
-  for (const dx of BAG_FACE_OFFSETS) {
-    printPatch(ctx, k, true, [dx + 40, 470, 720, 270], [dx + 60, 470], () => {
-      ctx.fillStyle = label.ink;
-      ctx.font = '230px Allura, cursive';
-      ctx.translate(30, 150);
-      ctx.rotate(-0.12);
-      ctx.fillText(label.script, 0, 0);
-    });
-    printPatch(ctx, k, true, [dx + 450, 222, 250, 122], [dx + 700, 300], () => {
-      ctx.fillStyle = '#1b1b1b';
-      ctx.font = `600 22px ${PRINT_FONT}`;
-      label.notes.forEach((note, i) => ctx.fillText(note, 12, 36 + i * 33));
-    });
+function text(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, colour: string, size: number, spacing = 0, align: CanvasTextAlign = 'left') {
+  ctx.fillStyle = colour;
+  ctx.font = `400 ${size}px ${MONO}`;
+  ctx.letterSpacing = `${spacing}px`;
+  ctx.textAlign = align;
+  ctx.fillText(s, x, y);
+  ctx.letterSpacing = '0px';
+  ctx.textAlign = 'left';
+}
+
+function rule(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, colour: string, width = 2) {
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+}
+
+function drawBagFace(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, size: string) {
+  text(ctx, 'ROAST DATE', 125, 112, p.dim, 24, 2);
+  text(ctx, '12/05/24', 660, 112, p.cream, 28, 2, 'right');
+  rule(ctx, 125, 142, 660, 142, p.gold);
+
+  drawWordmark(ctx, p.gold, 150, 360, 470);
+  text(ctx, 'COFFEE HOUSE', 385, 530, p.cream, 32, 12, 'center');
+  rule(ctx, 345, 572, 425, 572, p.gold, 3);
+
+  ctx.save();
+  ctx.fillStyle = p.gold;
+  ctx.font = `${label.script.length > 1 ? 200 : 220}px Allura, cursive`;
+  ctx.rotate(-0.1);
+  if (label.script.length > 1) {
+    ctx.fillText(label.script[0], 60, 730);
+    ctx.fillText(label.script[1], 200, 845);
+  } else ctx.fillText(label.script[0], 30, 810);
+  ctx.restore();
+
+  label.about.forEach((line, i) => text(ctx, line, 122, 925 + i * 34, p.dim, 21));
+  text(ctx, 'FLAVOR NOTES', 460, 925, p.gold, 21, 1);
+  rule(ctx, 460, 942, 675, 942, p.gold);
+  label.notes.forEach((note, i) => text(ctx, note, 460, 985 + i * 34, p.cream, 21));
+
+  rule(ctx, 120, 1110, 675, 1110, p.gold);
+  rule(ctx, 240, 1132, 240, 1200, p.gold);
+  rule(ctx, 445, 1132, 445, 1200, p.gold);
+  text(ctx, size, 132, 1175, p.cream, 22);
+  text(ctx, 'WHOLE BEAN', 258, 1175, p.cream, 22);
+  text(ctx, 'ROASTED IN', 465, 1160, p.cream, 22);
+  text(ctx, 'COPENHAGEN', 465, 1192, p.cream, 22);
+}
+
+function paintBag(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, sel: Record<string, number>) {
+  const k = ctx.canvas.width / 2048;
+  ctx.fillStyle = p.ground;
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const size = label.size || BAG_SIZES[sel.size ?? 0];
+  for (const dx of [0, 786]) {
+    ctx.save();
+    ctx.scale(k, k);
+    ctx.translate(dx, 1300);
+    ctx.scale(1, -1);
+    drawBagFace(ctx, p, label, size);
+    ctx.restore();
   }
 }
 
-function paintCupLabel(ctx: CanvasRenderingContext2D, image: any, label: CupLabel, sel: Record<string, number>) {
-  const k = image.width / 1536;
-  ctx.drawImage(image, 0, 0);
-  printPatch(ctx, k, false, [80, 445, 290, 80], [380, 480], () => {
-    ctx.fillStyle = '#1e1e1e';
-    ctx.font = `400 25px ${PRINT_FONT}`;
-    ctx.letterSpacing = '1px';
-    label.lines.forEach((line, i) => ctx.fillText(line, 7, 32 + i * 31));
-  });
-  printPatch(ctx, k, false, [80, 582, 128, 42], [150, 650], () => {
-    ctx.fillStyle = '#1e1e1e';
-    ctx.font = `400 23px ${PRINT_FONT}`;
-    ctx.letterSpacing = '1px';
-    ctx.fillText(label.option(sel), 10, 31);
-  });
+function paintCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLabel, sel: Record<string, number>) {
+  const k = ctx.canvas.width / 1536;
+  ctx.fillStyle = p.ground;
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.save();
+  ctx.scale(k, k);
+  drawWordmark(ctx, p.gold, 72, 236, 296);
+  text(ctx, 'COFFEE HOUSE', 220, 345, p.cream, 21, 7, 'center');
+  rule(ctx, 86, 428, 356, 428, p.gold);
+  label.lines.forEach((line, i) => text(ctx, line, 88, 475 + i * 31, p.cream, 21));
+  rule(ctx, 86, 550, 356, 550, p.gold);
+  rule(ctx, 214, 574, 214, 640, p.gold);
+  text(ctx, label.option(sel), 94, 614, p.cream, 21);
+  text(ctx, 'BREWED', 250, 600, p.dim, 19);
+  text(ctx, 'DAILY', 250, 628, p.dim, 19);
+  ctx.restore();
 }
 
 /**
- * Dresses a packaging piece for a product. Materials are cloned, so the shared
- * asset is left untouched. `ready` settles once the script face has loaded and
- * the print is final; `update` reprints the parts that follow the options.
+ * Dresses a packaging piece (or a whole scene holding the bag and cup) in the
+ * dark edition, labelled for a product. Materials are cloned, so the loaded
+ * asset is left untouched. `ready` settles once the wordmark and faces have
+ * loaded and the print is final; `update` reprints what follows the options.
  */
 export function dressPackaging(
   T: typeof THREE,
@@ -1417,49 +1525,57 @@ export function dressPackaging(
   initialSel: Record<string, number> = {},
 ): { ready: Promise<void>; update: (sel: Record<string, number>) => void; dispose: () => void } {
   const labels = (productId && PACKAGING_LABELS[productId]) || {};
+  const bagLabel = labels.bag ?? HOUSE_BAG;
+  const cupLabel = labels.cup ?? HOUSE_CUP;
   const owned: any[] = [];
   let sel = initialSel;
   piece.traverse((node: any) => {
     if (!node.isMesh || !node.material?.map) return;
     const source = node.material.map;
-    const image = source.image;
-    const paintFor =
-      image?.width === 1536 && labels.cup
-        ? (ctx: CanvasRenderingContext2D) => paintCupLabel(ctx, image, labels.cup!, sel)
-        : image?.width >= 2048 && labels.bag
-          ? (ctx: CanvasRenderingContext2D) => paintBagLabel(ctx, image, labels.bag!)
+    const width = source.image?.width;
+    const paint =
+      width === 1536
+        ? (ctx: CanvasRenderingContext2D, p: Palette) => paintCup(ctx, p, cupLabel, sel)
+        : width >= 2048
+          ? (ctx: CanvasRenderingContext2D, p: Palette) => paintBag(ctx, p, bagLabel, sel)
           : null;
-    if (!paintFor) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = image.width;
-    canvas.height = image.height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
-    const map = source.clone();
-    map.source = new (T.TextureSource ?? T.Source)(canvas);
-    const paint = () => {
-      paintFor(ctx);
-      map.needsUpdate = true;
+    if (!paint) return;
+    const layer = (palette: Palette) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = source.image.width;
+      canvas.height = source.image.height;
+      const ctx = canvas.getContext('2d')!;
+      const tex = source.clone();
+      tex.source = new (T.TextureSource ?? T.Source)(canvas);
+      return { tex, draw: () => { paint(ctx, palette); tex.needsUpdate = true; } };
     };
-    paint();
+    const colour = layer(INK);
+    const surface = layer(SURFACE);
+    surface.tex.colorSpace = T.NoColorSpace;
+    const repaint = () => {
+      colour.draw();
+      surface.draw();
+    };
+    repaint();
     const material = node.material.clone();
-    material.map = map;
+    material.map = colour.tex;
+    material.roughnessMap = surface.tex;
+    material.metalnessMap = surface.tex;
+    material.roughness = 1;
+    material.metalness = 1;
     node.material = material;
-    owned.push({ map, material, paint });
+    owned.push({ material, repaint, textures: [colour.tex, surface.tex] });
   });
-  const ready = !labels.bag
-    ? Promise.resolve()
-    : (document.fonts?.load('230px Allura') ?? Promise.resolve()).catch(() => {}).then(() => owned.forEach((o) => o.paint()));
+  const ready = loadPrint().then(() => owned.forEach((o) => o.repaint()));
   return {
     ready,
     update(next) {
-      if (!labels.cup) return;
       sel = next;
-      owned.forEach((o) => o.paint());
+      owned.forEach((o) => o.repaint());
     },
     dispose() {
       owned.forEach((o) => {
-        o.map.dispose();
+        o.textures.forEach((t: any) => t.dispose());
         o.material.dispose();
       });
     },
