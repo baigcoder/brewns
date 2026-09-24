@@ -161,6 +161,8 @@
 .inside-tile { position: relative; margin: 0; overflow: hidden; border-radius: 6px; background: #1a130e; }
 .inside-tile.big { grid-column: span 2; grid-row: span 2; }
 .inside-tile.wide { grid-column: span 2; }
+/* a second big square beside the front once the grid has four columns */
+@media (min-width: 800px) { .inside-tile.tall { grid-row: span 2; } }
 @media (max-width: 799.98px) { .inside-tile.big { grid-row: span 2; } }
 .inside-open { display: block; width: 100%; height: 100%; cursor: zoom-in; }
 .inside-tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 900ms var(--ease-entrance), filter 600ms; }
