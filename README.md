@@ -123,9 +123,11 @@ you can see straight through it.
 - **TypeScript 7 and 6 are installed side by side.** TypeScript 7 has no
   programmatic API yet (planned for 7.1), and `typescript-eslint` needs one. So,
   [as the TypeScript team recommends](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/),
-  `typescript` is an npm alias for the 6.0 compatibility build and 7 is installed
-  as `@typescript/native`. `tsc` is 7; `tsc6` is 6. Remove the alias once
-  `typescript-eslint` supports 7.
+  `typescript` is 6.0 and 7 is installed as `@typescript/native`. Both ship a
+  `tsc` binary, so `bun run typecheck` calls 7 by path. (`typescript` used to be
+  the `@typescript/typescript6` compatibility build, but Bun resolves that
+  package's own `typescript@6` dependency back to itself, leaving an empty
+  module that crashes ESLint.) Drop 6 once `typescript-eslint` supports 7.
 - **ESLint is pinned to 9.** `eslint-plugin-react`, which `eslint-config-next`
   includes, doesn't work with ESLint 10 yet.
 - **`initBrewns.ts` and `pdp3dEngine.ts` are `// @ts-nocheck`,** so the compiler

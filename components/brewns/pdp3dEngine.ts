@@ -1336,72 +1336,109 @@ export function extractPackagingPiece(T: typeof THREE, gltf: any, kind: string):
 export const PACKAGING_POSE: Record<string, number> = { bag: -0.42, cup: Math.PI + 1.2 };
 
 /**
- * Beans other than the house roast wear the same bag with their own name and
- * flavour notes. The bag's print is a baked texture (both faces side by side,
- * stored upside down), so the label is repainted over the "slow roast" script
- * and the notes list; everything else on the bag stays as printed.
+ * Each product wears the shared bag or cup with its own print. The print is a
+ * baked texture, so the product's lines are repainted over the generic ones and
+ * everything else stays as printed.
+ *
+ * Bag atlas (2048px): both faces side by side, stored upside down. The "slow
+ * roast" script and the flavour notes are repainted.
+ * Cup atlas (1536px): upright. "GOOD COFFEE / GOOD MOOD" becomes the drink's
+ * name and tagline, and "250 ML" follows the selected option.
  */
-const BAG_LABELS: Record<string, { script: string; ink: string; notes: string[] }> = {
-  'single-origin': { script: 'ethiopia', ink: '#8a5a2b', notes: ['JASMINE', 'BERGAMOT', 'WHITE PEACH'] },
+type BagLabel = { script: string; ink: string; notes: string[] };
+type CupLabel = { lines: [string, string]; option: (sel: Record<string, number>) => string };
+const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
+  'single-origin': { bag: { script: 'ethiopia', ink: '#8a5a2b', notes: ['JASMINE', 'BERGAMOT', 'WHITE PEACH'] } },
+  latte: { cup: { lines: ['LATTE', 'SMOOTH. BALANCED.'], option: (sel) => ['8 OZ', '12 OZ', '16 OZ'][sel.size ?? 1] } },
+  espresso: { cup: { lines: ['ESPRESSO', 'SHORT. STRONG.'], option: (sel) => (sel.shots === 1 ? 'DOUBLE' : 'SINGLE') } },
 };
 const BAG_FACE_OFFSETS = [0, 786]; // x of each face in the 2048px atlas
+const PRINT_FONT = '"Arial Narrow", "Liberation Sans Narrow", Arial, sans-serif';
 
-function paintBagLabel(ctx: CanvasRenderingContext2D, image: any, label: { script: string; ink: string; notes: string[] }) {
+// Covers a patch of the atlas in paper colour and draws into it in upright local
+// coordinates (flipped for the upside-down bag atlas). Units are atlas pixels at
+// the atlas's authored width, scaled by `k` to the image actually loaded.
+function printPatch(ctx: CanvasRenderingContext2D, k: number, flip: boolean, [x, y, w, h]: number[], paperAt: number[], draw: () => void) {
+  const d = ctx.getImageData(paperAt[0] * k, paperAt[1] * k, 1, 1).data;
+  ctx.save();
+  ctx.translate(x * k, (flip ? y + h : y) * k);
+  ctx.scale(k, flip ? -k : k);
+  ctx.fillStyle = `rgb(${d[0]},${d[1]},${d[2]})`;
+  ctx.fillRect(0, 0, w, h);
+  draw();
+  ctx.restore();
+}
+
+function paintBagLabel(ctx: CanvasRenderingContext2D, image: any, label: BagLabel) {
   const k = image.width / 2048;
   ctx.drawImage(image, 0, 0);
-  const paperAt = (x: number, y: number) => {
-    const d = ctx.getImageData(x * k, y * k, 1, 1).data;
-    return `rgb(${d[0]},${d[1]},${d[2]})`;
-  };
-  // Draws in upright local coordinates into a patch of the upside-down atlas.
-  const patch = (x: number, y: number, w: number, h: number, fill: string, draw: () => void) => {
-    ctx.save();
-    ctx.translate(x * k, (y + h) * k);
-    ctx.scale(k, -k);
-    ctx.fillStyle = fill;
-    ctx.fillRect(0, 0, w, h);
-    draw();
-    ctx.restore();
-  };
   for (const dx of BAG_FACE_OFFSETS) {
-    patch(dx + 40, 470, 720, 270, paperAt(dx + 60, 470), () => {
+    printPatch(ctx, k, true, [dx + 40, 470, 720, 270], [dx + 60, 470], () => {
       ctx.fillStyle = label.ink;
       ctx.font = '230px Allura, cursive';
       ctx.translate(30, 150);
       ctx.rotate(-0.12);
       ctx.fillText(label.script, 0, 0);
     });
-    patch(dx + 450, 222, 250, 122, paperAt(dx + 700, 300), () => {
+    printPatch(ctx, k, true, [dx + 450, 222, 250, 122], [dx + 700, 300], () => {
       ctx.fillStyle = '#1b1b1b';
-      ctx.font = '600 22px "Arial Narrow", "Liberation Sans Narrow", Arial, sans-serif';
+      ctx.font = `600 22px ${PRINT_FONT}`;
       label.notes.forEach((note, i) => ctx.fillText(note, 12, 36 + i * 33));
     });
   }
 }
 
+function paintCupLabel(ctx: CanvasRenderingContext2D, image: any, label: CupLabel, sel: Record<string, number>) {
+  const k = image.width / 1536;
+  ctx.drawImage(image, 0, 0);
+  printPatch(ctx, k, false, [80, 445, 290, 80], [380, 480], () => {
+    ctx.fillStyle = '#1e1e1e';
+    ctx.font = `400 25px ${PRINT_FONT}`;
+    ctx.letterSpacing = '1px';
+    label.lines.forEach((line, i) => ctx.fillText(line, 7, 32 + i * 31));
+  });
+  printPatch(ctx, k, false, [80, 582, 128, 42], [150, 650], () => {
+    ctx.fillStyle = '#1e1e1e';
+    ctx.font = `400 23px ${PRINT_FONT}`;
+    ctx.letterSpacing = '1px';
+    ctx.fillText(label.option(sel), 10, 31);
+  });
+}
+
 /**
- * Dresses a packaging piece for a product: relabels the bag when the product has
- * its own label. Materials are cloned, so the shared asset is left untouched.
- * `ready` settles once the script face has loaded and the label is final.
+ * Dresses a packaging piece for a product. Materials are cloned, so the shared
+ * asset is left untouched. `ready` settles once the script face has loaded and
+ * the print is final; `update` reprints the parts that follow the options.
  */
-export function dressPackaging(T: typeof THREE, piece: THREE.Object3D, productId?: string): { ready: Promise<void>; dispose: () => void } {
-  const label = productId && BAG_LABELS[productId];
+export function dressPackaging(
+  T: typeof THREE,
+  piece: THREE.Object3D,
+  productId?: string,
+  initialSel: Record<string, number> = {},
+): { ready: Promise<void>; update: (sel: Record<string, number>) => void; dispose: () => void } {
+  const labels = (productId && PACKAGING_LABELS[productId]) || {};
   const owned: any[] = [];
-  if (!label) return { ready: Promise.resolve(), dispose() {} };
+  let sel = initialSel;
   piece.traverse((node: any) => {
     if (!node.isMesh || !node.material?.map) return;
     const source = node.material.map;
     const image = source.image;
-    if (!image?.width || image.width < 2048) return; // only the bag's printed atlas
+    const paintFor =
+      image?.width === 1536 && labels.cup
+        ? (ctx: CanvasRenderingContext2D) => paintCupLabel(ctx, image, labels.cup!, sel)
+        : image?.width >= 2048 && labels.bag
+          ? (ctx: CanvasRenderingContext2D) => paintBagLabel(ctx, image, labels.bag!)
+          : null;
+    if (!paintFor) return;
     const canvas = document.createElement('canvas');
     canvas.width = image.width;
     canvas.height = image.height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
     const map = source.clone();
-    map.source = new T.Source(canvas);
+    map.source = new (T.TextureSource ?? T.Source)(canvas);
     const paint = () => {
-      paintBagLabel(ctx, image, label);
+      paintFor(ctx);
       map.needsUpdate = true;
     };
     paint();
@@ -1410,11 +1447,16 @@ export function dressPackaging(T: typeof THREE, piece: THREE.Object3D, productId
     node.material = material;
     owned.push({ map, material, paint });
   });
-  const ready = (document.fonts?.load('230px Allura') ?? Promise.resolve())
-    .catch(() => {})
-    .then(() => owned.forEach((o) => o.paint()));
+  const ready = !labels.bag
+    ? Promise.resolve()
+    : (document.fonts?.load('230px Allura') ?? Promise.resolve()).catch(() => {}).then(() => owned.forEach((o) => o.paint()));
   return {
     ready,
+    update(next) {
+      if (!labels.cup) return;
+      sel = next;
+      owned.forEach((o) => o.paint());
+    },
     dispose() {
       owned.forEach((o) => {
         o.map.dispose();
@@ -1442,7 +1484,7 @@ export function createPackagingModel(T: typeof THREE, gltf: any, kind: string, p
   if (beans) group.add(beans.group);
 
   const piece = extractPackagingPiece(T, gltf, kind);
-  const dress = dressPackaging(T, piece, productId);
+  const dress = dressPackaging(T, piece, productId, initialSel);
   const unit = new T.Group();
   unit.add(piece);
   unit.rotation.y = PACKAGING_POSE[kind] ?? 0;
@@ -1455,6 +1497,7 @@ export function createPackagingModel(T: typeof THREE, gltf: any, kind: string, p
     const s = base * (sel?.size !== undefined ? sizeScales[sel.size] || 1 : 1);
     unit.scale.setScalar(s);
     unit.position.y = 0.5 * (s - 1); // keep the base on the counter
+    if (sel) dress.update(sel);
   };
   applyVariant(initialSel);
 
