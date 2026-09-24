@@ -2704,3 +2704,27 @@ nextjs-portal,
 .sp-row small { display: block; font-size: 0.78rem; color: rgb(255 255 255 / 0.5); }
 .sp-row:disabled { opacity: 0.4; }
 .sp-foot { color: rgb(255 255 255 / 0.35); }
+
+/* ── Product page on phones: a compact buy bar that doesn't cover the content ──
+   The full bar (total + three controls on two rows) was taller than the space
+   under the 3D view, so it sat on the name and price. Below 640px it becomes
+   one solid row, the total moves into its own thin line, and the view is a
+   little shorter. */
+@media (max-width: 639.98px) {
+  .pdp-media { height: 48svh; min-height: 18rem; }
+  .pdp-actions {
+    flex-wrap: nowrap; align-items: stretch; gap: 0.4rem; padding: 0.6rem 1.25rem calc(0.6rem + env(safe-area-inset-bottom));
+    background: #070707; border-top: 1px solid rgb(255 255 255 / 0.12); box-shadow: 0 -1rem 1.5rem rgb(7 7 7 / 0.9);
+  }
+  .pdp-info > .pdp-actions { opacity: 1 !important; transform: none !important; }
+  .pdp-actions .pdp-total { display: none; }
+  .pdp-actions .qty { flex: 0 0 auto; }
+  .pdp-actions .qty button { width: 2.2rem; }
+  .pdp-actions .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding: 0.85rem 0.5rem; font-size: 0.78rem; letter-spacing: 0; white-space: nowrap; }
+  .pdp-actions .btn .lbl-long { display: none; }
+  .pdp-actions .btn svg { display: none; }
+  .pdp-actions #pdp-add span[aria-hidden] { display: none; }
+  .pdp-total-line { display: flex; justify-content: space-between; margin-top: -0.75rem; color: rgb(255 255 255 / 0.55); }
+  .pdp-total-line b { color: #fff; font-weight: 400; }
+}
+@media (min-width: 640px) { .pdp-total-line { display: none; } }
