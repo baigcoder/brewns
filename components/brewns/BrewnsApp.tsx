@@ -5,11 +5,12 @@ import { BREWNS_MARKUP } from './brewnsMarkup';
 import { initBrewns } from './initBrewns';
 
 /**
- * Development only: if the later sections' styles are missing, or the engine
- * failed to start, say so on the page with what the browser actually loaded,
- * so a screenshot shows the cause. Never runs in production.
+ * On a local server only (localhost): if the later sections' styles are
+ * missing, or the engine failed to start, say so on the page with what the
+ * browser actually loaded and which commit the server runs, so a screenshot
+ * shows the cause. Never shows on the real site.
  */
-function devHealthCheck(initError: unknown) {
+function devHealthCheck(initError: unknown, build = '') {
   const grid = document.querySelector('.inside-grid');
   const styled = !grid || getComputedStyle(grid).display === 'grid';
   if (styled && !initError) return;
@@ -30,6 +31,7 @@ function devHealthCheck(initError: unknown) {
     'position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483647;padding:12px 14px;background:#fff3cd;color:#3d2c00;border:2px solid #d8b777;font:12px/1.5 monospace;white-space:pre-wrap;';
   box.textContent = [
     'brewns dev check: screenshot this and send it to Claude',
+    `server commit: ${build || 'unknown'}`,
     initError ? `engine failed to start: ${String((initError as Error)?.stack || initError).slice(0, 300)}` : 'engine: started',
     `later-section styles: ${styled ? 'applied' : 'MISSING'}`,
     `browser: ${navigator.userAgent.replace(/^Mozilla\/5.0 /, '').slice(0, 120)}`,
@@ -45,7 +47,7 @@ function devHealthCheck(initError: unknown) {
   document.body.append(box);
 }
 
-export function BrewnsApp({ kitchenPhotos, cafeRecording }: { kitchenPhotos?: Record<string, string>; cafeRecording?: boolean }) {
+export function BrewnsApp({ kitchenPhotos, cafeRecording, build }: { kitchenPhotos?: Record<string, string>; cafeRecording?: boolean; build?: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -62,7 +64,9 @@ export function BrewnsApp({ kitchenPhotos, cafeRecording }: { kitchenPhotos?: Re
         console.error('Failed to init Brewns engine:', err);
       }
     }, 50);
-    const check = process.env.NODE_ENV === 'development' ? setTimeout(() => devHealthCheck(initError), 4000) : 0;
+    const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    const check = local ? setTimeout(() => devHealthCheck(initError, build), 4000) : 0;
+    if (local) console.info(`brewns: server commit ${build || 'unknown'}`);
 
     return () => {
       clearTimeout(timer);

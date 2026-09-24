@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { BrewnsApp } from '@/components/brewns/BrewnsApp';
 
@@ -14,7 +14,18 @@ function kitchenPhotos() {
   }
 }
 
+/** The commit this server is running, shown by the local health check. */
+function build() {
+  try {
+    const head = readFileSync(path.join(process.cwd(), '.git/HEAD'), 'utf8').trim();
+    const sha = head.startsWith('ref: ') ? readFileSync(path.join(process.cwd(), '.git', head.slice(5)), 'utf8') : head;
+    return sha.trim().slice(0, 7);
+  } catch {
+    return '';
+  }
+}
+
 export default function Home() {
   const cafeRecording = existsSync(path.join(process.cwd(), 'public/assets/sound/cafe.mp3'));
-  return <BrewnsApp kitchenPhotos={kitchenPhotos()} cafeRecording={cafeRecording} />;
+  return <BrewnsApp kitchenPhotos={kitchenPhotos()} cafeRecording={cafeRecording} build={build()} />;
 }
