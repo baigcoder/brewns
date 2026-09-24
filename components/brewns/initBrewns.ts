@@ -808,6 +808,20 @@ $$(".lean").forEach((outer) => lean(outer.firstElementChild, outer));
    footer's clip, so it is triggered by its band, which is always in place. */
 inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C(36, 26), delay: 120, trigger: $(".ftr-brand") });
 
+/* The ambassador's polaroid shows her photo once public/assets/hania/hania.jpg
+   exists; until then (or if it fails) the initials stand in. */
+{
+  const photo = $(".hania-photo");
+  if (photo) {
+    const show = () => photo.closest(".hania-shot").classList.add("has-photo");
+    if (photo.complete && photo.naturalWidth) show();
+    else {
+      photo.addEventListener("load", show, { once: true });
+      photo.addEventListener("error", () => photo.remove(), { once: true });
+    }
+  }
+}
+
 /* ═══════════ header ═══════════ */
 const header = $("#hdr");
 const themed = $$("[data-header-theme]");
