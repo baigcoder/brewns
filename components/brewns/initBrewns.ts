@@ -21,6 +21,7 @@ import {
   playMessage,
   printerFeed,
   printerCut,
+  setCafeRecording,
   setSound,
   getSoundSettings,
   onSoundChange,
@@ -29,12 +30,12 @@ import {
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
-import { createRiderMap } from './riderMap3D';
 import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 
 
-export function initBrewns(container: HTMLElement = document.body) {
+export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
+  if (cafeRecording !== null) setCafeRecording(cafeRecording);
   if (typeof window === 'undefined') return () => {};
 
 
@@ -871,16 +872,20 @@ const KITCHEN = [
     desc: "Fresh lime over soda, sweet, salted or half-and-half, the way it's done across Lahore.",
     options: [{ key: "style", label: "STYLE", choices: [["SWEET", 0], ["SALTED", 0], ["MIXED", 0]] }],
     details: [["LIME", "FRESH-SQUEEZED"], ["SODA", "CHILLED"], ["STYLE", "YOUR CALL"]] },
-].map((k) => ({
-  ...k,
-  cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
-  // A real photo at public/assets/kitchen/<id>.jpg wins; until one is there the
-  // drawn dish stands in (see the error handler below).
-  photo: `kitchen/${k.id}.jpg`,
-  art: foodArt(k.art[0], k.art[1]),
-  alt: `The brewns ${k.name.toLowerCase()}`,
-  care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
-}));
+].map((k) => {
+  const art = foodArt(k.art[0], k.art[1]);
+  return {
+    ...k,
+    cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
+    // A real photo in public/assets/kitchen/ wins; until one is there the drawn
+    // dish stands in. The server lists the photos that exist, so a missing one is
+    // never requested; without that list, try <id>.jpg and fall back on error.
+    photo: kitchenPhotos ? (kitchenPhotos[k.id] ? `kitchen/${kitchenPhotos[k.id]}` : art) : `kitchen/${k.id}.jpg`,
+    art,
+    alt: `The brewns ${k.name.toLowerCase()}`,
+    care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
+  };
+});
 const rs = (n) => `Rs ${n.toLocaleString("en-US")}`;
 const KITCHEN_ART = Object.fromEntries(KITCHEN.map((k) => [k.id, k.art]));
 document.addEventListener(
@@ -888,7 +893,7 @@ document.addEventListener(
   (e) => {
     const img = e.target;
     if (img?.tagName !== "IMG" || img.dataset.artFallback) return;
-    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)\.jpg/)?.[1];
+    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)\.\w+$/)?.[1];
     if (!id || !KITCHEN_ART[id]) return;
     img.dataset.artFallback = "1";
     img.src = KITCHEN_ART[id];
@@ -1180,8 +1185,9 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
   setTimeout(done, MAX_WAIT + 2000);
 })();
 
-/* specks for the GPU warm-up */
-$("#warm-specks").innerHTML = [50, 95]
+/* specks for the GPU warm-up; they live in the preloader, which reduced motion removes */
+const warmSpecks = $("#warm-specks");
+if (warmSpecks) warmSpecks.innerHTML = [50, 95]
   .flatMap((fill) => [
     `<span class="swirl-fill" style="display:block;width:8px;height:8px;--fill:${fill};-webkit-mask-image:${blobMask("ltr")};mask-image:${blobMask("ltr")}"></span>`,
     `<span class="swirl-fill" style="display:block;width:8px;height:8px;transform:scale(.95);--fill:${fill};-webkit-mask-image:${blobMask("ltr")};mask-image:${blobMask("ltr")}"></span>`,
@@ -3139,18 +3145,29 @@ const thumbHTML = (p) =>
       ? `<span class="thumb${p.art ? " shot" : ""}"><img src="${photoSrc(p.photo)}" alt="" loading="lazy"></span>`
       : `<span class="thumb dark"><img data-snap="${p.model}" data-snap-product="${p.id}" alt=""></span>`;
 /* Model-only products have no photograph: their pictures are rendered from the
-   same .glb once three.js is up (asynchronously, so every part of the module exists). */
+   same .glb. `bun run snapshots` renders them once into shop/snap/, so a visitor's
+   phone just loads an image; if one is missing (or with ?live-snaps, which is how
+   the script renders them) the page renders it here once three.js is up. */
+const SNAP_VERSION = "1";
+const LIVE_SNAPS = new URLSearchParams(location.search).has("live-snaps");
 const fillSnaps = (rootEl) =>
   $$("img[data-snap]", rootEl).forEach((img) => {
     const { snap: kind, snapProduct } = img.dataset;
     img.removeAttribute("data-snap");
-    threeReady
-      .then(() => getSnapshot(kind, snapProduct))
-      .then((url) => {
-        img.src = url;
-        img.parentElement.querySelector(".pcard-loading")?.remove();
-      })
-      .catch((error) => console.error("snapshot", error));
+    img.dataset.snapKey = `${kind}-${snapProduct}`;
+    const done = () => img.parentElement?.querySelector(".pcard-loading")?.remove();
+    const live = () =>
+      threeReady
+        .then(() => getSnapshot(kind, snapProduct))
+        .then((url) => {
+          img.src = url;
+          done();
+        })
+        .catch((error) => console.error("snapshot", error));
+    if (LIVE_SNAPS) return live();
+    img.addEventListener("load", done, { once: true });
+    img.addEventListener("error", live, { once: true });
+    img.src = `${ASSET_BASE_URL}shop/snap/${kind}-${snapProduct}.webp?v=${SNAP_VERSION}`;
   });
 
 /* ═══════════ the grid ═══════════ */
@@ -4931,9 +4948,21 @@ function renderDone() {
   co.trk = { send, openChat, openReceipt };
 
   const mapEl = $("#trk-map3d", coEl);
-  const map = mapEl ? createRiderMap(THREE, mapEl, o.number * 7919, r.first.toUpperCase()) : null;
-  if (map) coCleanups.push(() => map.destroy());
-  else mapEl?.classList.add("no-3d");
+  // the 3D map (and its bloom) loads only once someone is tracking a delivery
+  let map = null, mapGone = false, mapState = null;
+  if (mapEl)
+    import("./riderMap3D")
+      .then(({ createRiderMap }) => {
+        if (mapGone) return;
+        map = createRiderMap(THREE, mapEl, o.number * 7919, r.first.toUpperCase());
+        if (!map) mapEl.classList.add("no-3d");
+        else if (mapState) map.update(...mapState);
+      })
+      .catch(() => mapEl.classList.add("no-3d"));
+  coCleanups.push(() => {
+    mapGone = true;
+    map?.destroy();
+  });
   const tickRing = () => {
     const now = Date.now();
     const t = orderNow(o, now);
@@ -4968,7 +4997,8 @@ function renderDone() {
       const onway = stages.findIndex((s) => s.key === "onway");
       const prog = riderProgress(o, stages, now);
       const riding = !o.cancelled && i >= onway && key !== "delivered";
-      map?.update(prog, { riding, show: !o.cancelled && i >= riderStage });
+      mapState = [prog, { riding, show: !o.cancelled && i >= riderStage }];
+      map?.update(...mapState);
       const km = DELIVERY.areas[o.area][4] * (1 - prog);
       // speed in Lahore traffic: 18–32 km/h, easing off near the door
       const speed = riding ? Math.round((22 + 7 * Math.sin(now / 5300) + 3 * Math.sin(now / 1700)) * (prog > 0.9 ? 0.5 : 1)) : 0;

@@ -196,7 +196,13 @@ function start() {
 }
 
 /* ── a real recording, if one has been added ── */
+// The server says whether the file exists; unknown (null) means ask it.
+let recordingAvailable: boolean | null = null;
+export function setCafeRecording(available: boolean) {
+  recordingAvailable = available;
+}
 async function tryRecording() {
+  if (recordingAvailable === false) return false;
   try {
     const res = await fetch('/assets/sound/cafe.mp3', { method: 'HEAD' });
     if (!res.ok || !(res.headers.get('content-type') || '').includes('audio')) return false;

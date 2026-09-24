@@ -1,6 +1,8 @@
-Real photos for the kitchen menu. Save each as a JPG with exactly these names
-(square or 4:5, about 1000 px, dish centred on a plain or softly blurred
-background). Any dish without a photo shows its drawn illustration instead.
+Real photos for the kitchen menu. Save each with exactly these names, as
+.jpg, .png or .webp (square or 4:5, about 1000 px, dish centred on a plain or
+softly blurred background). Any dish without a photo shows its drawn
+illustration instead. The site picks up new photos on the next page load in
+development, or the next build in production.
 
 - `smash-burger.jpg`
 - `zinger-burger.jpg`
