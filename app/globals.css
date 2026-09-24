@@ -1136,6 +1136,40 @@ address { font-style: normal; }
 }
 @keyframes ftr-sheen { 0%, 55% { background-position: 120% 0, 0 0; } 100% { background-position: -20% 0, 0 0; } }
 @media (prefers-reduced-motion: reduce) { .ftr-ribbon-track, .ftr-giant { animation: none; } }
+
+/* ── Footer finish: one gold thread through the whole footer ── */
+.ftr-logo { color: var(--pack-gold); }
+.ftr-col > p, .ftr-contact > p { color: var(--pack-gold); letter-spacing: 0.14em; }
+.ftr-list a:hover, .ftr .dim-link:hover { color: #f3e6cc; }
+.ftr-rule { background: linear-gradient(90deg, rgb(216 183 119 / 0.5), rgb(216 183 119 / 0.14) 55%, rgb(216 183 119 / 0.04)); }
+.ftr-vr { background: rgb(216 183 119 / 0.5); }
+.ftr-locs { color: var(--pack-gold); }
+.ftr-locs .dot, .ftr-open .dot { background: var(--pack-gold); }
+.ftr-open { padding: 0.3rem 0.75rem; border: 1px solid rgb(216 183 119 / 0.45); border-radius: 999px; color: var(--pack-gold); }
+.ftr-open.shut { border-color: rgb(255 255 255 / 0.2); color: rgb(255 255 255 / 0.6); }
+.ftr-addr.h > span + span { display: block; margin-top: 0.5rem; }
+.ftr-order {
+  margin-top: 0.75rem; padding: 0.75rem 1.15rem; border: 1px solid var(--pack-gold); color: var(--pack-gold);
+  transition: background 200ms ease, color 200ms ease;
+}
+.ftr-order:hover { opacity: 1; background: var(--pack-gold); color: #0a0807; }
+.ftr-order { align-self: flex-start; }
+.ftr-order .dot { display: none; }
+.ftr-order::after { content: "\2192"; transition: transform 200ms ease; }
+.ftr-order:hover::after { transform: translateX(0.25rem); }
+@media (min-width: 1024px) { .ftr-addr.a { white-space: nowrap; width: auto; } }
+
+/* The wordmark sits closer under the ribbon and is lit from below, so it reads
+   as metal catching light rather than a flat fill. */
+.ftr-brand { isolation: isolate; }
+@media (max-width: 1023.98px) { .ftr-brand { position: relative; } }
+.ftr-brand::before {
+  content: ""; position: absolute; z-index: -1; left: 5%; right: 5%; bottom: -25%; height: 110%; pointer-events: none;
+  background: radial-gradient(50% 55% at 50% 100%, rgb(214 150 72 / 0.32), rgb(214 150 72 / 0.08) 55%, transparent 75%);
+  filter: blur(24px);
+}
+@media (min-width: 640px) { .ftr-brand { gap: 1.5rem; } }
+@media (min-width: 1024px) { .ftr { height: calc(var(--size-footer-height) + 5rem + var(--ftr-giant-h) * 0.8); } }
 @media (min-width: 640px) { .ftr-legal { flex-direction: row; align-items: baseline; justify-content: space-between; } }
 @media (min-width: 1024px) { .ftr-legal { display: contents; } }
 .ftr-legal > * { white-space: nowrap; }
