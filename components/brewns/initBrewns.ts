@@ -99,7 +99,7 @@ soundPanel.className = "sound-panel";
 soundPanel.hidden = true;
 soundPanel.setAttribute("role", "dialog");
 soundPanel.setAttribute("aria-label", "Sound");
-const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", story: "Slow afternoon", hania: "Cool vibes", reviews: "The regulars", order: "Tickets printing", footer: "Closing time" };
+const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", story: "Slow afternoon", hania: "Cool vibes", founder: "Meet the founder", reviews: "The regulars", order: "Tickets printing", footer: "Closing time" };
 let sceneName = "hero";
 const renderSoundPanel = () => {
   const st = getSoundSettings();
@@ -123,7 +123,11 @@ const updateSoundUI = () => {
 const placeSoundPanel = () => {
   const r = soundBtn.getBoundingClientRect();
   soundPanel.style.top = `${r.bottom + 12}px`;
-  soundPanel.style.right = `${Math.max(12, window.innerWidth - r.right - 60)}px`;
+  // Line the panel up under the button, but never past either edge.
+  const w = Math.min(320, window.innerWidth - 24);
+  const left = Math.min(Math.max(12, r.right - w), window.innerWidth - w - 12);
+  soundPanel.style.left = `${left}px`;
+  soundPanel.style.right = "auto";
 };
 onSoundChange(updateSoundUI);
 updateSoundUI();
