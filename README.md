@@ -162,14 +162,14 @@ It cuts each dish out of its background, centres it on a white 1000 px square wi
 
 ### Sharper photos
 
-The Inside brewns photos are sharpened with Real-ESRGAN (`realesr-general-x4v3`), which recovers edges and removes blur and compression artefacts. It runs on the CPU with ONNX Runtime, no PyTorch or GPU needed:
+The Inside brewns photos are sharpened with Real-ESRGAN (`realesr-general-x4v3`), which recovers edges and removes blur and compression artefacts. At full strength it makes photos look painted (smeared faces, flat patches), so the script tones it down: the model is blended with its no-denoise variant (`DENOISE`) and only part of its output (`MIX`) is laid over a plain resize of the original. It runs on the CPU with ONNX Runtime, no PyTorch or GPU needed:
 
 ```bash
 pip install onnx onnxruntime pillow numpy
 python scripts/upscale-photos.py public/assets/locations/inside
 ```
 
-Each photo gets two sizes: `<name>.webp` (1400 px, for the page) and `<name>@2x.webp` (2400 px, for big screens and the full-screen viewer); the page picks the right one with `srcset`. Originals are kept in `assets-src/`. Sharpening can't fix what isn't in the photo, such as misspelled signage in AI-made images.
+Each photo gets two sizes: `<name>.webp` (1400 px, for the page) and `<name>@2x.webp` (2400 px, for big screens and the full-screen viewer); the page picks the right one with `srcset`. Originals are kept in `assets-src/`. Sharpening can't add detail the photo doesn't have: for crisper photos, put larger originals (2400 px wide or more) in `assets-src/locations/inside/` and run the script again. It can't fix misspelled signage in AI-made images either.
 
 ### Bag and cup pictures
 
