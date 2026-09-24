@@ -838,9 +838,9 @@ $("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map(cardHTML).join("");
    on a slip, in the same mono, torn off at the bottom. What someone ordered is
    part of the review — it ties the words back to the menu two sections up. */
 const REVIEWS = [
-  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", when: "12.05", stars: 5 },
-  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", when: "04.05", stars: 5 },
-  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", when: "28.04", stars: 5 },
+  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", product: "iced-matcha", when: "12.05", stars: 5 },
+  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", product: "latte", when: "04.05", stars: 5 },
+  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", product: "slow-roast", when: "28.04", stars: 5 },
 ];
 
 /* The breakdown behind the 4.9. A single headline number invites the question of
@@ -860,7 +860,7 @@ $("#rev-dist").innerHTML = RATINGS.map(
   </li>`,
 ).join("");
 
-$("#rev-cards").innerHTML = REVIEWS.map((r, o) => `<li><div class="lean"><div class="rev-hold"><article class="rev-slip" data-iv="rise" data-y="28" data-c="80,26" data-d="${o * 90}">
+$("#rev-cards").innerHTML = REVIEWS.map((r, o) => `<li><div class="lean"><div class="rev-hold"><article class="rev-slip" data-product="${r.product}" data-iv="rise" data-y="28" data-c="80,26" data-d="${o * 90}">
   <div class="rev-slip-head">
     <p class="rev-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
     <p class="rev-when"><span data-dr data-d="${o * 90 + 200}">${r.when}</span></p>
@@ -4629,6 +4629,7 @@ function renderDone() {
           <a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
           ${delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS</a>`}
           <button type="button" class="btn btn-line" data-co="collected" hidden>I'VE COLLECTED IT</button>
+          <button type="button" class="btn btn-line trk-rate" data-co="rate" hidden>★ RATE YOUR ORDER</button>
           <button type="button" class="btn btn-line trk-cancel" data-co="cancel" hidden>CANCEL ORDER</button>
         </div>
         <div class="done-actions"><button type="button" class="btn btn-line" data-co="shop">KEEP SHOPPING</button><button type="button" class="btn btn-line" data-co="close">BACK TO BREWNS</button></div>
@@ -4759,6 +4760,8 @@ function renderDone() {
     const cancel = $("[data-co='cancel']", coEl), got = $("[data-co='collected']", coEl);
     cancel.hidden = !canCancel(o, stages, now);
     if (got) got.hidden = delivered || o.cancelled || key !== "ready";
+    const finished = key === "delivered" || key === "collected" || !!o.collected;
+    $("[data-co='rate']", coEl).hidden = !finished || !!o.reviewed || !!o.cancelled;
     if (delivered) {
       const riderStage = stages.findIndex((s) => s.key === "rider");
       $("#trk-rider", coEl).hidden = o.cancelled || i < riderStage;
@@ -4891,6 +4894,10 @@ coEl.addEventListener("click", (e) => {
       saveOrder(o);
       return renderCheckout({ animate: false });
     }
+    if (act === "rate") {
+      const first = o.items[0];
+      return window.__brewnsReview?.({ order: o.number, loc: o.loc, product: first?.id, name: o.name.split(" ")[0] + (o.name.split(" ")[1] ? ` ${o.name.split(" ")[1][0]}.` : "") });
+    }
     if (act === "collected") {
       o.collected = orderNow(o);
       saveOrder(o);
@@ -4986,6 +4993,132 @@ coEl.addEventListener("submit", (e) => {
   co.discount = co.promo === "BREWNS10" ? 0.1 : 0;
   renderCheckout({ animate: false });
 });
+
+  /* ═══════════════════════ customer reviews ═══════════════════════
+     Reviews written on the site (from the section, or "rate your order" after an
+     order) are kept and shown first; one written from an order carries a
+     VERIFIED ORDER stamp. Stored in the browser until a backend collects them. */
+  const BASE_SCORE = { avg: 4.9, count: 1284 };
+  const revCards = $("#rev-cards");
+  const myReviews = () => readStore("brewns-reviews", []);
+  const stars = (n) => `<p class="rev-stars" role="img" aria-label="Rated ${n} out of 5">${"★".repeat(n)}<span class="rev-stars-off">${"★".repeat(5 - n)}</span></p>`;
+  const revThumb = (id) => {
+    const p = productById(id);
+    return p ? `<span class="rev-thumb">${thumbHTML(p)}</span>` : "";
+  };
+  // The placeholder slips get a picture of what was ordered.
+  $$(".rev-slip[data-product]", revCards).forEach((slip) => {
+    $(".rev-order", slip)?.insertAdjacentHTML("afterbegin", revThumb(slip.dataset.product));
+  });
+  const renderMyReviews = () => {
+    $$(".rev-mine", revCards).forEach((li) => li.remove());
+    const list = myReviews();
+    revCards.insertAdjacentHTML(
+      "afterbegin",
+      list
+        .map((r) => {
+          const d = new Date(r.t);
+          const when = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const p = productById(r.product);
+          return `<li class="rev-mine"><div class="rev-hold"><article class="rev-slip is-in">
+            <div class="rev-slip-head"><p>${r.order ? `ORDER #${String(r.order).padStart(5, "0")}` : "NEW"}</p><p>${when}</p></div>
+            ${stars(r.stars)}
+            <blockquote class="rev-quote"><p>${esc(r.text)}</p></blockquote>
+            <div class="rc-rule" aria-hidden="true"></div>
+            <div class="rev-foot"><p>${esc(r.name)}</p><p>${esc(r.place)}</p></div>
+            <p class="rev-order">${p ? revThumb(p.id) : ""}<span>Ordered</span><span>${p ? esc(p.name) : ""}</span></p>
+            ${r.order ? `<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>` : ""}
+          </article></div></li>`;
+        })
+        .join(""),
+    );
+    fillSnaps(revCards);
+    const sum = list.reduce((a, r) => a + r.stars, 0);
+    const count = BASE_SCORE.count + list.length;
+    const avg = (BASE_SCORE.avg * BASE_SCORE.count + sum) / count;
+    const n = $(".rev-score-n span", document);
+    if (n && list.length) n.textContent = avg.toFixed(1);
+    const c = $(".rev-score-meta .blk span", document);
+    if (c && list.length) c.textContent = count.toLocaleString("en-US");
+  };
+  renderMyReviews();
+
+  // "Leave a review", next to the score.
+  $(".rev-panel")?.insertAdjacentHTML("beforeend", `<button type="button" class="btn btn-dark rev-write" data-review>LEAVE A REVIEW ${ARROW_SVG}</button>`);
+
+  const revForm = document.createElement("div");
+  revForm.className = "rev-modal";
+  revForm.hidden = true;
+  revForm.setAttribute("role", "dialog");
+  revForm.setAttribute("aria-modal", "true");
+  revForm.setAttribute("aria-label", "Leave a review");
+  revForm.setAttribute("data-lenis-prevent", "");
+  document.body.append(revForm);
+  let revCtx = null;
+  const closeReview = () => {
+    revForm.hidden = true;
+    revCtx = null;
+    if (!hasLayer("checkout")) startScroll();
+  };
+  const openReview = (ctx = {}) => {
+    revCtx = { stars: 5, ...ctx };
+    const saved = readStore("brewns-details", {});
+    const food = PRODUCTS.filter((p) => !p.gift);
+    revForm.innerHTML = `<form class="rev-modal-card" data-rev-form novalidate>
+      <div class="rev-modal-head"><div><p class="mono-fine"><span class="sl">//</span> ${ctx.order ? `ORDER #${String(ctx.order).padStart(5, "0")}` : "BREWNS REVIEWS"}</p><h3>${ctx.order ? "HOW WAS IT?" : "TELL US HOW IT WAS."}</h3></div><button type="button" class="x-btn" data-rev-close aria-label="Close"></button></div>
+      <div class="rev-rate" role="radiogroup" aria-label="Rating">${[1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="${n <= revCtx.stars}" data-rate="${n}" aria-label="${n} star${n > 1 ? "s" : ""}">★</button>`).join("")}<span class="mono-fine" id="rev-rate-l">${["", "NOT GREAT", "COULD BE BETTER", "GOOD", "REALLY GOOD", "PERFECT"][revCtx.stars]}</span></div>
+      <label class="field"><span class="mono-fine">YOUR REVIEW</span><textarea name="text" rows="3" maxlength="240" placeholder="What did you have, and how was it?"></textarea></label>
+      <div class="rev-modal-row">
+        <label class="field"><span class="mono-fine">NAME</span><input name="name" maxlength="30" value="${esc(ctx.name || (saved.name ? saved.name.split(" ")[0] + (saved.name.split(" ")[1] ? ` ${saved.name.split(" ")[1][0]}.` : "") : ""))}" placeholder="First name and initial"></label>
+        <label class="field"><span class="mono-fine">SHOP</span><select name="place">${LOC_TITLES.map((t, i) => `<option value="${i}" ${i === (ctx.loc ?? saved.loc ?? 0) ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      </div>
+      <label class="field"><span class="mono-fine">WHAT YOU ORDERED</span><select name="product">${food.map((p) => `<option value="${p.id}" ${p.id === ctx.product ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
+      <p class="rev-err mono-fine" id="rev-err"></p>
+      <button type="submit" class="btn btn-solid">POST REVIEW ${ARROW_SVG}</button>
+    </form>`;
+    revForm.hidden = false;
+    stopScroll();
+    setTimeout(() => $("textarea", revForm)?.focus(), 50);
+  };
+  revForm.addEventListener("click", (e) => {
+    if (e.target === revForm || e.target.closest("[data-rev-close]")) return closeReview();
+    const rate = e.target.closest("[data-rate]");
+    if (rate) {
+      revCtx.stars = +rate.dataset.rate;
+      $$("[data-rate]", revForm).forEach((b) => b.setAttribute("aria-checked", String(+b.dataset.rate <= revCtx.stars)));
+      $("#rev-rate-l", revForm).textContent = ["", "NOT GREAT", "COULD BE BETTER", "GOOD", "REALLY GOOD", "PERFECT"][revCtx.stars];
+    }
+  });
+  revForm.addEventListener("keydown", (e) => e.key === "Escape" && closeReview());
+  revForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const text = f.text.value.trim(), name = f.name.value.trim();
+    const err = text.length < 12 ? "A FEW MORE WORDS, PLEASE" : name.length < 2 ? "ADD YOUR NAME" : "";
+    $("#rev-err", revForm).textContent = err;
+    if (err) return;
+    const place = ["Gulberg", "DHA", "Johar Town"][+f.place.value];
+    writeStore("brewns-reviews", [{ t: Date.now(), stars: revCtx.stars, text, name, place, product: f.product.value, order: revCtx.order || null }, ...myReviews()].slice(0, 30));
+    if (revCtx.order) {
+      const o = readStore("brewns-orders", []).find((x) => x.number === revCtx.order);
+      if (o) {
+        o.reviewed = true;
+        saveOrder(o);
+        if (co?.done?.number === o.number) co.done.reviewed = true;
+      }
+    }
+    closeReview();
+    renderMyReviews();
+    toast("THANK YOU — YOUR REVIEW IS UP", "SEE IT", () => {
+      if (hasLayer("checkout")) closeCheckout();
+      setTimeout(() => lenis.scrollTo("#reviews", { force: true }), 80);
+    });
+    if (co?.trk) renderCheckout({ animate: false });
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-review]")) openReview();
+  });
+  window.__brewnsReview = openReview;
 
   /* ═══════════════════════ the printed receipt ═══════════════════════
      The receipt feeds out of the printer as you scroll to it, so it carries the

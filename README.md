@@ -198,6 +198,11 @@ This is a working demo, not a trading site:
   follow the time of day) are all invented. Replace them with real data before
   publishing. Invented reviews presented as genuine are a legal problem, not
   just a style one.
+- **Reviews.** The three slips in `REVIEWS` and the 4.9 / 1,284 figures are
+  placeholders. Visitors can post a review from the section, and after an order
+  from "rate your order" (stamped VERIFIED ORDER); these are kept in the
+  browser (`brewns-reviews`) until a backend collects them. Replace the
+  placeholders with real reviews before launch.
 - **The brand ambassador section names a real person.** `#hania` presents Hania
   Aamir as brewns' ambassador. Publish it only with a signed agreement that
   covers her name, and use a photo only if you have the rights to it (the
