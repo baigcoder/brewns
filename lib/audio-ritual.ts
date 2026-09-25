@@ -575,11 +575,14 @@ const SCENES: Record<string, { room: number; bar: number; music: number }> = {
   shop: { room: 0.6, bar: 0.5, music: 1 },
   locations: { room: 1, bar: 0.8, music: 0.8 },
   inside: { room: 1.2, bar: 1.2, music: 0.7 },
+  brew: { room: 0.5, bar: 0.7, music: 1 },
   story: { room: 0.4, bar: 0.3, music: 1.2 },
   hania: { room: 0.6, bar: 0.4, music: 1.2 },
   founder: { room: 0.7, bar: 0.5, music: 1 },
   reviews: { room: 0.9, bar: 0.7, music: 0.9 },
+  club: { room: 0.9, bar: 0.8, music: 1 },
   order: { room: 0.8, bar: 1, music: 0.7 },
+  faq: { room: 0.7, bar: 0.5, music: 0.9 },
   footer: { room: 0.5, bar: 0.3, music: 0.8 },
 };
 export function setSoundScene(name: string) {
