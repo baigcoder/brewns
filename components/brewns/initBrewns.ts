@@ -31,6 +31,8 @@ import {
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
 import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
+import { addStamps, birthdayTreat, CLUB, emptyClub, isDrink, memberNumber, normaliseClub, reverseOrder, rewardValue, spendReward, stampsFor } from './club';
+import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 
 
@@ -101,7 +103,7 @@ soundPanel.className = "sound-panel";
 soundPanel.hidden = true;
 soundPanel.setAttribute("role", "dialog");
 soundPanel.setAttribute("aria-label", "Sound");
-const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", story: "Slow afternoon", hania: "Cool vibes", founder: "Meet the founder", reviews: "The regulars", order: "Tickets printing", footer: "Closing time" };
+const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", brew: "Brewing at home", story: "Slow afternoon", hania: "Cool vibes", founder: "Meet the founder", reviews: "The regulars", club: "Stamping cards", order: "Tickets printing", faq: "Questions at the till", footer: "Closing time" };
 let sceneName = "hero";
 const renderSoundPanel = () => {
   const st = getSoundSettings();
@@ -1011,14 +1013,17 @@ $("#rev-ticker").innerHTML = [...OVERHEARD, ...OVERHEARD]
   .map((line) => `<span>${line}</span><span class="rev-ticker-dot" aria-hidden="true">●</span>`)
   .join("");
 
+/* [label, where it goes, what it does there]. The action (see "footer shortcuts"
+   near the end) filters the shop or menu, or opens a product or form; the href is
+   where the link lands without it. */
 const COLUMNS = [
-  ["Shop", [["COFFEE", "#shop-coffee"], ["SUBSCRIPTIONS", "#subscriptions"], ["MERCH", "#merch"], ["GIFT CARDS", "#gift-cards"]]],
-  ["Menu", [["COFFEE", "#menu-coffee"], ["NON-COFFEE", "#non-coffee"], ["SIGNATURE DRINKS", "#signature"], ["FOOD", "#food"]]],
-  ["about us", [["OUR STORY", "#story"], ["COFFEE & SOURCING", "#sourcing"], ["journal", "#journal"], ["CAREERS", "#careers"]]],
+  ["Shop", [["COFFEE", "#shop", "shop:beans"], ["SUBSCRIPTIONS", "#shop/slow-roast", "product:slow-roast:plan=1"], ["MERCH", "#shop", "shop:merch"], ["GIFT CARDS", "#shop/gift-card", "product:gift-card"]]],
+  ["Menu", [["COFFEE", "#menu", "menu:coffee"], ["COLD BAR", "#menu", "menu:specialty"], ["KITCHEN", "#menu", "menu:burgers"], ["FULL MENU", "#menu", "fullmenu"]]],
+  ["about us", [["OUR STORY", "#story"], ["BREW AT HOME", "#brew"], ["BREWNS CLUB", "#club"], ["EVENTS & CATERING", "#faq", "enquiry:event"], ["CAREERS", "#faq", "enquiry:careers"]]],
 ];
 $("#ftr-nav").innerHTML = COLUMNS.map(([heading, links], i) =>
   `<div class="ftr-col"><p data-rise data-d="${160 + i * 130}">${heading}</p><ul class="ftr-list">${links
-    .map(([t, href], row) => `<li data-rise data-d="${160 + i * 130 + (row + 1) * 70}"><a href="${href}" data-ul data-rule>${t.replace("&", "&amp;")}</a></li>`)
+    .map(([t, href, go], row) => `<li data-rise data-d="${160 + i * 130 + (row + 1) * 70}"><a href="${href}"${go ? ` data-go="${go}"` : ""} data-ul data-rule>${t.replace("&", "&amp;")}</a></li>`)
     .join("")}</ul></div>`,
 ).join("");
 
@@ -3563,7 +3568,7 @@ if (heroQuickAddBtn) {
 
 /* smooth anchor scroll with lenis for header and site navigation */
 $$('a[href^="#"]').forEach((a) => {
-  if (a.hasAttribute("data-order-now") || a.id === "menu-cta" || a.classList.contains("w-order-cta")) return;
+  if (a.hasAttribute("data-order-now") || a.hasAttribute("data-go") || a.id === "menu-cta" || a.classList.contains("w-order-cta")) return;
   a.addEventListener("click", (e) => {
     const hash = a.getAttribute("href");
     if (!hash || hash === "#") return;
@@ -3685,13 +3690,14 @@ const pdpPrice = new Spring({ v: 0 }, (o) => {
   if (el) el.textContent = money(o.v);
 });
 
-function openProduct(id, { push = true, replace = false } = {}) {
+function openProduct(id, { push = true, replace = false, sel = null } = {}) {
   const p = productById(id);
   if (!p) return;
+  const picked = Object.fromEntries(Object.entries(sel || {}).filter(([k, v]) => p.options.some((o) => o.key === k && o.choices[v])));
   const already = !!pdpState;
   if (already) teardownMedia();
   if (hasLayer("bag")) closeBag();
-  pdpState = { p, sel: defaultSel(p), qty: 1, message: "", view: p.gift ? "card" : p.photo ? "photo" : "3d", viewer: null, cleanups: [] };
+  pdpState = { p, sel: { ...defaultSel(p), ...picked }, qty: 1, message: "", view: p.gift ? "card" : p.photo ? "photo" : "3d", viewer: null, cleanups: [] };
   renderProduct();
   if (replace) history.replaceState({ pdp: id }, "", `#shop/${id}`);
   else if (push) history.pushState({ pdp: id }, "", `#shop/${id}`);
@@ -4610,6 +4616,40 @@ const writeStore = (k, v) => {
     localStorage.setItem(k, JSON.stringify(v));
   } catch {}
 };
+/* ── brewns Club: the card, kept with the other stores (rules in club.ts) ── */
+const clubListeners = new Set();
+const readClub = () => normaliseClub(readStore("brewns-club", null));
+const writeClub = (state) => {
+  writeStore("brewns-club", state);
+  clubListeners.forEach((f) => f());
+};
+const clubLines = (items) =>
+  items.map((it) => {
+    const p = productById(it.id);
+    return { cat: p.cat, qty: it.qty, unit: unitPrice(p, it.sel) };
+  });
+const minOfDay = (t) => {
+  const d = new Date(t);
+  return d.getHours() * 60 + d.getMinutes();
+};
+/* An order's stamps, and the free drink it used, go on the card once. */
+const creditClub = (o) => {
+  let state = readClub();
+  if (!state.member || state.credited.includes(o.number)) return null;
+  const used = !!o.totals.reward;
+  if (used) state = spendReward(state, o.number, o.placed);
+  const stamps = stampsFor(clubLines(o.items), minOfDay(o.placed), used ? 1 : 0);
+  const { state: next, earned } = addStamps(state, stamps, { t: o.placed, kind: "order", order: o.number });
+  writeClub(next);
+  return { stamps, earned, used, left: CLUB.stampsPerReward - next.stamps, rewards: next.rewards };
+};
+/* Discount lines for a bill. Orders from before the club only have `discount`. */
+const discountRows = (t) => {
+  const reward = t.reward || 0;
+  const promo = t.promo ?? t.discount - reward;
+  return [...(reward ? [["BREWNS CLUB · FREE DRINK", reward]] : []), ...(promo > 0 ? [["PROMO BREWNS10", promo]] : [])];
+};
+
 let co = null;
 let coTimer = 0;
 let coCleanups = [];
@@ -4638,11 +4678,15 @@ const pickupLabel = () =>
   co.when === "asap" ? `ASAP · ABOUT ${hhmm(nowMin() + leadMin())}` : co.slot ? `${co.slot.tomorrow ? "TOMORROW" : "TODAY"} ${hhmm(co.slot.t)}` : "CHOOSE A TIME";
 const orderTotals = () => {
   const sub = cart.subtotal();
-  const discount = Math.round(sub * co.discount);
+  // A free drink comes off first, then any promo applies to the rest.
+  const club = readClub();
+  const reward = co.useReward && club.member && club.rewards > 0 ? rewardValue(clubLines(cart.items)) : 0;
+  const promo = Math.round((sub - reward) * co.discount);
+  const discount = reward + promo;
   const fee = isDelivery() && sub - discount < DELIVERY.freeOver ? DELIVERY.areas[co.area][2] : 0;
   const rate = co.pay ? TAX_CARD : TAX;
   const tax = Math.round((sub - discount) * rate);
-  return { sub, discount, fee, rate, tax, total: sub - discount + fee + tax };
+  return { sub, discount, promo, reward, fee, rate, tax, total: sub - discount + fee + tax };
 };
 const titleCase = (s) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 const tornPath = (w) => {
@@ -4666,7 +4710,7 @@ function openCheckout() {
   if (!cart.count()) return openBag();
   if (hasLayer("bag")) closeBag();
   const saved = readStore("brewns-details", {});
-  co = { step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
+  co = { useReward: false, step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
   if (co.when === "later") co.slot = slotList()[0];
   renderCheckout();
   if (hasLayer("checkout")) return;
@@ -4702,6 +4746,20 @@ const coTop = (label, dark = false) =>
 
 const field = (key, label, type, attrs, placeholder) =>
   `<label class="field${co.errors[key] ? " bad" : ""}"><span class="mono-fine">${label}</span><input type="${type}" data-field="${key}" value="${esc(co[key])}" placeholder="${placeholder}" ${attrs}><span class="err mono-fine">${co.errors[key] || ""}</span></label>`;
+
+function clubCheckoutHTML() {
+  const club = readClub();
+  const lines = clubLines(cart.items);
+  const value = rewardValue(lines);
+  if (club.member && club.rewards > 0 && value > 0)
+    return `<button type="button" class="co-reward${co.useReward ? " on" : ""}" data-co="reward" aria-pressed="${!!co.useReward}"><span class="co-reward-box" aria-hidden="true"></span><span><b>USE A FREE DRINK</b><small class="mono-fine">BREWNS CLUB · ${club.rewards} WAITING · −${money(value)}</small></span></button>`;
+  const stamps = stampsFor(lines, nowMin(), co.useReward ? 1 : 0);
+  if (!stamps) return "";
+  const early = nowMin() < CLUB.earlyUntilMin ? " · DOUBLE BEFORE 9" : "";
+  return club.member
+    ? `<p class="co-club mono-fine">★ THIS ORDER EARNS ${stamps} CLUB STAMP${stamps === 1 ? "" : "S"}${early}</p>`
+    : `<p class="co-club mono-fine">★ ${stamps} CLUB STAMP${stamps === 1 ? "" : "S"} WITH THIS ORDER. JOIN FREE AFTER ORDERING AND THEY STILL COUNT.</p>`;
+}
 
 function renderCheckout({ animate = true } = {}) {
   if (co.done) return renderDone();
@@ -4787,9 +4845,10 @@ function renderCheckout({ animate = true } = {}) {
         <div class="co-lines">${lines}</div>
         <form class="co-promo" data-promo><input name="promo" placeholder="PROMO CODE" value="${esc(co.promo)}" aria-label="Promo code" autocomplete="off"><button type="submit" class="mono-fine">APPLY</button></form>
         <p class="co-promo-msg mono-fine" id="co-promo-msg">${co.discount ? "BREWNS10 — 10% OFF APPLIED" : co.promo ? "THAT CODE ISN'T VALID" : "TRY BREWNS10"}</p>
+        ${clubCheckoutHTML()}
         <div class="co-sums mono-fine">
           <div class="sum-row"><span>SUBTOTAL</span><span>${money(totals.sub)}</span></div>
-          ${totals.discount ? `<div class="sum-row"><span>PROMO</span><span>−${money(totals.discount)}</span></div>` : ""}
+          ${discountRows(totals).map(([label, v]) => `<div class="sum-row"><span>${label.replace(" BREWNS10", "")}</span><span>−${money(v)}</span></div>`).join("")}
           ${delivery ? `<div class="sum-row"><span>DELIVERY · ${DELIVERY.areas[co.area][0]}</span><span>${totals.fee ? money(totals.fee) : "FREE"}</span></div>` : ""}
           <div class="sum-row"><span>PUNJAB SALES TAX ${Math.round(totals.rate * 100)}%</span><span>${money(totals.tax)}</span></div>
           <div class="sum-row total"><span>TOTAL</span><span>${money(totals.total)}</span></div>
@@ -4873,7 +4932,7 @@ function receiptDoc(o) {
     ${lines.map((l) => `<div class="r"><span>${l.qty} × ${esc(l.name)}</span><span>${money(l.total)}</span></div><div class="r dim"><span>${esc(l.opts)}</span><span>@ ${money(l.unit)}</span></div>`).join("")}
     <hr>
     ${row("SUBTOTAL", money(t.sub))}
-    ${t.discount ? row("PROMO BREWNS10", `−${money(t.discount)}`) : ""}
+    ${discountRows(t).map(([label, v]) => row(label, `−${money(v)}`)).join("")}
     ${o.mode === "delivery" ? row("DELIVERY FEE", t.fee ? money(t.fee) : "FREE") : ""}
     ${row("VALUE EXCL. TAX", money(t.sub - t.discount + (t.fee || 0)))}
     ${row(`PUNJAB SALES TAX ${Math.round(t.rate * 100)}%`, money(t.tax))}
@@ -4893,6 +4952,19 @@ function receiptDoc(o) {
     .big{font-size:14px;font-weight:700;margin-top:6px}.addr{margin:6px 0}hr{border:0;border-top:1px dashed #999;margin:10px 0}
     .bars{display:block;width:100%;height:38px;margin:14px 0 8px}@media print{body{background:#fff}.rc{box-shadow:none;margin:0 auto}}`;
   return { body, css, html: `<!doctype html><html><head><meta charset="utf-8"><title>brewns receipt #${String(o.number).padStart(5, "0")}</title><style>${css}</style></head><body>${body}</body></html>` };
+}
+
+function clubDoneHTML(o) {
+  if (o.cancelled) return "";
+  if (o.club) {
+    const { stamps, earned, used, left, rewards } = o.club;
+    if (!stamps && !used) return "";
+    const got = stamps ? `+${stamps} CLUB STAMP${stamps === 1 ? "" : "S"}` : "FREE DRINK USED";
+    return `<p class="done-club mono-fine"><span class="done-club-star" aria-hidden="true">★</span>${got} · ${earned || rewards ? `${rewards} FREE DRINK${rewards === 1 ? "" : "S"} WAITING` : `${left} TO YOUR NEXT FREE DRINK`}</p>`;
+  }
+  const stamps = stampsFor(clubLines(o.items), minOfDay(o.placed));
+  if (!stamps || readClub().member) return "";
+  return `<p class="done-club mono-fine"><span class="done-club-star" aria-hidden="true">★</span>THIS ORDER EARNS ${stamps} STAMP${stamps === 1 ? "" : "S"} · <button type="button" data-co="club-join">JOIN BREWNS CLUB TO KEEP THEM</button></p>`;
 }
 
 function renderDone() {
@@ -4947,7 +5019,7 @@ function renderDone() {
             <div class="rc-rule"></div>
             <div class="bill-rows">
               <div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>
-              ${o.totals.discount ? `<div><span>PROMO BREWNS10</span><span>−${money(o.totals.discount)}</span></div>` : ""}
+              ${discountRows(o.totals).map(([label, v]) => `<div><span>${label}</span><span>−${money(v)}</span></div>`).join("")}
               ${delivered ? `<div><span>DELIVERY FEE</span><span>${o.totals.fee ? money(o.totals.fee) : "FREE"}</span></div>` : ""}
               <div><span>VALUE EXCL. TAX</span><span>${money(o.totals.sub - o.totals.discount + (o.totals.fee || 0))}</span></div>
               <div><span>PUNJAB SALES TAX ${Math.round(o.totals.rate * 100)}%</span><span>${money(o.totals.tax)}</span></div>
@@ -5002,6 +5074,7 @@ function renderDone() {
             ? `✓ SENT TO THE CAFÉ${o.email ? ` · A COPY IS ON ITS WAY TO ${esc(o.email.toUpperCase())}` : ""}`
             : `<a href="mailto:${o.email ? encodeURIComponent(o.email) : ""}?subject=${encodeURIComponent(`brewns receipt #${String(o.number).padStart(5, "0")}`)}&body=${encodeURIComponent(receiptText(o))}">EMAIL ME THIS RECEIPT</a> · <a href="mailto:${ORDER_SERVICE.cafeEmail}?subject=${encodeURIComponent(`Order #${String(o.number).padStart(5, "0")}`)}&body=${encodeURIComponent(receiptText(o))}">EMAIL THE CAFÉ</a>`
         }</p>
+        ${clubDoneHTML(o)}
         <div class="done-actions trk-small">
           <a class="btn btn-line" id="trk-wa" target="_blank" rel="noopener">WHATSAPP</a>
           <a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
@@ -5271,6 +5344,7 @@ function placeOrder() {
   sendOrder(order, email).then((sent) => {
     order.sent = sent;
     order.email = email;
+    order.club = creditClub(order);
     writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
     setTimeout(() => {
       if (!co) return;
@@ -5311,7 +5385,7 @@ const receiptText = (o) => {
     ...lines.map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}  ${money(l.total)}`),
     "",
     `Subtotal: ${money(t.sub)}`,
-    ...(t.discount ? [`Promo: -${money(t.discount)}`] : []),
+    ...discountRows(t).map(([label, v]) => `${titleCase(label)}: -${money(v)}`),
     ...(o.mode === "delivery" ? [`Delivery: ${t.fee ? money(t.fee) : "free"}`] : []),
     `Punjab sales tax ${Math.round(t.rate * 100)}%: ${money(t.tax)}`,
     `TOTAL: ${money(t.total)}`,
@@ -5383,9 +5457,14 @@ coEl.addEventListener("click", (e) => {
       w.focus();
       return setTimeout(() => w.print(), 250);
     }
+    if (act === "club-join") {
+      closeCheckout();
+      return setTimeout(() => lenis.scrollTo("#club", { force: true }), 80);
+    }
     if (act === "cancel") {
       if (!window.confirm("Cancel this order? The café hasn't started on it yet.")) return;
       o.cancelled = Date.now();
+      if (o.club) writeClub(reverseOrder(readClub(), o.number, o.club.stamps, o.club.used));
       saveOrder(o);
       return renderCheckout({ animate: false });
     }
@@ -5413,6 +5492,11 @@ coEl.addEventListener("click", (e) => {
     }
     closeCheckout();
     return openBag();
+  }
+  if (act === "reward") {
+    co.useReward = !co.useReward;
+    playSoftClick();
+    return renderCheckout({ animate: false });
   }
   if (act === "next") {
     co.step = 2;
@@ -5761,10 +5845,480 @@ coEl.addEventListener("submit", (e) => {
 
   $("#ftr-year").textContent = String(new Date().getFullYear());
 
+  /* ═══════════════════════ brew at home ═══════════════════════
+     Pick a method and a number of cups; the recipe scales, and the timer walks
+     through the pours with a tick at each step and a chime at the end. The clock
+     runs off performance.now() in a rAF loop, so a dropped frame never loses time. */
+  const brewTabs = $("#brew-tabs");
+  const brewCard = $("#brew-card");
+  const brew = { id: BREW_METHODS[0].id, cups: BREW_METHODS[0].cups.def, strength: 1, t: 0, running: false, from: 0, base: 0, raf: 0, step: -1 };
+  const BREW_RING = 2 * Math.PI * 46;
+  brewTabs.innerHTML = BREW_METHODS.map(
+    (m) => `<button type="button" role="tab" class="brew-tab" data-brew="${m.id}" aria-selected="${m.id === brew.id}" aria-controls="brew-card">${m.short}</button>`,
+  ).join("");
+  const brewNowHTML = (m, a) => {
+    if (!brew.running && brew.t === 0)
+      return `<p class="brew-now-l mono-fine">BEFORE YOU START</p><p>Heat the water, weigh ${a.coffee} g of coffee and grind it ${m.grind.split(" · ")[0].toLowerCase()}. Put the ${m.kit.split(" · ")[0].toLowerCase()} on the scale, zero it, and press start.</p>`;
+    const i = stepAt(m, brew.t);
+    const done = brew.t >= m.total;
+    return `<p class="brew-now-l mono-fine">${done ? "DONE" : `STEP ${i + 1} OF ${m.steps.length}`} · ${m.steps[i].title}</p><p>${fillStep(m.steps[i].text, a)}</p>`;
+  };
+  const renderBrew = () => {
+    const m = methodById(brew.id);
+    const a = brewAmounts(m, brew.cups, brew.strength);
+    const bean = productById(m.beans);
+    const unit = m.cupLabel.split(" · ")[0];
+    const step = stepAt(m, brew.t);
+    const started = brew.running || brew.t > 0;
+    brew.step = started ? step : -1;
+    brewCard.innerHTML = `<div class="brew-recipe">
+        <p class="brew-kicker mono-fine">RECIPE · ${m.cupLabel}</p>
+        <h3 class="brew-name">${m.name}</h3>
+        <p class="brew-blurb">${m.blurb}</p>
+        <div class="brew-controls">
+          ${
+            m.cups.max > m.cups.min
+              ? `<div class="brew-ctl"><span class="mono-fine">${unit}S</span><div class="brew-stepper"><button type="button" data-cups="-1" aria-label="Fewer ${unit.toLowerCase()}s" ${brew.cups <= m.cups.min ? "disabled" : ""}>−</button><output aria-live="polite">${brew.cups}</output><button type="button" data-cups="1" aria-label="More ${unit.toLowerCase()}s" ${brew.cups >= m.cups.max ? "disabled" : ""}>+</button></div></div>`
+              : `<div class="brew-ctl"><span class="mono-fine">MAKES</span><p class="brew-one">ONE ${unit}</p></div>`
+          }
+          <div class="brew-ctl"><span class="mono-fine">STRENGTH</span><div class="brew-seg" role="radiogroup" aria-label="Strength">${STRENGTHS.map((label, i) => `<button type="button" role="radio" aria-checked="${i === brew.strength}" data-strength="${i}">${label}</button>`).join("")}</div></div>
+        </div>
+        <dl class="brew-nums">
+          <div><dt class="mono-fine">COFFEE</dt><dd>${a.coffee}<small>G</small></dd></div>
+          <div><dt class="mono-fine">WATER</dt><dd>${a.water}<small>G</small></dd></div>
+          <div><dt class="mono-fine">RATIO</dt><dd>1:${a.ratio}</dd></div>
+        </dl>
+        <dl class="brew-spec mono-fine"><div><dt>GRIND</dt><dd>${m.grind}</dd></div><div><dt>WATER</dt><dd>${m.temp}</dd></div><div><dt>YOU NEED</dt><dd>${m.kit}</dd></div></dl>
+        <button type="button" class="brew-beans" data-brew-beans><span><small class="mono-fine">THE BEANS FOR THIS</small><b>${bean.name}</b><small class="mono-fine">GROUND FOR ${m.short} · FROM ${money(bean.price)}</small></span>${ARROW_SVG}</button>
+      </div>
+      <div class="brew-timer">
+        <div class="brew-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="brew-bar" cx="50" cy="50" r="46" stroke-dasharray="${BREW_RING}" stroke-dashoffset="${BREW_RING * (1 - Math.min(1, brew.t / m.total))}"/></svg>
+          <p class="brew-clock" role="timer" aria-label="Brew timer"><span id="brew-clock">${mmss(brew.t)}</span><small class="mono-fine">OF ${mmss(m.total)}</small></p></div>
+        <div class="brew-now" id="brew-now" aria-live="polite">${brewNowHTML(m, a)}</div>
+        <ol class="brew-steps">${m.steps.map((st, i) => `<li class="${started && i < step ? "done" : ""}${started && i === step ? " now" : ""}"><time class="mono-fine">${mmss(st.at)}</time><b>${st.title}</b></li>`).join("")}</ol>
+        <div class="brew-btns"><button type="button" class="btn btn-dark" data-brew-go>${brew.running ? "PAUSE" : brew.t >= m.total ? "BREW AGAIN" : brew.t > 0 ? "RESUME" : "START THE TIMER"}${ARROW_SVG}</button><button type="button" class="btn brew-reset" data-brew-reset ${brew.t === 0 ? "disabled" : ""}>RESET</button></div>
+      </div>`;
+  };
+  const brewFrame = () => {
+    const m = methodById(brew.id);
+    brew.t = Math.min(m.total, brew.base + (performance.now() - brew.from) / 1000);
+    const step = stepAt(m, brew.t);
+    if (brew.t >= m.total) {
+      brew.running = false;
+      playChime();
+      triggerHaptic([40, 60, 40]);
+      return renderBrew();
+    }
+    if (step !== brew.step) {
+      if (brew.step >= 0) {
+        playSoftClick();
+        triggerHaptic(25);
+      }
+      renderBrew();
+    } else {
+      $("#brew-clock", brewCard).textContent = mmss(brew.t);
+      $("#brew-bar", brewCard).setAttribute("stroke-dashoffset", String(BREW_RING * (1 - brew.t / m.total)));
+    }
+    brew.raf = requestAnimationFrame(brewFrame);
+  };
+  const stopBrew = () => {
+    cancelAnimationFrame(brew.raf);
+    brew.running = false;
+  };
+  brewTabs.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-brew]");
+    if (!b || b.dataset.brew === brew.id) return;
+    stopBrew();
+    const m = methodById(b.dataset.brew);
+    Object.assign(brew, { id: m.id, cups: m.cups.def, t: 0, base: 0 });
+    $$("[data-brew]", brewTabs).forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+    playSoftClick();
+    renderBrew();
+  });
+  brewCard.addEventListener("click", (e) => {
+    const m = methodById(brew.id);
+    const cups = e.target.closest("[data-cups]");
+    if (cups) {
+      brew.cups = Math.max(m.cups.min, Math.min(m.cups.max, brew.cups + +cups.dataset.cups));
+      playSoftClick();
+      return renderBrew();
+    }
+    const strength = e.target.closest("[data-strength]");
+    if (strength) {
+      brew.strength = +strength.dataset.strength;
+      playSoftClick();
+      return renderBrew();
+    }
+    if (e.target.closest("[data-brew-go]")) {
+      if (brew.running) {
+        stopBrew();
+        brew.base = brew.t;
+      } else {
+        if (brew.t >= m.total) brew.t = brew.base = 0;
+        brew.running = true;
+        brew.base = brew.t;
+        brew.from = performance.now();
+        brew.raf = requestAnimationFrame(brewFrame);
+      }
+      playSoftClick();
+      renderBrew();
+      return $("[data-brew-go]", brewCard)?.focus({ preventScroll: true });
+    }
+    if (e.target.closest("[data-brew-reset]")) {
+      stopBrew();
+      brew.t = brew.base = 0;
+      playSoftClick();
+      renderBrew();
+      return $("[data-brew-go]", brewCard)?.focus({ preventScroll: true });
+    }
+    if (e.target.closest("[data-brew-beans]")) openProduct(m.beans, { sel: { grind: m.grindChoice } });
+  });
+  renderBrew();
+
+  /* ═══════════════════════ brewns Club ═══════════════════════
+     The card fills with stamps as orders come in (creditClub, at checkout). Not
+     a member yet: the same card, blank, with the form to join beside it. */
+  const clubSide = $("#club-side");
+  clubSide.innerHTML = `<div class="club-card-wrap lean"><div><div class="club-card" id="club-card"></div></div></div><div class="club-panel" id="club-panel"></div>`;
+  lean($(".club-card-wrap", clubSide).firstElementChild, $(".club-card-wrap", clubSide), 6);
+  const clubCard = $("#club-card");
+  const clubPanel = $("#club-panel");
+  const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  const CUP_STAMP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V8Z" fill="currentColor"/><path d="M16 9.5h1.5a2.5 2.5 0 0 1 0 5H16" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 3.5c0 1 1 1.2 1 2.2M11.5 3.5c0 1 1 1.2 1 2.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+  const clubCardHTML = (state, fresh = 0) => {
+    const m = state.member;
+    const stamps = Array.from({ length: CLUB.stampsPerReward }, (_, i) => {
+      const on = i < state.stamps;
+      const isNew = on && i >= state.stamps - fresh;
+      return `<li class="${on ? "on" : ""}${isNew ? " fresh" : ""}${i === CLUB.stampsPerReward - 1 ? " last" : ""}" style="--i:${i};--r:${((i * 37) % 23) - 11}deg">${on ? CUP_STAMP : i === CLUB.stampsPerReward - 1 ? "FREE" : String(i + 1)}</li>`;
+    }).join("");
+    return `<span class="club-card-swirl swirl-mask mask" aria-hidden="true"></span>
+      <div class="club-card-top"><span class="club-card-mark wordmark mask" role="img" aria-label="brewns"></span><span class="mono-fine">CLUB CARD${state.rewards ? ` · <b>${state.rewards} FREE</b>` : ""}</span></div>
+      <ol class="club-stamps" aria-label="${state.stamps} of ${CLUB.stampsPerReward} stamps">${stamps}</ol>
+      <div class="club-card-foot"><div><p class="mono-fine">MEMBER</p><p class="club-card-name">${m ? esc(m.name.toUpperCase()) : "YOUR NAME HERE"}</p></div><div><p class="mono-fine">NO.</p><p class="club-card-no">${m ? m.no : "BRW •••• ••••"}</p></div></div>`;
+  };
+  const historyLabel = (h) =>
+    h.kind === "join" ? ["WELCOME TO THE CLUB", `+${h.n}`] : h.kind === "birthday" ? ["HAPPY BIRTHDAY", "+1 DRINK"] : h.kind === "redeem" ? [`FREE DRINK · ORDER #${String(h.order).padStart(5, "0")}`, "−1 DRINK"] : [`ORDER #${String(h.order).padStart(5, "0")}`, `+${h.n}`];
+  const clubPanelHTML = (state) => {
+    const m = state.member;
+    if (!m) {
+      const saved = readStore("brewns-details", {});
+      return `<form class="club-join" id="club-join" novalidate>
+        <p class="club-panel-h">JOIN FREE. THE FIRST STAMP IS ON US.</p>
+        <div class="club-fields">
+          <label class="club-field"><span class="mono-fine">NAME</span><input name="name" autocomplete="name" maxlength="40" value="${esc(saved.name || "")}" placeholder="Your name"></label>
+          <label class="club-field"><span class="mono-fine">MOBILE</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" value="${esc(saved.phone || "")}" placeholder="0300 1234567"></label>
+          <div class="club-field wide"><span class="mono-fine" id="club-bday-l">BIRTHDAY · OPTIONAL, FOR A FREE DRINK THAT WEEK</span><span class="club-bday" role="group" aria-labelledby="club-bday-l"><select name="bd" aria-label="Birthday day"><option value="">DAY</option>${Array.from({ length: 31 }, (_, i) => `<option value="${String(i + 1).padStart(2, "0")}">${i + 1}</option>`).join("")}</select><select name="bm" aria-label="Birthday month"><option value="">MONTH</option>${MONTHS.map((mo, i) => `<option value="${String(i + 1).padStart(2, "0")}">${mo}</option>`).join("")}</select></span></div>
+        </div>
+        <p class="club-err mono-fine" id="club-err" role="alert"></p>
+        <button type="submit" class="btn btn-solid">JOIN BREWNS CLUB ${ARROW_SVG}</button>
+        <p class="club-fine mono-fine">YOUR CARD IS KEPT ON THIS DEVICE. BY JOINING YOU AGREE TO THE <a href="/terms#club">CLUB TERMS</a>.</p>
+      </form>`;
+    }
+    const since = new Date(m.since);
+    return `<div class="club-status">
+      <p class="club-panel-h">${state.rewards ? `${state.rewards} FREE DRINK${state.rewards === 1 ? "" : "S"} WAITING.` : `${CLUB.stampsPerReward - state.stamps} MORE TO A FREE DRINK.`}</p>
+      <p class="club-status-sub">${state.rewards ? "Tick “use a free drink” at checkout, or show your card at the counter." : `Hi ${esc(titleCase(m.name.split(" ")[0]))}. Every drink you order adds a stamp${nowMin() < CLUB.earlyUntilMin ? ", and it’s before 9, so two" : ""}.`}</p>
+      <div class="club-meter" role="progressbar" aria-label="Stamps to your next free drink" aria-valuemin="0" aria-valuemax="${CLUB.stampsPerReward}" aria-valuenow="${state.stamps}"><span style="width:${(state.stamps / CLUB.stampsPerReward) * 100}%"></span></div>
+      <div class="club-actions"><button type="button" class="btn btn-solid" data-club="order">ORDER &amp; EARN ${ARROW_SVG}</button><button type="button" class="btn btn-line" data-club="pass">SHOW AT THE COUNTER</button></div>
+      ${state.history.length ? `<ul class="club-history" aria-label="Recent stamps">${state.history.slice(0, 4).map((h) => {
+        const [label, n] = historyLabel(h);
+        const d = new Date(h.t);
+        return `<li><time class="mono-fine">${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]}</time><span>${label}</span><b>${n}</b></li>`;
+      }).join("")}</ul>` : ""}
+      <p class="club-fine mono-fine">MEMBER SINCE ${MONTHS[since.getMonth()]} ${since.getFullYear()} · ${state.lifetime} STAMP${state.lifetime === 1 ? "" : "S"} IN ALL · <button type="button" data-club="leave">LEAVE THE CLUB</button></p>
+    </div>`;
+  };
+  const renderClub = (fresh = 0) => {
+    const state = readClub();
+    clubCard.innerHTML = clubCardHTML(state, fresh);
+    clubCard.classList.toggle("member", !!state.member);
+    clubPanel.innerHTML = clubPanelHTML(state);
+  };
+  let clubFresh = 0;
+  clubListeners.add(() => {
+    renderClub(clubFresh);
+    clubFresh = 0;
+  });
+  // A card from the last visit may be due its birthday drink.
+  {
+    const { state, given } = birthdayTreat(readClub());
+    if (given) {
+      writeStore("brewns-club", state);
+      setTimeout(() => toast("HAPPY BIRTHDAY — YOUR NEXT DRINK IS ON US", "SEE CARD", () => lenis.scrollTo("#club", { force: true })), 2500);
+    }
+  }
+  renderClub();
+
+  clubPanel.addEventListener("submit", (e) => {
+    if (!e.target.matches("#club-join")) return;
+    e.preventDefault();
+    const f = e.target;
+    const name = f.name.value.trim().replace(/\s+/g, " ");
+    const phone = pkMobile(f.phone.value);
+    const bday = f.bd.value && f.bm.value ? `${f.bm.value}-${f.bd.value}` : "";
+    const err = name.length < 2 ? "TELL US YOUR NAME" : !phone ? "A PAKISTANI MOBILE, LIKE 0300 1234567" : (f.bd.value || f.bm.value) && !bday ? "PICK BOTH THE DAY AND THE MONTH, OR NEITHER" : "";
+    $("#club-err", clubPanel).textContent = err;
+    if (err) return triggerHaptic(30);
+    const now = Date.now();
+    const digits = phone.replace(/\D/g, "");
+    let state = { ...emptyClub(), member: { name, phone, birthday: bday, since: now, no: memberNumber(+digits.slice(-9)) } };
+    state = addStamps(state, CLUB.welcomeStamps, { t: now, kind: "join" }).state;
+    // Orders from the last day count too, so ordering first and joining after loses nothing.
+    let claimed = 0;
+    readStore("brewns-orders", [])
+      .filter((o) => !o.cancelled && !o.club && now - o.placed < CLUB.claimWindowMs)
+      .reverse()
+      .forEach((o) => {
+        const n = stampsFor(clubLines(o.items.filter((it) => productById(it.id))), minOfDay(o.placed));
+        state = addStamps(state, n, { t: o.placed, kind: "order", order: o.number }).state;
+        o.club = { stamps: n, earned: 0, used: false, left: CLUB.stampsPerReward - state.stamps, rewards: state.rewards };
+        saveOrder(o);
+        claimed += n;
+      });
+    state = birthdayTreat(state).state;
+    const saved = readStore("brewns-details", {});
+    writeStore("brewns-details", { ...saved, name: saved.name || name, phone: saved.phone || phone });
+    clubFresh = Math.min(state.stamps, CLUB.welcomeStamps + claimed);
+    writeClub(state);
+    playChime();
+    triggerHaptic([20, 40, 20]);
+    toast(claimed ? `WELCOME — ${CLUB.welcomeStamps + claimed} STAMPS ON YOUR CARD` : "WELCOME TO BREWNS CLUB — FIRST STAMP’S ON US");
+    $("[data-club='order']", clubPanel)?.focus({ preventScroll: true });
+  });
+
+  /* The card, big and bright, for the barista to scan or read out. */
+  const clubPass = document.createElement("div");
+  clubPass.className = "club-pass";
+  clubPass.hidden = true;
+  clubPass.setAttribute("role", "dialog");
+  clubPass.setAttribute("aria-modal", "true");
+  clubPass.setAttribute("aria-label", "Your brewns Club card");
+  clubPass.setAttribute("data-lenis-prevent", "");
+  document.body.append(clubPass);
+  const closePass = () => {
+    if (clubPass.hidden) return;
+    clubPass.hidden = true;
+    popLayer("club-pass");
+  };
+  const openPass = () => {
+    const state = readClub();
+    if (!state.member) return;
+    clubPass.innerHTML = `<div class="club-pass-in">
+      <div class="club-card member big">${clubCardHTML(state)}</div>
+      <div class="club-pass-code"><div class="barcode" aria-hidden="true">${orderBars(+state.member.phone.replace(/\D/g, "").slice(-9))}</div><p class="mono-fine">${state.member.no} · ${esc(state.member.phone)}</p></div>
+      <p class="club-pass-h">${state.rewards ? `${state.rewards} FREE DRINK${state.rewards === 1 ? "" : "S"} TO USE` : `${state.stamps} OF ${CLUB.stampsPerReward} STAMPS`}</p>
+      <p class="mono-fine club-pass-note">SHOW THIS AT THE COUNTER. THE BARISTA STAMPS YOUR DRINKS OR TAKES OFF YOUR FREE ONE.</p>
+      <button type="button" class="btn btn-line" data-pass-close>CLOSE</button>
+    </div>`;
+    clubPass.hidden = false;
+    pushLayer("club-pass", closePass, clubPass);
+    setTimeout(() => $("[data-pass-close]", clubPass)?.focus(), 50);
+  };
+  clubPass.addEventListener("click", (e) => {
+    if (e.target === clubPass || e.target.closest("[data-pass-close]")) closePass();
+  });
+  clubPanel.addEventListener("click", (e) => {
+    const act = e.target.closest("[data-club]")?.dataset.club;
+    if (act === "order") return openOrder();
+    if (act === "pass") return openPass();
+    if (act === "leave") {
+      if (!window.confirm("Leave brewns Club? Your stamps and free drinks on this device will be gone.")) return;
+      try {
+        localStorage.removeItem("brewns-club");
+      } catch {}
+      clubListeners.forEach((f) => f());
+      toast("YOU'VE LEFT THE CLUB. COME BACK ANY TIME.");
+    }
+  });
+
+  /* ═══════════════════════ good to know ═══════════════════════
+     Questions filter by topic; the events card and the careers and wholesale
+     links open one enquiry form, sent like an order (by the form-to-email
+     service), or handed to the visitor's email app when there isn't one. */
+  const CONTACT_EMAIL = "hello@brewns.coffee";
+  const faqList = $("#faq-list");
+  $(".faq-topics").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-faq-topic]");
+    if (!b) return;
+    const topic = b.dataset.faqTopic;
+    $$("[data-faq-topic]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    $$(".faq-item", faqList).forEach((d) => (d.hidden = topic !== "all" && d.dataset.topic !== topic));
+    playSoftClick();
+  });
+  faqList.addEventListener("toggle", (e) => e.target.open && playSoftClick(), true);
+
+  async function postForm(fields) {
+    if (!ORDER_SERVICE.endpoint) return false;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(ORDER_SERVICE.endpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(fields), signal: ctrl.signal });
+      clearTimeout(timer);
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+  const mailto = (subject, body) => `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+  // [label, asks for a date and headcount]
+  const ENQUIRY = { event: ["EVENT COFFEE BAR", true], office: ["OFFICE COFFEE", true], private: ["PRIVATE EVENING", true], wholesale: ["WHOLESALE BEANS", false], careers: ["WORK WITH US", false], other: ["SOMETHING ELSE", false] };
+  const ENQUIRY_HINT = {
+    event: "What’s the occasion, where, and roughly when do guests arrive?",
+    office: "How many people, which days, and where should we deliver?",
+    private: "What are you celebrating, and which shop would you like?",
+    wholesale: "Tell us about your café, hotel or office, and roughly how much coffee a week.",
+    careers: "Which shop, which role (barista, kitchen, front of house), and a little about you. Add a link to your CV if you have one.",
+    other: "How can we help?",
+  };
+  const enq = document.createElement("div");
+  enq.className = "rev-modal enq";
+  enq.hidden = true;
+  enq.setAttribute("role", "dialog");
+  enq.setAttribute("aria-modal", "true");
+  enq.setAttribute("aria-label", "Send us an enquiry");
+  enq.setAttribute("data-lenis-prevent", "");
+  document.body.append(enq);
+  let enqTopic = "event";
+  const closeEnquiry = () => {
+    if (enq.hidden) return;
+    enq.hidden = true;
+    popLayer("enquiry");
+  };
+  const enqFieldsHTML = () => {
+    const [, eventy] = ENQUIRY[enqTopic];
+    const today = new Date();
+    const min = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    return `${eventy ? `<div class="rev-modal-row"><label class="field"><span class="mono-fine">DATE</span><input type="date" name="date" min="${min}"></label><label class="field"><span class="mono-fine">GUESTS</span><input type="number" name="guests" min="5" max="2000" inputmode="numeric" placeholder="40"></label></div>` : ""}
+      <label class="field"><span class="mono-fine">${enqTopic === "careers" ? "ABOUT YOU" : "DETAILS"}</span><textarea name="text" rows="3" maxlength="800" placeholder="${ENQUIRY_HINT[enqTopic]}"></textarea></label>`;
+  };
+  const openEnquiry = (topic = "event") => {
+    enqTopic = ENQUIRY[topic] ? topic : "other";
+    const saved = readStore("brewns-details", {});
+    enq.innerHTML = `<form class="rev-modal-card" data-enq-form novalidate>
+      <div class="rev-modal-head"><div><p class="mono-fine"><span class="sl">//</span> BREWNS · ENQUIRIES</p><h3>${enqTopic === "careers" ? "WORK WITH US." : enqTopic === "wholesale" ? "OUR BEANS, YOUR BAR." : "LET’S PLAN IT."}</h3></div><button type="button" class="x-btn" data-enq-close aria-label="Close"></button></div>
+      <label class="field"><span class="mono-fine">WHAT IS IT ABOUT</span><select name="topic">${Object.entries(ENQUIRY).map(([k, [label]]) => `<option value="${k}" ${k === enqTopic ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+      <div class="rev-modal-row">
+        <label class="field"><span class="mono-fine">NAME</span><input name="name" autocomplete="name" maxlength="40" value="${esc(saved.name || "")}"></label>
+        <label class="field"><span class="mono-fine">MOBILE</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" value="${esc(saved.phone || "")}" placeholder="0300 1234567"></label>
+      </div>
+      <label class="field"><span class="mono-fine">EMAIL · OPTIONAL</span><input name="email" type="email" autocomplete="email" maxlength="80" value="${esc(saved.email || "")}"></label>
+      <div class="enq-vary">${enqFieldsHTML()}</div>
+      <p class="rev-err mono-fine" id="enq-err" role="alert"></p>
+      <button type="submit" class="btn btn-solid">SEND ${ARROW_SVG}</button>
+      <p class="enq-fine mono-fine">WE REPLY WITHIN A WORKING DAY. OR CALL <a href="tel:${SHOP_PHONE}">${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</a>.</p>
+    </form>`;
+    if (enq.hidden) {
+      enq.hidden = false;
+      pushLayer("enquiry", closeEnquiry, enq);
+    }
+    setTimeout(() => $("input[name=name]", enq)?.focus(), 50);
+  };
+  enq.addEventListener("click", (e) => {
+    if (e.target === enq || e.target.closest("[data-enq-close]")) closeEnquiry();
+  });
+  enq.addEventListener("change", (e) => {
+    if (e.target.name !== "topic") return;
+    enqTopic = e.target.value;
+    $(".enq-vary", enq).innerHTML = enqFieldsHTML();
+  });
+  enq.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    if (f.dataset.sending) return;
+    const name = f.name.value.trim(), phone = pkMobile(f.phone.value), email = f.email.value.trim(), text = f.text.value.trim();
+    const err =
+      name.length < 2 ? "ADD YOUR NAME" : !phone ? "A PAKISTANI MOBILE, LIKE 0300 1234567" : email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "THAT EMAIL LOOKS OFF" : text.length < 10 ? "A FEW WORDS ABOUT WHAT YOU NEED, PLEASE" : "";
+    $("#enq-err", enq).textContent = err;
+    if (err) return triggerHaptic(30);
+    const [label, eventy] = ENQUIRY[enqTopic];
+    const fields = {
+      "Enquiry": label,
+      "Name": name,
+      "Mobile": phone,
+      "Email": email || "-",
+      ...(eventy ? { "Date": f.date.value || "not set", "Guests": f.guests.value || "not set" } : {}),
+      "Details": text,
+    };
+    const body = Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join("\n");
+    const subject = `${titleCase(label)} enquiry · ${name}`;
+    f.dataset.sending = "1";
+    $("button[type=submit]", f).innerHTML = `<span class="co-spin" aria-hidden="true"></span>SENDING…`;
+    const sent = await postForm({ _subject: subject, _replyto: email || undefined, email: email || undefined, ...fields, message: body });
+    writeStore("brewns-details", { ...readStore("brewns-details", {}), name, phone, ...(email ? { email } : {}) });
+    const link = mailto(subject, body);
+    if (!sent) location.href = link;
+    playChime();
+    enq.innerHTML = `<div class="rev-modal-card enq-done">
+      <div class="rev-modal-head"><div><p class="mono-fine"><span class="sl">//</span> ${label}</p><h3>${sent ? "THANK YOU. WE’LL BE IN TOUCH." : "ALMOST THERE."}</h3></div><button type="button" class="x-btn" data-enq-close aria-label="Close"></button></div>
+      <p>${sent ? `It’s with the team. We’ll call ${esc(phone)} within a working day${email ? ` and reply to ${esc(email)}` : ""}.` : `Your email app should have opened with everything filled in: press send and it reaches ${CONTACT_EMAIL}. Nothing opened? <a href="${link}">Open it again</a>, or call us.`}</p>
+      <button type="button" class="btn btn-solid" data-enq-close>DONE ${ARROW_SVG}</button>
+    </div>`;
+    $("button[data-enq-close].btn", enq)?.focus();
+  });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-enquiry]");
+    if (b) openEnquiry(b.dataset.enquiry);
+  });
+
+  /* The Pour: the newsletter. */
+  const pourForm = $("#pour-form");
+  const pourMsg = $("#pour-msg");
+  const pourSaved = readStore("brewns-pour", null);
+  if (pourSaved?.email) {
+    pourMsg.textContent = `✓ YOU'RE ON THE LIST AS ${pourSaved.email.toUpperCase()}.`;
+    pourForm.email.value = pourSaved.email;
+  }
+  pourForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = pourForm.email.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      pourMsg.textContent = "THAT EMAIL LOOKS OFF. TRY AGAIN?";
+      pourForm.classList.add("bad");
+      return triggerHaptic(30);
+    }
+    pourForm.classList.remove("bad");
+    const btn = $("button", pourForm);
+    btn.disabled = true;
+    const sent = await postForm({ _subject: "The Pour: new subscriber", _replyto: email, email, message: `Please add ${email} to The Pour.` });
+    btn.disabled = false;
+    if (sent) {
+      writeStore("brewns-pour", { email, t: Date.now() });
+      pourMsg.textContent = `✓ YOU'RE ON THE LIST AS ${email.toUpperCase()}. SEE YOU NEXT MONTH.`;
+      playChime();
+    } else {
+      location.href = mailto("Add me to The Pour", `Please add ${email} to The Pour, the brewns newsletter.`);
+      pourMsg.textContent = "YOUR EMAIL APP HAS OPENED. PRESS SEND AND YOU'RE IN.";
+    }
+  });
+
+  /* ═══════════════════════ footer shortcuts ═══════════════════════
+     Footer links with data-go land on the right thing, not just the section:
+     the shop filtered to beans, the menu on the cold bar, the gift card open. */
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("[data-go]");
+    if (!a) return;
+    e.preventDefault();
+    const [kind, arg, extra] = a.dataset.go.split(":");
+    if (kind === "shop") {
+      setFilter(arg);
+      return lenis.scrollTo("#shop", { duration: 1.2 });
+    }
+    if (kind === "menu") {
+      $(`.menu-tab[data-cat="${arg}"]`)?.click();
+      return lenis.scrollTo("#menu", { duration: 1.2 });
+    }
+    if (kind === "fullmenu") return openFullMenu();
+    if (kind === "product") return openProduct(arg, { sel: Object.fromEntries((extra || "").split(",").filter(Boolean).map((kv) => [kv.split("=")[0], +kv.split("=")[1]])) });
+    if (kind === "enquiry") return openEnquiry(arg);
+  });
+
   return () => {
     try {
       lenis?.destroy();
       clearInterval(footerClock);
+      cancelAnimationFrame(brew.raf);
       clearInterval(liveLocationsTimer);
       cancelAnimationFrame(tickRaf);
     } catch {}

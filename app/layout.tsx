@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import './globals.css';
 import { SITE_URL } from '@/lib/site';
+import { FAQ } from '@/lib/faq';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -83,6 +84,12 @@ export default function RootLayout({
       }),
       shop('dha', 'DHA Phase 5', 'CCA, DHA Phase 5'),
       shop('johar-town', 'Johar Town', 'Main Boulevard, Johar Town'),
+      // The same questions as the "Good to know" section, word for word.
+      {
+        '@type': 'FAQPage',
+        '@id': `${SITE_URL}/#faq`,
+        mainEntity: FAQ.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+      },
     ],
   };
 
