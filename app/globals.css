@@ -575,6 +575,9 @@ address { font-style: normal; }
 @media (min-width: 1024px) { .hdr-nav { display: block; } }
 .hdr-nav ul { display: flex; align-items: center; gap: 1.5rem; text-transform: uppercase; }
 @media (min-width: 1024px) { .hdr-nav ul { gap: 3rem; } }
+/* Six links: closer together until there is room either side of the wordmark. */
+@media (min-width: 1024px) and (max-width: 1279.98px) { .hdr-nav ul { gap: 1.5rem; } }
+@media (min-width: 1280px) and (max-width: 1439.98px) { .hdr-nav ul { gap: 2.25rem; } }
 .hdr-mark { position: absolute; left: 50%; height: 100%; width: var(--size-logo-width); transform: translateX(-50%); }
 .hdr-mark a { display: block; width: 100%; height: 100%; transition: background-color var(--duration-normal) var(--ease-entrance); }
 @media (max-width: 639.98px) { .hdr-mark { position: static; order: -9999; transform: none; } .hdr-sound { margin-left: 0.75rem; } }

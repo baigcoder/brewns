@@ -3,7 +3,7 @@
 # brewns
 
 **A specialty coffee house in Lahore, and the website that runs it.**<br>
-Menu, shop, order-ahead with live tracking, and three shops: MM Alam Road, DHA Phase 5 and Johar Town.
+Menu, shop, order-ahead with live tracking, a loyalty club, brew guides, and three shops: MM Alam Road, DHA Phase 5 and Johar Town.
 
 [![CI](https://github.com/baigcoder/brewns/actions/workflows/ci.yml/badge.svg)](https://github.com/baigcoder/brewns/actions/workflows/ci.yml)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbaigcoder%2Fbrewns&env=NEXT_PUBLIC_ORDER_ENDPOINT,NEXT_PUBLIC_CAFE_EMAIL,NEXT_PUBLIC_SITE_URL&envDescription=Order%20emails%2C%20the%20caf%C3%A9%20inbox%20and%20the%20site%20address&envLink=https%3A%2F%2Fgithub.com%2Fbaigcoder%2Fbrewns%23environment-variables)
@@ -41,6 +41,10 @@ Next.js 16 · React 19 · three.js · Web Audio · Lenis · Bun · Vercel
 | **After ordering** | A full bill, order emails to the café and the customer, live stages at real times, a message thread with the café and rider, WhatsApp / call / directions, and a live 3D map of the rider's scooter crossing the city. |
 | **Reviews** | Twelve reviews in a carousel with filters by drink, food and shop, *helpful* marks, *verified order* stamps, and a form to leave your own. |
 | **Inside brewns** | A photo mosaic of the shops with a full-screen viewer. |
+| **Brew at home** | V60, French press, AeroPress and moka pot recipes that scale to the number of cups and a strength, a timer that calls every pour, and a button to the right beans already ground for that method. |
+| **brewns Club** | A stamp card: a stamp per drink (two before 09:00), a free drink every ten, a birthday drink. Stamps land on the card when you order, the free drink comes off at checkout, a cancelled order gives both back, and *Show at the counter* opens a scannable card. |
+| **Good to know** | Twelve questions with topic filters (also given to search engines as FAQ data), an events and catering card with one enquiry form for events, office coffee, private evenings, wholesale and jobs, and The Pour newsletter sign-up. |
+| **Privacy and terms** | `/privacy` and `/terms`, written for what the site actually does, including club, gift card and subscription rules. |
 | **The founder** and **brand ambassador** | Hassan Baig, who built brewns and this site; Hania Aamir, brewns' ambassador. |
 | **Sound** | A café that plays in the browser: room murmur, the espresso bar, a lo-fi bed and touch sounds, with a mixer. Off until you turn it on. |
 | **Everyone** | Works with reduced motion, without WebGL, by keyboard and on any screen size. |
@@ -133,15 +137,17 @@ Almost everything is data near the top of its feature in `components/brewns/init
 | `ALL_MENU_CARDS` | The menu section's cards. |
 | `FULL_MENU_SECTIONS` | The full café menu dialog. |
 | `REVIEWS`, `RATINGS`, `OVERHEARD` | The reviews carousel, the rating bars and the ticker. |
+| `COLUMNS` | Footer links. A third value (`shop:beans`, `menu:specialty`, `product:slow-roast:plan=1`, `enquiry:careers`, `fullmenu`) filters or opens something when clicked. |
 | `LOCS` | Shop names and addresses. |
 | `DELIVERY` | Delivery areas (which shop sends the rider, fee, minutes, km), the Rs 1,000 minimum and free delivery over Rs 3,000. |
 | `PAY`, `TAX`, `TAX_CARD` | Payment methods and Punjab sales tax. Check current rates with the Punjab Revenue Authority. |
 | `OPEN_MIN`, `CLOSE_MIN`, `PREP_MIN` | Opening hours and pickup lead time. The footer's *open now* and the receipt read the same values. |
 | `SHOP_PHONE`, `SHOP_WHATSAPP` | The café's call and WhatsApp numbers. |
 | `BUSINESS` | FBR NTN and STRN, printed on tax invoices when filled in. |
-| `COLUMNS` | Footer navigation. |
 
 Prices are whole rupees. They appear as numbers in `PRODUCTS` and `KITCHEN` and as strings (`"Rs 950"`) in `ALL_MENU_CARDS`, the hero cards and the taste quiz (`TasteCalibrator.ts`), so change a price in all of them. Section text lives in `components/brewns/brewnsMarkup.ts`, and styles in `app/globals.css` and `app/sections.css`.
+
+Outside that file: club rules (`CLUB`: stamps per reward, the early-bird hour, the Rs 1,500 cap) are in `components/brewns/club.ts`; brew recipes (`BREW_METHODS`) in `components/brewns/brewGuide.ts`; the questions (`FAQ`) in `lib/faq.ts`; the new sections' text in `components/brewns/moreMarkup.ts`; the legal pages in `app/privacy` and `app/terms`. The FAQ, the terms and the club section restate delivery, tax and club numbers, so change them together.
 
 Rider stages, messages and receipts are in `components/brewns/orderLive.ts`; the 3D delivery map is `components/brewns/riderMap3D.ts`; SEO data is in `app/layout.tsx`.
 
@@ -206,17 +212,21 @@ app/layout.tsx                         metadata, structured data, the later sect
 app/page.tsx                           lists the kitchen photos and sound that exist
 └─ components/brewns/BrewnsApp.tsx     injects the markup, starts the engine
    ├─ brewnsMarkup.ts                  every section's HTML
+   │  └─ moreMarkup.ts                 brew at home, the club, good to know
+   │     └─ lib/faq.ts                 the questions (also the FAQ structured data)
    ├─ initBrewns.ts                    motion, menu, shop, bag, checkout, tracking, reviews
    │  ├─ pdp3dEngine.ts                3D product models and packaging print
    │  ├─ riderMap3D.ts                 the live delivery map
    │  ├─ orderLive.ts                  order stages, rider, messages, receipts
    │  ├─ foodArt.ts                    drawn dishes for the kitchen menu
    │  ├─ TasteCalibrator.ts            the "find your pour" quiz
+   │  ├─ club.ts                       brewns Club rules: stamps, rewards, birthdays
+   │  ├─ brewGuide.ts                  brew recipes and the timer's steps
    │  └─ lib/audio-ritual.ts           café sound
    └─ app/globals.css, app/sections.css
 ```
 
-Sections, top to bottom: `#hero`, `#menu`, `#shop`, `#locations`, `#inside`, `#story`, `#founder`, `#hania`, `#reviews`, `#order`, then the footer.
+Sections, top to bottom: `#hero`, `#menu`, `#shop`, `#locations`, `#inside`, `#brew`, `#story`, `#founder`, `#hania`, `#reviews`, `#club`, `#order`, `#faq`, then the footer. `/privacy` and `/terms` are separate pages (`components/legal/LegalPage.tsx`, `app/legal.css`).
 
 **Motion is declarative.** Markup opts in with data attributes, and `initBrewns.ts` wires them up:
 
@@ -259,6 +269,9 @@ In `scripts/`, `verify-*` and `test-*` are QA scripts that drive a headless brow
 - **Orders reach the café by email** once `NEXT_PUBLIC_ORDER_ENDPOINT` is set. There is no ordering backend or online payment: tracking plays out on the clock (`orderLive.ts`), messages are answered by rules in `autoReply()`, and the rider names and map are illustrative. With a backend, only `timeline()` and `autoReply()` need to read real data.
 - **Tax invoices.** Fill in `BUSINESS.ntn` and `strn`, and check the Punjab tax rates.
 - **Reviews** posted on the site are kept in the visitor's browser until a backend collects them.
+- **brewns Club cards live in the browser** too, so a card is tied to one device and clearing site data loses it (the terms say so). Moving the club to a backend means replacing `readClub()` / `writeClub()` in `initBrewns.ts`; the rules in `club.ts` are pure and move as they are. Decide whether a promo code and a free drink may be combined (today they can: the promo applies after the free drink).
+- **Questions and legal pages.** The FAQ's answers about parking, halal suppliers, Wi-Fi and allergens, and the promises in `/terms` (remake or refund within 24 hours, 30 days' notice before changing the club) are drafts to confirm. Have a lawyer read `/privacy` and `/terms` before launch.
+- **Enquiries and The Pour** are emailed through `NEXT_PUBLIC_ORDER_ENDPOINT` like orders, with the subject saying which. Without it the visitor's email app opens, addressed to `hello@brewns.coffee`. Newsletter sign-ups arrive as emails: move them into your mailing tool.
 
 ## Troubleshooting
 
