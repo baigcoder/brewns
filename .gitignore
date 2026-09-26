@@ -29,3 +29,7 @@ bun.lock*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+daemon.log
+.data/
+scratch_tex/
