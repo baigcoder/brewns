@@ -838,7 +838,7 @@ const ALL_MENU_CARDS = [
   { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "Rs 700", file: "menu-cinnamon.webp", size: [1536, 1024], frame: [327, 218, -8, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
   { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "Rs 650", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
   { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "Rs 1,050", file: "menu-iced-latte.webp", size: [1024, 1536], frame: [175, 235, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: false, alt: "A brewns iced latte in a clear cup with straw" },
-  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Slow Roast whole bean bag" },
+  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", file: "menu-slow-roast.webp", size: [957, 740], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A black brewns Slow Roast bag on a brown table, with coffee beans and steam" },
   { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", snap: "bag", size: [720, 720], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A cream brewns Ethiopia Yirgacheffe whole bean bag" },
   { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
   ...KITCHEN.map((k) => ({ shot: true, id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: `${ASSET_BASE_URL}${k.photo}`, size: [800, 800], frame: [255, 255, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
@@ -3091,7 +3091,7 @@ const thumbHTML = (p) =>
   p.gift
     ? `<span class="thumb dark">${giftcardHTML("")}</span>`
     : p.photo
-      ? `<span class="thumb${p.art ? " shot" : ""}"><img src="${photoSrc(p.photo)}" alt="" loading="lazy"></span>`
+      ? `<span class="thumb${p.art || p.fill ? " shot" : ""}"><img src="${photoSrc(p.photo)}" alt="" loading="lazy"></span>`
       : `<span class="thumb dark"><img data-snap="${p.model}" data-snap-product="${p.id}" alt=""></span>`;
 /* Model-only products have no photograph: their pictures are rendered from the
    same .glb. `bun run snapshots` renders them once into shop/snap/, so a visitor's
@@ -3129,13 +3129,15 @@ let shopFilter = "all";
 shopGrid.innerHTML = PRODUCTS.map((p, i) => {
   const media = p.gift
     ? giftcardHTML(money(p.price))
-    : p.photo
+    : p.photo && p.fill
+      ? `<img class="shot" src="${photoSrc(p.photo)}" alt="${esc(p.alt)}" loading="lazy">`
+      : p.photo
       ? `<span class="pcard-photo" aria-hidden="true"></span><img${p.art ? ' class="shot"' : ""} src="${photoSrc(p.photo)}" alt="${esc(p.alt)}" loading="lazy">`
       : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.alt || `A bag of brewns ${p.name.toLowerCase()} coffee beans`)}"><span class="pcard-loading" aria-hidden="true"></span>`;
   return `<li class="${p.feature ? "feature" : p.id === "cinnamon-roll" || p.id === "ceramic-tumbler" || p.gift ? "wide" : ""}" data-cat="${p.cat}"><div class="lean"><div>
     <article class="pcard" tabindex="0" role="link" aria-label="${esc(p.name)}, ${money(p.price)}" data-product="${p.id}">
       <div class="pcard-top mono-fine"><span>${String(i + 1).padStart(2, "0")}</span>${p.tag ? `<span class="pcard-tag chip"><span class="dot"></span>${p.tag}</span>` : `<span>${CAT_LABEL[p.cat]}</span>`}</div>
-      <div class="pcard-media">${media}<span class="pcard-view mono-fine${p.photo ? "" : " on-dark"}" aria-hidden="true">VIEW PRODUCT <span style="display:inline-block;width:.6rem;transform:rotate(-45deg)">${ARROW_SVG}</span></span></div>
+      <div class="pcard-media">${media}<span class="pcard-view mono-fine${p.photo && !p.fill ? "" : " on-dark"}" aria-hidden="true">VIEW PRODUCT <span style="display:inline-block;width:.6rem;transform:rotate(-45deg)">${ARROW_SVG}</span></span></div>
       <div class="pcard-foot">
         <div><p class="pcard-name">${p.name}</p><p class="pcard-meta mono-fine">${p.meta}</p></div>
         <div class="pcard-buy"><p class="pcard-price">${p.options.some((o) => o.choices.some((c) => c[1] > 0)) ? '<span class="mono-fine" style="opacity:.5">FROM </span>' : ""}${money(p.price)}</p><button type="button" class="pcard-add" data-add="${p.id}" aria-label="Add ${esc(p.name)} to bag">+ ADD</button></div>
