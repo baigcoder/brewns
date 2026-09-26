@@ -1,7 +1,8 @@
 /**
- * Puts the kitchen photos on a clean white background, like the coffee shots:
- * the dish is cut out of its photo, centred on a white square and given a soft
- * shadow. Runs on your own computer, no upload:
+ * Cuts the kitchen photos out, like the coffee shots: the dish is lifted out of
+ * its photo, centred on a transparent square and given a soft contact shadow,
+ * so it stands straight on whatever card shows it (no white box).
+ * Runs on your own computer, no upload:
  *
  *   bun run kitchen:white          new photos in public/assets/kitchen/
  *   bun run kitchen:white --all    redo every photo from its original
@@ -152,14 +153,14 @@ for (const name of todo) {
       `<ellipse cx="${SIZE / 2}" cy="${top + h - sh * 0.35}" rx="${sw / 2}" ry="${sh / 2}" fill="#3c2d23" fill-opacity=".28" filter="url(#b)"/></svg>`,
   );
 
-  await sharp({ create: { width: SIZE, height: SIZE, channels: 3, background: '#ffffff' } })
+  await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
     .composite([{ input: shadow }, { input: dish.data, left, top }])
-    .jpeg({ quality: 88, mozjpeg: true })
-    .toFile(path.join(PUBLIC, `${id}.jpg.tmp`));
-  // the served photo becomes <id>.jpg; a .png/.webp original leaves public/
+    .webp({ quality: 88, alphaQuality: 95 })
+    .toFile(path.join(PUBLIC, `${id}.webp.tmp`));
+  // the served photo becomes <id>.webp; a .jpg/.png original leaves public/
   for (const f of readdirSync(PUBLIC)) if (path.parse(f).name === id && !f.endsWith('.tmp')) unlinkSync(path.join(PUBLIC, f));
-  copyFileSync(path.join(PUBLIC, `${id}.jpg.tmp`), path.join(PUBLIC, `${id}.jpg`));
-  unlinkSync(path.join(PUBLIC, `${id}.jpg.tmp`));
-  console.log(`public/assets/kitchen/${id}.jpg`);
+  copyFileSync(path.join(PUBLIC, `${id}.webp.tmp`), path.join(PUBLIC, `${id}.webp`));
+  unlinkSync(path.join(PUBLIC, `${id}.webp.tmp`));
+  console.log(`public/assets/kitchen/${id}.webp`);
 }
 console.log('\nDone. Reload the site to see them.');
