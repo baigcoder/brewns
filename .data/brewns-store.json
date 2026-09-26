@@ -1,0 +1,1507 @@
+{
+  "staff": {
+    "usr_owner": {
+      "id": "usr_owner",
+      "name": "Hassan Baig",
+      "email": "owner@brewns.pk",
+      "phone": "0300 8472910",
+      "role": "owner",
+      "shops": [
+        0,
+        1,
+        2
+      ],
+      "active": true,
+      "passwordHash": "50cd6f80b2d1aa6d3e73dadd54e07cb7:7bbf6bdfabd19616d69f5f694853c681631dfd0bb0c0752297114635fc78e8bc4ebe024562527bc3d99de7ede1dc0ed1fc3dcd71d262e6cd9e1a9c507aafb873",
+      "createdAt": 1787841529325
+    },
+    "usr_manager": {
+      "id": "usr_manager",
+      "name": "Zainab Tariq",
+      "email": "manager@brewns.pk",
+      "phone": "0321 4455667",
+      "role": "manager",
+      "shops": [
+        0,
+        1,
+        2
+      ],
+      "active": true,
+      "passwordHash": "50cd6f80b2d1aa6d3e73dadd54e07cb7:7bbf6bdfabd19616d69f5f694853c681631dfd0bb0c0752297114635fc78e8bc4ebe024562527bc3d99de7ede1dc0ed1fc3dcd71d262e6cd9e1a9c507aafb873",
+      "createdAt": 1788705529325
+    },
+    "usr_cashier": {
+      "id": "usr_cashier",
+      "name": "Bilal Khan",
+      "email": "cashier@brewns.pk",
+      "phone": "0333 1122334",
+      "role": "cashier",
+      "shops": [
+        0
+      ],
+      "active": true,
+      "passwordHash": "50cd6f80b2d1aa6d3e73dadd54e07cb7:7bbf6bdfabd19616d69f5f694853c681631dfd0bb0c0752297114635fc78e8bc4ebe024562527bc3d99de7ede1dc0ed1fc3dcd71d262e6cd9e1a9c507aafb873",
+      "createdAt": 1789137529325
+    },
+    "usr_barista": {
+      "id": "usr_barista",
+      "name": "Hamza Sheikh",
+      "email": "barista@brewns.pk",
+      "phone": "0301 9988776",
+      "role": "barista",
+      "shops": [
+        0
+      ],
+      "active": true,
+      "passwordHash": "50cd6f80b2d1aa6d3e73dadd54e07cb7:7bbf6bdfabd19616d69f5f694853c681631dfd0bb0c0752297114635fc78e8bc4ebe024562527bc3d99de7ede1dc0ed1fc3dcd71d262e6cd9e1a9c507aafb873",
+      "createdAt": 1789569529325
+    },
+    "usr_chef": {
+      "id": "usr_chef",
+      "name": "Chef Usman",
+      "email": "chef@brewns.pk",
+      "phone": "0345 5566778",
+      "role": "chef",
+      "shops": [
+        0
+      ],
+      "active": true,
+      "passwordHash": "50cd6f80b2d1aa6d3e73dadd54e07cb7:7bbf6bdfabd19616d69f5f694853c681631dfd0bb0c0752297114635fc78e8bc4ebe024562527bc3d99de7ede1dc0ed1fc3dcd71d262e6cd9e1a9c507aafb873",
+      "createdAt": 1789569529325
+    },
+    "usr_waiter": {
+      "id": "usr_waiter",
+      "name": "Ali Raza",
+      "email": "waiter@brewns.pk",
+      "phone": "0312 3344556",
+      "role": "waiter",
+      "shops": [
+        0
+      ],
+      "active": true,
+      "passwordHash": "50cd6f80b2d1aa6d3e73dadd54e07cb7:7bbf6bdfabd19616d69f5f694853c681631dfd0bb0c0752297114635fc78e8bc4ebe024562527bc3d99de7ede1dc0ed1fc3dcd71d262e6cd9e1a9c507aafb873",
+      "createdAt": 1789742329325
+    },
+    "usr_rider": {
+      "id": "usr_rider",
+      "name": "Kamran Akmal",
+      "email": "rider@brewns.pk",
+      "phone": "0305 7788990",
+      "role": "rider",
+      "shops": [
+        0,
+        1
+      ],
+      "active": true,
+      "riderPlate": "LEN-8492",
+      "passwordHash": "50cd6f80b2d1aa6d3e73dadd54e07cb7:7bbf6bdfabd19616d69f5f694853c681631dfd0bb0c0752297114635fc78e8bc4ebe024562527bc3d99de7ede1dc0ed1fc3dcd71d262e6cd9e1a9c507aafb873",
+      "createdAt": 1790001529325
+    }
+  },
+  "customers": {},
+  "sessions": {
+    "2da74b4161125317492907e2625c42bcd59e66bc2475bb883cabb0b5477bb8fc": {
+      "token": "2da74b4161125317492907e2625c42bcd59e66bc2475bb883cabb0b5477bb8fc",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791634157389
+    },
+    "2d2e9a3b7d95ab6ffad1528675630db60e96ae3d2cc5566e5e43270a205bd379": {
+      "token": "2d2e9a3b7d95ab6ffad1528675630db60e96ae3d2cc5566e5e43270a205bd379",
+      "userId": "usr_manager",
+      "kind": "staff",
+      "role": "manager",
+      "expiresAt": 1791634221623
+    },
+    "c1eb2d25325f55a68e095e85a460dc60b9f4a4c92258c539de1298e3b3263596": {
+      "token": "c1eb2d25325f55a68e095e85a460dc60b9f4a4c92258c539de1298e3b3263596",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791634221677
+    },
+    "445b227816d650e953debda5c0cfaea5ecb1b11aa406796bf93cd5809382901c": {
+      "token": "445b227816d650e953debda5c0cfaea5ecb1b11aa406796bf93cd5809382901c",
+      "userId": "usr_chef",
+      "kind": "staff",
+      "role": "chef",
+      "expiresAt": 1791634221782
+    },
+    "3537063d4f7e4e90447ab2cfaa1746a601ace9fb3f50f4b632000ba28d9bbdf1": {
+      "token": "3537063d4f7e4e90447ab2cfaa1746a601ace9fb3f50f4b632000ba28d9bbdf1",
+      "userId": "usr_waiter",
+      "kind": "staff",
+      "role": "waiter",
+      "expiresAt": 1791634221836
+    },
+    "1584a53a0ea4969985c2148203e1311912b022124dc0d22b961a3b10a721f633": {
+      "token": "1584a53a0ea4969985c2148203e1311912b022124dc0d22b961a3b10a721f633",
+      "userId": "usr_rider",
+      "kind": "staff",
+      "role": "rider",
+      "expiresAt": 1791634221883
+    },
+    "4d171734c5d7d0b872b5a3487334e8ea9151dce498e1b841784e75160873f737": {
+      "token": "4d171734c5d7d0b872b5a3487334e8ea9151dce498e1b841784e75160873f737",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791634249095
+    },
+    "26469972aa7a16dc5d825ba9737106c4e9785c254f126be7a06ca62d2f4911c0": {
+      "token": "26469972aa7a16dc5d825ba9737106c4e9785c254f126be7a06ca62d2f4911c0",
+      "userId": "usr_waiter",
+      "kind": "staff",
+      "role": "waiter",
+      "expiresAt": 1791634249133
+    },
+    "89b90fdb2c81d3af4bc869941a3882059061ca0c575e6322c63130b97dc7c323": {
+      "token": "89b90fdb2c81d3af4bc869941a3882059061ca0c575e6322c63130b97dc7c323",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791634268651
+    },
+    "7aa9f6ba4246c8f9e2ef9fe83f53d4b1378d15517fab7808b65086c7f8a3a501": {
+      "token": "7aa9f6ba4246c8f9e2ef9fe83f53d4b1378d15517fab7808b65086c7f8a3a501",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791634758626
+    },
+    "8c33eadd6cd1bc6c175909d1c60bd1d8f8de74b08aa1d27185eef993690b4a93": {
+      "token": "8c33eadd6cd1bc6c175909d1c60bd1d8f8de74b08aa1d27185eef993690b4a93",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791635013875
+    },
+    "f09400597ec643542d85585e217d6ba4e6c21a2fb67b979c6a796108398346f9": {
+      "token": "f09400597ec643542d85585e217d6ba4e6c21a2fb67b979c6a796108398346f9",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791635190599
+    },
+    "6385a71a56274566db52f2c18b472fad339afcb6ab198dbd6c9d8ccd515b10e1": {
+      "token": "6385a71a56274566db52f2c18b472fad339afcb6ab198dbd6c9d8ccd515b10e1",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791635417487
+    },
+    "3eff346868a9aa71fc0019d6da21fde97c81556731d73ba04f9a0cb8f17f560d": {
+      "token": "3eff346868a9aa71fc0019d6da21fde97c81556731d73ba04f9a0cb8f17f560d",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791638870946
+    },
+    "7aa6a56bcaf5d4bab59c27f5f5596e014ed63b10248d1ff6ffd11a212f918d55": {
+      "token": "7aa6a56bcaf5d4bab59c27f5f5596e014ed63b10248d1ff6ffd11a212f918d55",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791640733560
+    },
+    "593d1d163bde25d635e58b2d444dce6e8a03b6eff2f0e5eaefd7fce9acb60b98": {
+      "token": "593d1d163bde25d635e58b2d444dce6e8a03b6eff2f0e5eaefd7fce9acb60b98",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791640753168
+    },
+    "a2d526a4aad777ea24b42bfe6cbc1be2d041e754e31644090e43fc1825febaef": {
+      "token": "a2d526a4aad777ea24b42bfe6cbc1be2d041e754e31644090e43fc1825febaef",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791641206318
+    },
+    "ab926d483a52815f48c77d915a3e0602f781de2a16ec180e66e7d37e74f9ee01": {
+      "token": "ab926d483a52815f48c77d915a3e0602f781de2a16ec180e66e7d37e74f9ee01",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791642572748
+    },
+    "b88d0a120c805cb5d070cd9d978b82cbd120fe7a29c92b6782ecf61edd47162f": {
+      "token": "b88d0a120c805cb5d070cd9d978b82cbd120fe7a29c92b6782ecf61edd47162f",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791643110612
+    },
+    "6016f1f7d80aa58df4a360ed46f000fdfce0573f7c6fd3764f3c4ae97dcff3a2": {
+      "token": "6016f1f7d80aa58df4a360ed46f000fdfce0573f7c6fd3764f3c4ae97dcff3a2",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791643129280
+    },
+    "845e79de7dd9ed390f027f011005c71deda569b623715e97ed0169c8d9a2059c": {
+      "token": "845e79de7dd9ed390f027f011005c71deda569b623715e97ed0169c8d9a2059c",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791643147859
+    },
+    "a883b72028069eeee7509b8ea257a9824c3d29219a489c30abe111907ce202f1": {
+      "token": "a883b72028069eeee7509b8ea257a9824c3d29219a489c30abe111907ce202f1",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791643225362
+    },
+    "9fe3f0f63a3dc7dc4c1b1a593252594ca4fadc45d561097a56489cf1674a5c6b": {
+      "token": "9fe3f0f63a3dc7dc4c1b1a593252594ca4fadc45d561097a56489cf1674a5c6b",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791643227698
+    },
+    "73743a9ca4dc35705eac4da8552b8d923745a8e6f74c8ebb577a9eb060e574f4": {
+      "token": "73743a9ca4dc35705eac4da8552b8d923745a8e6f74c8ebb577a9eb060e574f4",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791643627278
+    },
+    "5c98dd0e5e1199c48055a2a4e5ef74ce2384de41eb3136ae14846ed33f2cfb1f": {
+      "token": "5c98dd0e5e1199c48055a2a4e5ef74ce2384de41eb3136ae14846ed33f2cfb1f",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791643650717
+    },
+    "27f7b45aabad76eed869eb67b997b8bfb8351e102161466540bb67f0447b67bb": {
+      "token": "27f7b45aabad76eed869eb67b997b8bfb8351e102161466540bb67f0447b67bb",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791643841037
+    },
+    "0dd9aa0ce277a386e6dfc0ee441728e8c82e1220cd6268075105ba89cd413274": {
+      "token": "0dd9aa0ce277a386e6dfc0ee441728e8c82e1220cd6268075105ba89cd413274",
+      "userId": "usr_manager",
+      "kind": "staff",
+      "role": "manager",
+      "expiresAt": 1791643841089
+    },
+    "c7d2aba214f160b371cb4ca949768c1f789de0a6be39933be733470fd5f088d1": {
+      "token": "c7d2aba214f160b371cb4ca949768c1f789de0a6be39933be733470fd5f088d1",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791643841133
+    },
+    "67f403942ff786968fa37217695d5c8decaaede62e003ef8120ef35f6002f583": {
+      "token": "67f403942ff786968fa37217695d5c8decaaede62e003ef8120ef35f6002f583",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791643841174
+    },
+    "8a7dd33268adb619c79c1ceafa8b8aea20c9004dfa4ab64f24aecb25e4427941": {
+      "token": "8a7dd33268adb619c79c1ceafa8b8aea20c9004dfa4ab64f24aecb25e4427941",
+      "userId": "usr_chef",
+      "kind": "staff",
+      "role": "chef",
+      "expiresAt": 1791643841211
+    },
+    "94764fdc903893efd54055f54e653920f34a1117a257797a2565bc56c50b975a": {
+      "token": "94764fdc903893efd54055f54e653920f34a1117a257797a2565bc56c50b975a",
+      "userId": "usr_waiter",
+      "kind": "staff",
+      "role": "waiter",
+      "expiresAt": 1791643841257
+    },
+    "a887aaf0024b0d49aeb4ddf02eb4e727b63bc1aa5727c340ae966119ed34a879": {
+      "token": "a887aaf0024b0d49aeb4ddf02eb4e727b63bc1aa5727c340ae966119ed34a879",
+      "userId": "usr_rider",
+      "kind": "staff",
+      "role": "rider",
+      "expiresAt": 1791643841294
+    },
+    "9fcc26ed62132533802b07f6d87323a1a37aa8575962a166e1ef1f18e01852dc": {
+      "token": "9fcc26ed62132533802b07f6d87323a1a37aa8575962a166e1ef1f18e01852dc",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791644212015
+    },
+    "131dbe3d47d4ad20501e6d38347ff4ac7883b956b36b1f911368e30148e401fb": {
+      "token": "131dbe3d47d4ad20501e6d38347ff4ac7883b956b36b1f911368e30148e401fb",
+      "userId": "usr_manager",
+      "kind": "staff",
+      "role": "manager",
+      "expiresAt": 1791644212164
+    },
+    "249b9c28a971d870e6b3d29790024ffc76a0a5bfde649be79025e22f1d019d82": {
+      "token": "249b9c28a971d870e6b3d29790024ffc76a0a5bfde649be79025e22f1d019d82",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791644212213
+    },
+    "543a9bf35d7d3204a2d26b935c618f7fbbfd0362ee091c2aee7fd63d59e6deb5": {
+      "token": "543a9bf35d7d3204a2d26b935c618f7fbbfd0362ee091c2aee7fd63d59e6deb5",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791644212248
+    },
+    "8432f77f365407ac799712e929e0464457df6792644c6abff88dab1af51eecad": {
+      "token": "8432f77f365407ac799712e929e0464457df6792644c6abff88dab1af51eecad",
+      "userId": "usr_chef",
+      "kind": "staff",
+      "role": "chef",
+      "expiresAt": 1791644212291
+    },
+    "995638354eec897ce2eb3b8cd2ee4446795d4dd2bb0424a2c48aec204a0aeaae": {
+      "token": "995638354eec897ce2eb3b8cd2ee4446795d4dd2bb0424a2c48aec204a0aeaae",
+      "userId": "usr_waiter",
+      "kind": "staff",
+      "role": "waiter",
+      "expiresAt": 1791644212313
+    },
+    "ec8fabbb9a17d1466ed994a9d5d636e53182177858286809c9221a82d0c309e0": {
+      "token": "ec8fabbb9a17d1466ed994a9d5d636e53182177858286809c9221a82d0c309e0",
+      "userId": "usr_rider",
+      "kind": "staff",
+      "role": "rider",
+      "expiresAt": 1791644212361
+    },
+    "71604ae60e25d06fe8ad2af521330525831238f4314fa73664a50a6f31216262": {
+      "token": "71604ae60e25d06fe8ad2af521330525831238f4314fa73664a50a6f31216262",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791644232808
+    },
+    "7a44cd20b9e9e4246b88cca54b2e44681c282695f534ef643114c2f62e089f84": {
+      "token": "7a44cd20b9e9e4246b88cca54b2e44681c282695f534ef643114c2f62e089f84",
+      "userId": "usr_manager",
+      "kind": "staff",
+      "role": "manager",
+      "expiresAt": 1791644232860
+    },
+    "b692c2d68c503f52f4b83dff3771a3cac5c27d485fa93c34f0eb86f982a7bbf1": {
+      "token": "b692c2d68c503f52f4b83dff3771a3cac5c27d485fa93c34f0eb86f982a7bbf1",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791644232903
+    },
+    "77c5ee9f11c0c307d2be8db0a10816772ecf55dabd73a321dde720939d560e1d": {
+      "token": "77c5ee9f11c0c307d2be8db0a10816772ecf55dabd73a321dde720939d560e1d",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791644232955
+    },
+    "bf5dbca2d409c75746782f5b40217e0b83d2cb10776c3d9184c9a421b102d250": {
+      "token": "bf5dbca2d409c75746782f5b40217e0b83d2cb10776c3d9184c9a421b102d250",
+      "userId": "usr_chef",
+      "kind": "staff",
+      "role": "chef",
+      "expiresAt": 1791644233004
+    },
+    "7a25a20275f5737af75e35de7aed1919a530ee54635789ee70be01f38416d2ad": {
+      "token": "7a25a20275f5737af75e35de7aed1919a530ee54635789ee70be01f38416d2ad",
+      "userId": "usr_waiter",
+      "kind": "staff",
+      "role": "waiter",
+      "expiresAt": 1791644233055
+    },
+    "46d1405af7331f13df876e4bcca330e038d3401c37a0fc3503e90735ca2b71f4": {
+      "token": "46d1405af7331f13df876e4bcca330e038d3401c37a0fc3503e90735ca2b71f4",
+      "userId": "usr_rider",
+      "kind": "staff",
+      "role": "rider",
+      "expiresAt": 1791644233100
+    },
+    "00265a250002e8bd5a77be7a92e99e43e5f54853b74e4ac006f1b5db0220d58c": {
+      "token": "00265a250002e8bd5a77be7a92e99e43e5f54853b74e4ac006f1b5db0220d58c",
+      "userId": "usr_owner",
+      "kind": "staff",
+      "role": "owner",
+      "expiresAt": 1791655092085
+    },
+    "ed18460fd936cd9a798692fad520bc4c008c39a3af6d52ba3c1a7de4d493c0c1": {
+      "token": "ed18460fd936cd9a798692fad520bc4c008c39a3af6d52ba3c1a7de4d493c0c1",
+      "userId": "usr_cashier",
+      "kind": "staff",
+      "role": "cashier",
+      "expiresAt": 1791655092231
+    },
+    "1ce248581f1ea2b8ec75c18a89ba775c707c1e47ea53776474adf8065c892cfc": {
+      "token": "1ce248581f1ea2b8ec75c18a89ba775c707c1e47ea53776474adf8065c892cfc",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791655092258
+    },
+    "ff10259f0373199c46a460da0893fe13aaa35f6d3cd53dea6d49c20b8d40d0b4": {
+      "token": "ff10259f0373199c46a460da0893fe13aaa35f6d3cd53dea6d49c20b8d40d0b4",
+      "userId": "usr_chef",
+      "kind": "staff",
+      "role": "chef",
+      "expiresAt": 1791655092291
+    },
+    "6643c953547b49706652ce09cbc073de9c4246d18c8df6906f1af2e92f2e63b7": {
+      "token": "6643c953547b49706652ce09cbc073de9c4246d18c8df6906f1af2e92f2e63b7",
+      "userId": "usr_waiter",
+      "kind": "staff",
+      "role": "waiter",
+      "expiresAt": 1791655092316
+    },
+    "2cd78b7ce7d1f33ec09b008c89e5352fa7c414188651c4cc519dc51db236488f": {
+      "token": "2cd78b7ce7d1f33ec09b008c89e5352fa7c414188651c4cc519dc51db236488f",
+      "userId": "usr_rider",
+      "kind": "staff",
+      "role": "rider",
+      "expiresAt": 1791655092349
+    },
+    "1f95be69ba35938456b795b54ef05d4806c23a4ec68091adb1124cc92aa82ae6": {
+      "token": "1f95be69ba35938456b795b54ef05d4806c23a4ec68091adb1124cc92aa82ae6",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791657829413
+    },
+    "37f67f338e6939c5f4d2d4becb1eb370b25c2d2623046036890dca6d791b1805": {
+      "token": "37f67f338e6939c5f4d2d4becb1eb370b25c2d2623046036890dca6d791b1805",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791657869833
+    },
+    "2a25940ba49903f2c73b9df6e04792b2e5e820ef7bfe68c61a5aaaba42a49c56": {
+      "token": "2a25940ba49903f2c73b9df6e04792b2e5e820ef7bfe68c61a5aaaba42a49c56",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791657904776
+    },
+    "8f8eef4da7f627dcf5afc4065196f1b9ea36841c243c1677d11abe977dfb9498": {
+      "token": "8f8eef4da7f627dcf5afc4065196f1b9ea36841c243c1677d11abe977dfb9498",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791657918528
+    },
+    "a6e11f580b9216fb943dfac175f99a4d024966462df57270d4b8f8344a7cbc04": {
+      "token": "a6e11f580b9216fb943dfac175f99a4d024966462df57270d4b8f8344a7cbc04",
+      "userId": "usr_manager",
+      "kind": "staff",
+      "role": "manager",
+      "expiresAt": 1791657925165
+    },
+    "827f2e1ab0ccac569e6a77f92c23480d116da62d6922a0ab45b43931b2317e8f": {
+      "token": "827f2e1ab0ccac569e6a77f92c23480d116da62d6922a0ab45b43931b2317e8f",
+      "userId": "usr_barista",
+      "kind": "staff",
+      "role": "barista",
+      "expiresAt": 1791657932275
+    }
+  },
+  "orders": {
+    "BRW-0026": {
+      "id": "BRW-0026",
+      "seq": 26,
+      "placed": 1790433049325,
+      "target": 1790434249325,
+      "type": "delivery",
+      "loc": 0,
+      "area": 0,
+      "address": "House 14-B, Main Boulevard, Gulberg III",
+      "table": null,
+      "name": "Ayesha Malik",
+      "phone": "0300 4567890",
+      "email": "ayesha.m@gmail.com",
+      "note": "Gate code 4921, please call on arrival",
+      "pay": 1,
+      "paid": true,
+      "status": "preparing",
+      "items": [
+        {
+          "id": "latte",
+          "name": "LATTE",
+          "sel": {
+            "size": 1,
+            "milk": 1,
+            "temp": 0
+          },
+          "qty": 2,
+          "unitPrice": 1100,
+          "station": "bar",
+          "done": true
+        },
+        {
+          "id": "smash-burger",
+          "name": "CLASSIC SMASH BURGER",
+          "sel": {
+            "meal": 1,
+            "extra": 1
+          },
+          "qty": 1,
+          "unitPrice": 1950,
+          "station": "kitchen",
+          "done": false
+        }
+      ],
+      "stationStatus": {
+        "bar": "ready",
+        "kitchen": "preparing"
+      },
+      "totals": {
+        "sub": 4150,
+        "discount": 0,
+        "fee": 0,
+        "rate": 0.05,
+        "tax": 208,
+        "total": 4358
+      },
+      "promo": null,
+      "riderId": "usr_rider",
+      "riderName": "Kamran Akmal",
+      "riderPhone": "0305 7788990",
+      "riderPlate": "LEN-8492",
+      "waiterCall": false,
+      "messages": [
+        {
+          "id": "msg_1",
+          "sender": "customer",
+          "name": "Ayesha Malik",
+          "text": "Can you please make sure the fries are crispy?",
+          "time": 1790433169325
+        },
+        {
+          "id": "msg_2",
+          "sender": "staff",
+          "name": "Chef Usman (chef)",
+          "text": "Absolutely Ayesha, dropping fresh fries right before packing!",
+          "time": 1790433289325
+        }
+      ],
+      "history": [
+        {
+          "action": "placed",
+          "actor": "Ayesha Malik (Online)",
+          "time": 1790433049325
+        },
+        {
+          "action": "accept",
+          "actor": "Bilal Khan (cashier)",
+          "time": 1790433109325
+        },
+        {
+          "action": "assign_rider",
+          "actor": "Bilal Khan (cashier)",
+          "time": 1790433109325,
+          "note": "Assigned to Kamran Akmal"
+        },
+        {
+          "action": "start",
+          "actor": "Chef Usman (chef)",
+          "time": 1790433229325
+        }
+      ]
+    },
+    "BRW-0027": {
+      "id": "BRW-0027",
+      "seq": 27,
+      "placed": 1790432629325,
+      "target": 1790433349325,
+      "type": "dinein",
+      "loc": 0,
+      "area": null,
+      "address": "",
+      "table": "T-04",
+      "name": "Omer Farooq",
+      "phone": "0321 8887766",
+      "email": "",
+      "note": "Extra napkins please",
+      "pay": 0,
+      "paid": false,
+      "status": "ready",
+      "items": [
+        {
+          "id": "cortado",
+          "name": "CORTADO",
+          "sel": {
+            "shots": 0,
+            "milk": 0,
+            "temp": 0
+          },
+          "qty": 2,
+          "unitPrice": 850,
+          "station": "bar",
+          "done": true
+        },
+        {
+          "id": "cinnamon-roll",
+          "name": "CINNAMON ROLL",
+          "sel": {
+            "warm": 1,
+            "glaze": 1
+          },
+          "qty": 2,
+          "unitPrice": 800,
+          "station": "bar",
+          "done": true
+        }
+      ],
+      "stationStatus": {
+        "bar": "ready",
+        "kitchen": "ready"
+      },
+      "totals": {
+        "sub": 3300,
+        "discount": 330,
+        "fee": 0,
+        "rate": 0.16,
+        "tax": 475,
+        "total": 3445
+      },
+      "promo": "BREWNS10",
+      "riderId": null,
+      "riderName": null,
+      "riderPhone": null,
+      "riderPlate": null,
+      "waiterCall": true,
+      "messages": [],
+      "history": [
+        {
+          "action": "placed",
+          "actor": "Omer Farooq (Table QR)",
+          "time": 1790432629325
+        },
+        {
+          "action": "accept",
+          "actor": "Bilal Khan (cashier)",
+          "time": 1790432689325
+        },
+        {
+          "action": "ready",
+          "actor": "Hamza Sheikh (barista)",
+          "time": 1790433169325
+        }
+      ]
+    },
+    "BRW-0028": {
+      "id": "BRW-0028",
+      "seq": 28,
+      "placed": 1790433349325,
+      "target": 1790434069325,
+      "type": "pickup",
+      "loc": 0,
+      "area": null,
+      "address": "",
+      "table": null,
+      "name": "Sara Ahmed",
+      "phone": "0332 9900112",
+      "email": "sara@live.com",
+      "note": "Less ice in matcha",
+      "pay": 2,
+      "paid": true,
+      "status": "placed",
+      "items": [
+        {
+          "id": "iced-matcha",
+          "name": "ICED MATCHA",
+          "sel": {
+            "size": 1,
+            "milk": 0,
+            "sweet": 1
+          },
+          "qty": 1,
+          "unitPrice": 1350,
+          "station": "bar",
+          "done": false
+        },
+        {
+          "id": "cardamom-bun",
+          "name": "CARDAMOM BUN",
+          "sel": {
+            "serve": 1
+          },
+          "qty": 1,
+          "unitPrice": 750,
+          "station": "bar",
+          "done": false
+        }
+      ],
+      "stationStatus": {
+        "bar": "pending",
+        "kitchen": "ready"
+      },
+      "totals": {
+        "sub": 2100,
+        "discount": 0,
+        "fee": 0,
+        "rate": 0.05,
+        "tax": 105,
+        "total": 2205
+      },
+      "promo": null,
+      "riderId": null,
+      "riderName": null,
+      "riderPhone": null,
+      "riderPlate": null,
+      "waiterCall": false,
+      "messages": [],
+      "history": [
+        {
+          "action": "placed",
+          "actor": "Sara Ahmed (Online)",
+          "time": 1790433349325
+        }
+      ]
+    },
+    "BRW-0025": {
+      "id": "BRW-0025",
+      "seq": 25,
+      "placed": 1790430829325,
+      "target": 1790432629325,
+      "type": "delivery",
+      "loc": 0,
+      "area": 0,
+      "address": "22 Tipu Block, New Garden Town",
+      "table": null,
+      "name": "Danish Ali",
+      "phone": "0315 2233445",
+      "email": "",
+      "note": "",
+      "pay": 0,
+      "paid": true,
+      "status": "delivered",
+      "items": [
+        {
+          "id": "margherita-pizza",
+          "name": "MARGHERITA PIZZA",
+          "sel": {
+            "size": 1
+          },
+          "qty": 1,
+          "unitPrice": 1650,
+          "station": "kitchen",
+          "done": true
+        }
+      ],
+      "stationStatus": {
+        "bar": "ready",
+        "kitchen": "ready"
+      },
+      "totals": {
+        "sub": 1650,
+        "discount": 0,
+        "fee": 200,
+        "rate": 0.16,
+        "tax": 264,
+        "total": 2114
+      },
+      "promo": null,
+      "riderId": "usr_rider",
+      "riderName": "Kamran Akmal",
+      "riderPhone": "0305 7788990",
+      "riderPlate": "LEN-8492",
+      "waiterCall": false,
+      "messages": [],
+      "history": [
+        {
+          "action": "placed",
+          "actor": "Danish Ali (Online)",
+          "time": 1790430829325
+        },
+        {
+          "action": "accept",
+          "actor": "Bilal Khan (cashier)",
+          "time": 1790430949325
+        },
+        {
+          "action": "ready",
+          "actor": "Chef Usman (chef)",
+          "time": 1790431849325
+        },
+        {
+          "action": "dispatch",
+          "actor": "Kamran Akmal (rider)",
+          "time": 1790432029325
+        },
+        {
+          "action": "deliver",
+          "actor": "Kamran Akmal (rider)",
+          "time": 1790433049325
+        }
+      ]
+    },
+    "BRW-0029": {
+      "id": "BRW-0029",
+      "seq": 29,
+      "placed": 1790448217505,
+      "target": 1790476200000,
+      "type": "pickup",
+      "loc": 0,
+      "area": null,
+      "address": "",
+      "table": null,
+      "name": "Test Customer",
+      "phone": "0300 1234567",
+      "email": "",
+      "note": "Extra hot",
+      "pay": 0,
+      "paid": false,
+      "status": "ready",
+      "items": [
+        {
+          "id": "slow-roast",
+          "name": "SLOW ROAST",
+          "sel": {
+            "size": 0
+          },
+          "qty": 1,
+          "unitPrice": 3800,
+          "station": "bar",
+          "done": true
+        }
+      ],
+      "stationStatus": {
+        "bar": "ready",
+        "kitchen": "ready"
+      },
+      "totals": {
+        "sub": 3800,
+        "discount": 0,
+        "fee": 0,
+        "rate": 0.16,
+        "tax": 608,
+        "total": 4408
+      },
+      "promo": null,
+      "riderId": null,
+      "riderName": null,
+      "riderPhone": null,
+      "riderPlate": null,
+      "waiterCall": false,
+      "messages": [
+        {
+          "id": "msg_1790448219035_tb6g",
+          "sender": "customer",
+          "name": "Test Customer",
+          "text": "Please make it extra hot",
+          "time": 1790448219035
+        },
+        {
+          "id": "msg_1790448270576_7kry",
+          "sender": "staff",
+          "name": "Hamza Sheikh (barista)",
+          "text": "On it! Steaming whole milk to 65C.",
+          "time": 1790448270576
+        }
+      ],
+      "history": [
+        {
+          "action": "placed",
+          "actor": "Customer (Online)",
+          "time": 1790448217505,
+          "note": "Online order"
+        },
+        {
+          "action": "accept",
+          "actor": "Zainab Tariq (manager)",
+          "time": 1790448325191
+        },
+        {
+          "action": "start",
+          "actor": "Hamza Sheikh (barista)",
+          "time": 1790448332302
+        },
+        {
+          "action": "ready",
+          "actor": "Hamza Sheikh (barista)",
+          "time": 1790448332334
+        }
+      ]
+    }
+  },
+  "waiterCalls": {
+    "call_1": {
+      "id": "call_1",
+      "shop": 0,
+      "table": "T-04",
+      "type": "assistance",
+      "status": "active",
+      "createdAt": 1790433289325
+    }
+  },
+  "invites": {},
+  "soldOut": [],
+  "promos": {
+    "BREWNS10": {
+      "code": "BREWNS10",
+      "discountPercent": 10,
+      "active": true,
+      "minSubtotal": 0
+    },
+    "WELCOME": {
+      "code": "WELCOME",
+      "discountPercent": 15,
+      "active": true,
+      "minSubtotal": 1000
+    }
+  },
+  "shops": {
+    "0": {
+      "shopId": 0,
+      "paused": false,
+      "customPrepMin": 12,
+      "tables": 16
+    },
+    "1": {
+      "shopId": 1,
+      "paused": false,
+      "customPrepMin": 12,
+      "tables": 14
+    },
+    "2": {
+      "shopId": 2,
+      "paused": false,
+      "customPrepMin": 12,
+      "tables": 20
+    }
+  },
+  "audit": [
+    {
+      "id": "aud_1790448332334_a9304",
+      "timestamp": 1790448332334,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "order.ready",
+      "target": "BRW-0029",
+      "details": "Updated status to ready"
+    },
+    {
+      "id": "aud_1790448332303_gi9xv",
+      "timestamp": 1790448332303,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "order.start",
+      "target": "BRW-0029",
+      "details": "Updated status to preparing"
+    },
+    {
+      "id": "aud_1790448332276_5cj25",
+      "timestamp": 1790448332276,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "role.switch",
+      "target": "barista",
+      "details": "Station switched to Hamza Sheikh (BARISTA) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790448325191_cyl8p",
+      "timestamp": 1790448325191,
+      "actorId": "usr_manager",
+      "actorName": "Zainab Tariq",
+      "role": "manager",
+      "action": "order.accept",
+      "target": "BRW-0029",
+      "details": "Updated status to accepted"
+    },
+    {
+      "id": "aud_1790448325167_xfswr",
+      "timestamp": 1790448325167,
+      "actorId": "usr_manager",
+      "actorName": "Zainab Tariq",
+      "role": "manager",
+      "action": "role.switch",
+      "target": "manager",
+      "details": "Station switched to Zainab Tariq (MANAGER) -> /dashboard/overview"
+    },
+    {
+      "id": "aud_1790448318530_rjrre",
+      "timestamp": 1790448318530,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "role.switch",
+      "target": "barista",
+      "details": "Station switched to Hamza Sheikh (BARISTA) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790448304777_ijy3t",
+      "timestamp": 1790448304777,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "role.switch",
+      "target": "barista",
+      "details": "Station switched to Hamza Sheikh (BARISTA) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790448269835_xlioh",
+      "timestamp": 1790448269835,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "role.switch",
+      "target": "barista",
+      "details": "Station switched to Hamza Sheikh (BARISTA) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790448229414_4gjv5",
+      "timestamp": 1790448229414,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "role.switch",
+      "target": "barista",
+      "details": "Station switched to Hamza Sheikh (BARISTA) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790445492351_grnvq",
+      "timestamp": 1790445492351,
+      "actorId": "usr_rider",
+      "actorName": "Kamran Akmal",
+      "role": "rider",
+      "action": "role.switch",
+      "target": "rider",
+      "details": "Station switched to Kamran Akmal (RIDER) -> /dashboard/deliveries"
+    },
+    {
+      "id": "aud_1790445492318_sd6th",
+      "timestamp": 1790445492318,
+      "actorId": "usr_waiter",
+      "actorName": "Ali Raza",
+      "role": "waiter",
+      "action": "role.switch",
+      "target": "waiter",
+      "details": "Station switched to Ali Raza (WAITER) -> /dashboard/floor"
+    },
+    {
+      "id": "aud_1790445492292_0gx40",
+      "timestamp": 1790445492292,
+      "actorId": "usr_chef",
+      "actorName": "Chef Usman",
+      "role": "chef",
+      "action": "role.switch",
+      "target": "chef",
+      "details": "Station switched to Chef Usman (CHEF) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790445492260_5w40q",
+      "timestamp": 1790445492260,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "role.switch",
+      "target": "barista",
+      "details": "Station switched to Hamza Sheikh (BARISTA) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790445492233_glcux",
+      "timestamp": 1790445492233,
+      "actorId": "usr_cashier",
+      "actorName": "Bilal Khan",
+      "role": "cashier",
+      "action": "role.switch",
+      "target": "cashier",
+      "details": "Station switched to Bilal Khan (CASHIER) -> /dashboard/orders"
+    },
+    {
+      "id": "aud_1790445492088_4y3vk",
+      "timestamp": 1790445492088,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "role.switch",
+      "target": "owner",
+      "details": "Station switched to Hassan Baig (OWNER) -> /dashboard/overview"
+    },
+    {
+      "id": "aud_1790434633101_fbkth",
+      "timestamp": 1790434633101,
+      "actorId": "usr_rider",
+      "actorName": "Kamran Akmal",
+      "role": "rider",
+      "action": "auth.signin",
+      "target": "rider",
+      "details": "Staff authenticated: Kamran Akmal (RIDER) -> /dashboard/deliveries"
+    },
+    {
+      "id": "aud_1790434633057_yy9ax",
+      "timestamp": 1790434633057,
+      "actorId": "usr_waiter",
+      "actorName": "Ali Raza",
+      "role": "waiter",
+      "action": "auth.signin",
+      "target": "waiter",
+      "details": "Staff authenticated: Ali Raza (WAITER) -> /dashboard/floor"
+    },
+    {
+      "id": "aud_1790434633006_jpthz",
+      "timestamp": 1790434633006,
+      "actorId": "usr_chef",
+      "actorName": "Chef Usman",
+      "role": "chef",
+      "action": "auth.signin",
+      "target": "chef",
+      "details": "Staff authenticated: Chef Usman (CHEF) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790434632959_0cqfo",
+      "timestamp": 1790434632959,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "auth.signin",
+      "target": "barista",
+      "details": "Staff authenticated: Hamza Sheikh (BARISTA) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790434632905_ob09t",
+      "timestamp": 1790434632905,
+      "actorId": "usr_cashier",
+      "actorName": "Bilal Khan",
+      "role": "cashier",
+      "action": "auth.signin",
+      "target": "cashier",
+      "details": "Staff authenticated: Bilal Khan (CASHIER) -> /dashboard/orders"
+    },
+    {
+      "id": "aud_1790434632861_wj2j8",
+      "timestamp": 1790434632861,
+      "actorId": "usr_manager",
+      "actorName": "Zainab Tariq",
+      "role": "manager",
+      "action": "auth.signin",
+      "target": "manager",
+      "details": "Staff authenticated: Zainab Tariq (MANAGER) -> /dashboard/overview"
+    },
+    {
+      "id": "aud_1790434632810_mm9jd",
+      "timestamp": 1790434632810,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "auth.signin",
+      "target": "owner",
+      "details": "Staff authenticated: Hassan Baig (OWNER) -> /dashboard/overview"
+    },
+    {
+      "id": "aud_1790434612362_0fb5w",
+      "timestamp": 1790434612362,
+      "actorId": "usr_rider",
+      "actorName": "Kamran Akmal",
+      "role": "rider",
+      "action": "role.switch",
+      "target": "rider",
+      "details": "Station switched to Kamran Akmal (RIDER) -> /dashboard/deliveries"
+    },
+    {
+      "id": "aud_1790434612315_299n7",
+      "timestamp": 1790434612315,
+      "actorId": "usr_waiter",
+      "actorName": "Ali Raza",
+      "role": "waiter",
+      "action": "role.switch",
+      "target": "waiter",
+      "details": "Station switched to Ali Raza (WAITER) -> /dashboard/floor"
+    },
+    {
+      "id": "aud_1790434612294_j4bim",
+      "timestamp": 1790434612294,
+      "actorId": "usr_chef",
+      "actorName": "Chef Usman",
+      "role": "chef",
+      "action": "role.switch",
+      "target": "chef",
+      "details": "Station switched to Chef Usman (CHEF) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790434612250_ilo9b",
+      "timestamp": 1790434612250,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "role.switch",
+      "target": "barista",
+      "details": "Station switched to Hamza Sheikh (BARISTA) -> /dashboard/kitchen"
+    },
+    {
+      "id": "aud_1790434612215_ewbvz",
+      "timestamp": 1790434612215,
+      "actorId": "usr_cashier",
+      "actorName": "Bilal Khan",
+      "role": "cashier",
+      "action": "role.switch",
+      "target": "cashier",
+      "details": "Station switched to Bilal Khan (CASHIER) -> /dashboard/orders"
+    },
+    {
+      "id": "aud_1790434612166_t1o6t",
+      "timestamp": 1790434612166,
+      "actorId": "usr_manager",
+      "actorName": "Zainab Tariq",
+      "role": "manager",
+      "action": "role.switch",
+      "target": "manager",
+      "details": "Station switched to Zainab Tariq (MANAGER) -> /dashboard/overview"
+    },
+    {
+      "id": "aud_1790434612017_o48f3",
+      "timestamp": 1790434612018,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "role.switch",
+      "target": "owner",
+      "details": "Station switched to Hassan Baig (OWNER) -> /dashboard/overview"
+    },
+    {
+      "id": "aud_1790432973050_wgvvg",
+      "timestamp": 1790432973050,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "staff.update",
+      "target": "Hamza Sheikh",
+      "details": "Role: barista, Active: true, Shops: [0]"
+    },
+    {
+      "id": "aud_1790432973019_imfet",
+      "timestamp": 1790432973019,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "staff.update",
+      "target": "Hamza Sheikh",
+      "details": "Role: barista, Active: false, Shops: [0]"
+    },
+    {
+      "id": "aud_1790432972986_00hho",
+      "timestamp": 1790432972986,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "staff.update",
+      "target": "Hamza Sheikh",
+      "details": "Role: barista, Active: true, Shops: [0]"
+    },
+    {
+      "id": "aud_1790432972802_oxd1g",
+      "timestamp": 1790432972802,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "access.matrix_update",
+      "target": "Permission Matrix",
+      "details": "Updated role-based permission matrix"
+    },
+    {
+      "id": "aud_1790432068503_yyldv",
+      "timestamp": 1790432068503,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "order.complete",
+      "target": "BRW-0027",
+      "details": "Updated status to completed"
+    },
+    {
+      "id": "aud_1790432067333_t0jz9",
+      "timestamp": 1790432067333,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "order.serve",
+      "target": "BRW-0027",
+      "details": "Updated status to served"
+    },
+    {
+      "id": "aud_1790432063755_jqyqc",
+      "timestamp": 1790432063755,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "order.ready",
+      "target": "BRW-0027",
+      "details": "Updated status to ready"
+    },
+    {
+      "id": "aud_1790432061929_airib",
+      "timestamp": 1790432061929,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "order.accept",
+      "target": "BRW-0027",
+      "details": "Updated status to accepted"
+    },
+    {
+      "id": "aud_1790431606392_mm3o7",
+      "timestamp": 1790431606392,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "order.complete",
+      "target": "BRW-0026",
+      "details": "Updated status to completed"
+    },
+    {
+      "id": "aud_1790431606383_li8j9",
+      "timestamp": 1790431606383,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "order.serve",
+      "target": "BRW-0026",
+      "details": "Updated status to served"
+    },
+    {
+      "id": "aud_1790431606376_7nh1d",
+      "timestamp": 1790431606376,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "order.ready",
+      "target": "BRW-0026",
+      "details": "Updated status to ready"
+    },
+    {
+      "id": "aud_1790431606364_41mcx",
+      "timestamp": 1790431606364,
+      "actorId": "usr_owner",
+      "actorName": "Hassan Baig",
+      "role": "owner",
+      "action": "order.accept",
+      "target": "BRW-0026",
+      "details": "Updated status to accepted"
+    },
+    {
+      "id": "aud_1790424668733_a2go2",
+      "timestamp": 1790424668733,
+      "actorId": "usr_cashier",
+      "actorName": "Bilal Khan",
+      "role": "cashier",
+      "action": "order.complete",
+      "target": "BRW-0031",
+      "details": "Updated status to completed"
+    },
+    {
+      "id": "aud_1790424668728_je7mw",
+      "timestamp": 1790424668728,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "order.ready",
+      "target": "BRW-0031",
+      "details": "Updated status to ready"
+    },
+    {
+      "id": "aud_1790424668724_j7bc7",
+      "timestamp": 1790424668724,
+      "actorId": "usr_barista",
+      "actorName": "Hamza Sheikh",
+      "role": "barista",
+      "action": "order.start",
+      "target": "BRW-0031",
+      "details": "Updated status to preparing"
+    },
+    {
+      "id": "aud_1790424668719_hmlnl",
+      "timestamp": 1790424668719,
+      "actorId": "usr_cashier",
+      "actorName": "Bilal Khan",
+      "role": "cashier",
+      "action": "order.accept",
+      "target": "BRW-0031",
+      "details": "Updated status to accepted"
+    }
+  ],
+  "rolePerms": {
+    "owner": [
+      "reports.view",
+      "reports.financial",
+      "customers.view",
+      "audit.view",
+      "audit.export",
+      "orders.view",
+      "orders.create",
+      "orders.manage",
+      "orders.cancel",
+      "orders.pay",
+      "orders.discount",
+      "messages.reply",
+      "kitchen.bar",
+      "kitchen.food",
+      "floor.tables",
+      "delivery.ride",
+      "delivery.assign",
+      "menu.availability",
+      "menu.prices",
+      "menu.promos",
+      "shops.manage",
+      "shops.override",
+      "staff.view",
+      "staff.manage",
+      "staff.deactivate",
+      "access.manage"
+    ],
+    "manager": [
+      "reports.view",
+      "customers.view",
+      "audit.view",
+      "orders.view",
+      "orders.create",
+      "orders.manage",
+      "orders.pay",
+      "messages.reply",
+      "kitchen.bar",
+      "kitchen.food",
+      "floor.tables",
+      "delivery.ride",
+      "delivery.assign",
+      "menu.availability",
+      "menu.promos",
+      "shops.manage",
+      "staff.view",
+      "staff.manage"
+    ],
+    "cashier": [
+      "orders.view",
+      "orders.create",
+      "orders.manage",
+      "orders.pay",
+      "messages.reply",
+      "delivery.assign",
+      "menu.availability"
+    ],
+    "barista": [
+      "orders.view",
+      "kitchen.bar",
+      "menu.availability"
+    ],
+    "chef": [
+      "kitchen.food",
+      "menu.availability"
+    ],
+    "waiter": [
+      "orders.create",
+      "orders.pay",
+      "floor.tables"
+    ],
+    "rider": [
+      "messages.reply",
+      "delivery.ride"
+    ]
+  },
+  "orderSeq": 29,
+  "version": 132
+}
