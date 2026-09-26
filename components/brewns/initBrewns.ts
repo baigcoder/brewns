@@ -4440,6 +4440,211 @@ function renderCheckout({ animate = true } = {}) {
   if (animate) staggerIn($$(".co-main > *", coEl), 140);
 }
 
+let activeOrder = readStore("brewns-active-order", null);
+
+const STATUS_TEXT: Record<string, string> = {
+  placed: "ORDER RECEIVED",
+  accepted: "ACCEPTED",
+  preparing: "BARISTA ON IT",
+  ready: "READY FOR PICKUP",
+  dispatched: "OUT FOR DELIVERY",
+  delivered: "DELIVERED",
+  served: "SERVED",
+  completed: "COMPLETED",
+  cancelled: "CANCELLED",
+};
+
+function updateActiveOrderBadge(order: any) {
+  const badge = $("#live-order-badge");
+  if (!badge) return;
+  if (!order || !order.backendId || order.status === "cancelled") {
+    badge.hidden = true;
+    return;
+  }
+  badge.hidden = false;
+  const numEl = $("#lob-num", badge);
+  const statusEl = $("#lob-status", badge);
+  const descEl = $("#lob-desc", badge);
+  const dotEl = $("#lob-dot", badge);
+
+  if (numEl) numEl.textContent = `ORDER #${String(order.number).padStart(5, "0")}`;
+  
+  const statusKey = order.status || "placed";
+  if (statusEl) {
+    const textMap: Record<string, string> = {
+      placed: "RECEIVED",
+      accepted: "ACCEPTED",
+      preparing: "BARISTA ON IT",
+      ready: order.mode === "delivery" ? "READY FOR RIDER" : "READY AT COUNTER",
+      dispatched: "OUT FOR DELIVERY",
+      delivered: "DELIVERED",
+      served: "SERVED",
+      completed: "COMPLETED",
+    };
+    statusEl.textContent = textMap[statusKey] || statusKey.toUpperCase();
+  }
+
+  if (descEl) {
+    if (statusKey === "ready") {
+      descEl.textContent = order.mode === "delivery" ? "PACKED & WAITING FOR DISPATCH" : "WAITING FOR YOU AT PICKUP COUNTER!";
+    } else if (statusKey === "dispatched") {
+      descEl.textContent = `${order.rider?.name || "Rider"} is on the way · Tap to track`;
+    } else if (statusKey === "delivered" || statusKey === "completed") {
+      descEl.textContent = "Enjoy your fresh cup · Tap to view receipt";
+    } else {
+      descEl.textContent = "Crafted fresh to order · Tap to track live";
+    }
+  }
+
+  if (dotEl) {
+    dotEl.classList.toggle("amber", statusKey === "placed" || statusKey === "preparing");
+  }
+}
+
+function updateChatMsgsUI(messages: any[]) {
+  const container = $("#done-chat-msgs", coEl);
+  const countEl = $("#done-chat-count", coEl);
+  if (countEl) countEl.textContent = `${(messages || []).length} MSG`;
+  if (!container) return;
+  if (!messages || messages.length === 0) {
+    container.innerHTML = `<p class="done-chat-empty mono-fine">Need special instructions or gate directions? Send a note to the barista or rider.</p>`;
+    return;
+  }
+  container.innerHTML = messages.map((m: any) => `
+    <div class="done-chat-msg ${m.sender === 'customer' ? 'msg-out' : 'msg-in'}">
+      <div class="mono-fine msg-sender">${esc(m.name)}</div>
+      <div class="msg-text">${esc(m.text)}</div>
+    </div>
+  `).join("");
+  container.scrollTop = container.scrollHeight;
+}
+
+function updateDoneLiveElements(order: any) {
+  if (!co || !co.done || co.done.backendId !== order.backendId) return;
+  const pill = $("#done-status-pill", coEl);
+  if (pill) {
+    const text = STATUS_TEXT[order.status] || order.status.toUpperCase();
+    pill.textContent = `● ${text}`;
+    pill.className = `done-status-badge mono-fine ${order.status === 'ready' || order.status === 'dispatched' ? 'ready' : ''}`;
+  }
+  const stage = typeof order.stage === "number" ? order.stage : 0;
+  $$(".done-step", coEl).forEach((s: HTMLElement) => {
+    const st = Number(s.dataset.stage);
+    s.classList.toggle("on", st <= stage);
+  });
+
+  // Update rider card if newly assigned
+  const riderCard = $("#done-rider-card", coEl);
+  if (order.rider && !riderCard) {
+    const etaBlock = $(".done-eta", coEl);
+    if (etaBlock) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+        <div class="done-rider-card" id="done-rider-card">
+          <div class="done-rider-icon">🛵</div>
+          <div class="done-rider-info">
+            <p class="mono-fine" style="color:var(--accent);margin:0 0 2px">ASSIGNED DISPATCH RIDER</p>
+            <p style="margin:0;font-weight:700;font-size:14px;color:#fff">${esc(order.rider.name)} · <span class="mono-fine" style="color:rgba(255,255,255,0.6)">${esc(order.rider.plate || 'BIKE')}</span></p>
+          </div>
+          ${order.rider.phone ? `<a class="btn btn-line" href="tel:${esc(order.rider.phone)}" style="padding:0.45rem 0.85rem;font-size:11px">CALL RIDER</a>` : ''}
+        </div>`;
+      etaBlock.insertAdjacentElement("afterend", wrap.firstElementChild as Element);
+    }
+  }
+  updateChatMsgsUI(order.messages || []);
+}
+
+async function syncActiveOrder() {
+  if (!activeOrder || !activeOrder.backendId) {
+    updateActiveOrderBadge(null);
+    return;
+  }
+  try {
+    const res = await fetch(`/api/orders/${activeOrder.backendId}/track`);
+    if (!res.ok) {
+      if (res.status === 404) {
+        writeStore("brewns-active-order", null);
+        activeOrder = null;
+        updateActiveOrderBadge(null);
+      }
+      return;
+    }
+    const data = await res.json();
+    const live = data.order;
+    if (!live) return;
+
+    const oldStatus = activeOrder.status;
+    activeOrder.status = live.status;
+    activeOrder.stage = live.stage;
+    activeOrder.rider = live.rider;
+    activeOrder.messages = live.messages || [];
+    writeStore("brewns-active-order", activeOrder);
+
+    updateActiveOrderBadge(activeOrder);
+
+    if (co && co.done && co.done.backendId === activeOrder.backendId) {
+      co.done.status = live.status;
+      co.done.stage = live.stage;
+      co.done.rider = live.rider;
+      co.done.messages = live.messages || [];
+      updateDoneLiveElements(co.done);
+
+      if (oldStatus !== live.status) {
+        if (live.status === 'ready') {
+          toast(live.type === 'delivery' ? 'RIDER IS READY WITH YOUR ORDER' : 'YOUR ORDER IS READY AT THE COUNTER!', 'TRACK', () => openActiveOrderTracker(activeOrder));
+        } else if (live.status === 'dispatched') {
+          toast(`RIDER ${live.rider?.name || ''} IS ON THE WAY!`, 'TRACK', () => openActiveOrderTracker(activeOrder));
+        } else if (live.status === 'completed' || live.status === 'delivered') {
+          toast('ORDER COMPLETED · ENJOY YOUR BREWNS COFFEE!');
+        }
+      }
+    }
+
+    if (live.status === 'completed' || live.status === 'delivered' || live.status === 'cancelled') {
+      if (Date.now() - activeOrder.placed > 30 * 60 * 1000) {
+        writeStore("brewns-active-order", null);
+        activeOrder = null;
+        updateActiveOrderBadge(null);
+      }
+    }
+  } catch {
+    // Ignore network glitch
+  }
+}
+
+function openActiveOrderTracker(order: any) {
+  if (hasLayer("bag")) closeBag();
+  co = {
+    step: 3,
+    mode: order.mode || "pickup",
+    area: order.area ?? 0,
+    address: order.address || "",
+    loc: order.loc ?? 0,
+    when: "asap",
+    slot: null,
+    name: order.name || "",
+    phone: order.phone || "",
+    email: order.email || "",
+    note: order.note || "",
+    pay: order.pay || 0,
+    promo: "",
+    discount: 0,
+    errors: {},
+    done: order,
+  };
+  renderCheckout();
+  if (hasLayer("checkout")) return;
+  coEl.hidden = false;
+  coEl.scrollTop = 0;
+  pushLayer("checkout", closeCheckout, coEl);
+  if (REDUCED) coClip.set({ clipPath: "inset(0% 0% 0% 0%)" });
+  else {
+    coClip.set({ clipPath: "inset(0% 0% 100% 0%)" });
+    coClip.start({ clipPath: "inset(0% 0% 0% 0%)" }, { config: { duration: 760, easing: easeOutQuart } });
+  }
+  setTimeout(() => $("[data-co='close']", coEl)?.focus({ preventScroll: true }), 50);
+}
+
 function renderDone() {
   const o = co.done;
   const loc = LOCS[o.loc];
@@ -4449,11 +4654,16 @@ function renderDone() {
   const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
   const num = `#${String(o.number).padStart(5, "0")}`;
   const lines = o.items
-    .map((it) => {
+    .map((it: any) => {
       const p = productById(it.id);
-      return `<div><span>${it.qty} × ${p.name}</span><span>${money(unitPrice(p, it.sel) * it.qty)}</span></div><div style="color:#5b5b58;margin-top:-3px"><span>${esc(selLabel(p, it.sel))}</span></div>`;
+      return `<div><span>${it.qty} × ${p ? p.name : it.name || it.id}</span><span>${money((p ? unitPrice(p, it.sel) : (it.unitPrice || 500)) * it.qty)}</span></div><div style="color:#5b5b58;margin-top:-3px"><span>${p ? esc(selLabel(p, it.sel)) : ""}</span></div>`;
     })
     .join("");
+
+  const statusKey = o.status || "placed";
+  const statusLabel = STATUS_TEXT[statusKey] || statusKey.toUpperCase();
+  const isReadyOrDispatched = statusKey === "ready" || statusKey === "dispatched";
+
   coEl.innerHTML = `${coTop("CLOSE", true)}
     <div class="done">
       <div class="done-print" aria-hidden="true"><div class="done-machine">
@@ -4479,16 +4689,50 @@ function renderDone() {
         </div></div></div>
       </div></div>
       <div class="done-body">
-        <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · CONFIRMED</p>
-        <h2 class="done-h">${delivered ? `AT YOUR DOOR BY ${when}.` : `SEE YOU AT ${when}.`}</h2>
-        <p class="pdp-desc">${
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <p class="mono-fine" style="color:rgb(255 255 255/.55);margin:0"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · LIVE</p>
+          <span class="done-status-badge mono-fine ${isReadyOrDispatched ? 'ready' : ''}" id="done-status-pill">● ${statusLabel}</span>
+        </div>
+        <h2 class="done-h">${delivered ? (o.status === "dispatched" ? "ON THE WAY TO YOU." : `AT YOUR DOOR BY ${when}.`) : (o.status === "ready" ? "READY AT THE COUNTER." : `SEE YOU AT ${when}.`)}</h2>
+        <p class="pdp-desc" id="done-desc">${
           delivered
-            ? `We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. ${LOC_TITLES[o.loc]} is making it now, and a rider will bring it to ${esc(o.address)}. They’ll call ${esc(o.phone)} when they’re outside. Pay ${PAY[o.pay][0].toLowerCase().replace("jazzcash / easypaisa", "by JazzCash or Easypaisa")} on arrival: ${money(o.totals.total)}.`
+            ? `We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. ${LOC_TITLES[o.loc]} is preparing your order, and a rider will bring it to ${esc(o.address)}. They’ll call ${esc(o.phone)} when they’re outside. Pay ${PAY[o.pay][0].toLowerCase().replace("jazzcash / easypaisa", "by JazzCash or Easypaisa")} on arrival: ${money(o.totals.total)}.`
             : `We’ve got it, ${esc(titleCase(o.name.split(" ")[0]))}. Head to ${LOC_TITLES[o.loc]} — your order will be waiting at the pickup counter under ${num}. Pay ${money(o.totals.total)} ${o.pay === 0 ? "in cash" : o.pay === 1 ? "by card" : "by JazzCash or Easypaisa"} when you collect.`
         }</p>
         <div class="done-eta">
           <div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="ring-bar" cx="50" cy="50" r="46" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="ring-num" aria-live="polite"><span><span id="ring-num">--</span><small id="ring-unit">MIN</small></span></div></div>
-          <div class="done-steps" style="flex:1">${["ORDER RECEIVED", "BARISTA ON IT", delivered ? "OUT FOR DELIVERY" : "READY FOR PICKUP"].map((s, i) => `<div class="done-step mono-fine" data-stage="${i}"><i></i>${s}</div>`).join("")}</div>
+          <div class="done-steps" style="flex:1" id="done-steps-wrap">${["ORDER RECEIVED", "BARISTA ON IT", delivered ? "OUT FOR DELIVERY" : "READY FOR PICKUP", delivered ? "DELIVERED" : "COLLECTED"].map((s, i) => `<div class="done-step mono-fine ${o.stage >= i ? 'on' : ''}" data-stage="${i}"><i></i>${s}</div>`).join("")}</div>
+        </div>
+        ${delivered && o.rider ? `
+          <div class="done-rider-card" id="done-rider-card">
+            <div class="done-rider-icon">🛵</div>
+            <div class="done-rider-info">
+              <p class="mono-fine" style="color:var(--accent);margin:0 0 2px">ASSIGNED DISPATCH RIDER</p>
+              <p style="margin:0;font-weight:700;font-size:14px;color:#fff">${esc(o.rider.name)} · <span class="mono-fine" style="color:rgba(255,255,255,0.6)">${esc(o.rider.plate || 'BIKE')}</span></p>
+            </div>
+            ${o.rider.phone ? `<a class="btn btn-line" href="tel:${esc(o.rider.phone)}" style="padding:0.45rem 0.85rem;font-size:11px">CALL RIDER</a>` : ''}
+          </div>
+        ` : ''}
+        <div class="done-chat-section" id="done-chat-section">
+          <div class="done-chat-head">
+            <span class="mono-fine"><span class="sl">//</span> STORE &amp; RIDER CHAT</span>
+            <span class="done-chat-count mono-fine" id="done-chat-count">${(o.messages || []).length} MSG</span>
+          </div>
+          <div class="done-chat-msgs" id="done-chat-msgs">
+            ${(o.messages && o.messages.length > 0)
+              ? o.messages.map((m: any) => `
+                <div class="done-chat-msg ${m.sender === 'customer' ? 'msg-out' : 'msg-in'}">
+                  <div class="mono-fine msg-sender">${esc(m.name)}</div>
+                  <div class="msg-text">${esc(m.text)}</div>
+                </div>
+              `).join('')
+              : `<p class="done-chat-empty mono-fine">Need special instructions or gate directions? Send a note to the barista or rider.</p>`
+            }
+          </div>
+          <form class="done-chat-form" id="done-chat-form">
+            <input type="text" class="done-chat-input" id="done-chat-input" placeholder="Message shop or rider..." maxlength="200" autocomplete="off">
+            <button type="submit" class="btn btn-solid done-chat-send" id="done-chat-send">SEND</button>
+          </form>
         </div>
         <div class="done-actions"><button type="button" class="btn btn-solid" data-co="close">BACK TO BREWNS ${ARROW_SVG}</button>${
           delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS ${ARROW_SVG}</a>`
@@ -4505,7 +4749,7 @@ function renderDone() {
   };
   window.addEventListener("resize", fitPrint);
   coCleanups.push(() => window.removeEventListener("resize", fitPrint));
-  const feed = new Spring({ v: 0 }, (x) => paper.style.setProperty("--p", String(Math.round(x.v * 46) / 46)));
+  const feed = new Spring({ v: 0 }, (x: any) => paper.style.setProperty("--p", String(Math.round(x.v * 46) / 46)));
   requestAnimationFrame(() => {
     fitPrint();
     REDUCED ? feed.set({ v: 1 }) : feed.start({ v: 1 }, { config: { duration: 2600, easing: easeOutCubic }, delay: 450 });
@@ -4520,19 +4764,60 @@ function renderDone() {
     const mins = Math.ceil(left / 60000);
     const numEl = $("#ring-num", coEl), unitEl = $("#ring-unit", coEl);
     if (!numEl) return;
-    if (!left) [numEl.textContent, unitEl.textContent] = ["NOW", "READY"];
-    else if (mins >= 60) [numEl.textContent, unitEl.textContent] = [`${Math.floor(mins / 60)}H`, `${mins % 60} MIN`];
-    else [numEl.textContent, unitEl.textContent] = [String(mins), "MIN"];
-    const stage = left === 0 ? 2 : now - o.placed > 4000 ? 1 : 0;
-    $$(".done-step", coEl).forEach((s) => s.classList.toggle("on", +s.dataset.stage <= stage));
+    if (o.status === "ready") {
+      [numEl.textContent, unitEl.textContent] = ["NOW", "READY"];
+    } else if (o.status === "dispatched") {
+      [numEl.textContent, unitEl.textContent] = ["EN", "ROUTE"];
+    } else if (o.status === "delivered" || o.status === "completed") {
+      [numEl.textContent, unitEl.textContent] = ["DONE", "ENJOY"];
+    } else if (!left) {
+      [numEl.textContent, unitEl.textContent] = ["SOON", "FINALIZING"];
+    } else if (mins >= 60) {
+      [numEl.textContent, unitEl.textContent] = [`${Math.floor(mins / 60)}H`, `${mins % 60} MIN`];
+    } else {
+      [numEl.textContent, unitEl.textContent] = [String(mins), "MIN"];
+    }
+    const stage = typeof o.stage === "number" ? o.stage : (left === 0 ? 2 : now - o.placed > 4000 ? 1 : 0);
+    $$(".done-step", coEl).forEach((s: HTMLElement) => {
+      const st = Number(s.dataset.stage);
+      s.classList.toggle("on", st <= stage);
+    });
   };
   tickRing();
   clearInterval(coTimer);
   coTimer = setInterval(tickRing, 1000);
+
+  // Wire chat form
+  const chatForm = $("#done-chat-form", coEl);
+  if (chatForm) {
+    chatForm.addEventListener("submit", async (e: Event) => {
+      e.preventDefault();
+      const input = $("#done-chat-input", coEl) as HTMLInputElement;
+      const text = input ? input.value.trim() : "";
+      if (!text || !o.backendId) return;
+      input.value = "";
+      try {
+        const res = await fetch(`/api/orders/${o.backendId}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, senderName: o.name || "Customer" }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!o.messages) o.messages = [];
+          o.messages.push(data.message);
+          writeStore("brewns-active-order", o);
+          updateChatMsgsUI(o.messages);
+        }
+      } catch {
+        toast("Message could not be sent.");
+      }
+    });
+  }
 }
 
-function placeOrder() {
-  const errors = {};
+async function placeOrder() {
+  const errors: Record<string, string> = {};
   if (co.name.trim().length < 2) errors.name = "TELL US WHO TO CALL OUT";
   if (!pkMobile(co.phone)) errors.phone = "A PAKISTANI MOBILE, LIKE 0300 1234567";
   if (isDelivery() && co.address.trim().length < 10) errors.address = "HOUSE, STREET AND BLOCK, SO THE RIDER FINDS YOU";
@@ -4545,19 +4830,91 @@ function placeOrder() {
   }
   co.phone = pkMobile(co.phone);
   writeStore("brewns-details", { name: co.name.trim(), phone: co.phone, email: co.email.trim(), loc: co.loc, mode: co.mode, area: co.area, address: co.address.trim() });
-  const number = readStore("brewns-order-seq", 25) + 1;
-  writeStore("brewns-order-seq", number);
+
+  const placeBtn = $("[data-co='place']", coEl);
+  if (placeBtn) {
+    placeBtn.setAttribute("disabled", "true");
+    placeBtn.innerHTML = `<span>TRANSMITTING TICKET...</span><span class="dot" data-pulse></span>`;
+  }
+
   const placed = Date.now();
   const pickupAt = co.when === "asap" ? { t: nowMin() + leadMin(), tomorrow: false } : co.slot;
   const midnight = new Date(placed);
   midnight.setHours(0, 0, 0, 0);
   const target = co.when === "asap" ? placed + leadMin() * 60000 : midnight.getTime() + (pickupAt.tomorrow ? 86400000 : 0) + pickupAt.t * 60000;
   const delivery = isDelivery();
+
+  let backendOrder: any = null;
+  try {
+    const res = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: delivery ? "delivery" : co.mode === "dinein" ? "dinein" : "pickup",
+        loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
+        area: delivery ? co.area : undefined,
+        address: delivery ? co.address.trim() : undefined,
+        name: co.name.trim(),
+        phone: co.phone,
+        email: co.email ? co.email.trim() : undefined,
+        note: co.note ? co.note.trim() : undefined,
+        pay: co.pay,
+        promo: co.discount ? (co.promo || "BREWNS10") : undefined,
+        scheduledSlot: co.when === "later" ? co.slot : (!isOpenNow() ? pickupAt : null),
+        items: cart.items.map((it: any) => {
+          const p = productById(it.id);
+          const isKitchen = p && (p.cat === "food" || p.cat === "bakery" || p.cat === "kitchen");
+          return {
+            id: it.id,
+            sel: it.sel || {},
+            name: p ? p.name : it.id,
+            qty: it.qty,
+            unitPrice: p ? unitPrice(p, it.sel) : 500,
+            station: isKitchen ? "kitchen" : "bar",
+          };
+        }),
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      backendOrder = data.order;
+    }
+  } catch {
+    // Offline fallback
+  }
+
+  const number = backendOrder ? backendOrder.seq : readStore("brewns-order-seq", 25) + 1;
+  writeStore("brewns-order-seq", number);
+
   const order = {
-    number, placed, target, items: cart.items.map((it) => ({ ...it })), totals: orderTotals(), pickupAt, name: co.name.trim(), phone: co.phone, note: co.note.trim(), pay: co.pay,
-    mode: co.mode, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "", loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
+    id: backendOrder?.id || `ord_local_${Date.now()}`,
+    backendId: backendOrder?.id || null,
+    number,
+    status: backendOrder?.status || 'placed',
+    stage: backendOrder ? (backendOrder.stage ?? 0) : 0,
+    placed,
+    target,
+    items: cart.items.map((it: any) => ({ ...it })),
+    totals: orderTotals(),
+    pickupAt,
+    name: co.name.trim(),
+    phone: co.phone,
+    email: co.email ? co.email.trim() : "",
+    note: co.note.trim(),
+    pay: co.pay,
+    mode: co.mode,
+    area: delivery ? co.area : null,
+    address: delivery ? co.address.trim() : "",
+    loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
+    rider: backendOrder?.rider || null,
+    messages: backendOrder?.messages || [],
   };
+
   writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
+  activeOrder = order;
+  writeStore("brewns-active-order", order);
+  updateActiveOrderBadge(activeOrder);
+
   co.done = order;
   co.step = 3;
   cart.clear();
@@ -4565,6 +4922,7 @@ function placeOrder() {
   coEl.scrollTop = 0;
   $("[data-co='close']", coEl)?.focus({ preventScroll: true });
 }
+
 
 coEl.addEventListener("click", (e) => {
   if (!co) return;
@@ -4704,16 +5062,37 @@ coEl.addEventListener("submit", (e) => {
     ftrOpenText.textContent = open ? "Open now" : "Closed";
     ftrHours.textContent = open ? `Until ${hhmm(CLOSE_MIN)}` : `Opens ${hhmm(OPEN_MIN)}`;
   };
-  paintFooterHours();
-  const footerClock = setInterval(paintFooterHours, 60000);
-
   $("#ftr-year").textContent = String(new Date().getFullYear());
+
+  // Hook live order badge click
+  const lobBadge = $("#live-order-badge");
+  if (lobBadge) {
+    lobBadge.addEventListener("click", () => {
+      if (activeOrder) {
+        openActiveOrderTracker(activeOrder);
+        syncActiveOrder();
+      }
+    });
+  }
+
+  // Check active order on startup & begin real-time sync
+  if (activeOrder && activeOrder.backendId) {
+    if (Date.now() - (activeOrder.placed || 0) < 24 * 3600000) {
+      updateActiveOrderBadge(activeOrder);
+      syncActiveOrder();
+    } else {
+      writeStore("brewns-active-order", null);
+      activeOrder = null;
+    }
+  }
+  const activeOrderSyncInterval = setInterval(syncActiveOrder, 3500);
 
   return () => {
     try {
       lenis?.destroy();
       clearInterval(footerClock);
       clearInterval(liveLocationsTimer);
+      clearInterval(activeOrderSyncInterval);
       cancelAnimationFrame(tickRaf);
     } catch {}
   };
