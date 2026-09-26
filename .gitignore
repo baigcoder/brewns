@@ -31,3 +31,6 @@ yarn-error.log*
 next-env.d.ts
 /tools/upscale/
 __pycache__/
+
+# local data for the console (the JSON store when Redis is not configured)
+/.data/
