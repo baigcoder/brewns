@@ -121,8 +121,8 @@ export const KITCHEN_BASE: KitchenDish[] = [
 export const MILK: Option = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 150], ["ALMOND", 150]] };
 export const PRODUCTS_BASE: Product[] = [
   {
-    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, photo: "menu/menu-slow-roast.webp", fill: true, model: "bag", feature: true,
-    alt: "A black brewns Slow Roast bag on a brown table, with coffee beans and steam",
+    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, photo: "menu/menu-bag-slow-roast.webp", fill: true, model: "bag", feature: true,
+    alt: "A brewns Slow Roast bag, charcoal and sage green, on a sage background",
     meta: "250 G · WHOLE BEAN · COPENHAGEN", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
     desc: "Our house roast, taken slow and a shade past medium so the sugars caramelise without tipping into bitter. Sweet in milk, round and clean on its own.",
     options: [
@@ -134,7 +134,8 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Roasted weekly in small batches and packed in a valved bag. Best within four weeks of the roast date printed on the back. Keep sealed, away from light and heat.",
   },
   {
-    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 4800, model: "bag",
+    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 4800, photo: "menu/menu-bag-ethiopia.webp", fill: true, model: "bag",
+    alt: "A brewns Ethiopia single origin bag with an orange mountain landscape, among coffee beans",
     meta: "250 G · WASHED HEIRLOOM · 2100M", notes: ["JASMINE", "BERGAMOT", "WHITE PEACH"],
     desc: "Washed heirloom varieties from high-altitude smallholders in Yirgacheffe. A delicate, tea-like body with sparkling citrus acidity, jasmine florals and a sweet peach finish.",
     options: [
