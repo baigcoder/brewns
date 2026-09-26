@@ -1359,6 +1359,10 @@ type CupLabel = {
   lines: [string, string];
   option: (sel: Record<string, number>) => string;
   sleeve?: { colour: string; ink: string; accent: string; size: number };
+  /** The cup's own stock and print, when it isn't the house black and gold. */
+  print?: { ground: string; mark: string; ink: string; dim: string };
+  /** The line of small words round the foot. */
+  band?: string;
 };
 const HOUSE_BAG: BagLabel = {
   script: ['slow', 'roast'],
@@ -1383,8 +1387,26 @@ const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
       panel: { colour: '#e4d3b2', ink: '#1f1a14', dim: 'rgba(31,26,20,0.78)', accent: '#c45a26' },
     },
   },
-  latte: { cup: { lines: ['LATTE', 'SMOOTH · BALANCED · STEAMED'], option: (sel) => ['8 OZ', '12 OZ', '16 OZ'][sel.size ?? 1], sleeve: { colour: '#ecdfc6', ink: '#17130f', accent: '#a8763a', size: 92 } } },
-  espresso: { cup: { lines: ['ESPRESSO', 'SHORT · STRONG · ON DEMAND'], option: (sel) => (sel.shots === 1 ? 'DOUBLE SHOT' : 'SINGLE SHOT'), sleeve: { colour: '#8c4424', ink: '#f6ead6', accent: '#f1c98a', size: 66 } } },
+  // The latte: a milky, latte-coloured cup, navy print and a navy sleeve.
+  latte: {
+    cup: {
+      lines: ['LATTE', 'SMOOTH · BALANCED · STEAMED'],
+      option: (sel) => ['8 OZ', '12 OZ', '16 OZ'][sel.size ?? 1],
+      sleeve: { colour: '#2e3a4b', ink: '#f1e6d2', accent: '#c9b597', size: 92 },
+      print: { ground: '#d9c5a6', mark: '#26303f', ink: '#26303f', dim: 'rgba(38,48,63,0.78)' },
+      band: '100% COFFEE · NO ARTIFICIAL · ',
+    },
+  },
+  // The espresso: black, with terracotta print and a terracotta sleeve.
+  espresso: {
+    cup: {
+      lines: ['ESPRESSO', 'RICH · INTENSE · NO SUGAR'],
+      option: (sel) => (sel.shots === 1 ? 'DOUBLE SHOT' : 'SINGLE SHOT'),
+      sleeve: { colour: '#b5582b', ink: '#f6ead6', accent: '#f1c98a', size: 66 },
+      print: { ground: '#171513', mark: '#c9642f', ink: '#efe6d6', dim: 'rgba(239,230,214,0.7)' },
+      band: '100% COFFEE · NO ARTIFICIAL · ',
+    },
+  },
 };
 const BAG_SIZES = ['250 G', '500 G', '1 KG'];
 
@@ -1543,7 +1565,7 @@ function paintSleevedCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLa
   }
   // above the sleeve: wordmark and house line
   drawWordmark(ctx, p.gold, CX - 150, 206, 300);
-  text(ctx, 'COFFEE HOUSE · LAHORE', CX, 312, p.cream, 17, 6, 'center');
+  text(ctx, 'COFFEE HOUSE · LAHORE', CX, 312, p.gold, 17, 6, 'center');
   rule(ctx, CX - 30, 330, CX + 30, 330, p.gold, 2);
   // on the sleeve: the drink, big
   const ink = surface ? SURFACE.cream : sv.ink;
@@ -1563,12 +1585,15 @@ function paintSleevedCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLa
   text(ctx, 'BREWED', CX + 18, 606, p.dim, 16, 2);
   text(ctx, 'DAILY', CX + 18, 630, p.dim, 16, 2);
   // a thin line of the house words round the foot
-  const band = 'BREWNS · GOOD COFFEE · NO WAITING · ';
+  const band = label.band || 'BREWNS · GOOD COFFEE · NO WAITING · ';
   for (let x = 0; x < 1536; x += 470) text(ctx, band, x, 676, p.gold, 13, 3);
 }
 
-function paintCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLabel, sel: Record<string, number>) {
+function paintCup(ctx: CanvasRenderingContext2D, base: Palette, label: CupLabel, sel: Record<string, number>) {
   const k = ctx.canvas.width / 1536;
+  // A product cup can bring its own stock and print colours (the surface map stays as it is).
+  const pr = base !== SURFACE && label.print;
+  const p: Palette = pr ? { ground: pr.ground, gold: pr.mark, cream: pr.ink, dim: pr.dim } : base;
   ctx.fillStyle = p.ground;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.save();
