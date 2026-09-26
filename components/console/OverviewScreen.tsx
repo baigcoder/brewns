@@ -58,8 +58,8 @@ function Bars({ data, label }: { data: { key: string; axis: string; value: numbe
   return (
     <figure>
       <div className="cx-bars" role="img" aria-label={label}>
-        {data.map((d) => (
-          <div key={d.key} className={`cx-bar${d.value ? '' : ' zero'}`} tabIndex={0} aria-label={d.tip}>
+        {data.map((d, i) => (
+          <div key={d.key} className={`cx-bar${d.value ? '' : ' zero'}${i < data.length / 3 ? ' tip-start' : i >= (data.length * 2) / 3 ? ' tip-end' : ''}`} tabIndex={0} aria-label={d.tip}>
             <i style={{ height: `${(d.value / max) * 100}%` }} />
             <span className="tip">{d.tip}</span>
           </div>

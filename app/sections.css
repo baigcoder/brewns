@@ -795,3 +795,21 @@
 .journey-stat small { font-family: var(--font-space-mono); font-weight: 400; font-size: 0.8rem; letter-spacing: 0.08em; color: var(--accent); }
 .journey-stat-k { margin-top: 0.75rem; font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: 0.08em; color: rgb(255 255 255 / 0.55); }
 @media (prefers-reduced-motion: reduce) { .journey-rail > i { transform: scaleY(1); } }
+
+/* ── Menu heading on a desktop ──
+   The category tabs sit just above the cards, where the third line of the
+   heading and the lede beside it used to end. The heading gets the width to
+   set on two lines (FAVORITES MADE / DAILY) and the lede sits beside the last
+   line, so both finish clear of the tabs. */
+@media (min-width: 1024px) {
+  .menu-intro { width: min(60rem, calc(100vw - 5rem)); }
+  .menu-lede { top: auto; bottom: 0.2rem; width: 17rem; }
+}
+.menu-page { white-space: nowrap; }
+
+/* ── Hero on a phone: "FOR YOUR" fills the width, so "moment" has no room
+   beside it. It signs underneath instead, under the right of YOUR, and the
+   grid row grows so the lede moves down with it. ── */
+@media (max-width: 639.98px) {
+  .hero-script { margin-top: calc(var(--size-hero-script-y-phone) + var(--font-size-display-hero-phone) * 1.42); }
+}

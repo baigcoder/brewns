@@ -76,7 +76,9 @@ export function AccessScreen() {
               {groups.map((g) => (
                 <Fragment key={g}>
                   <tr className="group">
-                    <td colSpan={ROLES.length + 1}>{g}</td>
+                    <td colSpan={ROLES.length + 1}>
+                      <span className="cx-matrix-group">{g}</span>
+                    </td>
                   </tr>
                   {ALL_PERMISSIONS.filter((p) => PERMISSIONS[p].group === g).map((p) => (
                     <tr key={p}>
