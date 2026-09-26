@@ -244,40 +244,8 @@ const flyLiquidDrop = (fromElement) => {
   requestAnimationFrame(animateDrop);
 };
 
-/* ═══════════ Live Location Counter Wait Times ═══════════ */
-const updateLiveLocations = () => {
-  const now = new Date();
-  const sfTimeStr = now.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour12: false, hour: "numeric", minute: "numeric" });
-  const [h, m] = sfTimeStr.split(":").map(Number);
-  const currentMin = h * 60 + m;
-
-  let b0 = "● STEADY BREW · ~4 MIN";
-  let b1 = "● STEADY BREW · ~3 MIN";
-  let b2 = "● STEADY BREW · ~5 MIN";
-
-  if (currentMin < 7 * 60 || currentMin >= 21 * 60) {
-    b0 = "○ CLOSED · OPENS 07:00";
-    b1 = "○ CLOSED · OPENS 07:00";
-    b2 = "○ CLOSED · OPENS 07:00";
-  } else if (currentMin >= 7 * 60 && currentMin <= 9 * 60 + 30) {
-    b0 = "● MORNING PEAK · ~7 MIN";
-    b1 = "● MORNING PEAK · ~6 MIN";
-    b2 = "● MORNING PEAK · ~8 MIN";
-  } else if (currentMin >= 12 * 60 && currentMin <= 13 * 60 + 45) {
-    b0 = "● MIDDAY RUSH · ~5 MIN";
-    b1 = "● MIDDAY RUSH · ~4 MIN";
-    b2 = "● MIDDAY RUSH · ~6 MIN";
-  }
-
-  const el0 = $("#loc-status-0");
-  const el1 = $("#loc-status-1");
-  const el2 = $("#loc-status-2");
-  if (el0) el0.textContent = b0;
-  if (el1) el1.textContent = b1;
-  if (el2) el2.textContent = b2;
-};
-updateLiveLocations();
-const liveLocationsTimer = setInterval(updateLiveLocations, 30000);
+// The locations badges are painted by the clock further down (it knows the time in Lahore).
+let liveLocationsTimer = 0;
 
 
 /* ═══════════ smooth scroll ═══════════ */
@@ -1331,7 +1299,13 @@ $$("[data-swirl]").forEach((frame) => {
 $$(".card").forEach((card) => scrub($(".card-par", card), $(".card-range", card), "top bottom", "center center", { y: 11 }, { y: 0 }));
 hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0, y: 0, opacity: 1 }, { config: C(120, 26), focus: true });
 
-/* ═══════════ locations: dial and cup ═══════════ */
+/* ═══════════ locations: the clock, the rest of today, and what's pouring ═══════════
+   The dial tells the time in Lahore. A copper ring on its rim is what's left of
+   today's service: full at opening, draining to nothing at 21:00; after closing
+   it turns into a dashed line counting down to 07:00. Pointing at a shop swings
+   the hands to that shop's next opening or closing. The cup follows the day: a
+   hot latte in the morning, the iced latte through the afternoon, a cortado in
+   the evening. ?brewtime=08:30 pins the clock to a time, for checking. */
 (() => {
   const range = $("#loc-range"), turn = $("#loc-turn"), section = $("#locations");
   const DIAL_PARALLAX = 26, CUP_PARALLAX = 80, CUP_MAX_ROTATION = 38, CUP_MAX_TILT = 14;
@@ -1339,6 +1313,233 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   scrub($("#loc-par"), range, "top bottom", "center center", { y: CUP_PARALLAX }, { y: 0 });
   scrub($("#loc-spin"), turn, "center center", "bottom top", { rotate: "0deg" }, { rotate: `${CUP_MAX_ROTATION}deg` }, 0);
   lean($("#loc-lean"), section, CUP_MAX_TILT);
+
+  // the dial's geometry, in the artwork's 1308-unit square
+  const CX = 654, CY = 648, TICK_OUT = 612, RING = 636;
+  const svgNS = "http://www.w3.org/2000/svg";
+  const ticks = $("#dial-ticks");
+  for (let i = 0; i < 60; i++) {
+    const hour = i % 5 === 0;
+    const a = (i * 6 * Math.PI) / 180, s = Math.sin(a), c = -Math.cos(a);
+    const r0 = TICK_OUT - (hour ? 56 : 21);
+    const line = document.createElementNS(svgNS, "line");
+    // drawn from the rim inwards, one after another round the dial
+    line.setAttribute("x1", (CX + s * TICK_OUT).toFixed(1));
+    line.setAttribute("y1", (CY + c * TICK_OUT).toFixed(1));
+    line.setAttribute("x2", (CX + s * r0).toFixed(1));
+    line.setAttribute("y2", (CY + c * r0).toFixed(1));
+    line.setAttribute("pathLength", "1");
+    line.setAttribute("class", `dial-tick${hour ? " hour" : ""}`);
+    line.style.setProperty("--i", i);
+    ticks.append(line);
+  }
+
+  // the time in Lahore (UTC+5, no daylight saving), in minutes since midnight
+  const pinned = new URLSearchParams(location.search).get("brewtime")?.match(/^(\d{1,2}):(\d{2})$/);
+  const pinnedOffset = pinned ? (+pinned[1] * 60 + +pinned[2]) * 60000 - ((Date.now() + 5 * 3600000) % 86400000) : 0;
+  const pkMs = () => (Date.now() + 5 * 3600000 + pinnedOffset) % 86400000;
+  const pkMin = () => pkMs() / 60000;
+  const isOpen = (m = pkMin()) => m >= OPEN_MIN && m < CLOSE_MIN;
+  const hm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(Math.floor(m % 60)).padStart(2, "0")}`;
+  const span = (mins) => {
+    const t = Math.max(1, Math.ceil(mins)), h = Math.floor(t / 60), m = t % 60;
+    return h ? `${h}H ${String(m).padStart(2, "0")}M` : `${m} MIN`;
+  };
+  // minutes until the next opening or closing, and which it is
+  const nextEvent = (m = pkMin()) => (isOpen(m) ? { open: false, at: CLOSE_MIN, in: CLOSE_MIN - m } : { open: true, at: OPEN_MIN, in: (OPEN_MIN - m + 1440) % 1440 });
+
+  /* the ring: what's left of today, or the wait until tomorrow */
+  const arc = $("#dial-arc");
+  const point = (deg, r = RING) => {
+    const a = (deg * Math.PI) / 180;
+    return [CX + Math.sin(a) * r, CY - Math.cos(a) * r];
+  };
+  const drawRing = () => {
+    const m = pkMin(), open = isOpen(m);
+    const from = (m % 720) * 0.5;
+    const sweep = Math.min(359.5, (open ? CLOSE_MIN - m : nextEvent(m).in) * 0.5);
+    const [x0, y0] = point(from), [x1, y1] = point(from + sweep);
+    arc.setAttribute("d", `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${RING} ${RING} 0 ${sweep > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`);
+    section.classList.toggle("shut", !open);
+    const [nx, ny] = point(from);
+    $("#dial-now").setAttribute("transform", `translate(${nx.toFixed(1)} ${ny.toFixed(1)})`);
+  };
+
+  /* the badges and the line under the hands */
+  const read = $("#dial-read");
+  const badges = [0, 1, 2].map((i) => $(`#loc-status-${i}`));
+  const BASE_WAIT = [4, 3, 5];
+  const shopState = [{}, {}, {}];
+  fetch("/api/public/status", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((s) => {
+      if (!s?.shops) return;
+      s.shops.forEach((x, i) => shopState[i] && Object.assign(shopState[i], x));
+      paint();
+    })
+    .catch(() => {});
+  const waitAt = (i, m) => {
+    const rush = m <= 9.5 * 60 ? 3 : m >= 12 * 60 && m <= 13.75 * 60 ? 1 : 0;
+    return BASE_WAIT[i] + rush + Math.round((shopState[i].extraMin || 0) / 2);
+  };
+  let focused = -1;
+  // two short lines, to sit between the cup and the six
+  const readLine = (i = focused) => {
+    const m = pkMin(), e = nextEvent(m);
+    const lead = i >= 0 ? LOCS[i][0] : e.open ? "CLOSED NOW" : "OPEN NOW";
+    return `<span>${lead}</span><span>${e.open ? "OPENS" : "CLOSES"} ${hm(e.at)} · ${span(e.in)}</span>`;
+  };
+  const paint = () => {
+    const m = pkMin(), open = isOpen(m);
+    badges.forEach((el, i) => {
+      if (!el) return;
+      const busy = m <= 9.5 * 60 ? "MORNING PEAK" : m >= 12 * 60 && m <= 13.75 * 60 ? "MIDDAY RUSH" : "STEADY BREW";
+      el.textContent = !open ? `○ CLOSED · OPENS ${hm(OPEN_MIN)}` : shopState[i].paused ? "● COUNTER ONLY · ONLINE PAUSED" : `● ${busy} · ~${waitAt(i, m)} MIN`;
+      el.classList.toggle("shut", !open);
+    });
+    read.innerHTML = readLine();
+    drawRing();
+    pour();
+  };
+
+  /* the hands: one number, minutes on the dial, drives all three */
+  const hH = $("#hand-h"), hM = $("#hand-m"), hS = $("#hand-s");
+  const setHands = (t, sec) => {
+    hH.setAttribute("transform", `rotate(${((t * 0.5) % 360).toFixed(2)} ${CX} ${CY})`);
+    hM.setAttribute("transform", `rotate(${((t * 6) % 360).toFixed(2)} ${CX} ${CY})`);
+    if (sec !== undefined) hS.setAttribute("transform", `rotate(${(sec * 6).toFixed(2)} ${CX} ${CY})`);
+  };
+  let shown = pkMin() - (pkMin() % 720); // twelve o'clock, before the dial wakes
+  let live = false;
+  const hands = new Spring({ t: shown }, (o) => {
+    shown = o.t;
+    setHands(o.t);
+  });
+  const swingTo = (t, config = C(46, 15)) => {
+    if (live) hands.set({ t: shown }); // the spring picks up where the running clock is
+    live = false;
+    return hands.start({ t }, { config, immediate: REDUCED }).then(() => playHoverTick());
+  };
+  // now, counted in the same laps as the hands, so a swing never goes the long way round
+  const nowNear = () => {
+    let now = pkMin();
+    while (now - shown > 360) now -= 720;
+    while (shown - now > 360) now += 720;
+    return now;
+  };
+  const backToNow = () => swingTo(nowNear(), C(60, 17)).then(() => focused < 0 && (live = true));
+  setHands(shown, 0);
+
+  let onScreen = false, woke = false, lastOpen = isOpen();
+  new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
+  loop(() => {
+    if (!woke || !onScreen) return;
+    const ms = pkMs();
+    const sec = REDUCED ? Math.floor(ms / 1000) % 60 : (ms / 1000) % 60;
+    if (live) {
+      // keep the unwrapped count near where it is, so the next swing starts from here
+      let t = ms / 60000;
+      while (t - shown > 360) t -= 720;
+      while (shown - t > 360) t += 720;
+      shown = t;
+      setHands(t, sec);
+    } else setHands(shown, sec);
+  });
+
+  /* the cup: what's pouring at this hour */
+  const CUPS = {
+    morning: { src: "cup-hot-latte.webp", kind: "hot", name: "HOT LATTE", alt: "A brewns latte in a navy-sleeved cup, steaming" },
+    afternoon: { src: "cup.webp", kind: "iced", name: "ICED LATTE", alt: "A brewns iced latte in a clear cup" },
+    evening: { src: "cup-cortado.webp", kind: "hot", name: "CORTADO", alt: "A brewns cortado in a faceted glass" },
+  };
+  const partOfDay = (m = pkMin()) => (m >= 5 * 60 && m < 12 * 60 ? "morning" : m >= 12 * 60 && m < 18 * 60 ? "afternoon" : "evening");
+  Object.values(CUPS).forEach((c) => (new Image().src = `${ASSET_BASE_URL}locations/${c.src}`));
+  const cupImg = $("#loc-cup-img"), fx = $("#loc-fx"), pouring = $("#loc-pouring");
+  let cupNow = "afternoon";
+  const flip = new Spring({ ry: 0 }, (o) => ($("#loc-swap").style.transform = `rotateY(${o.ry}deg)`));
+  const showCup = (key) => {
+    const c = CUPS[key];
+    cupImg.src = `${ASSET_BASE_URL}locations/${c.src}`;
+    cupImg.alt = c.alt;
+    fx.dataset.kind = c.kind;
+    fx.dataset.cup = key;
+    pouring.innerHTML = `<span class="blk">NOW POURING</span><span class="blk">${c.name}</span>`;
+  };
+  function pour() {
+    const key = partOfDay();
+    if (!woke) return void (pouring.innerHTML = `<span class="blk">NOW POURING</span><span class="blk">${CUPS[key].name}</span>`);
+    if (key === cupNow) return;
+    cupNow = key;
+    if (REDUCED) return showCup(key);
+    // a half turn out, the new cup in, a half turn back
+    flip.start({ ry: 90 }, { config: { duration: 320, easing: (t) => t * t } }).then(() => {
+      showCup(key);
+      flip.set({ ry: -90 });
+      return flip.start({ ry: 0 }, { config: C(120, 14) });
+    });
+  }
+
+  /* pointing at a shop swings the hands to its next opening or closing */
+  const shops = $$(".locs-list [data-shop]");
+  const focus = (i) => {
+    if (i === focused) return;
+    focused = i;
+    shops.forEach((li, j) => li.classList.toggle("on", j === i));
+    section.classList.toggle("shop-focus", i >= 0);
+    read.innerHTML = readLine();
+    if (!woke) return;
+    if (i < 0) return backToNow();
+    swingTo((live ? shown : nowNear()) + nextEvent().in); // forwards to it, like time does
+  };
+  shops.forEach((li, i) => {
+    li.addEventListener("pointerenter", () => !noHover() && focus(i));
+    li.addEventListener("pointerleave", () => !noHover() && focus(-1));
+    li.addEventListener("focus", () => focus(i));
+    li.addEventListener("blur", () => focus(-1));
+    li.addEventListener("click", () => noHover() && focus(focused === i ? -1 : i));
+  });
+  // phones: the shop crossing the middle of the screen takes the hands
+  if ("IntersectionObserver" in window) {
+    const seen = new Set();
+    const io = new IntersectionObserver(
+      (es) => {
+        if (!noHover()) return;
+        es.forEach((e) => (e.isIntersecting ? seen.add(+e.target.dataset.shop) : seen.delete(+e.target.dataset.shop)));
+        focus(seen.size ? Math.min(...seen) : -1);
+      },
+      { rootMargin: "-45% 0px -45% 0px" },
+    );
+    shops.forEach((li) => io.observe(li));
+  }
+
+  /* waking up: ticks, numbers, ring, then the hands find the time */
+  paint();
+  const wake = () => {
+    if (woke) return;
+    woke = true;
+    section.classList.add("clock-on");
+    const key = partOfDay();
+    if (REDUCED) {
+      cupNow = key;
+      showCup(key);
+      live = true;
+      return;
+    }
+    const target = (() => {
+      let t = pkMin();
+      while (t < shown) t += 720;
+      return t;
+    })();
+    setTimeout(() => swingTo(target, C(38, 11)).then(() => focused < 0 && (live = true)), 1500);
+    setTimeout(pour, 2300);
+  };
+  onceVisible(section, wake, { threshold: 0.3 });
+  liveLocationsTimer = setInterval(() => {
+    paint();
+    const open = isOpen();
+    if (woke && onScreen && open !== lastOpen) playChime();
+    lastOpen = open;
+  }, 20000);
 })();
 
 /* ═══════════ hero card ═══════════ */
@@ -4406,10 +4607,9 @@ let co = null;
 let coTimer = 0;
 let coCleanups = [];
 
-const nowMin = () => {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
-};
+// Minutes since midnight in Lahore (UTC+5), whatever the visitor's clock says:
+// the shops and the server both keep Lahore time.
+const nowMin = () => Math.floor(((Date.now() / 60000) + 300) % 1440);
 const hhmm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const isOpenNow = () => nowMin() >= OPEN_MIN && nowMin() + PREP_MIN <= CLOSE_MIN;
 const slotList = () => {
