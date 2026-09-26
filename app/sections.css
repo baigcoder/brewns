@@ -690,8 +690,6 @@
 .dial .dial-read span { display: block; width: auto; height: auto; }
 .dial-read span:first-child { color: #121212; }
 .shop-focus .dial-read { color: #9a5a22; transition-delay: 0ms; }
-/* on a phone the dial is too small to fit it between the seven and the five: it sits just under the dial */
-@media (max-width: 639.98px) { .dial-read { top: calc(100% + 1.4rem); font-size: 0.625rem; } }
 
 /* the shops: pointing at one hands it the clock */
 .locs-list [data-shop] { cursor: pointer; outline: none; transition: opacity 300ms; }
@@ -720,7 +718,7 @@
   78%, 100% { opacity: 0; transform: translateY(2.6rem) scaleY(1.1); }
 }
 .loc-fx .steam { position: absolute; left: var(--x); top: var(--top, 8%); width: 11%; height: 22%; border-radius: 50%; background: radial-gradient(closest-side, rgb(110 98 88 / 0.2), transparent); filter: blur(5px); opacity: 0; animation: steam-rise 4.4s ease-out infinite var(--d); }
-.loc-fx[data-cup="evening"] .steam { --top: 22%; }
+.loc-fx[data-cup="evening"] .steam { --top: 17%; }
 @keyframes steam-rise {
   0% { opacity: 0; transform: translateY(25%) scaleX(0.55); }
   30% { opacity: 1; }
@@ -733,3 +731,13 @@
   .loc-fx { display: none; }
   .dial-tick, .dial .dial-nums, .dial-arc, .hand, .dial-read, .dial-now { transition: none; }
 }
+
+/* The locations board is taller than the others (three shops with their badges,
+   the hours, what's pouring): on a desktop it is at least 55rem, or the window's
+   height when that is more, so the last shop and the hours never fall under the
+   fold. The readout under the cup sits on a patch of the face, so the second
+   hand passes behind it rather than through the words. */
+@media (min-width: 1024px) { .light.locs { height: auto; min-height: max(100lvh, 55rem); } }
+/* the readout hangs just under the clock, clear of the cup and the numbers */
+.dial-read { top: calc(100% + 1.1rem); transform: translate(-50%, 0); font-size: 0.6875rem; }
+@media (max-width: 1023.98px) { .dial-wrap { margin-bottom: 1.75rem; } }
