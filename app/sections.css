@@ -741,3 +741,50 @@
 /* the readout hangs just under the clock, clear of the cup and the numbers */
 .dial-read { top: calc(100% + 1.1rem); transform: translate(-50%, 0); font-size: 0.6875rem; }
 @media (max-width: 1023.98px) { .dial-wrap { margin-bottom: 1.75rem; } }
+
+/* ── The brewns story: how it started, told in four chapters on a copper rail,
+   then the numbers the café actually runs on. Follows the philosophy board in
+   the same espresso dark. ── */
+.journey { position: relative; overflow: hidden; background: radial-gradient(50% 45% at 85% 20%, rgb(213 140 61 / 0.12), transparent 70%), var(--background); color: var(--foreground); padding: 6rem 1.25rem 4rem; }
+@media (min-width: 640px) { .journey { padding: 7rem 2.5rem 5rem; } }
+.journey::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: rgb(255 255 255 / 0.08); }
+.journey-in { display: grid; gap: 3.5rem; max-width: 90rem; margin-inline: auto; }
+@media (min-width: 1024px) { .journey-in { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 6rem; align-items: start; } }
+.journey-head { display: grid; gap: 1.5rem; align-content: start; }
+@media (min-width: 1024px) { .journey-head { position: sticky; top: 7rem; } }
+.journey-eyebrow, .journey-k { font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: 0.08em; text-transform: uppercase; color: rgb(255 255 255 / 0.6); }
+.journey-eyebrow .sl, .journey-k .sl { color: var(--accent); }
+.journey-h2 { max-width: 16ch; }
+.journey-lede { max-width: 34rem; font-family: var(--font-geist); font-size: clamp(1rem, 1.3vw, 1.2rem); line-height: 1.6; color: rgb(255 255 255 / 0.78); }
+.journey-quote { margin: 0.5rem 0 0; padding: 1.1rem 0 1.1rem 1.25rem; border-left: 2px solid var(--accent); }
+.journey-quote p { font-family: var(--font-geist); font-weight: 600; font-size: clamp(1.15rem, 1.7vw, 1.5rem); line-height: 1.35; color: #fff; }
+.journey-quote footer { margin-top: 0.75rem; color: var(--pack-gold, #d8b777); letter-spacing: 0.08em; }
+.journey-links { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.journey-links a { display: inline-flex; gap: 0.5rem; padding: 0.85rem 1.1rem; border: 1px solid rgb(255 255 255 / 0.22); font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: 0.08em; color: #fff; text-decoration: none; transition: background-color 300ms, color 300ms, border-color 300ms; }
+.journey-links a:hover, .journey-links a:focus-visible { background: #fff; color: #070707; border-color: #fff; }
+.journey-links a span { transition: transform 300ms var(--ease-entrance); }
+.journey-links a:hover span { transform: translateX(0.25rem); }
+
+.journey-steps { position: relative; display: grid; gap: 3rem; margin: 0; padding: 0 0 0 3.25rem; list-style: none; }
+@media (min-width: 640px) { .journey-steps { gap: 4.5rem; padding-left: 5rem; } }
+.journey-rail { position: absolute; left: 0.95rem; top: 0.5rem; bottom: 0.5rem; width: 1px; background: rgb(255 255 255 / 0.12); }
+@media (min-width: 640px) { .journey-rail { left: 1.45rem; } }
+.journey-rail > i { position: absolute; inset: 0; background: linear-gradient(var(--accent), #d8b777); transform-origin: top; transform: scaleY(0); }
+.journey-step { position: relative; }
+.journey-n { position: absolute; left: -3.25rem; top: -0.2rem; display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border: 1px solid rgb(255 255 255 / 0.25); border-radius: 9999px; background: var(--background); font-family: var(--font-space-mono); font-size: 0.6875rem; color: rgb(255 255 255 / 0.6); transition: background-color 500ms, border-color 500ms, color 500ms, box-shadow 500ms; }
+@media (min-width: 640px) { .journey-n { left: -5rem; width: 2.9rem; height: 2.9rem; font-size: 0.8125rem; } }
+.journey-step.lit .journey-n { background: var(--accent); border-color: var(--accent); color: #070707; box-shadow: 0 0 0 6px rgb(213 140 61 / 0.15); }
+.journey-h3 { margin: 0.6rem 0 0.9rem; font-family: var(--font-geist); font-weight: 600; font-size: clamp(1.5rem, 2.6vw, 2.35rem); line-height: 1.1; letter-spacing: -0.01em; color: rgb(255 255 255 / 0.55); transition: color 600ms; }
+.journey-step.lit .journey-h3 { color: #fff; }
+.journey-p { max-width: 38rem; font-family: var(--font-geist); font-size: clamp(0.975rem, 1.15vw, 1.075rem); line-height: 1.7; color: rgb(255 255 255 / 0.68); }
+
+.journey-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 90rem; margin: 5rem auto 0; padding: 0; list-style: none; border-top: 1px solid rgb(255 255 255 / 0.12); }
+@media (min-width: 768px) { .journey-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.journey-stats li { padding: 1.75rem 1rem 0.5rem 0; border-bottom: 1px solid rgb(255 255 255 / 0.08); }
+@media (min-width: 768px) { .journey-stats li { border-bottom: 0; } .journey-stats li + li { padding-left: 1.5rem; border-left: 1px solid rgb(255 255 255 / 0.08); } }
+.journey-stats li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 768px) { .journey-stats li:last-child:nth-child(odd) { grid-column: auto; } }
+.journey-stat { display: flex; align-items: baseline; gap: 0.35rem; font-family: var(--font-geist); font-weight: 700; font-size: clamp(2.5rem, 5vw, 4.25rem); line-height: 1; color: #fff; }
+.journey-stat small { font-family: var(--font-space-mono); font-weight: 400; font-size: 0.8rem; letter-spacing: 0.08em; color: var(--accent); }
+.journey-stat-k { margin-top: 0.75rem; font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: 0.08em; color: rgb(255 255 255 / 0.55); }
+@media (prefers-reduced-motion: reduce) { .journey-rail > i { transform: scaleY(1); } }
