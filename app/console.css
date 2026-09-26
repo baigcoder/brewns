@@ -143,6 +143,9 @@
 .cx-bars .cx-bar:hover i, .cx-bars .cx-bar:focus-visible i { opacity: 1; }
 .cx-bar .tip { position: absolute; bottom: calc(100% - 14px); left: 50%; transform: translateX(-50%); z-index: 3; padding: 6px 9px; border-radius: 8px; background: #26261f; border: 1px solid var(--cx-line-2); white-space: nowrap; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 100ms; }
 .cx-bar:hover .tip, .cx-bar:focus-visible .tip { opacity: 1; }
+/* the tooltips at either end open inwards, so they never hang off the page */
+.cx-bar.tip-start .tip { left: 0; transform: none; }
+.cx-bar.tip-end .tip { left: auto; right: 0; transform: none; }
 .cx-axis { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; margin-top: 6px; font-family: var(--font-space-mono); font-size: 10px; color: var(--cx-faint); text-align: center; }
 .cx-hbars { display: grid; gap: 10px; }
 .cx-hbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
@@ -156,6 +159,23 @@
 
 /* ── tables ── */
 .cx-table-wrap { overflow-x: auto; border: 1px solid var(--cx-line); border-radius: 14px; background: var(--cx-panel); }
+/* A table wider than the screen shows a soft shade at the edge that has more
+   to scroll to; the shade goes once you reach that end. */
+.cx-table-wrap {
+  background:
+    linear-gradient(to right, var(--cx-panel) 30%, transparent) left / 40px 100% no-repeat local,
+    linear-gradient(to left, var(--cx-panel) 30%, transparent) right / 40px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.55), transparent) left / 14px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.55), transparent) right / 14px 100% no-repeat scroll,
+    var(--cx-panel);
+}
+.cx-table-wrap .cx-table th { background: transparent; }
+/* the access grid keeps the permission in view while the roles scroll */
+@media (max-width: 900px) {
+  .cx-matrix th:first-child, .cx-matrix td:first-child { position: sticky; left: 0; z-index: 1; min-width: 190px; background: var(--cx-panel); box-shadow: 1px 0 0 var(--cx-line); }
+  .cx-matrix tr.group td:first-child { position: static; box-shadow: none; background: var(--cx-panel-2); }
+  .cx-matrix-group { position: sticky; left: 12px; }
+}
 .cx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cx-table th { position: sticky; top: 0; padding: 10px 12px; text-align: left; font-family: var(--font-space-mono); font-size: 10.5px; font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cx-muted); background: var(--cx-panel); border-bottom: 1px solid var(--cx-line); white-space: nowrap; }
 .cx-table td { padding: 10px 12px; border-bottom: 1px solid var(--cx-line); vertical-align: middle; }
@@ -330,3 +350,7 @@
 .acct-stamps { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; max-width: 420px; }
 .acct-stamps i { aspect-ratio: 1; border-radius: 99px; border: 1.5px solid rgb(255 255 255 / 0.4); }
 .acct-stamps i.on { background: #f1dfc6; border-color: #f1dfc6; }
+
+/* Nothing in the console may push the page sideways on a phone (a tooltip, the
+   off-canvas menu): clip rather than hide, so sticky headers keep working. */
+.cx { overflow-x: clip; }
