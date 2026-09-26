@@ -193,7 +193,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Served cold on draft without ice to maintain the smooth cascading nitrogen head.",
   },
   {
-    id: "iced-matcha", name: "ICED MATCHA", cat: "drinks", tag: "NEW", price: 1150, photo: "menu/menu-iced-coffee.webp", model: "glass", alt: "A brewns iced matcha in a clear cup with a straw",
+    id: "iced-matcha", name: "ICED MATCHA", cat: "drinks", tag: "NEW", price: 1150, photo: "menu/cup-iced-matcha.webp", model: "glass", alt: "A brewns iced matcha in a clear cup with a green leaf label and a black straw",
     meta: "CEREMONIAL GRADE · OVER ICE", notes: ["GRASSY", "CREAMY"],
     desc: "Ceremonial-grade matcha whisked to order and poured over cold milk and ice, marbled on the way down.",
     options: [
@@ -205,7 +205,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Whisked by hand, never from a powder mix. Give it a stir with the straw before the first sip.",
   },
   {
-    id: "iced-latte", name: "ICED LATTE", cat: "drinks", price: 1050, photo: "menu/menu-iced-latte.webp", model: "glass", alt: "A brewns iced latte in a clear cup",
+    id: "iced-latte", name: "ICED LATTE", cat: "drinks", price: 1050, photo: "menu/cup-iced-latte.webp", model: "glass", alt: "A brewns iced latte in a clear cup with a caramel leaf label and a black straw",
     meta: "DOUBLE SHOT · COLD MILK", notes: ["BOLD", "SMOOTH"],
     desc: "Two shots over ice, topped with cold milk and left to swirl. Smooth, bold and made for the walk between blocks.",
     options: [{ key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] }, MILK, { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 200]] }],
@@ -244,7 +244,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Naturally gluten-free with California almond meal.",
   },
   {
-    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 6500, photo: "menu/menu-tumbler.webp", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
+    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 6500, photo: "menu/tumbler-black.webp", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
     meta: "12 OZ · CERAMIC LINED · DOUBLE WALL", notes: ["TRUE TASTE", "6 HR HEAT RETENTION"],
     desc: "Double-wall vacuum-insulated stainless steel tumbler with an internal ceramic coating so your coffee tastes true to the cup. Fits standard car cup holders and keeps drinks hot for 6 hours.",
     options: [
