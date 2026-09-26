@@ -2,7 +2,7 @@
  * Pictures for the kitchen menu (burgers, pasta, rolls, pizza, coolers).
  *
  * There are no photographs of these dishes yet (a real photo in
- * public/assets/kitchen/<id>.jpg replaces the drawing), so each dish is drawn
+ * public/assets/kitchen/<id>.webp replaces the drawing), so each dish is drawn
  * as a studio shot: a warm backdrop and table, soft top light, vignette and
  * grain, the dish on its own serveware, with texture from SVG noise filters.
  * Every picture is a full-bleed square, used like a photo.
