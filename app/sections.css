@@ -9,9 +9,11 @@
 .area-cards .pick-name { font-size: 0.9em; }
 .done-actions a.btn { text-decoration: none; }
 
-/* ── Kitchen pictures are full-bleed studio shots: fill the frame like a photo ── */
-.pcard-media:has(img.shot) { overflow: hidden; min-height: 15rem; margin-block: 0.75rem; }
-.pcard-media img.shot { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: cover; }
+/* ── Kitchen pictures are square studio shots on white: the whole dish shows,
+   and the frame's spare width is the same white, so it reads as one photo. ── */
+.pcard-media:has(img.shot) { overflow: hidden; min-height: 15rem; margin-block: 0.75rem; background: #fff; }
+.pcard-media img.shot { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
+.pcard-media:has(img.shot) .pcard-photo { background: #fff; opacity: 1; }
 .pcard:hover .pcard-media img.shot { transform: scale(1.05); }
 .thumb.shot img { width: 100%; height: 100%; object-fit: cover; }
 /* Cut-out products (the bags) are tall: the stage's percentage limits don't bind

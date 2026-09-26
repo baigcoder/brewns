@@ -1290,7 +1290,7 @@ address { font-style: normal; }
      tall shots (the iced drinks) fit inside it rather than overflowing */
   .shop-grid > li:not(.feature) .pcard-media:has(img) { overflow: hidden; }
   .shop-grid > li:not(.feature) .pcard-media img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
-  .shop-grid > li:not(.feature) .pcard-media img.shot { object-fit: cover; }
+  .shop-grid > li:not(.feature) .pcard-media img.shot { object-fit: contain; }
   .shop-grid > li:not(.feature) .pcard:hover .pcard-media img { transform: none; }
   .shop-grid > li:not(.feature) .pcard-foot { flex-direction: column; align-items: stretch; gap: 0.5rem; }
   .shop-grid > li:not(.feature) .pcard-name { font-size: 0.9375rem; line-height: 1.05; }
