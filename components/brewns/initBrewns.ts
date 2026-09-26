@@ -12,18 +12,32 @@ import {
   getIsAudioEnabled,
   playCupClink,
   playBeanClatter,
-  playPaperFeed,
   playPaperTear,
   playPourDrop,
   playSoftClick,
+  playHoverTick,
+  playWhoosh,
+  playChime,
+  playMessage,
+  printerFeed,
+  printerCut,
+  setCafeRecording,
+  setSound,
+  getSoundSettings,
+  onSoundChange,
+  setSoundScene,
   triggerHaptic
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
+import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
+import { addStamps, birthdayTreat, CLUB, emptyClub, isDrink, memberNumber, normaliseClub, reverseOrder, rewardValue, spendReward, stampsFor } from './club';
+import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 
 
-export function initBrewns(container: HTMLElement = document.body) {
+export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
+  if (cafeRecording !== null) setCafeRecording(cafeRecording);
   if (typeof window === 'undefined') return () => {};
 
 
@@ -82,16 +96,110 @@ window.addEventListener("resize", applyGrid);
 initAudioState();
 const soundBtn = $("#sound-toggle");
 const soundLabel = $("#sound-label");
+/* The sound panel: master switch, volume, and the three layers. The first
+   click turns sound on and opens it; after that the button opens and closes it. */
+const soundPanel = document.createElement("div");
+soundPanel.className = "sound-panel";
+soundPanel.hidden = true;
+soundPanel.setAttribute("role", "dialog");
+soundPanel.setAttribute("aria-label", "Sound");
+const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", brew: "Brewing at home", story: "Slow afternoon", hania: "Cool vibes", founder: "Meet the founder", reviews: "The regulars", club: "Stamping cards", order: "Tickets printing", faq: "Questions at the till", footer: "Closing time" };
+let sceneName = "hero";
+const renderSoundPanel = () => {
+  const st = getSoundSettings();
+  soundPanel.innerHTML = `
+    <div class="sp-head"><div><p class="sp-title">CAFÉ SOUND</p><p class="sp-now mono-fine"><span class="sp-eq"><i></i><i></i><i></i></span>${st.on ? `NOW · ${SCENE_NAMES[sceneName] || "Brewns"}`.toUpperCase() : "OFF"}</p></div>
+      <button type="button" class="sp-switch" role="switch" aria-checked="${st.on}" data-sp="on" aria-label="Sound"><i></i></button></div>
+    <label class="sp-vol"><span class="mono-fine">VOLUME</span><input type="range" min="0" max="100" value="${Math.round(st.volume * 100)}" data-sp="volume" aria-label="Volume"></label>
+    ${[["ambience", "Café ambience", "Voices, the grinder, steam, cups"], ["music", "Music", "Slow lo-fi on the speakers"], ["ui", "Touch sounds", "Clicks, pours, the printer"]]
+      .map(([k, t, d]) => `<button type="button" class="sp-row" role="switch" aria-checked="${st[k]}" data-sp="${k}" ${st.on ? "" : "disabled"}><span><b>${t}</b><small>${d}</small></span><span class="sp-switch sm"><i></i></span></button>`)
+      .join("")}
+    <p class="sp-foot mono-fine">MIX FOLLOWS WHERE YOU ARE ON THE PAGE</p>`;
+};
+document.body.append(soundPanel);
 const updateSoundUI = () => {
   const on = getIsAudioEnabled();
   soundBtn?.classList.toggle("active", on);
-  if (soundLabel) soundLabel.textContent = on ? "SOUND: ON" : "SOUND";
+  soundBtn?.setAttribute("aria-expanded", String(!soundPanel.hidden));
+  if (soundLabel) soundLabel.textContent = on ? "SOUND ON" : "SOUND";
+  if (!soundPanel.hidden) renderSoundPanel();
 };
+const placeSoundPanel = () => {
+  const r = soundBtn.getBoundingClientRect();
+  soundPanel.style.top = `${r.bottom + 12}px`;
+  // Line the panel up under the button, but never past either edge.
+  const w = Math.min(320, window.innerWidth - 24);
+  const left = Math.min(Math.max(12, r.right - w), window.innerWidth - w - 12);
+  soundPanel.style.left = `${left}px`;
+  soundPanel.style.right = "auto";
+};
+onSoundChange(updateSoundUI);
 updateSoundUI();
-soundBtn?.addEventListener("click", () => {
-  toggleAudioState();
+soundBtn?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!getIsAudioEnabled()) {
+    toggleAudioState();
+    soundPanel.hidden = false;
+  } else soundPanel.hidden = !soundPanel.hidden;
+  placeSoundPanel();
   updateSoundUI();
 });
+soundPanel.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const k = e.target.closest("[data-sp]")?.dataset.sp;
+  if (!k || k === "volume") return;
+  if (k === "on") return toggleAudioState();
+  setSound({ [k]: !getSoundSettings()[k] });
+  playSoftClick();
+});
+soundPanel.addEventListener("input", (e) => {
+  if (e.target.dataset.sp === "volume") setSound({ volume: e.target.value / 100 });
+});
+document.addEventListener("click", (e) => {
+  if (!soundPanel.hidden && !e.target.closest(".sound-panel")) {
+    soundPanel.hidden = true;
+    updateSoundUI();
+  }
+});
+window.addEventListener("resize", () => !soundPanel.hidden && placeSoundPanel());
+
+/* The mix follows the section in view: busier at the counter, quieter by the
+   shelves, the music forward in the slow sections. */
+{
+  const seen = new Map();
+  const io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((en) => seen.set(en.target, en.intersectionRatio));
+      let best = null, ratio = 0;
+      seen.forEach((r, el) => {
+        if (r > ratio) [best, ratio] = [el, r];
+      });
+      if (!best) return;
+      const name = best.id === "ftr" ? "footer" : best.id === "story" ? "story" : best.id;
+      if (name !== sceneName) {
+        sceneName = name;
+        setSoundScene(name);
+        if (!soundPanel.hidden) renderSoundPanel();
+      }
+    },
+    { threshold: [0, 0.25, 0.5, 0.75, 1] },
+  );
+  document.querySelectorAll("section[id], footer#ftr").forEach((el) => io.observe(el));
+}
+
+/* The faintest tick when the pointer finds something to press (mouse only). */
+if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  let last = null, lastAt = 0;
+  document.addEventListener("pointerover", (e) => {
+    const t = e.target.closest?.("button, a[href], [role='button'], .pcard, .card, .inside-open");
+    if (!t || t === last) return;
+    last = t;
+    const now = performance.now();
+    if (now - lastAt < 70) return;
+    lastAt = now;
+    playHoverTick();
+  });
+}
 
 /* ═══════════ Liquid Pour Droplet Fly-in ═══════════ */
 const flyLiquidDrop = (fromElement) => {
@@ -766,16 +874,20 @@ const KITCHEN = [
     desc: "Fresh lime over soda, sweet, salted or half-and-half, the way it's done across Lahore.",
     options: [{ key: "style", label: "STYLE", choices: [["SWEET", 0], ["SALTED", 0], ["MIXED", 0]] }],
     details: [["LIME", "FRESH-SQUEEZED"], ["SODA", "CHILLED"], ["STYLE", "YOUR CALL"]] },
-].map((k) => ({
-  ...k,
-  cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
-  // A real photo at public/assets/kitchen/<id>.jpg wins; until one is there the
-  // drawn dish stands in (see the error handler below).
-  photo: `kitchen/${k.id}.jpg`,
-  art: foodArt(k.art[0], k.art[1]),
-  alt: `The brewns ${k.name.toLowerCase()}`,
-  care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
-}));
+].map((k) => {
+  const art = foodArt(k.art[0], k.art[1]);
+  return {
+    ...k,
+    cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
+    // A real photo in public/assets/kitchen/ wins; until one is there the drawn
+    // dish stands in. The server lists the photos that exist, so a missing one is
+    // never requested; without that list, try <id>.jpg and fall back on error.
+    photo: kitchenPhotos ? (kitchenPhotos[k.id] ? `kitchen/${kitchenPhotos[k.id]}` : art) : `kitchen/${k.id}.jpg`,
+    art,
+    alt: `The brewns ${k.name.toLowerCase()}`,
+    care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
+  };
+});
 const rs = (n) => `Rs ${n.toLocaleString("en-US")}`;
 const KITCHEN_ART = Object.fromEntries(KITCHEN.map((k) => [k.id, k.art]));
 document.addEventListener(
@@ -783,7 +895,7 @@ document.addEventListener(
   (e) => {
     const img = e.target;
     if (img?.tagName !== "IMG" || img.dataset.artFallback) return;
-    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)\.jpg/)?.[1];
+    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)\.\w+$/)?.[1];
     if (!id || !KITCHEN_ART[id]) return;
     img.dataset.artFallback = "1";
     img.src = KITCHEN_ART[id];
@@ -837,9 +949,18 @@ $("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map(cardHTML).join("");
    on a slip, in the same mono, torn off at the bottom. What someone ordered is
    part of the review — it ties the words back to the menu two sections up. */
 const REVIEWS = [
-  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", when: "12.05", stars: 5 },
-  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", when: "04.05", stars: 5 },
-  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", when: "28.04", stars: 5 },
+  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", product: "iced-matcha", when: "12.05", stars: 5, verified: true, helpful: 42 },
+  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", product: "latte", when: "04.05", stars: 5, verified: false, helpful: 31 },
+  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", product: "slow-roast", when: "28.04", stars: 5, verified: true, helpful: 27 },
+  { quote: "A smash burger with properly crispy edges, from a coffee house. Better than the burger places down the road.", name: "Hamza K.", place: "Gulberg", order: "Classic Smash Burger · Meal", product: "smash-burger", when: "19.09", stars: 5, verified: true, helpful: 18 },
+  { quote: "Ordered to Model Town in the rain. The rider messaged from the gate and the latte was still hot.", name: "Usman T.", place: "Gulberg", order: "Latte · 12 oz · Delivery", product: "latte", when: "16.09", stars: 5, verified: true, helpful: 24 },
+  { quote: "Cardamom bun and a cortado at 8am has become my whole personality. The bun sells out by ten, go early.", name: "Ayesha N.", place: "DHA", order: "Cardamom Bun", product: "cardamom-bun", when: "14.09", stars: 5, verified: false, helpful: 15 },
+  { quote: "Tikka paratha roll with the mint chutney, eaten in the car in the parking. Zero regrets.", name: "Bilal A.", place: "Johar Town", order: "Chicken Tikka Paratha Roll", product: "tikka-roll", when: "11.09", stars: 5, verified: true, helpful: 12 },
+  { quote: "Four stars only because the lounge was full on Saturday evening. The cinnamon roll was worth the wait.", name: "Sana M.", place: "Gulberg", order: "Cinnamon Roll · Warmed", product: "cinnamon-roll", when: "07.09", stars: 4, verified: false, helpful: 9 },
+  { quote: "Nitro cold brew that tastes like coffee, not like a can. Smooth all the way to the bottom.", name: "Omar F.", place: "DHA", order: "Nitro Cold Brew", product: "nitro-cold-brew", when: "02.09", stars: 5, verified: true, helpful: 14 },
+  { quote: "A margherita with real char on the crust. The kids fought over the last slice, so now we order two.", name: "Fatima Z.", place: "Johar Town", order: "Margherita Pizza · 12 in", product: "margherita-pizza", when: "29.08", stars: 5, verified: true, helpful: 21 },
+  { quote: "Bought the Ethiopia beans for home. Bright, a bit of blueberry, exactly what the bag says.", name: "Ali R.", place: "DHA", order: "Ethiopia Yirgacheffe · 250 g", product: "single-origin", when: "24.08", stars: 5, verified: false, helpful: 11 },
+  { quote: "Mango smoothie in August is the only correct decision. Real Chaunsa, not the syrup stuff.", name: "Mehak S.", place: "Gulberg", order: "Mango Smoothie · Large", product: "mango-smoothie", when: "18.08", stars: 5, verified: true, helpful: 16 },
 ];
 
 /* The breakdown behind the 4.9. A single headline number invites the question of
@@ -859,17 +980,23 @@ $("#rev-dist").innerHTML = RATINGS.map(
   </li>`,
 ).join("");
 
-$("#rev-cards").innerHTML = REVIEWS.map((r, o) => `<li><div class="lean"><div class="rev-hold"><article class="rev-slip" data-iv="rise" data-y="28" data-c="80,26" data-d="${o * 90}">
+// Slips reveal in threes: the carousel shows at most three at a time.
+$("#rev-cards").innerHTML = REVIEWS.map((r, o) => {
+  const d = (o % 3) * 90;
+  return `<li data-place="${r.place}" data-product="${r.product}"><div class="lean"><div class="rev-hold"><article class="rev-slip" data-product="${r.product}" data-iv="rise" data-y="28" data-c="80,26" data-d="${d}">
   <div class="rev-slip-head">
-    <p class="rev-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
-    <p class="rev-when"><span data-dr data-d="${o * 90 + 200}">${r.when}</span></p>
+    <p class="rev-idx"><span data-dr data-d="${d + 160}">${String(o + 1).padStart(2, "0")}</span></p>
+    <p class="rev-when"><span data-dr data-d="${d + 200}">${r.when}</span></p>
   </div>
-  <p class="rev-stars" role="img" aria-label="Rated ${r.stars} out of 5">${"★".repeat(r.stars)}</p>
-  <blockquote class="rev-quote"><p data-te="words" data-dur="620" data-st="12" data-d="${o * 90 + 260}" data-margin="0px 0px -15% 0px">${r.quote}</p></blockquote>
+  <p class="rev-stars" role="img" aria-label="Rated ${r.stars} out of 5">${"★".repeat(r.stars)}<span class="rev-stars-off">${"★".repeat(5 - r.stars)}</span></p>
+  <blockquote class="rev-quote"><p data-te="words" data-dur="620" data-st="12" data-d="${d + 260}" data-margin="0px 0px -15% 0px">${r.quote}</p></blockquote>
   <div class="rc-rule" aria-hidden="true"></div>
-  <div class="rev-foot"><p data-iv="print30" data-c="58,26" data-d="${o * 90 + 320}" style="clip-path: inset(0 100% -30% 0)">${r.name}</p><p>${r.place}</p></div>
+  <div class="rev-foot"><p data-iv="print30" data-c="58,26" data-d="${d + 320}" style="clip-path: inset(0 100% -30% 0)">${r.name}</p><p>${r.place}</p></div>
   <p class="rev-order"><span>Ordered</span><span>${r.order}</span></p>
-</article></div></div></li>`).join("");
+  <button type="button" class="rev-helpful" data-helpful="seed-${o}" data-base="${r.helpful}" aria-pressed="false"><span aria-hidden="true">▲</span> HELPFUL · <b>${r.helpful}</b></button>
+  ${r.verified ? '<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>' : ""}
+</article></div></div></li>`;
+}).join("");
 
 /* A slow band of one-liners under the slips — the overheard half of a review,
    the part too short to letter onto a card. Doubled so the loop has no seam. */
@@ -886,14 +1013,17 @@ $("#rev-ticker").innerHTML = [...OVERHEARD, ...OVERHEARD]
   .map((line) => `<span>${line}</span><span class="rev-ticker-dot" aria-hidden="true">●</span>`)
   .join("");
 
+/* [label, where it goes, what it does there]. The action (see "footer shortcuts"
+   near the end) filters the shop or menu, or opens a product or form; the href is
+   where the link lands without it. */
 const COLUMNS = [
-  ["Shop", [["COFFEE", "#shop-coffee"], ["SUBSCRIPTIONS", "#subscriptions"], ["MERCH", "#merch"], ["GIFT CARDS", "#gift-cards"]]],
-  ["Menu", [["COFFEE", "#menu-coffee"], ["NON-COFFEE", "#non-coffee"], ["SIGNATURE DRINKS", "#signature"], ["FOOD", "#food"]]],
-  ["about us", [["OUR STORY", "#story"], ["COFFEE & SOURCING", "#sourcing"], ["journal", "#journal"], ["CAREERS", "#careers"]]],
+  ["Shop", [["COFFEE", "#shop", "shop:beans"], ["SUBSCRIPTIONS", "#shop/slow-roast", "product:slow-roast:plan=1"], ["MERCH", "#shop", "shop:merch"], ["GIFT CARDS", "#shop/gift-card", "product:gift-card"]]],
+  ["Menu", [["COFFEE", "#menu", "menu:coffee"], ["COLD BAR", "#menu", "menu:specialty"], ["KITCHEN", "#menu", "menu:burgers"], ["FULL MENU", "#menu", "fullmenu"]]],
+  ["about us", [["OUR STORY", "#story"], ["BREW AT HOME", "#brew"], ["BREWNS CLUB", "#club"], ["EVENTS & CATERING", "#faq", "enquiry:event"], ["CAREERS", "#faq", "enquiry:careers"]]],
 ];
 $("#ftr-nav").innerHTML = COLUMNS.map(([heading, links], i) =>
   `<div class="ftr-col"><p data-rise data-d="${160 + i * 130}">${heading}</p><ul class="ftr-list">${links
-    .map(([t, href], row) => `<li data-rise data-d="${160 + i * 130 + (row + 1) * 70}"><a href="${href}" data-ul data-rule>${t.replace("&", "&amp;")}</a></li>`)
+    .map(([t, href, go], row) => `<li data-rise data-d="${160 + i * 130 + (row + 1) * 70}"><a href="${href}"${go ? ` data-go="${go}"` : ""} data-ul data-rule>${t.replace("&", "&amp;")}</a></li>`)
     .join("")}</ul></div>`,
 ).join("");
 
@@ -938,6 +1068,201 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
     // The first name may have failed before these listeners existed.
     if (photo.complete) photo.naturalWidth ? show() : photo.dispatchEvent(new Event("error"));
   }
+}
+
+/* Inside brewns: a live "right now" card, photos that drift as you scroll, and
+   a viewer with thumbnails, swipe and crossfades. */
+{
+  const section = $("#inside");
+  const box = $("#inside-box");
+  const tiles = $$(".inside-open");
+  const grid = $(".inside-grid");
+  // Each photo comes in two sizes (scripts/upscale-photos.py): 1400 px for the
+  // page, 2400 px for big screens and the viewer. The browser picks per tile.
+  const hiRes = (src) => src.replace(/(@2x)?\.webp(\?.*)?$/, "@2x.webp");
+  // `sizes` is the width the photo is drawn at: object-fit: cover in a tall tile
+  // draws a wide photo much wider than the tile, then the hover zoom adds 11%.
+  const fitSizes = () =>
+    tiles.forEach((t) => {
+      const img = $("img", t);
+      if (!img.naturalWidth) return;
+      const r = t.getBoundingClientRect();
+      const drawn = Math.max(r.width, (r.height * img.naturalWidth) / img.naturalHeight) * 1.11;
+      img.sizes = `${Math.ceil(drawn)}px`;
+    });
+  tiles.forEach((t) => {
+    const img = $("img", t);
+    const src = img.getAttribute("src");
+    const tile = t.parentElement;
+    img.srcset = `${src} 1400w, ${hiRes(src)} 2400w`;
+    img.sizes = tile.matches(".big, .wide") ? "(min-width: 1100px) 38vw, (min-width: 800px) 50vw, 100vw" : "(min-width: 1100px) 19vw, (min-width: 800px) 25vw, 50vw";
+    if (img.complete) fitSizes();
+    else img.addEventListener("load", fitSizes, { once: true });
+  });
+  window.addEventListener("resize", fitSizes);
+
+  /* ── right now: open or closed, how busy it usually is, what's there ── */
+  // Typical busyness by hour, 07:00–20:00 (0–100). Weekends run later.
+  const BUSY = {
+    weekday: [20, 55, 72, 48, 36, 52, 78, 64, 42, 38, 48, 70, 82, 58],
+    weekend: [10, 24, 44, 60, 66, 72, 82, 76, 66, 62, 72, 88, 92, 74],
+  };
+  const ICON = {
+    wifi: '<path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1.2" fill="currentColor"/>',
+    plug: '<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    car: '<path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM7 19v1M17 19v1"/><circle cx="7.5" cy="13.5" r="0.8" fill="currentColor"/><circle cx="16.5" cy="13.5" r="0.8" fill="currentColor"/>',
+  };
+  const AMENITIES = [["wifi", "FAST WI-FI"], ["plug", "CHARGING POINTS"], ["sun", "OUTDOOR SEATING"], ["car", "PARKING NEARBY"]];
+  const svg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+  $(".inside-foot", section)?.insertAdjacentHTML(
+    "beforebegin",
+    `<div class="inside-now" data-iv="rise" data-y="16" data-d="300">
+      <p class="inside-now-head"><span class="inside-now-dot" aria-hidden="true"></span><b id="in-open">OPEN NOW</b><span id="in-close"></span></p>
+      <div class="inside-busy">
+        <p class="inside-busy-t"><span>POPULAR TIMES</span><span id="in-day"></span></p>
+        <div class="inside-bars" id="in-bars" role="img"></div>
+        <p class="inside-axis" aria-hidden="true"><span>7A</span><span>12P</span><span>5P</span><span>9P</span></p>
+        <p class="inside-busy-now" id="in-busy"></p>
+      </div>
+      <ul class="inside-amen">${AMENITIES.map(([k, l]) => `<li>${svg(k)}<span>${l}</span></li>`).join("")}</ul>
+    </div>`,
+  );
+  // Lahore time, wherever the visitor is
+  const lahore = () => {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Karachi", weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((p) => [p.type, p.value]));
+    return { day: parts.weekday, min: +parts.hour * 60 + +parts.minute };
+  };
+  const renderNow = () => {
+    const { day, min } = lahore();
+    const open = min >= OPEN_MIN && min < CLOSE_MIN;
+    const left = CLOSE_MIN - min;
+    $("#in-open").textContent = open ? "OPEN NOW" : "CLOSED NOW";
+    $("#in-close").textContent = open ? `CLOSES ${hhmm(CLOSE_MIN)} · ${left >= 60 ? `${Math.floor(left / 60)}H ` : ""}${left % 60}M LEFT` : `OPENS ${hhmm(OPEN_MIN)}`;
+    $(".inside-now", section).classList.toggle("closed", !open);
+    const weekend = day === "Saturday" || day === "Sunday";
+    const curve = weekend ? BUSY.weekend : BUSY.weekday;
+    const hour = Math.floor(min / 60);
+    const idx = hour - 7;
+    $("#in-day").textContent = `TYPICAL ${day.toUpperCase()}`;
+    const bars = $("#in-bars");
+    bars.innerHTML = curve.map((v, i) => `<i style="--h:${v}%"${open && i === idx ? ' class="now"' : ""}></i>`).join("");
+    bars.setAttribute("aria-label", `Typical busyness on ${day}s, from 7am to 9pm`);
+    const v = open && idx >= 0 && idx < curve.length ? curve[idx] : null;
+    $("#in-busy").textContent = v == null ? "QUIET: WE'RE CLOSED" : v < 35 ? "USUALLY QUIET AROUND NOW" : v < 65 ? "USUALLY A LITTLE BUSY AROUND NOW" : "USUALLY BUSY AROUND NOW";
+  };
+  queueMicrotask(renderNow); // the opening hours are declared further down
+  setInterval(renderNow, 60000);
+
+  /* ── the photos drift inside their frames as you scroll ── */
+  let onScreen = false;
+  new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
+  if (!REDUCED)
+    loop(() => {
+      if (!onScreen) return;
+      const vh = innerHeight;
+      for (const t of tiles) {
+        const r = t.getBoundingClientRect();
+        const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
+        $("img", t).style.translate = `0 ${(-p * 3).toFixed(2)}%`;
+      }
+    });
+
+  /* ── desktop: a VIEW badge follows the cursor over the photos ── */
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches && grid) {
+    const badge = document.createElement("div");
+    badge.className = "inside-cursor";
+    badge.setAttribute("aria-hidden", "true");
+    badge.innerHTML = "VIEW <span>↗</span>";
+    document.body.append(badge);
+    grid.classList.add("has-cursor");
+    const at = { x: 0, y: 0, tx: 0, ty: 0, on: false };
+    grid.addEventListener("pointermove", (e) => {
+      const over = !!e.target.closest(".inside-open");
+      at.tx = e.clientX;
+      at.ty = e.clientY;
+      if (over && !at.on) (at.x = at.tx), (at.y = at.ty);
+      at.on = over;
+      badge.classList.toggle("on", over);
+    });
+    grid.addEventListener("pointerleave", () => {
+      at.on = false;
+      badge.classList.remove("on");
+    });
+    loop(() => {
+      if (!at.on) return;
+      at.x += (at.tx - at.x) * 0.22;
+      at.y += (at.ty - at.y) * 0.22;
+      badge.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px) translate(-50%, -50%)`;
+    });
+  }
+
+  /* ── the viewer: thumbnails, crossfades, swipe, keys ── */
+  let at = 0;
+  const bigImg = $("#inside-box-img");
+  box?.insertAdjacentHTML(
+    "beforeend",
+    `<div class="inside-thumbs" role="tablist" aria-label="Photos">${tiles
+      .map((t, i) => `<button type="button" role="tab" data-inside-go="${i}" aria-label="Photo ${i + 1}"><img src="${$("img", t).getAttribute("src")}" alt="" loading="lazy"></button>`)
+      .join("")}</div>`,
+  );
+  const show = (i) => {
+    at = (i + tiles.length) % tiles.length;
+    const img = $("img", tiles[at]);
+    const cap = tiles[at].parentElement.querySelector("figcaption");
+    const swap = () => {
+      bigImg.src = hiRes(img.getAttribute("src"));
+      bigImg.alt = img.alt;
+      bigImg.classList.remove("out");
+    };
+    if (REDUCED || !bigImg.getAttribute("src")) swap();
+    else {
+      bigImg.classList.add("out");
+      setTimeout(swap, 180);
+    }
+    $("#inside-box-cap").innerHTML = `<span class="inside-n">${String(at + 1).padStart(2, "0")} / ${String(tiles.length).padStart(2, "0")}</span><b>${cap.querySelector("b").textContent}</b><span>${cap.querySelector("span:last-child").textContent}</span>`;
+    $$("[data-inside-go]", box).forEach((b, k) => b.setAttribute("aria-selected", String(k === at)));
+    $(`[data-inside-go="${at}"]`, box)?.scrollIntoView({ block: "nearest", inline: "center" });
+    // warm the neighbours so stepping is instant
+    [at + 1, at - 1].forEach((k) => (new Image().src = hiRes($("img", tiles[(k + tiles.length) % tiles.length]).getAttribute("src"))));
+  };
+  const close = () => {
+    box.hidden = true;
+    startScroll();
+    tiles[at]?.focus();
+  };
+  tiles.forEach((t, i) =>
+    t.addEventListener("click", () => {
+      bigImg.removeAttribute("src");
+      show(i);
+      box.hidden = false;
+      stopScroll();
+      playWhoosh();
+      $("[data-inside-close]", box).focus();
+    }),
+  );
+  box?.addEventListener("click", (e) => {
+    const go = e.target.closest("[data-inside-go]");
+    if (go) return show(+go.dataset.insideGo);
+    const step = e.target.closest("[data-inside-step]");
+    if (step) return show(at + +step.dataset.insideStep);
+    if (e.target === box || e.target.closest("[data-inside-close]")) close();
+  });
+  // swipe between photos on touch screens
+  let sx = null;
+  bigImg?.addEventListener("pointerdown", (e) => (sx = e.clientX));
+  bigImg?.addEventListener("pointerup", (e) => {
+    if (sx == null) return;
+    const dx = e.clientX - sx;
+    sx = null;
+    if (Math.abs(dx) > 50) show(at + (dx < 0 ? 1 : -1));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!box || box.hidden) return;
+    if (e.key === "Escape") close();
+    if (e.key === "ArrowRight") show(at + 1);
+    if (e.key === "ArrowLeft") show(at - 1);
+  });
 }
 
 /* ═══════════ header ═══════════ */
@@ -1036,8 +1361,9 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
   setTimeout(done, MAX_WAIT + 2000);
 })();
 
-/* specks for the GPU warm-up */
-$("#warm-specks").innerHTML = [50, 95]
+/* specks for the GPU warm-up; they live in the preloader, which reduced motion removes */
+const warmSpecks = $("#warm-specks");
+if (warmSpecks) warmSpecks.innerHTML = [50, 95]
   .flatMap((fill) => [
     `<span class="swirl-fill" style="display:block;width:8px;height:8px;--fill:${fill};-webkit-mask-image:${blobMask("ltr")};mask-image:${blobMask("ltr")}"></span>`,
     `<span class="swirl-fill" style="display:block;width:8px;height:8px;transform:scale(.95);--fill:${fill};-webkit-mask-image:${blobMask("ltr")};mask-image:${blobMask("ltr")}"></span>`,
@@ -1192,12 +1518,20 @@ const orderPrinter = { reprint: () => {} };
     if (now === out) return;
     out = now;
     section.classList.toggle("printed", out);
+    if (out) printerCut();
     if (!out || REDUCED) return;
     section.classList.add("settle");
     setTimeout(() => section.classList.remove("settle"), 1500);
   };
+  let lastV = 0, lastT = performance.now();
   const feed = new Spring({ v: 0 }, (o) => {
     paper.style.setProperty("--p", String(o.v));
+    // The motor runs while paper moves, pitched to how fast it's feeding.
+    const t = performance.now();
+    const speed = Math.abs(o.v - lastV) / Math.max(1, t - lastT);
+    if (o.v > lastV + 0.0005 && o.v < 0.998) printerFeed(Math.min(1, speed * 60));
+    lastV = o.v;
+    lastT = t;
     setOut(o.v > 0.995);
     if (REDUCED) return;
     section.classList.add("printing");
@@ -1214,7 +1548,6 @@ const orderPrinter = { reprint: () => {} };
     progress = p;
     if (REDUCED) feed.set({ v: p });
     else feed.start({ v: p }, { config: C(90, 22) });
-    if (p > 0.1 && p < 0.95 && Math.random() < 0.25) playPaperFeed();
     barcodeTo(p >= BARCODE_FED);
   };
 
@@ -1229,8 +1562,6 @@ const orderPrinter = { reprint: () => {} };
     feed.set({ v: 0 });
     sweep.set({ v: 0 });
     fed = false;
-    let ticks = 0;
-    const whirr = setInterval(() => (++ticks > 7 ? clearInterval(whirr) : playPaperFeed()), 220);
     setTimeout(() => {
       barcodeTo(true);
       feed.start({ v: 1 }, { config: C(26, 18) }).then(() => {
@@ -2919,6 +3250,7 @@ const layers = [];
 const hasLayer = (name) => layers.some((l) => l.name === name);
 const pushLayer = (name, close, el) => {
   if (!layers.length) stopScroll();
+  playWhoosh(true);
   layers.push({ name, close, el, focus: document.activeElement });
 };
 const popLayer = (name) => {
@@ -2926,6 +3258,7 @@ const popLayer = (name) => {
   if (i < 0) return;
   const wasTop = i === layers.length - 1;
   const [layer] = layers.splice(i, 1);
+  playWhoosh(false);
   if (!layers.length) startScroll();
   if (wasTop && layer.focus?.isConnected) layer.focus.focus({ preventScroll: true });
 };
@@ -2988,18 +3321,29 @@ const thumbHTML = (p) =>
       ? `<span class="thumb${p.art ? " shot" : ""}"><img src="${photoSrc(p.photo)}" alt="" loading="lazy"></span>`
       : `<span class="thumb dark"><img data-snap="${p.model}" data-snap-product="${p.id}" alt=""></span>`;
 /* Model-only products have no photograph: their pictures are rendered from the
-   same .glb once three.js is up (asynchronously, so every part of the module exists). */
+   same .glb. `bun run snapshots` renders them once into shop/snap/, so a visitor's
+   phone just loads an image; if one is missing (or with ?live-snaps, which is how
+   the script renders them) the page renders it here once three.js is up. */
+const SNAP_VERSION = "1";
+const LIVE_SNAPS = new URLSearchParams(location.search).has("live-snaps");
 const fillSnaps = (rootEl) =>
   $$("img[data-snap]", rootEl).forEach((img) => {
     const { snap: kind, snapProduct } = img.dataset;
     img.removeAttribute("data-snap");
-    threeReady
-      .then(() => getSnapshot(kind, snapProduct))
-      .then((url) => {
-        img.src = url;
-        img.parentElement.querySelector(".pcard-loading")?.remove();
-      })
-      .catch((error) => console.error("snapshot", error));
+    img.dataset.snapKey = `${kind}-${snapProduct}`;
+    const done = () => img.parentElement?.querySelector(".pcard-loading")?.remove();
+    const live = () =>
+      threeReady
+        .then(() => getSnapshot(kind, snapProduct))
+        .then((url) => {
+          img.src = url;
+          done();
+        })
+        .catch((error) => console.error("snapshot", error));
+    if (LIVE_SNAPS) return live();
+    img.addEventListener("load", done, { once: true });
+    img.addEventListener("error", live, { once: true });
+    img.src = `${ASSET_BASE_URL}shop/snap/${kind}-${snapProduct}.webp?v=${SNAP_VERSION}`;
   });
 
 /* ═══════════ the grid ═══════════ */
@@ -3224,7 +3568,7 @@ if (heroQuickAddBtn) {
 
 /* smooth anchor scroll with lenis for header and site navigation */
 $$('a[href^="#"]').forEach((a) => {
-  if (a.hasAttribute("data-order-now") || a.id === "menu-cta" || a.classList.contains("w-order-cta")) return;
+  if (a.hasAttribute("data-order-now") || a.hasAttribute("data-go") || a.id === "menu-cta" || a.classList.contains("w-order-cta")) return;
   a.addEventListener("click", (e) => {
     const hash = a.getAttribute("href");
     if (!hash || hash === "#") return;
@@ -3346,13 +3690,14 @@ const pdpPrice = new Spring({ v: 0 }, (o) => {
   if (el) el.textContent = money(o.v);
 });
 
-function openProduct(id, { push = true, replace = false } = {}) {
+function openProduct(id, { push = true, replace = false, sel = null } = {}) {
   const p = productById(id);
   if (!p) return;
+  const picked = Object.fromEntries(Object.entries(sel || {}).filter(([k, v]) => p.options.some((o) => o.key === k && o.choices[v])));
   const already = !!pdpState;
   if (already) teardownMedia();
   if (hasLayer("bag")) closeBag();
-  pdpState = { p, sel: defaultSel(p), qty: 1, message: "", view: p.gift ? "card" : p.photo ? "photo" : "3d", viewer: null, cleanups: [] };
+  pdpState = { p, sel: { ...defaultSel(p), ...picked }, qty: 1, message: "", view: p.gift ? "card" : p.photo ? "photo" : "3d", viewer: null, cleanups: [] };
   renderProduct();
   if (replace) history.replaceState({ pdp: id }, "", `#shop/${id}`);
   else if (push) history.pushState({ pdp: id }, "", `#shop/${id}`);
@@ -3442,11 +3787,12 @@ function renderProduct() {
       <div class="pdp-notes">${p.notes.map((n) => `<span class="chip">${n}</span>`).join("")}</div>
       ${options}
       ${p.gift ? `<label class="opt"><span class="opt-head mono-fine"><span>MESSAGE ON THE CARD · OPTIONAL</span></span><textarea class="pdp-msg" maxlength="120" placeholder="Happy Monday. The first one is on me." data-msg></textarea></label>` : ""}
+      <p class="pdp-total-line mono-fine" aria-hidden="true"><span>TOTAL</span><b id="pdp-total-m"></b></p>
       <div class="pdp-actions">
         <div class="pdp-total mono-fine"><span>TOTAL</span><b id="pdp-total"></b></div>
         <div class="qty" role="group" aria-label="Quantity"><button type="button" data-q="-1" aria-label="Decrease quantity">−</button><output id="pdp-qty" aria-live="polite">1</output><button type="button" data-q="1" aria-label="Increase quantity">+</button></div>
-        <button type="button" class="btn btn-line" id="pdp-add"><span>ADD TO BAG</span><span aria-hidden="true">+</span></button>
-        <button type="button" class="btn btn-solid" id="pdp-now">ORDER NOW ${ARROW_SVG}</button>
+        <button type="button" class="btn btn-line" id="pdp-add"><span>ADD<span class="lbl-long"> TO BAG</span></span><span aria-hidden="true">+</span></button>
+        <button type="button" class="btn btn-solid" id="pdp-now">ORDER<span class="lbl-long">&nbsp;NOW</span> ${ARROW_SVG}</button>
       </div>
       <div>
         <details class="acc" open><summary>DETAILS<i aria-hidden="true">+</i></summary><ul>${p.details.map(([k, v]) => `<li><span>${k}</span><span>${v}</span></li>`).join("")}</ul></details>
@@ -3482,6 +3828,8 @@ function updatePrice(immediate = false) {
   else pdpPrice.start({ v: unitNow }, { config: { duration: 420, easing: easeOutCubic } });
   $("#pdp-was", pdpEl).textContent = isSub(p, sel) ? money(basePrice(p, sel)) : "";
   $("#pdp-total", pdpEl).textContent = `${qty} × ${money(unitNow)} = ${money(unitNow * qty)}`;
+  const totalM = $("#pdp-total-m", pdpEl);
+  if (totalM) totalM.textContent = `${qty} × ${money(unitNow)} = ${money(unitNow * qty)}`;
   $("#pdp-qty", pdpEl).textContent = qty;
 }
 
@@ -4161,7 +4509,7 @@ function renderBag() {
   const focusedAction = document.activeElement?.dataset?.bq;
   bagEl.innerHTML = `
     <div class="bag-head"><p class="bag-title">YOUR BAG<sup>${String(n).padStart(2, "0")}</sup></p><button type="button" class="x-btn" aria-label="Close bag"></button></div>
-    <div class="bag-list">${list}</div>
+    <div class="bag-list">${list}${ordersHTML()}</div>
     ${
       items.length
         ? `<div class="bag-foot">
@@ -4202,7 +4550,28 @@ bagEl.addEventListener("click", (e) => {
     closeBag();
     openCheckout();
   }
+  const track = t.closest("[data-track]");
+  if (track) return openTracking(+track.dataset.track);
+  const again = t.closest("[data-reorder]");
+  if (again) {
+    const o = readStore("brewns-orders", []).find((x) => x.number === +again.dataset.reorder);
+    o?.items.forEach((it) => cart.add(it.id, it.sel, it.qty));
+    return;
+  }
 });
+/* Recent orders under the bag: status, track, order again. */
+function ordersHTML() {
+  const orders = readStore("brewns-orders", []).slice(0, 4);
+  if (!orders.length) return "";
+  return `<div class="bag-orders"><p class="mono-fine" style="color:rgb(255 255 255/.5)"><span class="sl">//</span><span class="sls"> </span>YOUR ORDERS</p>${orders
+    .map((o) => {
+      const st = timeline(o, LOC_TITLES[o.loc]);
+      const status = o.cancelled ? "CANCELLED" : o.collected ? "COLLECTED" : st[currentStage(o, st)].label;
+      const d = new Date(o.placed);
+      return `<div class="bag-order"><div><p class="bag-item-name">#${String(o.number).padStart(5, "0")} · ${money(o.totals.total)}</p><p class="bag-item-opts mono-fine">${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} · ${o.mode === "delivery" ? "DELIVERY" : "PICKUP"} · ${status}</p></div><button type="button" class="pcard-add" data-track="${o.number}">${isActive(o) ? "TRACK" : "VIEW"}</button><button type="button" class="pcard-add" data-reorder="${o.number}">AGAIN</button></div>`;
+    })
+    .join("")}</div>`;
+}
 cart.subscribe(() => hasLayer("bag") && renderBag());
 
 /* ═══════════ checkout ═══════════ */
@@ -4212,14 +4581,17 @@ const LOCS = [["MM ALAM ROAD", "GULBERG III, LAHORE"], ["CCA, DHA PHASE 5", "DHA
 // The same shops as they read in a sentence.
 const LOC_TITLES = ["MM Alam Road", "CCA, DHA Phase 5", "Main Boulevard, Johar Town"];
 const TAX = 0.16, PREP_MIN = 12, OPEN_MIN = 7 * 60, CLOSE_MIN = 21 * 60;
+// Printed on receipts once filled in (FBR registration numbers).
+const BUSINESS = { ntn: "", strn: "" };
 /* Punjab taxes restaurant bills at 16%, and at 5% when they are paid by card or
    a mobile wallet; the checkout shows whichever applies to the method chosen. */
 const TAX_CARD = 0.05;
 /* Delivery areas: which shop sends the rider, the fee, and the time it takes. */
 const DELIVERY = { min: 1000, freeOver: 3000, areas: [
-  ["GULBERG", 0, 150, 30], ["MODEL TOWN", 0, 250, 40], ["GARDEN TOWN", 0, 200, 35],
-  ["DHA PHASE 1–6", 1, 200, 35], ["DHA PHASE 7–8", 1, 300, 45],
-  ["JOHAR TOWN", 2, 150, 30], ["WAPDA TOWN", 2, 250, 40],
+  // [area, shop that sends the rider, fee, minutes, km by road]
+  ["GULBERG", 0, 150, 30, 3.4], ["MODEL TOWN", 0, 250, 40, 6.8], ["GARDEN TOWN", 0, 200, 35, 5.1],
+  ["DHA PHASE 1–6", 1, 200, 35, 4.6], ["DHA PHASE 7–8", 1, 300, 45, 8.2],
+  ["JOHAR TOWN", 2, 150, 30, 3.9], ["WAPDA TOWN", 2, 250, 40, 6.6],
 ] };
 const PAY = [
   ["CASH", "AT THE COUNTER", "TO THE RIDER"],
@@ -4244,6 +4616,40 @@ const writeStore = (k, v) => {
     localStorage.setItem(k, JSON.stringify(v));
   } catch {}
 };
+/* ── brewns Club: the card, kept with the other stores (rules in club.ts) ── */
+const clubListeners = new Set();
+const readClub = () => normaliseClub(readStore("brewns-club", null));
+const writeClub = (state) => {
+  writeStore("brewns-club", state);
+  clubListeners.forEach((f) => f());
+};
+const clubLines = (items) =>
+  items.map((it) => {
+    const p = productById(it.id);
+    return { cat: p.cat, qty: it.qty, unit: unitPrice(p, it.sel) };
+  });
+const minOfDay = (t) => {
+  const d = new Date(t);
+  return d.getHours() * 60 + d.getMinutes();
+};
+/* An order's stamps, and the free drink it used, go on the card once. */
+const creditClub = (o) => {
+  let state = readClub();
+  if (!state.member || state.credited.includes(o.number)) return null;
+  const used = !!o.totals.reward;
+  if (used) state = spendReward(state, o.number, o.placed);
+  const stamps = stampsFor(clubLines(o.items), minOfDay(o.placed), used ? 1 : 0);
+  const { state: next, earned } = addStamps(state, stamps, { t: o.placed, kind: "order", order: o.number });
+  writeClub(next);
+  return { stamps, earned, used, left: CLUB.stampsPerReward - next.stamps, rewards: next.rewards };
+};
+/* Discount lines for a bill. Orders from before the club only have `discount`. */
+const discountRows = (t) => {
+  const reward = t.reward || 0;
+  const promo = t.promo ?? t.discount - reward;
+  return [...(reward ? [["BREWNS CLUB · FREE DRINK", reward]] : []), ...(promo > 0 ? [["PROMO BREWNS10", promo]] : [])];
+};
+
 let co = null;
 let coTimer = 0;
 let coCleanups = [];
@@ -4272,11 +4678,15 @@ const pickupLabel = () =>
   co.when === "asap" ? `ASAP · ABOUT ${hhmm(nowMin() + leadMin())}` : co.slot ? `${co.slot.tomorrow ? "TOMORROW" : "TODAY"} ${hhmm(co.slot.t)}` : "CHOOSE A TIME";
 const orderTotals = () => {
   const sub = cart.subtotal();
-  const discount = Math.round(sub * co.discount);
+  // A free drink comes off first, then any promo applies to the rest.
+  const club = readClub();
+  const reward = co.useReward && club.member && club.rewards > 0 ? rewardValue(clubLines(cart.items)) : 0;
+  const promo = Math.round((sub - reward) * co.discount);
+  const discount = reward + promo;
   const fee = isDelivery() && sub - discount < DELIVERY.freeOver ? DELIVERY.areas[co.area][2] : 0;
   const rate = co.pay ? TAX_CARD : TAX;
   const tax = Math.round((sub - discount) * rate);
-  return { sub, discount, fee, rate, tax, total: sub - discount + fee + tax };
+  return { sub, discount, promo, reward, fee, rate, tax, total: sub - discount + fee + tax };
 };
 const titleCase = (s) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 const tornPath = (w) => {
@@ -4300,7 +4710,7 @@ function openCheckout() {
   if (!cart.count()) return openBag();
   if (hasLayer("bag")) closeBag();
   const saved = readStore("brewns-details", {});
-  co = { step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
+  co = { useReward: false, step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
   if (co.when === "later") co.slot = slotList()[0];
   renderCheckout();
   if (hasLayer("checkout")) return;
@@ -4336,6 +4746,20 @@ const coTop = (label, dark = false) =>
 
 const field = (key, label, type, attrs, placeholder) =>
   `<label class="field${co.errors[key] ? " bad" : ""}"><span class="mono-fine">${label}</span><input type="${type}" data-field="${key}" value="${esc(co[key])}" placeholder="${placeholder}" ${attrs}><span class="err mono-fine">${co.errors[key] || ""}</span></label>`;
+
+function clubCheckoutHTML() {
+  const club = readClub();
+  const lines = clubLines(cart.items);
+  const value = rewardValue(lines);
+  if (club.member && club.rewards > 0 && value > 0)
+    return `<button type="button" class="co-reward${co.useReward ? " on" : ""}" data-co="reward" aria-pressed="${!!co.useReward}"><span class="co-reward-box" aria-hidden="true"></span><span><b>USE A FREE DRINK</b><small class="mono-fine">BREWNS CLUB · ${club.rewards} WAITING · −${money(value)}</small></span></button>`;
+  const stamps = stampsFor(lines, nowMin(), co.useReward ? 1 : 0);
+  if (!stamps) return "";
+  const early = nowMin() < CLUB.earlyUntilMin ? " · DOUBLE BEFORE 9" : "";
+  return club.member
+    ? `<p class="co-club mono-fine">★ THIS ORDER EARNS ${stamps} CLUB STAMP${stamps === 1 ? "" : "S"}${early}</p>`
+    : `<p class="co-club mono-fine">★ ${stamps} CLUB STAMP${stamps === 1 ? "" : "S"} WITH THIS ORDER. JOIN FREE AFTER ORDERING AND THEY STILL COUNT.</p>`;
+}
 
 function renderCheckout({ animate = true } = {}) {
   if (co.done) return renderDone();
@@ -4403,7 +4827,8 @@ function renderCheckout({ animate = true } = {}) {
           <div class="loc-cards" role="radiogroup" aria-label="Payment">${PAY.map(([label, atShop, atDoor], i) => radio("co-pay", i, co.pay === i, label, delivery ? atDoor : atShop)).join("")}</div>
           ${co.pay ? "" : `<p class="co-note mono-fine">PAY BY CARD OR WALLET AND PUNJAB SALES TAX DROPS FROM 16% TO 5%.</p>`}
         </div>
-        <div class="co-actions"><button type="button" class="btn btn-ghost" data-co="back">BACK</button><button type="button" class="btn btn-dark" data-co="place">PLACE ORDER · ${money(totals.total)} ${ARROW_SVG}</button></div>`;
+        ${Object.values(co.errors).some(Boolean) ? `<p class="co-err mono-fine" role="alert">CHECK ${Object.entries(co.errors).filter(([, v]) => v).map(([k]) => ({ name: "YOUR NAME", phone: "YOUR MOBILE NUMBER", address: "THE ADDRESS", email: "THE EMAIL" })[k]).join(", ")} ABOVE.</p>` : ""}
+        <div class="co-actions"><button type="button" class="btn btn-ghost" data-co="back">BACK</button><button type="button" class="btn btn-dark" data-co="place" ${co.placing ? "disabled" : ""}>${co.placing ? `<span class="co-spin" aria-hidden="true"></span>SENDING TO ${esc(isDelivery() ? LOCS[DELIVERY.areas[co.area][1]][0] : LOCS[co.loc][0])}…` : `PLACE ORDER · ${money(totals.total)} ${ARROW_SVG}`}</button></div>`;
 
   const lines = cart.items
     .map((it) => {
@@ -4420,9 +4845,10 @@ function renderCheckout({ animate = true } = {}) {
         <div class="co-lines">${lines}</div>
         <form class="co-promo" data-promo><input name="promo" placeholder="PROMO CODE" value="${esc(co.promo)}" aria-label="Promo code" autocomplete="off"><button type="submit" class="mono-fine">APPLY</button></form>
         <p class="co-promo-msg mono-fine" id="co-promo-msg">${co.discount ? "BREWNS10 — 10% OFF APPLIED" : co.promo ? "THAT CODE ISN'T VALID" : "TRY BREWNS10"}</p>
+        ${clubCheckoutHTML()}
         <div class="co-sums mono-fine">
           <div class="sum-row"><span>SUBTOTAL</span><span>${money(totals.sub)}</span></div>
-          ${totals.discount ? `<div class="sum-row"><span>PROMO</span><span>−${money(totals.discount)}</span></div>` : ""}
+          ${discountRows(totals).map(([label, v]) => `<div class="sum-row"><span>${label.replace(" BREWNS10", "")}</span><span>−${money(v)}</span></div>`).join("")}
           ${delivery ? `<div class="sum-row"><span>DELIVERY · ${DELIVERY.areas[co.area][0]}</span><span>${totals.fee ? money(totals.fee) : "FREE"}</span></div>` : ""}
           <div class="sum-row"><span>PUNJAB SALES TAX ${Math.round(totals.rate * 100)}%</span><span>${money(totals.tax)}</span></div>
           <div class="sum-row total"><span>TOTAL</span><span>${money(totals.total)}</span></div>
@@ -4669,21 +5095,50 @@ function renderDone() {
       <div class="done-print" aria-hidden="true"><div class="done-machine">
         <img src="${ASSET_BASE_URL}order/printer.webp" alt="" width="404" height="72">
         <div class="done-window"><div class="paper" id="done-paper"><div class="receipt">
-          <div class="receipt-body">
-            <p style="font-size:11px;font-weight:700;letter-spacing:.16em;text-align:center">BREWNS COFFEE HOUSE</p>
+          <div class="receipt-body bill">
+            <p class="bill-brand">BREWNS COFFEE HOUSE</p>
+            <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
+            <p class="bill-h">${delivered ? "DELIVERY" : "PICKUP"} · SALES TAX INVOICE</p>
+            <div class="bill-rows">
+              <div><span>INVOICE</span><span>${invoiceNo(o, SHOP_CODES[o.loc])}</span></div>
+              <div><span>ORDER</span><span>${num}</span></div>
+              <div><span>PLACED</span><span>${date} ${stageTime(o.placed)}</span></div>
+              <div><span>${delivered ? "DELIVER BY" : "READY AT"}</span><span>${when}${o.pickupAt.tomorrow ? "" : " TODAY"}</span></div>
+            </div>
             <div class="rc-rule"></div>
-            <div style="display:flex;justify-content:space-between;gap:12px;font-size:8px;letter-spacing:.07em;line-height:1.85"><div><p>ORDER ${num}</p><p>FOR ${esc(o.name.toUpperCase())}</p></div><div style="text-align:right"><p>${date}</p><p>${delivered ? "DELIVERY" : "PICKUP"} ${when}</p></div></div>
-            <div style="font-size:8px;letter-spacing:.07em;line-height:1.85">${delivered ? `<p>TO ${esc(o.address.toUpperCase())}</p><p>${DELIVERY.areas[o.area][0]}, LAHORE · ${esc(o.phone)}</p>` : `<p>${loc[0]}</p><p>${loc[1]}</p>`}</div>
+            <div class="bill-rows">
+              <div><span>CUSTOMER</span><span>${esc(o.name.toUpperCase())}</span></div>
+              <div><span>MOBILE</span><span>${esc(o.phone)}</span></div>
+              ${o.email ? `<div><span>EMAIL</span><span>${esc(o.email.toUpperCase())}</span></div>` : ""}
+            </div>
+            <p class="bill-addr">${delivered ? `DELIVER TO<br><b>${esc(o.address.toUpperCase())}</b><br>${DELIVERY.areas[o.area][0]}, LAHORE · ~${DELIVERY.areas[o.area][4].toFixed(1)} KM<br>RIDER FROM ${LOCS[o.loc][0]}` : `COLLECT FROM<br><b>${LOCS[o.loc][0]}</b><br>${LOCS[o.loc][1]} · PICKUP COUNTER`}</p>
             <div class="rc-rule"></div>
-            <div class="rc-lines">${lines}</div>
+            <div class="bill-items">${o.items
+              .map((it) => {
+                const p = productById(it.id);
+                const unit = unitPrice(p, it.sel);
+                return `<div class="bill-item"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}</span><span>@ ${money(unit)}</span></div></div>`;
+              })
+              .join("")}</div>
+            <p class="bill-count">${o.items.reduce((a, it) => a + it.qty, 0)} ITEM${o.items.reduce((a, it) => a + it.qty, 0) === 1 ? "" : "S"}</p>
             <div class="rc-rule"></div>
-            <div class="rc-lines"><div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>${o.totals.discount ? `<div><span>PROMO</span><span>−${money(o.totals.discount)}</span></div>` : ""}${delivered ? `<div><span>DELIVERY</span><span>${o.totals.fee ? money(o.totals.fee) : "FREE"}</span></div>` : ""}<div><span>SALES TAX ${Math.round(o.totals.rate * 100)}%</span><span>${money(o.totals.tax)}</span></div></div>
+            <div class="bill-rows">
+              <div><span>SUBTOTAL</span><span>${money(o.totals.sub)}</span></div>
+              ${discountRows(o.totals).map(([label, v]) => `<div><span>${label}</span><span>−${money(v)}</span></div>`).join("")}
+              ${delivered ? `<div><span>DELIVERY FEE</span><span>${o.totals.fee ? money(o.totals.fee) : "FREE"}</span></div>` : ""}
+              <div><span>VALUE EXCL. TAX</span><span>${money(o.totals.sub - o.totals.discount + (o.totals.fee || 0))}</span></div>
+              <div><span>PUNJAB SALES TAX ${Math.round(o.totals.rate * 100)}%</span><span>${money(o.totals.tax)}</span></div>
+            </div>
             <div class="rc-total"><span>TOTAL</span><span>${money(o.totals.total)}</span></div>
-            <p style="font-size:8px;letter-spacing:.07em;line-height:1.85">PAY ${PAY[o.pay][0]} ${delivered ? "ON DELIVERY" : "AT PICKUP"}${o.note ? ` · NOTE: ${esc(o.note.toUpperCase())}` : ""}</p>
+            <div class="bill-rows">
+              <div><span>PAYMENT</span><span>${PAY[o.pay][0]}</span></div>
+              <div><span>STATUS</span><span>DUE ${delivered ? "ON DELIVERY" : "AT PICKUP"}</span></div>
+            </div>
+            ${o.note ? `<p class="bill-addr">NOTE: ${esc(o.note.toUpperCase())}</p>` : ""}
             <div class="rc-rule"></div>
             <p style="font-size:16px;font-weight:700;line-height:1.25"><span style="display:block">SKIP THE LINE.</span><span style="display:block">SEE YOU SOON.</span></p>
             <div class="barcode">${orderBars(o.number)}</div>
-            <p style="font-size:7px;letter-spacing:.16em;text-align:center">BREWNS.COFFEE</p>
+            <p class="bill-c">TRACK ${num} AT BREWNS.COFFEE<br>THANK YOU · SHUKRIYA</p>
           </div>
           <svg width="328" height="9" viewBox="0 0 328 9" preserveAspectRatio="none" style="display:block"><path d="${tornPath(328)}" fill="#F2F0EA"/></svg>
         </div></div></div>
@@ -4734,9 +5189,6 @@ function renderDone() {
             <button type="submit" class="btn btn-solid done-chat-send" id="done-chat-send">SEND</button>
           </form>
         </div>
-        <div class="done-actions"><button type="button" class="btn btn-solid" data-co="close">BACK TO BREWNS ${ARROW_SVG}</button>${
-          delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS ${ARROW_SVG}</a>`
-        }<a class="btn btn-line" href="tel:+924212345678">CALL THE SHOP</a></div>
       </div>
     </div>`;
 
@@ -4755,11 +5207,100 @@ function renderDone() {
     REDUCED ? feed.set({ v: 1 }) : feed.start({ v: 1 }, { config: { duration: 2600, easing: easeOutCubic }, delay: 450 });
   });
   staggerIn($$(".done-body > *", coEl), 350);
+  $("#trk-wa", coEl).href = `https://wa.me/${SHOP_WHATSAPP}?text=${encodeURIComponent(whatsappText(o, orderLines(o), money, orderWhere(o), orderWhen(o)))}`;
 
+  const HEAD = delivered
+    ? { received: `AT YOUR DOOR BY ${when}.`, accepted: `AT YOUR DOOR BY ${when}.`, preparing: "BEING MADE FRESH.", rider: `${r.first.toUpperCase()} IS COLLECTING IT.`, onway: "ON ITS WAY.", arriving: "ALMOST THERE.", delivered: "DELIVERED. ENJOY." }
+    : { received: `SEE YOU AT ${when}.`, accepted: `SEE YOU AT ${when}.`, preparing: "BARISTA ON IT.", ready: "READY AT THE COUNTER.", collected: "ENJOY IT." };
+  const first = esc(titleCase(o.name.split(" ")[0]));
+  const SUB = delivered
+    ? {
+        received: `We’ve got it, ${first}. ${shop} will make it and a rider will bring it to ${esc(o.address)}.`,
+        accepted: `${shop} has accepted your order. Pay ${PAY[o.pay][0].toLowerCase()} on arrival: ${money(o.totals.total)}.`,
+        preparing: `It’s being made now. A rider is assigned just before it’s ready.`,
+        rider: `${r.name} (bike ${r.plate}) is heading to ${shop} to collect it.`,
+        onway: `${r.first} has your order and is on the way. Follow the map below.`,
+        arriving: `${r.first} is about 3 minutes away and will call ${esc(o.phone)} when outside.`,
+        delivered: `Delivered at ${stageTime(o.target)}. Thanks for ordering from brewns.`,
+      }
+    : {
+        received: `We’ve got it, ${first}. Head to ${shop}. Your order will wait at the pickup counter under ${num}.`,
+        accepted: `${shop} has accepted your order. Pay ${money(o.totals.total)} ${o.pay === 0 ? "in cash" : o.pay === 1 ? "by card" : "by JazzCash or Easypaisa"} when you collect.`,
+        preparing: `Your barista is making it now, timed to be fresh at ${when}.`,
+        ready: `It’s at the pickup counter at ${shop}. Show ${num} and it’s yours.`,
+        collected: `Collected. Thanks for ordering from brewns.`,
+      };
+
+  const chat = readChat(o);
+  let chatOpen = false;
+  const chatList = $("#chat-list", coEl);
+  const bubble = (m) =>
+    m.from === "system"
+      ? `<p class="chat-sys mono-fine">${esc(m.text)}</p>`
+      : `<div class="chat-msg ${m.from === "you" ? "me" : "them"}"><p>${m.from === "rider" ? `<b>${r.first}</b>` : m.from === "cafe" ? `<b>${shop}</b>` : ""}${esc(m.text)}</p><time class="mono-fine">${stageTime(m.t)}</time></div>`;
+  const drawChat = (typing = false) => {
+    chatList.innerHTML = chat.messages.map(bubble).join("") + (typing ? `<div class="chat-msg them typing"><p><span></span><span></span><span></span></p></div>` : "");
+    chatList.scrollTop = chatList.scrollHeight;
+    const unread = chat.messages.filter((m) => m.from !== "you" && m.from !== "system").length - chat.seen;
+    const badge = $("#trk-badge", coEl);
+    badge.hidden = chatOpen || unread <= 0;
+    badge.textContent = String(unread);
+  };
+  const post = (m) => {
+    if (m.from !== "system") playMessage(m.from !== "you");
+    chat.messages.push(m);
+    if (chatOpen) chat.seen = chat.messages.filter((x) => x.from !== "you" && x.from !== "system").length;
+    writeChat(o, chat);
+    drawChat();
+  };
+  const send = (text) => {
+    text = text.trim();
+    if (!text) return;
+    post({ from: "you", text, t: Date.now() });
+    drawChat(true);
+    setTimeout(() => post(autoReply(o, text, stages, shop)), 900 + Math.random() * 900);
+  };
+  const openChat = (open) => {
+    chatOpen = open;
+    $("#chat", coEl).hidden = !open;
+    if (open) {
+      chat.seen = chat.messages.filter((x) => x.from !== "you" && x.from !== "system").length;
+      writeChat(o, chat);
+      setTimeout(() => $(".chat-form input", coEl)?.focus(), 50);
+    }
+    drawChat();
+  };
+  const openReceipt = (open) => {
+    $("#rcpt", coEl).hidden = !open;
+    if (!open) return;
+    const doc = receiptDoc(o);
+    $("#rcpt-paper", coEl).innerHTML = `<style>${doc.css.replace(/body\{[^}]*\}/, "").replace(/@media print\{[^}]*\}\}/, "")}</style>${doc.body}`;
+  };
+  co.trk = { send, openChat, openReceipt };
+
+  const mapEl = $("#trk-map3d", coEl);
+  // the 3D map (and its bloom) loads only once someone is tracking a delivery
+  let map = null, mapGone = false, mapState = null;
+  if (mapEl)
+    import("./riderMap3D")
+      .then(({ createRiderMap }) => {
+        if (mapGone) return;
+        map = createRiderMap(THREE, mapEl, o.number * 7919, r.first.toUpperCase());
+        if (!map) mapEl.classList.add("no-3d");
+        else if (mapState) map.update(...mapState);
+      })
+      .catch(() => mapEl.classList.add("no-3d"));
+  coCleanups.push(() => {
+    mapGone = true;
+    map?.destroy();
+  });
   const tickRing = () => {
     const now = Date.now();
-    const left = Math.max(0, o.target - now);
-    const frac = 1 - left / Math.max(1, o.target - o.placed);
+    const t = orderNow(o, now);
+    const i = o.cancelled ? -1 : currentStage(o, stages, now);
+    const key = i >= 0 ? stages[i].key : "cancelled";
+    const left = Math.max(0, o.target - t);
+    const frac = o.cancelled ? 0 : 1 - left / Math.max(1, o.target - o.placed);
     $("#ring-bar", coEl)?.setAttribute("stroke-dashoffset", String(100 - frac * 100));
     const mins = Math.ceil(left / 60000);
     const numEl = $("#ring-num", coEl), unitEl = $("#ring-unit", coEl);
@@ -4783,6 +5324,7 @@ function renderDone() {
       s.classList.toggle("on", st <= stage);
     });
   };
+  drawChat();
   tickRing();
   clearInterval(coTimer);
   coTimer = setInterval(tickRing, 1000);
@@ -4825,9 +5367,14 @@ async function placeOrder() {
   co.errors = errors;
   if (Object.keys(errors).length) {
     renderCheckout({ animate: false });
-    $(".field.bad input", coEl)?.focus();
+    // The first problem may be well above the button: take the visitor to it.
+    const bad = $(".field.bad input, .field.bad textarea", coEl);
+    bad?.closest(".field").scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
+    setTimeout(() => bad?.focus({ preventScroll: true }), 350);
+    triggerHaptic(30);
     return;
   }
+  if (co.placing) return;
   co.phone = pkMobile(co.phone);
   writeStore("brewns-details", { name: co.name.trim(), phone: co.phone, email: co.email.trim(), loc: co.loc, mode: co.mode, area: co.area, address: co.address.trim() });
 
@@ -4929,6 +5476,57 @@ coEl.addEventListener("click", (e) => {
   const t = e.target;
   const act = t.closest("[data-co]")?.dataset.co;
   if (act === "close") return closeCheckout();
+  if (co.trk) {
+    if (act === "chat") return co.trk.openChat(true);
+    if (act === "chat-close") return co.trk.openChat(false);
+    if (act === "receipt") return co.trk.openReceipt(true);
+    if (act === "rcpt-close") return co.trk.openReceipt(false);
+    const quick = t.closest("[data-quick]");
+    if (quick) return co.trk.send(quick.dataset.quick);
+    const o = co.done;
+    if (act === "print" || act === "download") {
+      const { html } = receiptDoc(o);
+      if (act === "download") {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+        a.download = `brewns-receipt-${String(o.number).padStart(5, "0")}.html`;
+        a.click();
+        return setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      }
+      const w = window.open("", "_blank");
+      if (!w) return;
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      return setTimeout(() => w.print(), 250);
+    }
+    if (act === "club-join") {
+      closeCheckout();
+      return setTimeout(() => lenis.scrollTo("#club", { force: true }), 80);
+    }
+    if (act === "cancel") {
+      if (!window.confirm("Cancel this order? The café hasn't started on it yet.")) return;
+      o.cancelled = Date.now();
+      if (o.club) writeClub(reverseOrder(readClub(), o.number, o.club.stamps, o.club.used));
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+    if (act === "rate") {
+      const first = o.items[0];
+      return window.__brewnsReview?.({ order: o.number, loc: o.loc, product: first?.id, name: o.name.split(" ")[0] + (o.name.split(" ")[1] ? ` ${o.name.split(" ")[1][0]}.` : "") });
+    }
+    if (act === "collected") {
+      o.collected = orderNow(o);
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+    if (act === "ff") {
+      // Preview: run the rest of the flow in about a minute.
+      fastForward(o);
+      saveOrder(o);
+      return renderCheckout({ animate: false });
+    }
+  }
   if (act === "back") {
     if (co.step === 2) {
       co.step = 1;
@@ -4937,6 +5535,11 @@ coEl.addEventListener("click", (e) => {
     }
     closeCheckout();
     return openBag();
+  }
+  if (act === "reward") {
+    co.useReward = !co.useReward;
+    playSoftClick();
+    return renderCheckout({ animate: false });
   }
   if (act === "next") {
     co.step = 2;
@@ -5000,12 +5603,230 @@ coEl.addEventListener("input", (e) => {
   }
 });
 coEl.addEventListener("submit", (e) => {
+  if (co?.trk && e.target.matches("[data-chat]")) {
+    e.preventDefault();
+    co.trk.send(e.target.msg.value);
+    e.target.msg.value = "";
+    return;
+  }
   if (!co || !e.target.matches("[data-promo]")) return;
   e.preventDefault();
   co.promo = e.target.promo.value.trim().toUpperCase();
   co.discount = co.promo === "BREWNS10" ? 0.1 : 0;
   renderCheckout({ animate: false });
 });
+
+  /* ═══════════════════════ customer reviews ═══════════════════════
+     Reviews written on the site (from the section, or "rate your order" after an
+     order) are kept and shown first; one written from an order carries a
+     VERIFIED ORDER stamp. Stored in the browser until a backend collects them. */
+  const BASE_SCORE = { avg: 4.9, count: 1284 };
+  const revCards = $("#rev-cards");
+  const myReviews = () => readStore("brewns-reviews", []);
+  const stars = (n) => `<p class="rev-stars" role="img" aria-label="Rated ${n} out of 5">${"★".repeat(n)}<span class="rev-stars-off">${"★".repeat(5 - n)}</span></p>`;
+  const revThumb = (id) => {
+    const p = productById(id);
+    return p ? `<span class="rev-thumb">${thumbHTML(p)}</span>` : "";
+  };
+  // The placeholder slips get a picture of what was ordered.
+  $$(".rev-slip[data-product]", revCards).forEach((slip) => {
+    $(".rev-order", slip)?.insertAdjacentHTML("afterbegin", revThumb(slip.dataset.product));
+  });
+  const renderMyReviews = () => {
+    $$(".rev-mine", revCards).forEach((li) => li.remove());
+    const list = myReviews();
+    revCards.insertAdjacentHTML(
+      "afterbegin",
+      list
+        .map((r) => {
+          const d = new Date(r.t);
+          const when = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const p = productById(r.product);
+          return `<li class="rev-mine" data-place="${esc(r.place)}" data-product="${p ? p.id : ""}"><div class="rev-hold"><article class="rev-slip is-in">
+            <div class="rev-slip-head"><p>${r.order ? `ORDER #${String(r.order).padStart(5, "0")}` : "NEW"}</p><p>${when}</p></div>
+            ${stars(r.stars)}
+            <blockquote class="rev-quote"><p>${esc(r.text)}</p></blockquote>
+            <div class="rc-rule" aria-hidden="true"></div>
+            <div class="rev-foot"><p>${esc(r.name)}</p><p>${esc(r.place)}</p></div>
+            <p class="rev-order">${p ? revThumb(p.id) : ""}<span>Ordered</span><span>${p ? esc(p.name) : ""}</span></p>
+            <button type="button" class="rev-helpful" data-helpful="mine-${r.t}" data-base="0" aria-pressed="false"><span aria-hidden="true">▲</span> HELPFUL · <b>0</b></button>
+            ${r.order ? `<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>` : ""}
+          </article></div></li>`;
+        })
+        .join(""),
+    );
+    fillSnaps(revCards);
+    const sum = list.reduce((a, r) => a + r.stars, 0);
+    const count = BASE_SCORE.count + list.length;
+    const avg = (BASE_SCORE.avg * BASE_SCORE.count + sum) / count;
+    const n = $(".rev-score-n span", document);
+    if (n && list.length) n.textContent = avg.toFixed(1);
+    const c = $(".rev-score-meta .blk span", document);
+    if (c && list.length) c.textContent = count.toLocaleString("en-US");
+    refreshRevBar();
+  };
+  let refreshRevBar = () => {};
+  renderMyReviews();
+
+  // "Leave a review", next to the score.
+  $(".rev-panel")?.insertAdjacentHTML("beforeend", `<button type="button" class="btn btn-dark rev-write" data-review>LEAVE A REVIEW ${ARROW_SVG}</button>`);
+
+  /* The slips are a carousel: filter by what was ordered or by shop, page
+     through with the arrows (or swipe), and mark a review helpful. */
+  const REV_FILTERS = [["all", "ALL"], ["drinks", "COFFEE & DRINKS"], ["food", "FOOD"], ["Gulberg", "GULBERG"], ["DHA", "DHA"], ["Johar Town", "JOHAR TOWN"]];
+  revCards.insertAdjacentHTML(
+    "beforebegin",
+    `<div class="rev-bar">
+      <div class="rev-filters" role="group" aria-label="Filter reviews">${REV_FILTERS.map(([k, l], i) => `<button type="button" class="rev-filter${i ? "" : " on"}" data-rev-filter="${k}" aria-pressed="${!i}">${l}</button>`).join("")}</div>
+      <div class="rev-nav"><p class="rev-count" aria-live="polite"><b id="rev-pos">01</b> / <span id="rev-total">00</span></p><button type="button" class="rev-arrow" data-rev-step="-1" aria-label="Previous reviews">←</button><button type="button" class="rev-arrow" data-rev-step="1" aria-label="Next reviews">→</button></div>
+    </div>`,
+  );
+  const revBar = revCards.previousElementSibling;
+  let revFilter = "all";
+  const revKind = (li) => {
+    const p = productById(li.dataset.product);
+    return p && ["bakery", "kitchen"].includes(p.cat) ? "food" : "drinks";
+  };
+  const revShown = () => $$(":scope > li", revCards).filter((li) => !li.hidden);
+  const revStepWidth = () => {
+    const li = revShown()[0];
+    // offsetWidth, not the bounding box: the slips are tilted a little
+    return li ? li.offsetWidth + parseFloat(getComputedStyle(revCards).columnGap || "0") : revCards.clientWidth;
+  };
+  const updateRevNav = () => {
+    const shown = revShown();
+    const step = revStepWidth();
+    const first = Math.min(shown.length - 1, Math.round(revCards.scrollLeft / step));
+    const perView = Math.max(1, Math.round(revCards.clientWidth / step));
+    $("#rev-pos", revBar).textContent = String(Math.max(0, first) + 1).padStart(2, "0") + (perView > 1 && shown.length > 1 ? `–${String(Math.min(shown.length, first + perView)).padStart(2, "0")}` : "");
+    $("#rev-total", revBar).textContent = String(shown.length).padStart(2, "0");
+    const [prev, next] = $$(".rev-arrow", revBar);
+    prev.disabled = revCards.scrollLeft < 4;
+    next.disabled = revCards.scrollLeft + revCards.clientWidth >= revCards.scrollWidth - 4;
+  };
+  refreshRevBar = () => {
+    $$(":scope > li", revCards).forEach((li) => {
+      li.hidden = !(revFilter === "all" || (revFilter === "drinks" || revFilter === "food" ? revKind(li) === revFilter : li.dataset.place === revFilter));
+    });
+    // the helpful counts, from this browser's marks
+    const liked = new Set(readStore("brewns-helpful", []));
+    $$(".rev-helpful", revCards).forEach((b) => {
+      const on = liked.has(b.dataset.helpful);
+      b.setAttribute("aria-pressed", String(on));
+      $("b", b).textContent = String(+b.dataset.base + (on ? 1 : 0));
+    });
+    updateRevNav();
+  };
+  revBar.addEventListener("click", (e) => {
+    const f = e.target.closest("[data-rev-filter]");
+    if (f) {
+      revFilter = f.dataset.revFilter;
+      $$(".rev-filter", revBar).forEach((b) => {
+        b.classList.toggle("on", b === f);
+        b.setAttribute("aria-pressed", String(b === f));
+      });
+      playSoftClick();
+      refreshRevBar();
+      revCards.scrollTo({ left: 0, behavior: "auto" });
+      return;
+    }
+    const st = e.target.closest("[data-rev-step]");
+    if (st) {
+      // a page at a time: however many whole slips fit
+      const step = revStepWidth();
+      const gap = parseFloat(getComputedStyle(revCards).columnGap || "0");
+      const perView = Math.max(1, Math.floor((revCards.clientWidth + gap + 2) / step));
+      revCards.scrollBy({ left: +st.dataset.revStep * perView * step, behavior: REDUCED ? "auto" : "smooth" });
+    }
+  });
+  revCards.addEventListener("scroll", () => requestAnimationFrame(updateRevNav), { passive: true });
+  window.addEventListener("resize", updateRevNav);
+  revCards.addEventListener("click", (e) => {
+    const b = e.target.closest(".rev-helpful");
+    if (!b) return;
+    const liked = new Set(readStore("brewns-helpful", []));
+    liked.has(b.dataset.helpful) ? liked.delete(b.dataset.helpful) : liked.add(b.dataset.helpful);
+    writeStore("brewns-helpful", [...liked]);
+    playSoftClick();
+    refreshRevBar();
+  });
+  refreshRevBar();
+
+  const revForm = document.createElement("div");
+  revForm.className = "rev-modal";
+  revForm.hidden = true;
+  revForm.setAttribute("role", "dialog");
+  revForm.setAttribute("aria-modal", "true");
+  revForm.setAttribute("aria-label", "Leave a review");
+  revForm.setAttribute("data-lenis-prevent", "");
+  document.body.append(revForm);
+  let revCtx = null;
+  const closeReview = () => {
+    revForm.hidden = true;
+    revCtx = null;
+    if (!hasLayer("checkout")) startScroll();
+  };
+  const openReview = (ctx = {}) => {
+    revCtx = { stars: 5, ...ctx };
+    const saved = readStore("brewns-details", {});
+    const food = PRODUCTS.filter((p) => !p.gift);
+    revForm.innerHTML = `<form class="rev-modal-card" data-rev-form novalidate>
+      <div class="rev-modal-head"><div><p class="mono-fine"><span class="sl">//</span> ${ctx.order ? `ORDER #${String(ctx.order).padStart(5, "0")}` : "BREWNS REVIEWS"}</p><h3>${ctx.order ? "HOW WAS IT?" : "TELL US HOW IT WAS."}</h3></div><button type="button" class="x-btn" data-rev-close aria-label="Close"></button></div>
+      <div class="rev-rate" role="radiogroup" aria-label="Rating">${[1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="${n <= revCtx.stars}" data-rate="${n}" aria-label="${n} star${n > 1 ? "s" : ""}">★</button>`).join("")}<span class="mono-fine" id="rev-rate-l">${["", "NOT GREAT", "COULD BE BETTER", "GOOD", "REALLY GOOD", "PERFECT"][revCtx.stars]}</span></div>
+      <label class="field"><span class="mono-fine">YOUR REVIEW</span><textarea name="text" rows="3" maxlength="240" placeholder="What did you have, and how was it?"></textarea></label>
+      <div class="rev-modal-row">
+        <label class="field"><span class="mono-fine">NAME</span><input name="name" maxlength="30" value="${esc(ctx.name || (saved.name ? saved.name.split(" ")[0] + (saved.name.split(" ")[1] ? ` ${saved.name.split(" ")[1][0]}.` : "") : ""))}" placeholder="First name and initial"></label>
+        <label class="field"><span class="mono-fine">SHOP</span><select name="place">${LOC_TITLES.map((t, i) => `<option value="${i}" ${i === (ctx.loc ?? saved.loc ?? 0) ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      </div>
+      <label class="field"><span class="mono-fine">WHAT YOU ORDERED</span><select name="product">${food.map((p) => `<option value="${p.id}" ${p.id === ctx.product ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
+      <p class="rev-err mono-fine" id="rev-err"></p>
+      <button type="submit" class="btn btn-solid">POST REVIEW ${ARROW_SVG}</button>
+    </form>`;
+    revForm.hidden = false;
+    stopScroll();
+    setTimeout(() => $("textarea", revForm)?.focus(), 50);
+  };
+  revForm.addEventListener("click", (e) => {
+    if (e.target === revForm || e.target.closest("[data-rev-close]")) return closeReview();
+    const rate = e.target.closest("[data-rate]");
+    if (rate) {
+      revCtx.stars = +rate.dataset.rate;
+      $$("[data-rate]", revForm).forEach((b) => b.setAttribute("aria-checked", String(+b.dataset.rate <= revCtx.stars)));
+      $("#rev-rate-l", revForm).textContent = ["", "NOT GREAT", "COULD BE BETTER", "GOOD", "REALLY GOOD", "PERFECT"][revCtx.stars];
+    }
+  });
+  revForm.addEventListener("keydown", (e) => e.key === "Escape" && closeReview());
+  revForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const text = f.text.value.trim(), name = f.name.value.trim();
+    const err = text.length < 12 ? "A FEW MORE WORDS, PLEASE" : name.length < 2 ? "ADD YOUR NAME" : "";
+    $("#rev-err", revForm).textContent = err;
+    if (err) return;
+    const place = ["Gulberg", "DHA", "Johar Town"][+f.place.value];
+    writeStore("brewns-reviews", [{ t: Date.now(), stars: revCtx.stars, text, name, place, product: f.product.value, order: revCtx.order || null }, ...myReviews()].slice(0, 30));
+    if (revCtx.order) {
+      const o = readStore("brewns-orders", []).find((x) => x.number === revCtx.order);
+      if (o) {
+        o.reviewed = true;
+        saveOrder(o);
+        if (co?.done?.number === o.number) co.done.reviewed = true;
+      }
+    }
+    closeReview();
+    renderMyReviews();
+    revCards.scrollTo({ left: 0, behavior: "auto" }); // the new slip is first
+    playChime();
+    toast("THANK YOU — YOUR REVIEW IS UP", "SEE IT", () => {
+      if (hasLayer("checkout")) closeCheckout();
+      setTimeout(() => lenis.scrollTo("#reviews", { force: true }), 80);
+    });
+    if (co?.trk) renderCheckout({ animate: false });
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-review]")) openReview();
+  });
+  window.__brewnsReview = openReview;
 
   /* ═══════════════════════ the printed receipt ═══════════════════════
      The receipt feeds out of the printer as you scroll to it, so it carries the
@@ -5091,6 +5912,7 @@ coEl.addEventListener("submit", (e) => {
     try {
       lenis?.destroy();
       clearInterval(footerClock);
+      cancelAnimationFrame(brew.raf);
       clearInterval(liveLocationsTimer);
       clearInterval(activeOrderSyncInterval);
       cancelAnimationFrame(tickRaf);
