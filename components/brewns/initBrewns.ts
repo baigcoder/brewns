@@ -104,7 +104,7 @@ soundPanel.className = "sound-panel";
 soundPanel.hidden = true;
 soundPanel.setAttribute("role", "dialog");
 soundPanel.setAttribute("aria-label", "Sound");
-const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", brew: "Brewing at home", story: "Slow afternoon", hania: "Cool vibes", founder: "Meet the founder", reviews: "The regulars", club: "Stamping cards", order: "Tickets printing", faq: "Questions at the till", footer: "Closing time" };
+const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", brew: "Brewing at home", story: "Slow afternoon", journey: "How it started", hania: "Cool vibes", founder: "Meet the founder", reviews: "The regulars", club: "Stamping cards", order: "Tickets printing", faq: "Questions at the till", footer: "Closing time" };
 let sceneName = "hero";
 const renderSoundPanel = () => {
   const st = getSoundSettings();
@@ -1540,6 +1540,16 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
     if (woke && onScreen && open !== lastOpen) playChime();
     lastOpen = open;
   }, 20000);
+})();
+
+/* ═══════════ the brewns story: a copper rail fills as the chapters pass ═══════════ */
+(() => {
+  const steps = $("#journey-steps");
+  if (!steps) return;
+  scrub($("#journey-fill"), steps, "top center", "bottom center", { transform: "scaleY(0)" }, { transform: "scaleY(1)" });
+  // each chapter lights up as it reaches the middle of the screen, and stays lit
+  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add("lit")), { rootMargin: "0px 0px -45% 0px" });
+  $$(".journey-step", steps).forEach((li) => io.observe(li));
 })();
 
 /* ═══════════ hero card ═══════════ */
