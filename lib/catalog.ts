@@ -21,6 +21,8 @@ export type Product = {
   feature?: boolean;
   gift?: boolean;
   photo?: string;
+  /** The photo is a full scene (its own background): shown edge to edge, not on a paper panel. */
+  fill?: boolean;
   alt?: string;
   meta?: string;
   notes?: readonly string[];
@@ -119,7 +121,8 @@ export const KITCHEN_BASE: KitchenDish[] = [
 export const MILK: Option = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 150], ["ALMOND", 150]] };
 export const PRODUCTS_BASE: Product[] = [
   {
-    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, model: "bag", feature: true,
+    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, photo: "menu/menu-slow-roast.webp", fill: true, model: "bag", feature: true,
+    alt: "A black brewns Slow Roast bag on a brown table, with coffee beans and steam",
     meta: "250 G · WHOLE BEAN · COPENHAGEN", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
     desc: "Our house roast, taken slow and a shade past medium so the sugars caramelise without tipping into bitter. Sweet in milk, round and clean on its own.",
     options: [
