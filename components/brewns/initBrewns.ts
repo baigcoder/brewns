@@ -829,8 +829,8 @@ const photoSrc = (photo) => (photo.startsWith("data:") ? photo : `${ASSET_BASE_U
 
 /* ═══════════ generated markup: menu cards, footer columns ═══════════ */
 const ALL_MENU_CARDS = [
-  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "Rs 650", file: "menu-espresso.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns espresso in a black and orange brewns cup" },
-  { id: "latte", cat: "coffee", name: "LATTE", price: "Rs 950", file: "menu-latte.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns latte in a clear cup with a navy brewns sleeve" },
+  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "Rs 650", file: "cup-espresso.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns espresso in a black and orange brewns cup" },
+  { id: "latte", cat: "coffee", name: "LATTE", price: "Rs 950", file: "cup-latte.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns latte in a clear cup with a navy brewns sleeve" },
   { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "Rs 1,150", file: "menu-iced-coffee.webp", size: [1024, 1536], frame: [197, 261, 0, 0], crop: ["0.1%", "2.54%", "94.92%", "107.62%"], cover: false, clip: false, alt: "A brewns iced matcha in a clear cup with a straw" },
   { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "Rs 750", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
   { id: "cortado", cat: "coffee", name: "CORTADO", price: "Rs 850", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
@@ -838,8 +838,8 @@ const ALL_MENU_CARDS = [
   { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "Rs 700", file: "menu-cinnamon.webp", size: [1536, 1024], frame: [327, 218, -8, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
   { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "Rs 650", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
   { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "Rs 1,050", file: "menu-iced-latte.webp", size: [1024, 1536], frame: [175, 235, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: false, alt: "A brewns iced latte in a clear cup with straw" },
-  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", file: "menu-bag-slow-roast.webp", size: [1024, 1024], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns Slow Roast bag, charcoal and sage green, on a sage background" },
-  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", file: "menu-bag-ethiopia.webp", size: [1024, 1024], frame: [210, 210, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns Ethiopia single origin bag with an orange mountain landscape, among coffee beans" },
+  { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", file: "bag-slow-roast.webp", size: [611, 1040], frame: [112, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns Slow Roast bag in charcoal and sage green" },
+  { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", file: "bag-ethiopia.webp", size: [667, 1040], frame: [122, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns Ethiopia single origin bag with an orange mountain landscape" },
   { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "menu-tumbler.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
   ...KITCHEN.map((k) => ({ shot: true, id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: `${ASSET_BASE_URL}${k.photo}`, size: [800, 800], frame: [255, 255, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
 ];
@@ -3091,7 +3091,7 @@ const thumbHTML = (p) =>
   p.gift
     ? `<span class="thumb dark">${giftcardHTML("")}</span>`
     : p.photo
-      ? `<span class="thumb${p.art || p.fill ? " shot" : ""}"><img src="${photoSrc(p.photo)}" alt="" loading="lazy"></span>`
+      ? `<span class="thumb${p.art ? " shot" : ""}${p.cutout ? " dark" : ""}"><img src="${photoSrc(p.photo)}" alt="" loading="lazy"></span>`
       : `<span class="thumb dark"><img data-snap="${p.model}" data-snap-product="${p.id}" alt=""></span>`;
 /* Model-only products have no photograph: their pictures are rendered from the
    same .glb. `bun run snapshots` renders them once into shop/snap/, so a visitor's
@@ -3129,15 +3129,15 @@ let shopFilter = "all";
 shopGrid.innerHTML = PRODUCTS.map((p, i) => {
   const media = p.gift
     ? giftcardHTML(money(p.price))
-    : p.photo && p.fill
-      ? `<img class="shot" src="${photoSrc(p.photo)}" alt="${esc(p.alt)}" loading="lazy">`
+    : p.photo && p.cutout
+      ? `<img src="${photoSrc(p.photo)}" alt="${esc(p.alt)}" loading="lazy">`
       : p.photo
       ? `<span class="pcard-photo" aria-hidden="true"></span><img${p.art ? ' class="shot"' : ""} src="${photoSrc(p.photo)}" alt="${esc(p.alt)}" loading="lazy">`
       : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.alt || `A bag of brewns ${p.name.toLowerCase()} coffee beans`)}"><span class="pcard-loading" aria-hidden="true"></span>`;
   return `<li class="${p.feature ? "feature" : p.id === "cinnamon-roll" || p.id === "ceramic-tumbler" || p.gift ? "wide" : ""}" data-cat="${p.cat}"><div class="lean"><div>
     <article class="pcard" tabindex="0" role="link" aria-label="${esc(p.name)}, ${money(p.price)}" data-product="${p.id}">
       <div class="pcard-top mono-fine"><span>${String(i + 1).padStart(2, "0")}</span>${p.tag ? `<span class="pcard-tag chip"><span class="dot"></span>${p.tag}</span>` : `<span>${CAT_LABEL[p.cat]}</span>`}</div>
-      <div class="pcard-media">${media}<span class="pcard-view mono-fine${p.photo && !p.fill ? "" : " on-dark"}" aria-hidden="true">VIEW PRODUCT <span style="display:inline-block;width:.6rem;transform:rotate(-45deg)">${ARROW_SVG}</span></span></div>
+      <div class="pcard-media">${media}<span class="pcard-view mono-fine${p.photo && !p.cutout ? "" : " on-dark"}" aria-hidden="true">VIEW PRODUCT <span style="display:inline-block;width:.6rem;transform:rotate(-45deg)">${ARROW_SVG}</span></span></div>
       <div class="pcard-foot">
         <div><p class="pcard-name">${p.name}</p><p class="pcard-meta mono-fine">${p.meta}</p></div>
         <div class="pcard-buy"><p class="pcard-price">${p.options.some((o) => o.choices.some((c) => c[1] > 0)) ? '<span class="mono-fine" style="opacity:.5">FROM </span>' : ""}${money(p.price)}</p><button type="button" class="pcard-add" data-add="${p.id}" aria-label="Add ${esc(p.name)} to bag">+ ADD</button></div>

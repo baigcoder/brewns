@@ -21,8 +21,8 @@ export type Product = {
   feature?: boolean;
   gift?: boolean;
   photo?: string;
-  /** The photo is a full scene (its own background): shown edge to edge, not on a paper panel. */
-  fill?: boolean;
+  /** The photo is a cut-out with no background: it stands on the dark card, like the rendered bags. */
+  cutout?: boolean;
   alt?: string;
   meta?: string;
   notes?: readonly string[];
@@ -121,8 +121,8 @@ export const KITCHEN_BASE: KitchenDish[] = [
 export const MILK: Option = { key: "milk", label: "MILK", choices: [["WHOLE", 0], ["OAT", 150], ["ALMOND", 150]] };
 export const PRODUCTS_BASE: Product[] = [
   {
-    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, photo: "menu/menu-bag-slow-roast.webp", fill: true, model: "bag", feature: true,
-    alt: "A brewns Slow Roast bag, charcoal and sage green, on a sage background",
+    id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, photo: "menu/bag-slow-roast.webp", cutout: true, model: "bag", feature: true,
+    alt: "A brewns Slow Roast bag in charcoal and sage green",
     meta: "250 G · WHOLE BEAN · COPENHAGEN", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
     desc: "Our house roast, taken slow and a shade past medium so the sugars caramelise without tipping into bitter. Sweet in milk, round and clean on its own.",
     options: [
@@ -134,8 +134,8 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Roasted weekly in small batches and packed in a valved bag. Best within four weeks of the roast date printed on the back. Keep sealed, away from light and heat.",
   },
   {
-    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 4800, photo: "menu/menu-bag-ethiopia.webp", fill: true, model: "bag",
-    alt: "A brewns Ethiopia single origin bag with an orange mountain landscape, among coffee beans",
+    id: "single-origin", name: "ETHIOPIA YIRGACHEFFE", cat: "beans", tag: "SINGLE ORIGIN", price: 4800, photo: "menu/bag-ethiopia.webp", cutout: true, model: "bag",
+    alt: "A brewns Ethiopia single origin bag with an orange mountain landscape",
     meta: "250 G · WASHED HEIRLOOM · 2100M", notes: ["JASMINE", "BERGAMOT", "WHITE PEACH"],
     desc: "Washed heirloom varieties from high-altitude smallholders in Yirgacheffe. A delicate, tea-like body with sparkling citrus acidity, jasmine florals and a sweet peach finish.",
     options: [
@@ -147,7 +147,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Roasted weekly in small batches. Best within five weeks of roast date. Brew with 93°C water for optimal clarity.",
   },
   {
-    id: "latte", name: "LATTE", cat: "drinks", price: 950, photo: "menu/menu-latte.webp", model: "cup", alt: "A brewns latte in a clear cup with a navy brewns sleeve",
+    id: "latte", name: "LATTE", cat: "drinks", price: 950, photo: "menu/cup-latte.webp", model: "cup", alt: "A brewns latte in a clear cup with a navy brewns sleeve",
     meta: "12 OZ · BREWED DAILY · TO GO", notes: ["SMOOTH", "BALANCED"],
     desc: "A double shot of Slow Roast under steamed milk, with a heart poured on top before the lid goes on. The one most of the city starts its morning with.",
     options: [
@@ -159,7 +159,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Poured to order when you arrive, so it is never sitting on the counter. Lids are plant-based and the sleeve is recycled paper.",
   },
   {
-    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 650, photo: "menu/menu-espresso.webp", model: "cup", alt: "A brewns espresso in a black and orange brewns cup",
+    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 650, photo: "menu/cup-espresso.webp", model: "cup", alt: "A brewns espresso in a black and orange brewns cup",
     meta: "SINGLE SHOT · SHORT · STRONG", notes: ["DARK CHOCOLATE", "CARAMEL"],
     desc: "Short, strong and on demand. Eighteen grams in, a little under forty out, in about twenty-eight seconds.",
     options: [
