@@ -1337,10 +1337,10 @@ export const PACKAGING_POSE: Record<string, number> = { bag: -0.42, cup: Math.PI
 
 /**
  * The packaging's print. The asset's own print (cream bag, white cup) is
- * replaced wholesale by the dark edition: matte espresso-black stock, the
- * wordmark and rules in metallic gold, type in cream. Each product carries its
- * own name, notes and size; anything without an entry (the hero) wears the
- * house label.
+ * replaced wholesale: the bag in charcoal with copper foil and a curved lower
+ * panel (sage for Slow Roast, sand for Ethiopia), the cup in matte black with
+ * gold foil, type in cream. Each product carries its own name, notes and size;
+ * anything without an entry (the hero) wears the house label.
  *
  * Every print is drawn twice from the same layout: once in colour, and once as
  * a surface map (G = roughness, B = metalness, as three.js reads them) so the
@@ -1350,7 +1350,9 @@ export const PACKAGING_POSE: Record<string, number> = { bag: -0.42, cup: Math.PI
  * drawn upright in a 770 × 1300 frame. Cup atlas (1536px): upright; the label
  * sits in the 320px column at the left, which the pose turns to the lens.
  */
-type BagLabel = { script: string[]; notes: string[]; about: string[]; size: string };
+/* A bag's lower panel, below the curve: its colour and the ink printed on it. */
+type Panel = { colour: string; ink: string; dim: string; accent: string };
+type BagLabel = { script: string[]; notes: string[]; about: string[]; size: string; panel: Panel };
 /* A product cup wears a coloured sleeve with the drink's name; the house cup
    (hero, story) keeps the plain print. */
 type CupLabel = {
@@ -1363,6 +1365,8 @@ const HOUSE_BAG: BagLabel = {
   notes: ['CARAMEL', 'BROWN SUGAR', 'ROASTED ALMOND'],
   about: ['CRAFT ROASTED IN', 'SMALL BATCHES FOR', 'CLEAN SWEETNESS', 'AND A SMOOTH FINISH.'],
   size: '250 G',
+  // Sage green, with cream type and copper rules.
+  panel: { colour: '#6f7866', ink: '#efe6d6', dim: 'rgba(239,230,214,0.8)', accent: '#d39a6c' },
 };
 const HOUSE_CUP: CupLabel = { lines: ['GOOD COFFEE', 'GOOD MOOD'], option: () => '250 ML' };
 const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
@@ -1375,6 +1379,8 @@ const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
       notes: ['JASMINE', 'BERGAMOT', 'WHITE PEACH'],
       about: ['WASHED HEIRLOOM', 'FROM SMALLHOLDERS', 'IN YIRGACHEFFE,', 'GROWN AT 2,100 M.'],
       size: '',
+      // Sand, with dark type and burnt-orange rules, like the Ethiopia bag's photo.
+      panel: { colour: '#e4d3b2', ink: '#1f1a14', dim: 'rgba(31,26,20,0.78)', accent: '#c45a26' },
     },
   },
   latte: { cup: { lines: ['LATTE', 'SMOOTH · BALANCED · STEAMED'], option: (sel) => ['8 OZ', '12 OZ', '16 OZ'][sel.size ?? 1], sleeve: { colour: '#ecdfc6', ink: '#17130f', accent: '#a8763a', size: 92 } } },
@@ -1383,7 +1389,10 @@ const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
 const BAG_SIZES = ['250 G', '500 G', '1 KG'];
 
 type Palette = { ground: string; gold: string; cream: string; dim: string };
-const INK: Palette = { ground: '#17130f', gold: '#d8b777', cream: '#efe5d2', dim: 'rgba(239,229,210,0.62)' };
+// The bag: charcoal stock, copper foil, cream type.
+const BAG_INK: Palette = { ground: '#2a2a28', gold: '#d39a6c', cream: '#efe6d6', dim: 'rgba(239,230,214,0.7)' };
+// The cup: matte black stock, gold foil, cream type.
+const CUP_INK: Palette = { ground: '#141414', gold: '#d6ad55', cream: '#efe6d6', dim: 'rgba(239,230,214,0.62)' };
 const SURFACE: Palette = { ground: 'rgb(0,205,0)', gold: 'rgb(0,100,160)', cream: 'rgb(0,175,0)', dim: 'rgb(0,185,0)' };
 const MONO = '"Space Mono", ui-monospace, monospace';
 
@@ -1453,36 +1462,48 @@ function rule(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number,
 }
 
 function drawBagFace(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, size: string) {
-  text(ctx, 'ROAST DATE', 125, 112, p.dim, 24, 2);
-  text(ctx, '12/05/24', 660, 112, p.cream, 28, 2, 'right');
+  // Below the curve, the panel: its own colour, and its own ink (the surface map keeps it matte).
+  const surface = p === SURFACE;
+  const pn: Panel = surface ? { colour: SURFACE.ground, ink: SURFACE.cream, dim: SURFACE.dim, accent: SURFACE.gold } : label.panel;
+  ctx.fillStyle = pn.colour;
+  ctx.beginPath();
+  ctx.moveTo(-20, 815);
+  ctx.quadraticCurveTo(385, 905, 790, 815);
+  ctx.lineTo(790, 1320);
+  ctx.lineTo(-20, 1320);
+  ctx.closePath();
+  ctx.fill();
+
+  text(ctx, 'ROAST DATE', 125, 112, p.gold, 24, 2);
+  text(ctx, '12/06/24', 660, 112, p.cream, 28, 2, 'right');
   rule(ctx, 125, 142, 660, 142, p.gold);
 
-  drawWordmark(ctx, p.gold, 150, 360, 470);
-  text(ctx, 'COFFEE HOUSE', 385, 530, p.cream, 32, 12, 'center');
-  rule(ctx, 345, 572, 425, 572, p.gold, 3);
+  drawWordmark(ctx, p.gold, 150, 330, 470);
+  text(ctx, 'COFFEE HOUSE', 385, 500, p.cream, 32, 12, 'center');
+  rule(ctx, 345, 542, 425, 542, p.gold, 3);
 
   ctx.save();
-  ctx.fillStyle = p.gold;
-  ctx.font = `${label.script.length > 1 ? 200 : 220}px Allura, cursive`;
-  ctx.rotate(-0.1);
+  ctx.fillStyle = p.cream;
+  ctx.font = `${label.script.length > 1 ? 196 : 220}px Allura, cursive`;
+  ctx.rotate(-0.06);
   if (label.script.length > 1) {
-    ctx.fillText(label.script[0], 60, 730);
-    ctx.fillText(label.script[1], 200, 845);
-  } else ctx.fillText(label.script[0], 30, 810);
+    ctx.fillText(label.script[0], 95, 680);
+    ctx.fillText(label.script[1], 235, 790);
+  } else ctx.fillText(label.script[0], 60, 750);
   ctx.restore();
 
-  label.about.forEach((line, i) => text(ctx, line, 122, 925 + i * 34, p.dim, 21));
-  text(ctx, 'FLAVOR NOTES', 460, 925, p.gold, 21, 1);
-  rule(ctx, 460, 942, 675, 942, p.gold);
-  label.notes.forEach((note, i) => text(ctx, note, 460, 985 + i * 34, p.cream, 21));
+  label.about.forEach((line, i) => text(ctx, line, 122, 945 + i * 34, pn.dim, 21));
+  text(ctx, 'FLAVOR NOTES', 460, 945, pn.accent, 21, 1);
+  rule(ctx, 460, 962, 675, 962, pn.accent);
+  label.notes.forEach((note, i) => text(ctx, note, 460, 1005 + i * 34, pn.ink, 21));
 
-  rule(ctx, 120, 1110, 675, 1110, p.gold);
-  rule(ctx, 240, 1132, 240, 1200, p.gold);
-  rule(ctx, 445, 1132, 445, 1200, p.gold);
-  text(ctx, size, 132, 1175, p.cream, 22);
-  text(ctx, 'WHOLE BEAN', 258, 1175, p.cream, 22);
-  text(ctx, 'ROASTED IN', 465, 1160, p.cream, 22);
-  text(ctx, 'COPENHAGEN', 465, 1192, p.cream, 22);
+  rule(ctx, 120, 1120, 675, 1120, pn.accent);
+  rule(ctx, 240, 1142, 240, 1210, pn.accent);
+  rule(ctx, 445, 1142, 445, 1210, pn.accent);
+  text(ctx, size, 132, 1185, pn.ink, 22);
+  text(ctx, 'WHOLE BEAN', 258, 1185, pn.ink, 22);
+  text(ctx, 'ROASTED IN', 465, 1170, pn.ink, 22);
+  text(ctx, 'COPENHAGEN', 465, 1202, pn.ink, 22);
 }
 
 function paintBag(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, sel: Record<string, number>) {
@@ -1564,8 +1585,8 @@ function paintCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLabel, se
   rule(ctx, 86, 550, 356, 550, p.gold);
   rule(ctx, 214, 574, 214, 640, p.gold);
   text(ctx, label.option(sel), 94, 614, p.cream, 21);
-  text(ctx, 'BREWED', 250, 600, p.dim, 19);
-  text(ctx, 'DAILY', 250, 628, p.dim, 19);
+  text(ctx, 'BREWED', 250, 600, p.gold, 19);
+  text(ctx, 'DAILY', 250, 628, p.gold, 19);
   ctx.restore();
 }
 
@@ -1590,12 +1611,12 @@ export function dressPackaging(
     if (!node.isMesh || !node.material?.map) return;
     const source = node.material.map;
     const width = source.image?.width;
-    const paint =
-      width === 1536
-        ? (ctx: CanvasRenderingContext2D, p: Palette) => paintCup(ctx, p, cupLabel, sel)
-        : width >= 2048
-          ? (ctx: CanvasRenderingContext2D, p: Palette) => paintBag(ctx, p, bagLabel, sel)
-          : null;
+    const isCup = width === 1536;
+    const paint = isCup
+      ? (ctx: CanvasRenderingContext2D, p: Palette) => paintCup(ctx, p, cupLabel, sel)
+      : width >= 2048
+        ? (ctx: CanvasRenderingContext2D, p: Palette) => paintBag(ctx, p, bagLabel, sel)
+        : null;
     if (!paint) return;
     const layer = (palette: Palette) => {
       const canvas = document.createElement('canvas');
@@ -1606,7 +1627,7 @@ export function dressPackaging(
       tex.source = new (T.TextureSource ?? T.Source)(canvas);
       return { tex, draw: () => { paint(ctx, palette); tex.needsUpdate = true; } };
     };
-    const colour = layer(INK);
+    const colour = layer(isCup ? CUP_INK : BAG_INK);
     const surface = layer(SURFACE);
     surface.tex.colorSpace = T.NoColorSpace;
     const repaint = () => {
