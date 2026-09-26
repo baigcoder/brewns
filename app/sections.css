@@ -653,3 +653,83 @@
 .enq-done p { line-height: 1.6; color: rgb(7 7 7 / 0.75); }
 /* On a phone the card's content is taller than a card's proportions allow. */
 @media (max-width: 559.98px) { .club-card { aspect-ratio: auto; gap: 1.1rem; } }
+
+/* ── Locations: the clock. Ticks draw in round the dial, the numbers sweep in
+   behind them, a copper ring shows what's left of today, and the hands find
+   the time in Lahore. The cup floats over it all. ── */
+@property --sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.dial-par { position: relative; }
+.dial-base, .dial-hands, .dial .dial-nums { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dial-face { fill: #f8f6f5; }
+.dial-tick { stroke: #121212; stroke-width: 2.6; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 520ms cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--i) * 13ms); }
+.dial-tick.hour { stroke-width: 5; }
+.clock-on .dial-tick { stroke-dashoffset: 0; }
+.dial .dial-nums { --sweep: 0deg; -webkit-mask-image: conic-gradient(from -6deg at 50% 49.5%, #000 var(--sweep), transparent calc(var(--sweep) + 14deg)); mask-image: conic-gradient(from -6deg at 50% 49.5%, #000 var(--sweep), transparent calc(var(--sweep) + 14deg)); transition: --sweep 1400ms cubic-bezier(0.45, 0, 0.25, 1) 450ms; }
+.clock-on .dial .dial-nums { --sweep: 390deg; }
+.dial-track { fill: none; stroke: rgb(7 7 7 / 0.05); stroke-width: 10; }
+.dial-arc { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1300ms cubic-bezier(0.45, 0, 0.2, 1) 1100ms, stroke 400ms; }
+.clock-on .dial-arc { stroke-dashoffset: 0; }
+.locs.shut .dial-arc { stroke: rgb(7 7 7 / 0.3); stroke-width: 6; stroke-dasharray: 0.004 0.009; stroke-dashoffset: 0; }
+.dial-now { opacity: 0; transition: opacity 600ms 2400ms; }
+.clock-on .dial-now { opacity: 1; }
+.dial-now circle { fill: var(--accent); }
+.dial-now .halo { opacity: 0.3; transform-box: fill-box; transform-origin: center; animation: dial-now 2.6s ease-out infinite; }
+.locs.shut .dial-now circle { fill: #8d8781; }
+@keyframes dial-now { from { transform: scale(0.5); opacity: 0.45; } to { transform: scale(1.7); opacity: 0; } }
+.dial-hands { filter: drop-shadow(0 0.35rem 0.45rem rgb(0 0 0 / 0.16)); }
+.hand { opacity: 0; transition: opacity 700ms 1300ms; }
+.hand line { stroke: #141414; stroke-linecap: round; }
+.hand.hour line { stroke-width: 15; }
+.hand.minute line { stroke-width: 9; }
+.hand.second line { stroke: var(--accent); stroke-width: 3.5; }
+.hand.second circle { fill: var(--accent); }
+.hand.second { transition-delay: 2900ms; }
+.clock-on .hand { opacity: 1; }
+.dial-read { position: absolute; left: 50%; top: 80.4%; display: grid; justify-items: center; gap: 0.15em; margin: 0; transform: translate(-50%, -50%); white-space: nowrap; line-height: 1.2; font-family: var(--font-space-mono); font-size: clamp(0.5625rem, 1.6vw, 0.6875rem); letter-spacing: 0.06em; color: rgb(7 7 7 / 0.62); opacity: 0; transition: opacity 600ms 2600ms, color 300ms; }
+.clock-on .dial-read { opacity: 1; }
+.dial .dial-read span { display: block; width: auto; height: auto; }
+.dial-read span:first-child { color: #121212; }
+.shop-focus .dial-read { color: #9a5a22; transition-delay: 0ms; }
+/* on a phone the dial is too small to fit it between the seven and the five: it sits just under the dial */
+@media (max-width: 639.98px) { .dial-read { top: calc(100% + 1.4rem); font-size: 0.625rem; } }
+
+/* the shops: pointing at one hands it the clock */
+.locs-list [data-shop] { cursor: pointer; outline: none; transition: opacity 300ms; }
+.locs-list [data-shop] address { position: relative; transition: transform 500ms var(--ease-entrance); }
+.locs-list [data-shop] address::before { content: ""; position: absolute; left: -0.75rem; top: 0.55em; width: 0.375rem; height: 0.375rem; border-radius: 9999px; background: var(--accent); transform: scale(0); transition: transform 400ms var(--ease-entrance); }
+.locs-list [data-shop].on address { transform: translateX(0.75rem); }
+.locs-list [data-shop].on address::before { transform: scale(1); }
+.locs-list [data-shop]:focus-visible address { text-decoration: underline; text-underline-offset: 4px; }
+.locs.shop-focus .locs-list [data-shop]:not(.on) { opacity: 0.4; }
+.loc-badge.shut { color: rgb(7 7 7 / 0.5); }
+.locs-pouring { margin-top: 0.5rem; color: #9a5a22; font-size: var(--font-size-label); }
+
+/* the cup: a slow float, its shadow breathing under it, and whatever the drink does */
+.loc-par { position: relative; }
+.loc-shadow { position: absolute; left: 50%; bottom: 0; width: 64%; height: 6%; border-radius: 50%; background: radial-gradient(closest-side, rgb(40 28 18 / 0.3), transparent); transform: translateX(-50%); animation: cup-shadow 6s ease-in-out infinite; }
+.loc-float { animation: cup-float 6s ease-in-out infinite; }
+.loc-swap { position: relative; }
+@keyframes cup-float { 50% { transform: translateY(-2.4%); } }
+@keyframes cup-shadow { 50% { transform: translateX(-50%) scale(0.8); opacity: 0.6; } }
+.loc-cup .loc-fx { position: absolute; inset: 0; }
+.loc-fx .drop { position: absolute; left: var(--x); top: var(--y); width: 2.6%; aspect-ratio: 0.72; border-radius: 50% 50% 48% 48% / 58% 58% 42% 42%; background: radial-gradient(circle at 38% 32%, rgb(255 255 255 / 0.95) 0 16%, rgb(255 255 255 / 0.35) 38%, rgb(110 70 40 / 0.28) 72%, transparent 74%); opacity: 0; animation: drop-run 10s linear infinite var(--d); }
+@keyframes drop-run {
+  0% { opacity: 0; transform: translateY(0) scaleY(1); }
+  6%, 48% { opacity: 1; transform: translateY(0) scaleY(1); }
+  70% { opacity: 1; transform: translateY(2.2rem) scaleY(1.35); }
+  78%, 100% { opacity: 0; transform: translateY(2.6rem) scaleY(1.1); }
+}
+.loc-fx .steam { position: absolute; left: var(--x); top: var(--top, 8%); width: 11%; height: 22%; border-radius: 50%; background: radial-gradient(closest-side, rgb(110 98 88 / 0.2), transparent); filter: blur(5px); opacity: 0; animation: steam-rise 4.4s ease-out infinite var(--d); }
+.loc-fx[data-cup="evening"] .steam { --top: 22%; }
+@keyframes steam-rise {
+  0% { opacity: 0; transform: translateY(25%) scaleX(0.55); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(14%, -50%) scaleX(1.4); }
+}
+.loc-fx[data-kind="hot"] .drop, .loc-fx[data-kind="iced"] .steam { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .loc-float, .loc-shadow, .dial-now .halo { animation: none; }
+  .loc-fx { display: none; }
+  .dial-tick, .dial .dial-nums, .dial-arc, .hand, .dial-read, .dial-now { transition: none; }
+}
