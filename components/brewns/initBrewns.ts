@@ -26,7 +26,9 @@ import {
   getSoundSettings,
   onSoundChange,
   setSoundScene,
-  triggerHaptic
+  triggerHaptic,
+  onCafeMoment,
+  SOUND_CREDITS
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
@@ -112,11 +114,24 @@ const renderSoundPanel = () => {
     <div class="sp-head"><div><p class="sp-title">CAFÉ SOUND</p><p class="sp-now mono-fine"><span class="sp-eq"><i></i><i></i><i></i></span>${st.on ? `NOW · ${SCENE_NAMES[sceneName] || "Brewns"}`.toUpperCase() : "OFF"}</p></div>
       <button type="button" class="sp-switch" role="switch" aria-checked="${st.on}" data-sp="on" aria-label="Sound"><i></i></button></div>
     <label class="sp-vol"><span class="mono-fine">VOLUME</span><input type="range" min="0" max="100" value="${Math.round(st.volume * 100)}" data-sp="volume" aria-label="Volume"></label>
-    ${[["ambience", "Café ambience", "Voices, the grinder, steam, cups"], ["music", "Music", "Slow lo-fi on the speakers"], ["ui", "Touch sounds", "Clicks, pours, the printer"]]
+    ${[["ambience", "Café ambience", "Tables talking, every drink made at the bar, the door onto the road"], ["music", "Music", "Slow lo-fi jazz on a real grand piano"], ["ui", "Touch sounds", "Clicks, pours, the printer"]]
       .map(([k, t, d]) => `<button type="button" class="sp-row" role="switch" aria-checked="${st[k]}" data-sp="${k}" ${st.on ? "" : "disabled"}><span><b>${t}</b><small>${d}</small></span><span class="sp-switch sm"><i></i></span></button>`)
       .join("")}
-    <p class="sp-foot mono-fine">MIX FOLLOWS WHERE YOU ARE ON THE PAGE</p>`;
+    <p class="sp-moment" aria-live="polite"><span class="sp-moment-dot"></span><span id="sp-moment-t">${st.on ? lastMoment || "The room is filling up" : "Switch on to hear the café"}</span></p>
+    <p class="sp-foot mono-fine">MIX FOLLOWS WHERE YOU ARE ON THE PAGE · BUSIER AT LAHORE'S RUSH HOURS · HEADPHONES PUT YOU AT A TABLE</p>
+    <p class="sp-credit">${SOUND_CREDITS}</p>`;
 };
+// What the café is doing right now, written into the open panel as it happens.
+let lastMoment = "";
+onCafeMoment((text) => {
+  lastMoment = text;
+  const el = soundPanel.hidden ? null : $("#sp-moment-t", soundPanel);
+  if (!el) return;
+  el.parentElement.classList.remove("in");
+  void el.parentElement.offsetWidth;
+  el.textContent = text;
+  el.parentElement.classList.add("in");
+});
 document.body.append(soundPanel);
 const updateSoundUI = () => {
   const on = getIsAudioEnabled();

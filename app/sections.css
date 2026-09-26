@@ -226,6 +226,13 @@
 .sp-row small { display: block; font-size: 0.78rem; color: rgb(255 255 255 / 0.5); }
 .sp-row:disabled { opacity: 0.4; }
 .sp-foot { color: rgb(255 255 255 / 0.35); }
+/* what the café is doing right now */
+.sp-moment { display: flex; align-items: center; gap: 0.55rem; padding: 0.6rem 0.75rem; border-radius: 10px; background: rgb(216 183 119 / 0.08); border: 1px solid rgb(216 183 119 / 0.18); font-size: 0.82rem; line-height: 1.35; color: rgb(255 255 255 / 0.85); }
+.sp-moment.in #sp-moment-t { animation: sp-moment 500ms var(--ease-entrance, ease) both; }
+@keyframes sp-moment { from { opacity: 0; transform: translateY(4px); } }
+.sp-moment-dot { flex: none; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: #d8b777; box-shadow: 0 0 0 0 rgb(216 183 119 / 0.5); animation: sp-dot 1.8s ease-out infinite; }
+@keyframes sp-dot { 70% { box-shadow: 0 0 0 0.45rem rgb(216 183 119 / 0); } 100% { box-shadow: 0 0 0 0 rgb(216 183 119 / 0); } }
+.sp-credit { margin-top: -0.4rem; font-size: 0.66rem; line-height: 1.4; color: rgb(255 255 255 / 0.3); }
 
 /* ── Product page on phones: a compact buy bar that doesn't cover the content ──
    The full bar (total + three controls on two rows) was taller than the space
