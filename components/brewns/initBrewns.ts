@@ -63,8 +63,8 @@ const SHOP_MODEL_URL = {
 const DRACO_PATH = "/draco/gltf/";
 const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const noHover = () => window.innerWidth < 768;
-const $ = (s, r = document) => r.querySelector(s);
-const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const $ = (s, r = document) => r?.querySelector ? r.querySelector(s) : null;
+const $$ = (s, r = document) => r?.querySelectorAll ? [...r.querySelectorAll(s)] : [];
 
 const banner = (message) => {
   const p = document.createElement("p");
@@ -1074,7 +1074,8 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
    a viewer with thumbnails, swipe and crossfades. */
 {
   const section = $("#inside");
-  const box = $("#inside-box");
+  if (section) {
+    const box = $("#inside-box");
   const tiles = $$(".inside-open");
   const grid = $(".inside-grid");
   // Each photo comes in two sizes (scripts/upscale-photos.py): 1400 px for the
@@ -1263,6 +1264,7 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
     if (e.key === "ArrowRight") show(at + 1);
     if (e.key === "ArrowLeft") show(at - 1);
   });
+  }
 }
 
 /* ═══════════ header ═══════════ */
