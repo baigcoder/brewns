@@ -1877,14 +1877,27 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
     return;
   }
   const count = $("#pre-count"), coffee = $("#pre-coffee");
+  const crema = $("#pre-crema"), bar = $("#pre-bar"), step = $("#pre-step");
+  // What the bar is doing, as the cup fills.
+  const STEPS = [[0, "Grinding the beans"], [0.25, "Tamping"], [0.45, "Pulling the shot"], [0.7, "Steaming the milk"], [0.92, "Pouring your cup"]];
   const STEP = { mount: 0.1, fonts: 0.6, loaded: 1 };
   const MIN_VISIBLE = 620, MAX_WAIT = 4000, HOLD = 180;
   const FILL = C(120, 26), POUR = C(90, 18);
   const t0 = performance.now();
   let level = 0, pour = 0, finishing = false;
   const draw = () => {
-    count.textContent = String(Math.round(Math.min(1, level) * 100)).padStart(3, "0");
-    coffee.setAttribute("y", 156 - level * (1 - pour) * (156 - 30));
+    count.textContent = String(Math.round(Math.min(1, level) * 100));
+    const surface = 156 - level * (1 - pour) * (156 - 30);
+    coffee.setAttribute("y", surface);
+    if (crema) {
+      crema.setAttribute("y", surface - 3);
+      crema.style.opacity = level > 0.04 && pour < 0.5 ? "0.9" : "0";
+    }
+    if (bar) bar.style.transform = `scaleX(${Math.min(1, level)})`;
+    if (step) {
+      const label = STEPS.filter(([at]) => level >= at).pop()[1];
+      if (step.textContent !== label) step.textContent = label;
+    }
     el.style.clipPath = `inset(${pour * 100}% 0 0 0)`;
   };
   const levelSpring = new Spring({ v: 0 }, (o) => ((level = o.v), draw()));
