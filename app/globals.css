@@ -3872,3 +3872,8 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
   .hdr-mark { width: calc(var(--size-logo-width) * 1.15); flex-shrink: 0; }
   .hdr-bag { margin-left: 0.25rem !important; margin-right: 0.9rem !important; }
 }
+
+/* With the EN / اردو pill beside it, the line badge keeps to one line. */
+.voice-call-badge { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.voice-call-top { gap: 0.6rem; }
+@media (max-width: 520px) { .voice-call-badge #vc-badge-text { font-size: 0.625rem; } }

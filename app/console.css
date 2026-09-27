@@ -362,11 +362,11 @@
 .cx { overflow-x: clip; }
 
 /* ── AI calls ── */
-.cx-call { padding: 0; overflow: hidden; }
-.cx-call.live { border-color: rgb(47 179 122 / 0.55); box-shadow: 0 0 0 1px rgb(47 179 122 / 0.18), 0 8px 30px rgb(47 179 122 / 0.08); }
-.cx-call-head { display: flex; width: 100%; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; text-align: left; }
-.cx-call-head:hover { background: var(--cx-panel-2); }
-.cx-call.live .cx-pill.ready::before { animation: cxBlink 1.2s ease-in-out infinite; }
+.cx-aicall { padding: 0; overflow: hidden; }
+.cx-aicall.live { border-color: rgb(47 179 122 / 0.55); box-shadow: 0 0 0 1px rgb(47 179 122 / 0.18), 0 8px 30px rgb(47 179 122 / 0.08); }
+.cx-aicall-head { display: flex; width: 100%; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; text-align: left; }
+.cx-aicall-head:hover { background: var(--cx-panel-2); }
+.cx-aicall.live .cx-pill.ready::before { animation: cxBlink 1.2s ease-in-out infinite; }
 @keyframes cxBlink { 50% { opacity: 0.25; } }
 .cx-transcript { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; padding: 12px 14px 14px; border-top: 1px solid var(--cx-line); background: var(--cx-panel); }
 .cx-line { max-width: 82%; padding: 8px 11px; border-radius: 12px; font-size: 13.5px; line-height: 1.45; }
@@ -376,4 +376,4 @@
 .cx-line-who { display: block; margin-bottom: 2px; font-family: var(--font-space-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cx-muted); }
 .cx-outcome { padding: 7px 10px; border-radius: 8px; background: rgb(224 162 79 / 0.1); border: 1px dashed rgb(224 162 79 / 0.45); color: var(--cx-text); }
 .cx-listening { align-self: flex-start; animation: cxBlink 1.4s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .cx-call.live .cx-pill.ready::before, .cx-listening { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .cx-aicall.live .cx-pill.ready::before, .cx-listening { animation: none; } }
