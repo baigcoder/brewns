@@ -3872,3 +3872,167 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
   .hdr-mark { width: calc(var(--size-logo-width) * 1.15); flex-shrink: 0; }
   .hdr-bag { margin-left: 0.25rem !important; margin-right: 0.9rem !important; }
 }
+
+/* With the EN / اردو pill beside it, the line badge keeps to one line. */
+.voice-call-badge { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.voice-call-top { gap: 0.6rem; }
+@media (max-width: 520px) { .voice-call-badge #vc-badge-text { font-size: 0.625rem; } }
+
+/* ═══════════ header actions: one family of buttons ═══════════
+   Sound, Call concierge, Order online and Bag share one height, one radius and
+   one quiet outline, so the right side reads as a set; Order online stays the
+   single gold button. Desktop only: phones keep their compact icon row. */
+@media (min-width: 1024px) {
+  .hdr-right { gap: 0.625rem; }
+  .hdr-sound,
+  .hdr .hdr-voice,
+  .hdr-order,
+  .hdr-bag {
+    height: 2.5rem;
+    border-radius: 9999px;
+    font-family: var(--font-space-mono) !important;
+    font-size: 0.75rem !important;
+    letter-spacing: 0.08em !important;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .hdr-sound,
+  .hdr .hdr-voice,
+  .hdr-bag {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    padding: 0 1rem !important;
+    border: 1px solid rgb(255 255 255 / 0.16) !important;
+    background: rgb(255 255 255 / 0.04) !important;
+    color: inherit !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(12px) !important;
+    transition: background-color 220ms ease, border-color 220ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .hdr-sound:hover,
+  .hdr .hdr-voice:hover,
+  .hdr-bag:hover {
+    opacity: 1;
+    background: rgb(255 255 255 / 0.1) !important;
+    border-color: rgb(255 255 255 / 0.3) !important;
+    color: inherit !important;
+    transform: translateY(-1px) !important;
+  }
+  /* The concierge keeps its gold hint and live dot, so it still reads as "call a person". */
+  .hdr .hdr-voice { border-color: rgb(201 147 85 / 0.45) !important; background: rgb(201 147 85 / 0.1) !important; }
+  .hdr .hdr-voice:hover { background: rgb(201 147 85 / 0.2) !important; border-color: rgb(201 147 85 / 0.7) !important; }
+  .hdr-sound.active { background: rgb(255 255 255 / 0.12) !important; }
+  .hdr-order { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0 1.15rem; }
+  .hdr-bag { padding-right: 0.45rem !important; }
+  .hdr-bag-count { min-width: 1.6rem; height: 1.6rem; font-size: 0.75rem; }
+
+  /* Over light sections the outlines turn dark to stay visible. */
+  .hdr[data-theme="light"]:not(.open) .hdr-sound,
+  .hdr[data-theme="light"]:not(.open) .hdr-bag { border-color: rgb(7 7 7 / 0.16) !important; background: rgb(7 7 7 / 0.03) !important; }
+  .hdr[data-theme="light"]:not(.open) .hdr-sound:hover,
+  .hdr[data-theme="light"]:not(.open) .hdr-bag:hover { background: rgb(7 7 7 / 0.07) !important; border-color: rgb(7 7 7 / 0.3) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hdr-sound, .hdr .hdr-voice, .hdr-bag { transition: none !important; }
+}
+
+/* ═══════════ floating call button: small and out of the way ═══════════
+   Just the gold phone button with a live dot; the "Call concierge" label
+   slides out beside it on hover or keyboard focus. */
+.voice-call-floating {
+  bottom: 1.5rem !important;
+  right: 1.5rem !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.voice-call-floating:hover { transform: none; box-shadow: none; }
+.voice-call-floating:focus-visible { outline: none; }
+.voice-call-float-btn {
+  width: 3.25rem;
+  height: 3.25rem;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(201 147 85 / 0.55);
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms ease;
+}
+.voice-call-float-btn svg { width: 18px; height: 18px; }
+.voice-call-float-btn::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px #1a140f;
+}
+.voice-call-floating:hover .voice-call-float-btn,
+.voice-call-floating:focus-visible .voice-call-float-btn { transform: scale(1.07); box-shadow: 0 14px 34px rgb(0 0 0 / 0.5), 0 0 0 2px rgb(201 147 85 / 0.8); }
+.voice-call-float-text {
+  position: absolute;
+  right: calc(100% + 0.6rem);
+  top: 50%;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9999px;
+  background: rgb(18 14 11 / 0.94);
+  border: 1px solid rgb(201 147 85 / 0.5);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(8px, -50%);
+  transition: opacity 200ms ease, transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.voice-call-float-text .hdr-voice-dot,
+.voice-call-float-sub { display: none; }
+.voice-call-floating:hover .voice-call-float-text,
+.voice-call-floating:focus-visible .voice-call-float-text { opacity: 1; transform: translate(0, -50%); }
+@media (max-width: 639.98px) {
+  .voice-call-floating { bottom: 1rem !important; right: 1rem !important; }
+  .voice-call-float-btn { width: 2.9rem; height: 2.9rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-call-float-btn, .voice-call-float-text { transition: none; }
+  .voice-call-float-btn::after { animation: none; }
+}
+
+/* ═══════════ preloader: the cup, centred, filling as the page loads ═══════════ */
+.pre { display: grid; place-items: center; }
+/* The warm-up layer (fonts and shaders rendered once, off stage) sits under
+   this backdrop, so it still paints but never shows as specks in the corner. */
+.pre::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -5;
+  background: radial-gradient(55% 50% at 50% 44%, rgb(120 68 30 / 0.42), transparent 70%), radial-gradient(40% 35% at 50% 100%, rgb(80 45 20 / 0.3), transparent 70%), var(--background);
+}
+.pre-center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+.pre .pre-cup { position: static; height: min(36vh, 19rem); max-height: none; width: auto; color: rgb(244 242 236 / 0.92); filter: drop-shadow(0 18px 40px rgb(0 0 0 / 0.5)); }
+.pre .pre-mark { position: static; height: 1.55rem; width: 7.32rem; margin-top: 0.25rem; }
+.pre-meter { display: flex; align-items: baseline; justify-content: space-between; gap: 1.5rem; width: min(19rem, 72vw); font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgb(244 242 236 / 0.55); }
+.pre-step::before { content: "// "; color: var(--accent); }
+.pre .pre-count { margin: 0; font-family: var(--font-space-mono); font-weight: 400; font-size: 0.6875rem; line-height: 1; letter-spacing: 0.14em; color: var(--accent); }
+.pre .pre-count::after { content: "%"; }
+.pre-track { width: min(19rem, 72vw); height: 2px; border-radius: 2px; background: rgb(244 242 236 / 0.12); overflow: hidden; margin-top: -0.75rem; }
+#pre-bar { display: block; height: 100%; background: linear-gradient(90deg, #c99355, #e8b475); transform-origin: left center; transform: scaleX(0); box-shadow: 0 0 12px rgb(232 180 117 / 0.6); }
+#pre-crema { transition: opacity 300ms ease; }
+.pre-steam path { opacity: 0; transform-box: fill-box; transform-origin: center bottom; animation: preSteam 2.6s ease-in-out infinite; }
+.pre-steam path:nth-child(2) { animation-delay: 0.7s; }
+.pre-steam path:nth-child(3) { animation-delay: 1.4s; }
+@keyframes preSteam {
+  0% { opacity: 0; transform: translateY(8px) scaleY(0.7); }
+  35% { opacity: 0.55; }
+  100% { opacity: 0; transform: translateY(-10px) scaleY(1.1); }
+}
+.pre-foot { position: absolute; left: 0; right: 0; bottom: 1.5rem; text-align: center; font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.22em; text-transform: uppercase; color: rgb(244 242 236 / 0.35); }
+@media (min-width: 640px) { .pre-foot { bottom: 2.5rem; } }
+/* Nothing floats over the loader: the call button waits until the page is in. */
+body:has(#pre) .voice-call-floating { display: none !important; }

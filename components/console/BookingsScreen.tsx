@@ -41,13 +41,13 @@ function CallCard({ c, now, open, onToggle }: { c: CallLog; now: number; open: b
     if (open && c.live) tail.current?.scrollTo({ top: tail.current.scrollHeight });
   }, [open, c.live, turns]);
   return (
-    <article className={`cx-card cx-call${c.live ? ' live' : ''}`}>
-      <button type="button" className="cx-call-head" onClick={onToggle} aria-expanded={open}>
+    <article className={`cx-card cx-aicall${c.live ? ' live' : ''}`}>
+      <button type="button" className="cx-aicall-head" onClick={onToggle} aria-expanded={open}>
         <span className="cx-row" style={{ gap: 8, flexWrap: 'wrap' }}>
           {c.live ? <span className="cx-pill ready">On the line</span> : <span className="cx-pill plain">Ended</span>}
           <b>{c.agent}</b>
           <span className="cx-small cx-muted">
-            {mmss(Math.max(0, end - c.startedAt))} · {c.langs.map((l) => (l === 'ur' ? 'اردو' : 'EN')).join(' / ')} · {ago(c.startedAt, now)}
+            {mmss(Math.max(0, end - c.startedAt))} · <bdi>{c.langs.map((l) => (l === 'ur' ? 'اردو' : 'EN')).join(' / ')}</bdi> · {ago(c.startedAt, now)}
           </span>
         </span>
         <span className="cx-row" style={{ gap: 6, flexWrap: 'wrap' }}>
