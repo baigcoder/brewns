@@ -1,4 +1,4 @@
-/* The voice concierge: what Sarah / George hear, think and say.
+/* The voice concierge: what Sarah / Hamza hear, think and say.
 
    Two brains behind one call:
    - Claude, when ANTHROPIC_API_KEY is set. A real conversation: it listens,
@@ -14,7 +14,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { randomBytes } from 'node:crypto';
 import { kv, withLock } from './store';
-import { CATALOG, CLOSE_MIN, LOC_TITLES, OPEN_MIN, SHOP_COUNT, catalogItem, defaultSel, money, pkMobile, unitPrice, validSel, type Product, type Sel } from '@/lib/catalog';
+import { CATALOG, CLOSE_MIN, DELIVERY, LOC_TITLES, OPEN_MIN, SHOP_COUNT, catalogItem, defaultSel, money, pkMobile, unitPrice, validSel, type Product, type Sel } from '@/lib/catalog';
 import type { Reservation } from '@/app/api/reservations/route';
 
 export type VoiceGender = 'female' | 'male';
@@ -69,7 +69,7 @@ export interface VoiceCallResponse {
   brain: 'claude' | 'script';
 }
 
-export const agentName = (g: VoiceGender) => (g === 'male' ? 'George' : 'Sarah');
+export const agentName = (g: VoiceGender) => (g === 'male' ? 'Hamza' : 'Sarah');
 
 /* ═══════════ voice ═══════════ */
 
@@ -197,6 +197,8 @@ const spokenDate = (iso: string) => {
 const spokenCode = (code: string) => code.split('-').map((part) => part.split('').join(' ')).join(', ');
 /** "CRISPY ZINGER BURGER" → "Crispy Zinger Burger", so the voice doesn't shout it. */
 const titleCase = (t: string) => t.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, sp, ch) => sp + ch.toUpperCase());
+/** "DHA PHASE 1–6" → "DHA Phase 1 to 6" */
+const spokenArea = (a: string) => titleCase(a).replace(/\bDha\b/g, 'DHA').replace(/\s*–\s*/g, ' to ');
 const withArticle = (t: string) => `${/^[aeiou]/i.test(t) ? 'an' : 'a'} ${t}`;
 
 export function parseShop(text: string): number {
@@ -336,7 +338,8 @@ const MENU_TEXT = CATALOG.filter((p) => !p.gift)
       .filter((o) => o.key !== 'plan')
       .map((o) => `${o.key}: ${o.choices.map(([l, d]) => (d ? `${l.toLowerCase()} +${d}` : l.toLowerCase())).join(' / ')}`)
       .join('; ');
-    return `- ${p.id} | ${p.name} | Rs ${p.price}${opts ? ` | ${opts}` : ''}`;
+    const about = [p.meta, p.notes?.length ? `notes ${p.notes.join(', ')}` : '', p.desc].filter(Boolean).join('. ').toLowerCase();
+    return `- ${p.id} | ${p.name} | Rs ${p.price}${opts ? ` | ${opts}` : ''}${about ? `\n  ${about}` : ''}`;
   })
   .join('\n');
 
@@ -362,12 +365,14 @@ Booking rules:
 - Before calling a booking tool, read the key details back in one sentence and get a clear yes. Then call the tool.
 - After a booking succeeds, give the confirmation code slowly (the tool result has a spoken form) and ask if there's anything else.
 - If a tool returns an error, explain it simply and ask for what's needed. Never invent a code or say something is booked unless the tool succeeded.
-- Never invent menu items or prices; use only the menu below, and pass the exact ids to add_to_bag. Mention the price total after adding.
+- Never invent menu items, prices, origins, roast days or tasting notes; describe things only from the menu below, and pass the exact ids to add_to_bag. If they ask for something we don't make (a flat white, a Spanish latte), say so kindly and suggest the closest thing we do.
+- Only add to the bag when the caller asks for it ("I'll have", "add", "order", "get me"). A question like "tell me about your coffee" is not an order: answer it, then ask if they'd like one.
+- Mention the price total after adding. If they want delivery and name an area, give that area's fee and time from the facts below.
 - When the caller says goodbye or is clearly done, say a short friendly goodbye and call end_call.
 
 brewns facts:
 - Counters (shop number for tools): 0 = MM Alam Road, Gulberg III (flagship); 1 = CCA, DHA Phase 5; 2 = Main Boulevard, Johar Town. All open every day, 7 AM to 9 PM.
-- Delivery across Gulberg, Model Town, Garden Town, DHA Phase 1 to 8, Johar Town and WAPDA Town. Fee Rs 150 to 300, free over Rs 3,000, minimum order Rs 1,000, about 30 to 45 minutes.
+- Delivery (area: fee, minutes): ${DELIVERY.areas.map(([a, , fee, min]) => `${spokenArea(a)}: Rs ${fee}, ${min} min`).join('; ')}. Free over Rs ${DELIVERY.freeOver.toLocaleString('en-US')}, minimum order Rs ${DELIVERY.min.toLocaleString('en-US')}.
 - Tax: 16% on cash, 5% on card or JazzCash / Easypaisa.
 - House coffee is Slow Roast, Colombian and Ethiopian beans, roasted weekly. Every shot 92°C for 27 seconds.
 - brewns Club: a stamp for every drink (two before 9 AM), a free drink every ten, and a birthday drink.
@@ -651,7 +656,37 @@ const WORDS: [RegExp, string, boolean?][] = [
 ];
 const NUMS: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, do: 2, teen: 3 };
 
+/** "DHA Phase 5" → the matching delivery area, or null. */
+function deliveryArea(p: string) {
+  const want = /\bdha\b.*\b(7|8|seven|eight)\b/.test(p) ? 'DHA PHASE 7–8' : /\b(dha|defence|defense)\b/.test(p) ? 'DHA PHASE 1–6' : /model town/.test(p) ? 'MODEL TOWN' : /garden town/.test(p) ? 'GARDEN TOWN' : /wapda/.test(p) ? 'WAPDA TOWN' : /johar/.test(p) ? 'JOHAR TOWN' : /gulberg|mm alam/.test(p) ? 'GULBERG' : '';
+  return DELIVERY.areas.find(([a]) => a === want) || null;
+}
+
+const menuNames = (cat: string, n = 4) => CATALOG.filter((x) => x.cat === cat).slice(0, n).map((x) => titleCase(x.name));
+const sayList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0] || '');
+
+/** A spoken description of one dish or drink, straight from the catalog. */
+function describe(id: string) {
+  const p = catalogItem(id)!;
+  const first = (p.desc || '').split(/(?<=\.)\s/)[0];
+  const notes = p.notes?.length ? ` It tastes ${sayList(p.notes.map((n) => n.toLowerCase()))}.` : '';
+  return `The ${titleCase(p.name)} is ${money(p.price)}. ${first}${notes}`;
+}
+
+const COFFEE_TALK = () => {
+  const house = catalogItem('slow-roast')!;
+  const so = catalogItem('single-origin')!;
+  return `Coffee's our thing! Everything starts with Slow Roast, our house roast, with notes of ${sayList((house.notes || []).map((n) => n.toLowerCase()))}. We also have a single origin ${titleCase(so.name)}, bright with ${sayList((so.notes || []).map((n) => n.toLowerCase()))}. At the bar there's ${sayList(menuNames('drinks', 6).map((n) => n.toLowerCase()))}. Do you like it strong, milky, or cold?`;
+};
+
 async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptState): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
+  const r = await scriptAnswer(prompt, gender, state);
+  // Answer a salam in kind, whatever else was asked in the same breath.
+  if (/\b(a?s+alam|salaam|aoa)\b/i.test(prompt) && !/alaikum assalam/i.test(r.reply)) r.reply = `Wa alaikum assalam! ${r.reply.replace(/^(Hi there!|Sure!|Happy to!)\s*/, '')}`;
+  return r;
+}
+
+async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptState): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
   const raw = prompt.trim();
   const p = raw.toLowerCase();
   const name = agentName(gender);
@@ -690,18 +725,40 @@ async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptStat
     found.set(id, (found.get(id) || 0) + (q ? Number(q) || NUMS[q] : 1));
     rest = rest.slice(0, m.index) + ' '.repeat(m[0].length) + rest.slice(m.index + m[0].length);
   }
+  // A question about a dish is not an order: describe it, and let them decide.
+  const asking = /\b(tell me|about|what('s| is| are|s)|how much|price|cost|describe|difference|recommend|suggest|kya hai|kaisa|taste|like)\b|\?$/.test(p);
+  const ordering = /\b(order|add|get me|can i (get|have)|i('ll| will)? ?(have|take)|i want|i'd like|give me|send|deliver|bhej|chahiye|please)\b/.test(p);
+  if (asking && !ordering) {
+    if (found.size) return { reply: `${sayList([...found.keys()].slice(0, 2).map(describe))} Would you like me to add it?`, actions: [], state: {} };
+    if (/coffee|beans|roast|espresso|brew/.test(p)) return { reply: COFFEE_TALK(), actions: [], state: {} };
+  }
+
   if (found.size) {
     const r = checkBag([...found].map(([id, qty]) => ({ id, qty })));
     if (r.ok) {
       const said = r.value.items.map((l) => (l.qty > 1 ? `${l.qty} ${titleCase(l.name)}s` : withArticle(titleCase(l.name)))).join(' and ');
+      const area = /deliver|delivery|send|bhej|home/.test(p) ? deliveryArea(p) : null;
+      const fee = area ? (r.value.total >= DELIVERY.freeOver ? 0 : area[2]) : 0;
+      const how = area
+        ? `Delivery to ${spokenArea(area[0])} is ${fee ? money(fee) : 'free on this order'} and takes about ${area[3]} minutes${r.value.total < DELIVERY.min ? `, with a ${money(DELIVERY.min)} minimum` : ''}; just pick delivery at checkout.`
+        : /deliver|delivery/.test(p)
+          ? 'Pick delivery at checkout and add your address. Which area are you in?'
+          : 'You can choose pickup or delivery at checkout.';
       return {
-        reply: `Sure! I've put ${said} in your bag, that's ${money(r.value.total)}. You can choose pickup or delivery at checkout. Anything else?`,
+        reply: `Sure! I've put ${said} in your bag, that's ${money(r.value.total)}. ${how} Anything else?`,
         actions: [{ type: 'ADD_TO_BAG', data: r.value }],
         state: {},
       };
     }
   }
-  if (/order|deliver|hungry|menu|eat|drink|coffee/.test(p))
+  if (/menu|what (do you have|is available|you have)|available|serve/.test(p))
+    return {
+      reply: `Happy to! From the bar there's ${sayList(menuNames('drinks', 4).map((n) => n.toLowerCase()))}. The kitchen does smash burgers, wood-fired pizza, pasta and paratha rolls, and there's fresh ${sayList(menuNames('bakery', 2).map((n) => n.toLowerCase()))}. Are you in the mood for coffee, a meal, or something sweet?`,
+      actions: [],
+      state: {},
+    };
+  if (/coffee|beans|roast/.test(p)) return { reply: COFFEE_TALK(), actions: [], state: {} };
+  if (/order|deliver|hungry|eat|drink/.test(p))
     return { reply: 'Happy to! We have smash burgers, wood-fired pizza, pasta, paratha rolls, coffee and pastries. What are you in the mood for?', actions: [], state: {} };
   if (/hour|open|close|timing|time/.test(p))
     return { reply: "All three counters are open every day from 7 in the morning to 9 at night. Would you like to book a table?", actions: [], state: {} };
@@ -711,8 +768,7 @@ async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptStat
     return { reply: 'brewns was started by Hassan Baig, a software engineer from Lahore who wanted great coffee without the queue. He even built this website himself!', actions: [], state: {} };
   if (/hania|ambassador/.test(p))
     return { reply: "Hania Aamir is our brand ambassador! Her usual is an iced matcha latte with a cinnamon roll. Want me to add that for you?", actions: [], state: {} };
-  if (/\b(hi|hello|hey|salam|assalam)\b/.test(p) || !p)
-    return { reply: `${/salam|assalam/.test(p) ? 'Wa alaikum assalam!' : 'Hi there!'} This is ${name} at brewns. How can I help?`, actions: [], state: {} };
+  if (/\b(hi|hello|hey|a?s+alam|salaam|aoa)\b/.test(p) || !p) return { reply: `Hi there! This is ${name} at brewns. How can I help?`, actions: [], state: {} };
   return { reply: "I can book you a table, set up a party, or put an order in your bag. Which would you like?", actions: [], state: {} };
 }
 
