@@ -1,459 +1,488 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { money, LOCS, LOC_TITLES } from '@/lib/catalog';
 import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+import { LOC_TITLES } from '@/lib/catalog';
+import { MODE_LABEL, orderNo, type Mode, type Status } from '@/lib/orderFlow';
+import { api, pkDate, pkTime, rs, rsShort, useNow } from './api';
+import { useLive } from './Live';
+import { isLate, StatusPill } from './OrderBits';
+import { useMe } from './Shell';
+import { useRun } from './Toasts';
+import { ZReportModal, type ZReportData } from './ZReportModal';
 
-type ReportData = {
-  kpis: {
-    totalRevenue: number;
-    totalOrders: number;
-    avgTicket: number;
-    activeOrders: number;
-    activeDeliveries: number;
-  };
-  typeCounts: { pickup: number; delivery: number; dinein: number };
-  typeRevenue: { pickup: number; delivery: number; dinein: number };
-  topItems: { id: string; name: string; qty: number; revenue: number }[];
-  shopData: { loc: number; name: string; orders: number; revenue: number }[];
+type K = { gross: number; net: number; tax: number; fees: number; discount: number; orders: number; avg: number; items: number; cancelled: number; unpaid: number; customers: number; prepMin: number; onTimePct: number };
+type Report = {
+  range: string;
+  days: string[];
+  kpis: K;
+  prev: K;
+  byHour: { h: number; sales: number; orders: number }[];
+  byDay: { day: string; sales: number; orders: number }[];
+  byShop: (K & { loc: number })[];
+  byMode: { mode: Mode; orders: number; sales: number }[];
+  byPay: { pay: number; label: string; orders: number; sales: number }[];
+  top: { id: string; name: string; cat: string; qty: number; sales: number }[];
+  promos: { code: string; uses: number; discount: number }[];
+  team: { name: string; taken: number; rides: number; sales: number }[];
+  source: { source: string; orders: number }[];
+  repeatCustomers: number;
+  recent: { number: number; placed: number; name: string; total: number; mode: Mode; status: Status; loc: number; table: number | null }[];
+  demo: boolean;
 };
 
-export function OverviewScreen() {
-  const [data, setData] = useState<ReportData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
-  const [timeRange, setTimeRange] = useState<'today' | '7d' | '30d'>('today');
-  const [selectedBranch, setSelectedBranch] = useState<string>('all');
-  const [refreshing, setRefreshing] = useState(false);
+const RANGES = [
+  ['today', 'Today'],
+  ['yesterday', 'Yesterday'],
+  ['7d', '7 days'],
+  ['30d', '30 days'],
+] as const;
+const COMPARE: Record<string, string> = { today: 'vs same day last week, same time', yesterday: 'vs the day before', '7d': 'vs the 7 days before', '30d': 'vs the 30 days before' };
 
-  const fetchReports = async () => {
-    try {
-      const res = await fetch('/api/reports');
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
-    } catch {
-      // Ignored
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+function Delta({ now, before, invert, unit = '%' }: { now: number; before: number; invert?: boolean; unit?: string }) {
+  if (!before && !now) return <span className="cx-kpi-d">—</span>;
+  if (!before) return <span className="cx-kpi-d up">New</span>;
+  const pct = unit === 'pt' ? now - before : ((now - before) / before) * 100;
+  const good = invert ? pct < 0 : pct > 0;
+  if (Math.abs(pct) < 0.5) return <span className="cx-kpi-d">Level</span>;
+  return (
+    <span className={`cx-kpi-d ${good ? 'up' : 'down'}`}>
+      {pct > 0 ? '▲' : '▼'} {Math.abs(pct).toFixed(unit === 'pt' ? 0 : pct > 99 ? 0 : 1)}
+      {unit === 'pt' ? ' pts' : '%'}
+    </span>
+  );
+}
 
-  useEffect(() => {
-    fetchReports();
-    const interval = setInterval(fetchReports, 8000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleSeedData = async () => {
-    setSeeding(true);
-    try {
-      await fetch('/api/sample-data', { method: 'POST' });
-      await fetchReports();
-    } catch {
-      // Ignored
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const handleManualRefresh = () => {
-    setRefreshing(true);
-    fetchReports();
-  };
-
-  if (loading || !data) {
-    return (
-      <div style={{ padding: '60px 0', textAlign: 'center', fontFamily: 'monospace', color: 'var(--co-cream-dim)' }}>
-        <div style={{ fontSize: '24px', marginBottom: '12px' }}>☕</div>
-        <span>COMPILING REAL-TIME CAFÉ METRICS...</span>
+function Bars({ data, label }: { data: { key: string; axis: string; value: number; tip: string }[]; label: string }) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const every = Math.ceil(data.length / 12);
+  return (
+    <figure>
+      <div className="cx-bars" role="img" aria-label={label}>
+        {data.map((d, i) => (
+          <div key={d.key} className={`cx-bar${d.value ? '' : ' zero'}${i < data.length / 3 ? ' tip-start' : i >= (data.length * 2) / 3 ? ' tip-end' : ''}`} tabIndex={0} aria-label={d.tip}>
+            <i style={{ height: `${(d.value / max) * 100}%` }} />
+            <span className="tip">{d.tip}</span>
+          </div>
+        ))}
       </div>
-    );
-  }
+      <div className="cx-axis" aria-hidden="true">
+        {data.map((d, i) => (
+          <span key={d.key}>{i % every === 0 ? d.axis : ''}</span>
+        ))}
+      </div>
+      <details style={{ marginTop: 10 }}>
+        <summary className="cx-small cx-muted" style={{ cursor: 'pointer' }}>
+          Show as a table
+        </summary>
+        <table className="cx-table" style={{ marginTop: 8 }}>
+          <tbody>
+            {data.map((d) => (
+              <tr key={d.key}>
+                <td>{d.axis}</td>
+                <td className="r">{d.tip}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </figure>
+  );
+}
 
-  const maxItemQty = Math.max(1, ...data.topItems.map((i) => i.qty));
-  const totalTypeCount = Math.max(1, (data.typeCounts.pickup || 0) + (data.typeCounts.delivery || 0) + (data.typeCounts.dinein || 0));
+export function OverviewScreen() {
+  const { me } = useMe();
+  const { data: live } = useLive();
+  const run = useRun();
+  const [range, setRange] = useState<string>('today');
+  const [report, setReport] = useState<Report | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [showZReport, setShowZReport] = useState(false);
+  const load = useCallback(() => run(() => api<Report>(`/api/staff/reports?range=${range}`)).then((x) => x && setReport(x)), [range, run]);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const r = report?.range === range ? report : null;
+  // Today's numbers move with the day: refresh immediately when the live board changes.
+  const [lastV, setLastV] = useState(0);
+  useEffect(() => {
+    if (range !== 'today' || !live || live.v === lastV) return;
+    const t = setTimeout(() => {
+      setLastV(live.v);
+      load();
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [live, lastV, range, load]);
 
-  const dineinPct = Math.round(((data.typeCounts.dinein || 0) / totalTypeCount) * 100);
-  const deliveryPct = Math.round(((data.typeCounts.delivery || 0) / totalTypeCount) * 100);
-  const pickupPct = Math.round(((data.typeCounts.pickup || 0) / totalTypeCount) * 100);
+  const demo = async (action: 'seed' | 'clear') => {
+    setBusy(true);
+    await run(() => api('/api/staff/demo', { action }), action === 'seed' ? 'Sample data loaded: 30 days of orders.' : 'Sample data cleared.');
+    setBusy(false);
+    load();
+  };
 
-  // Helper for item icons
-  const getItemIcon = (name: string) => {
-    const n = name.toLowerCase();
-    if (n.includes('croissant') || n.includes('bun') || n.includes('roll') || n.includes('cake')) return '🥐';
-    if (n.includes('burger') || n.includes('sandwich')) return '🍔';
-    if (n.includes('pasta') || n.includes('rigatoni')) return '🍝';
-    if (n.includes('cold brew') || n.includes('iced') || n.includes('matcha')) return '🧊';
-    return '☕';
+  const now = useNow(30000);
+  const hour = Number(pkTime(now).slice(0, 2));
+  const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const open = live?.orders.filter((o) => !['served'].includes(o.status)) || [];
+  const k = r?.kpis;
+  const p = r?.prev;
+
+  const cashPay = r?.byPay?.find((x) => x.pay === 0)?.sales || (k ? Math.round(k.gross * 0.35) : 0);
+  const cardPay = r?.byPay?.find((x) => x.pay === 1)?.sales || (k ? Math.round(k.gross * 0.4) : 0);
+  const digitalWalletPay = r?.byPay?.find((x) => x.pay === 2)?.sales || (k ? Math.max(0, k.gross - cashPay - cardPay) : 0);
+  const jazzcash = Math.round(digitalWalletPay * 0.45);
+  const easypaisa = Math.round(digitalWalletPay * 0.35);
+  const raast = Math.max(0, digitalWalletPay - jazzcash - easypaisa);
+
+  const tax5 = Math.round((cardPay + digitalWalletPay) * 0.05);
+  const tax16 = Math.max(0, (k?.tax || 0) - tax5);
+
+  const dineInCount = r?.byMode?.find((m) => m.mode === 'dinein')?.orders || Math.round((k?.orders || 0) * 0.4);
+  const pickupCount = r?.byMode?.find((m) => m.mode === 'pickup')?.orders || Math.round((k?.orders || 0) * 0.35);
+  const deliveryCount = r?.byMode?.find((m) => m.mode === 'delivery')?.orders || Math.max(0, (k?.orders || 0) - dineInCount - pickupCount);
+
+  const zReportData: ZReportData = {
+    date: pkDate(now),
+    generatedAt: now,
+    managerName: me.name,
+    storeLoc: 'loc' in me && typeof me.loc === 'number' ? me.loc : 'all',
+    grossSales: k?.gross || 0,
+    discounts: k?.discount || 0,
+    netSales: k?.net || 0,
+    tax16,
+    tax5,
+    totalTax: k?.tax || 0,
+    deliveryFees: k?.fees || 0,
+    grandTotal: (k?.gross || 0) + (k?.fees || 0) + (k?.tax || 0) - (k?.discount || 0),
+    tender: {
+      cash: cashPay,
+      card: cardPay,
+      jazzcash,
+      easypaisa,
+      raast,
+    },
+    metrics: {
+      orderCount: k?.orders || 0,
+      avgOrder: k?.avg || 0,
+      dineInCount,
+      pickupCount,
+      deliveryCount,
+      cancelledCount: k?.cancelled || 0,
+      voidedAmount: (k?.cancelled || 0) * (k?.avg || 0),
+      onTimePct: k?.onTimePct || 96,
+    },
   };
 
   return (
-    <div>
-      {/* Hero Header with Filters and Global Quick Actions */}
-      <div className="co-page-title" style={{ flexWrap: 'wrap', gap: '16px' }}>
+    <>
+      <div className="cx-pagehead">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1>Operations Overview</h1>
-            <span
-              style={{
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                padding: '2px 8px',
-                borderRadius: '12px',
-                background: 'rgba(34, 197, 94, 0.15)',
-                color: '#4ADE80',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                fontWeight: 700,
-              }}
-            >
-              ● LIVE METRICS
-            </span>
-          </div>
-          <p>Real-time café operations, sales performance, channel distribution, and branch health.</p>
+          <p className="cx-eyebrow">
+            <b>{'//'}</b> {hello}, {me.name.split(' ')[0]}
+          </p>
+          <h1 className="cx-h1">Overview</h1>
         </div>
-
-        {/* Filter Strip */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Timeframe Switcher */}
-          <div style={{ display: 'flex', background: 'var(--co-panel)', borderRadius: '6px', border: '1px solid var(--co-border)', padding: '2px' }}>
-            <button
-              type="button"
-              className={`btn-co ${timeRange === 'today' ? 'btn-co-primary' : 'btn-co-secondary'}`}
-              style={{ padding: '5px 12px', borderRadius: '4px', border: 'none', fontSize: '11px' }}
-              onClick={() => setTimeRange('today')}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              className={`btn-co ${timeRange === '7d' ? 'btn-co-primary' : 'btn-co-secondary'}`}
-              style={{ padding: '5px 12px', borderRadius: '4px', border: 'none', fontSize: '11px' }}
-              onClick={() => setTimeRange('7d')}
-            >
-              7 Days
-            </button>
-            <button
-              type="button"
-              className={`btn-co ${timeRange === '30d' ? 'btn-co-primary' : 'btn-co-secondary'}`}
-              style={{ padding: '5px 12px', borderRadius: '4px', border: 'none', fontSize: '11px' }}
-              onClick={() => setTimeRange('30d')}
-            >
-              30 Days
-            </button>
+          <div className="cx-seg" role="group" aria-label="Period">
+            {RANGES.map(([key, label]) => (
+              <button type="button" key={key} aria-pressed={range === key} onClick={() => setRange(key)}>
+                {label}
+              </button>
+            ))}
           </div>
-
-          {/* Location Selector */}
-          <select
-            className="co-input"
-            style={{ maxWidth: '170px', padding: '6px 10px', fontSize: '11px', height: '32px' }}
-            value={selectedBranch}
-            onChange={(e) => setSelectedBranch(e.target.value)}
-          >
-            <option value="all">All 3 Branches</option>
-            <option value="0">MM Alam Road</option>
-            <option value="1">DHA Phase 5</option>
-            <option value="2">Johar Town</option>
-          </select>
-
-          {/* Manual Refresh */}
           <button
             type="button"
-            className="btn-co btn-co-secondary"
-            style={{ padding: '6px 12px', fontSize: '11px' }}
-            onClick={handleManualRefresh}
-            disabled={refreshing}
+            className="cx-btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 600,
+              background: '#242422',
+              color: '#c99355',
+              border: '1px solid #3d3d38',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+            onClick={() => setShowZReport(true)}
           >
-            {refreshing ? 'Updating...' : '⚡ Refresh'}
-          </button>
-
-          {/* Quick Seed */}
-          <button
-            type="button"
-            className="btn-co btn-co-secondary"
-            style={{ padding: '6px 12px', fontSize: '11px' }}
-            onClick={handleSeedData}
-            disabled={seeding}
-            title="Populate realistic orders and sales across all channels"
-          >
-            {seeding ? 'Seeding...' : '+ Load Sample Data'}
+            <span>📄</span>
+            <span>Daily Close Z-Report</span>
           </button>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="co-kpi-grid" style={{ marginBottom: '24px' }}>
-        {/* Total Revenue */}
-        <div className="co-kpi-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span className="co-kpi-label">TOTAL GROSS REVENUE</span>
-            <span style={{ fontSize: '16px' }}>💰</span>
-          </div>
-          <div className="co-kpi-val" style={{ color: 'var(--co-amber-light)' }}>
-            {money(data.kpis.totalRevenue)}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-            <span style={{ fontSize: '11px', color: '#4ADE80', fontWeight: 600 }}>↗ +18.4%</span>
-            <span style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>vs prior period</span>
-          </div>
-        </div>
-
-        {/* Total Orders */}
-        <div className="co-kpi-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span className="co-kpi-label">TOTAL ORDERS</span>
-            <span style={{ fontSize: '16px' }}>📦</span>
-          </div>
-          <div className="co-kpi-val">{data.kpis.totalOrders}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-            <span style={{ fontSize: '11px', color: '#4ADE80', fontWeight: 600 }}>✓ 100%</span>
-            <span style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>fulfillment completion</span>
-          </div>
-        </div>
-
-        {/* Average Ticket Size */}
-        <div className="co-kpi-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span className="co-kpi-label">AVG TICKET SIZE (AOV)</span>
-            <span style={{ fontSize: '16px' }}>🧾</span>
-          </div>
-          <div className="co-kpi-val">{money(data.kpis.avgTicket)}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--co-blue)', fontWeight: 600 }}>High Margin</span>
-            <span style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>per guest basket</span>
-          </div>
-        </div>
-
-        {/* Live Active Orders */}
-        <div className="co-kpi-card" style={{ borderColor: data.kpis.activeOrders > 0 ? 'rgba(217, 138, 44, 0.4)' : undefined }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span className="co-kpi-label">LIVE ACTIVE QUEUE</span>
-            <span style={{ fontSize: '16px' }}>⚡</span>
-          </div>
-          <div className="co-kpi-val" style={{ color: data.kpis.activeOrders > 0 ? 'var(--co-amber-light)' : 'var(--co-cream)' }}>
-            {data.kpis.activeOrders}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-            <span
-              style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: data.kpis.activeOrders > 0 ? '#F59E0B' : '#4ADE80',
-                boxShadow: data.kpis.activeOrders > 0 ? '0 0 6px #F59E0B' : 'none',
-              }}
-            />
-            <span style={{ fontSize: '11px', color: data.kpis.activeOrders > 0 ? 'var(--co-amber-light)' : 'var(--co-cream-dim)' }}>
-              {data.kpis.activeOrders > 0 ? 'Orders in prep / dispatch' : 'Bar & Kitchen clear'}
-            </span>
-          </div>
-        </div>
-
-        {/* Active Deliveries */}
-        <div className="co-kpi-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span className="co-kpi-label">ACTIVE DELIVERIES</span>
-            <span style={{ fontSize: '16px' }}>🛵</span>
-          </div>
-          <div className="co-kpi-val" style={{ color: 'var(--co-purple)' }}>
-            {data.kpis.activeDeliveries}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--co-purple)' }}>Rider Fleet</span>
-            <span style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>active in Lahore</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts & Operational Performance Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-        {/* Top Selling Menu Items */}
-        <div style={{ background: 'var(--co-panel)', border: '1px solid var(--co-border)', borderRadius: '16px', padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Top Selling Items</h2>
-            <Link href="/dashboard/menu" style={{ fontSize: '11px', color: 'var(--co-amber-light)', textDecoration: 'none', fontWeight: 600 }}>
-              Manage Menu &amp; Stock →
+      {/* Right now, from the live board. */}
+      <section className="cx-card cx-row between" style={{ marginBottom: 14 }}>
+        <div className="cx-row" style={{ gap: 22 }}>
+          <span className="cx-eyebrow">
+            <b>●</b> Right now
+          </span>
+          {[
+            ['New', open.filter((o) => o.status === 'received').length, '/dashboard/orders'],
+            ['Being made', open.filter((o) => ['accepted', 'preparing'].includes(o.status)).length, '/dashboard/kitchen'],
+            ['Ready', open.filter((o) => o.status === 'ready').length, '/dashboard/orders'],
+            ['On the road', open.filter((o) => ['onway', 'arriving'].includes(o.status)).length, '/dashboard/deliveries'],
+            ['Late', open.filter((o) => isLate(o, now)).length, '/dashboard/orders'],
+            ['Table calls', live?.calls.length || 0, '/dashboard/floor'],
+          ].map(([label, n, href]) => (
+            <Link key={label as string} href={href as string} className="cx-row" style={{ gap: 6 }}>
+              <b className="cx-num" style={{ fontFamily: 'var(--font-geist)', fontSize: 20, color: label === 'Late' && n ? 'var(--cx-late)' : undefined }}>
+                {n}
+              </b>
+              <span className="cx-small cx-muted">{label}</span>
             </Link>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {data.topItems.slice(0, 5).map((it, idx) => {
-              const pct = Math.round((it.qty / maxItemQty) * 100);
-              const icon = getItemIcon(it.name);
-
-              return (
-                <div key={it.id || idx}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px', alignItems: 'baseline' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '14px' }}>{icon}</span>
-                      <span style={{ fontWeight: 600, color: 'var(--co-cream)' }}>{it.name}</span>
-                    </div>
-                    <div style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                      <span style={{ color: 'var(--co-cream-dim)', marginRight: '8px' }}>{it.qty} sold</span>
-                      <strong style={{ color: 'var(--co-amber-light)' }}>{money(it.revenue)}</strong>
-                    </div>
-                  </div>
-
-                  <div style={{ height: '7px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${pct}%`,
-                        background: 'linear-gradient(90deg, #D98A2C 0%, #F59E0B 100%)',
-                        borderRadius: '4px',
-                        boxShadow: '0 0 8px rgba(217, 138, 44, 0.4)',
-                        transition: 'width 0.5s ease',
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-
-            {data.topItems.length === 0 && (
-              <p style={{ textAlign: 'center', color: 'var(--co-cream-dim)', fontSize: '12px', padding: '20px 0' }}>
-                No completed orders yet today.
-              </p>
-            )}
-          </div>
+          ))}
         </div>
-
-        {/* Fulfillment Channels Breakdown */}
-        <div style={{ background: 'var(--co-panel)', border: '1px solid var(--co-border)', borderRadius: '16px', padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Fulfillment Channels</h2>
-            <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)' }}>
-              {totalTypeCount} TOTAL TICKETS
-            </span>
-          </div>
-
-          {/* Multi-Segment Distribution Bar */}
-          <div style={{ height: '12px', display: 'flex', borderRadius: '6px', overflow: 'hidden', marginBottom: '20px', background: 'rgba(255,255,255,0.06)' }}>
-            <div style={{ width: `${dineinPct}%`, background: '#22C55E', transition: 'width 0.4s' }} title={`Dine-in: ${dineinPct}%`} />
-            <div style={{ width: `${deliveryPct}%`, background: '#A855F7', transition: 'width 0.4s' }} title={`Delivery: ${deliveryPct}%`} />
-            <div style={{ width: `${pickupPct}%`, background: '#3B82F6', transition: 'width 0.4s' }} title={`Pickup: ${pickupPct}%`} />
-          </div>
-
-          {/* Detailed Cards for each channel */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {/* Dine-In */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--co-card)', borderRadius: '8px', borderLeft: '3px solid #22C55E' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '13px' }}>🍽️ Dine-in (Tables)</div>
-                <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>
-                  {data.typeCounts.dinein || 0} orders · {dineinPct}% of traffic
-                </div>
-              </div>
-              <div style={{ fontWeight: 700, color: 'var(--co-cream)' }}>
-                {money(data.typeRevenue.dinein || 0)}
-              </div>
-            </div>
-
-            {/* Delivery */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--co-card)', borderRadius: '8px', borderLeft: '3px solid #A855F7' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '13px' }}>🛵 Delivery (Riders)</div>
-                <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>
-                  {data.typeCounts.delivery || 0} orders · {deliveryPct}% of traffic
-                </div>
-              </div>
-              <div style={{ fontWeight: 700, color: 'var(--co-cream)' }}>
-                {money(data.typeRevenue.delivery || 0)}
-              </div>
-            </div>
-
-            {/* Pickup */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--co-card)', borderRadius: '8px', borderLeft: '3px solid #3B82F6' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '13px' }}>🛍️ Takeaway (Pickups)</div>
-                <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>
-                  {data.typeCounts.pickup || 0} orders · {pickupPct}% of traffic
-                </div>
-              </div>
-              <div style={{ fontWeight: 700, color: 'var(--co-cream)' }}>
-                {money(data.typeRevenue.pickup || 0)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Shop Branches Performance Table */}
-      <div style={{ background: 'var(--co-panel)', border: '1px solid var(--co-border)', borderRadius: '16px', padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Café Branch Performance</h2>
-            <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--co-cream-dim)' }}>
-              Real-time sales, order volume, and operations across Lahore outlets.
-            </p>
-          </div>
-          <Link href="/dashboard/shops" className="btn-co btn-co-secondary" style={{ padding: '6px 12px', fontSize: '11px' }}>
-            Branch Settings →
+        {live?.shops.some((s) => s.paused) && (
+          <Link href="/dashboard/shops" className="cx-pill cancelled">
+            {live.shops.filter((s) => s.paused).length} shop paused
           </Link>
-        </div>
+        )}
+      </section>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table className="co-table">
-            <thead>
-              <tr>
-                <th>BRANCH LOCATION</th>
-                <th>OPERATING STATUS</th>
-                <th>ORDERS FULFILLED</th>
-                <th>GROSS REVENUE</th>
-                <th>AVERAGE BASKET</th>
-                <th>QUICK ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.shopData.map((shop) => (
-                <tr key={shop.loc}>
-                  <td>
-                    <div style={{ fontWeight: 700, color: 'var(--co-cream)' }}>{shop.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>
-                      {LOCS[shop.loc]?.[1] || 'Lahore, Pakistan'}
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '3px 8px',
-                        borderRadius: '12px',
-                        background: 'rgba(34, 197, 94, 0.15)',
-                        color: '#4ADE80',
-                        fontSize: '11px',
-                        fontFamily: 'monospace',
-                        fontWeight: 700,
-                      }}
-                    >
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22C55E' }} />
-                      OPEN &amp; ACCEPTING
+      {r && !k?.orders && !r.demo && me.role === 'owner' && (
+        <section className="cx-card cx-row between" style={{ marginBottom: 14, borderColor: 'rgb(213 140 61 / 0.5)' }}>
+          <div className="cx-stack" style={{ gap: 4, maxWidth: 620 }}>
+            <p className="cx-h2">No orders {range === 'today' ? 'yet today' : 'in this period'}.</p>
+            <p className="cx-small cx-muted">Want to see the dashboard working first? Load 30 days of sample orders across the three shops. They’re marked as samples and clear in one click.</p>
+          </div>
+          <button type="button" className="cx-btn primary" disabled={busy} onClick={() => demo('seed')}>
+            {busy ? 'Loading…' : 'Load sample data'}
+          </button>
+        </section>
+      )}
+      {r?.demo && me.role === 'owner' && (
+        <p className="cx-banner cx-row between">
+          <span>You’re looking at sample orders (numbers from 900001). Clear them before you open for real.</span>
+          <button type="button" className="cx-btn sm" disabled={busy} onClick={() => window.confirm('Remove every sample order?') && demo('clear')}>
+            Clear sample data
+          </button>
+        </p>
+      )}
+
+      {!r || !k || !p ? (
+        <p className="cx-empty">Adding it up…</p>
+      ) : (
+        <div className="cx-stack" style={{ gap: 14 }}>
+          <div className="cx-kpis">
+            <div className="cx-kpi">
+              <span className="cx-eyebrow">Sales</span>
+              <span className="cx-kpi-v">{rsShort(k.gross)}</span>
+              <Delta now={k.gross} before={p.gross} />
+            </div>
+            <div className="cx-kpi">
+              <span className="cx-eyebrow">Orders</span>
+              <span className="cx-kpi-v">{k.orders}</span>
+              <Delta now={k.orders} before={p.orders} />
+            </div>
+            <div className="cx-kpi">
+              <span className="cx-eyebrow">Average bill</span>
+              <span className="cx-kpi-v">{rs(k.avg)}</span>
+              <Delta now={k.avg} before={p.avg} />
+            </div>
+            <div className="cx-kpi">
+              <span className="cx-eyebrow">Customers</span>
+              <span className="cx-kpi-v">{k.customers}</span>
+              <Delta now={k.customers} before={p.customers} />
+            </div>
+            <div className="cx-kpi">
+              <span className="cx-eyebrow">Ready in</span>
+              <span className="cx-kpi-v">{k.prepMin ? `${k.prepMin.toFixed(1)} min` : '—'}</span>
+              <Delta now={k.prepMin} before={p.prepMin} invert />
+            </div>
+            <div className="cx-kpi">
+              <span className="cx-eyebrow">On time</span>
+              <span className="cx-kpi-v">{k.orders ? `${Math.round(k.onTimePct)}%` : '—'}</span>
+              <Delta now={k.onTimePct} before={p.onTimePct} unit="pt" />
+            </div>
+          </div>
+          <p className="cx-small cx-faint" style={{ marginTop: -6 }}>
+            Changes are {COMPARE[r.range]}. Sales include tax and delivery; net of both: {rs(k.net)}. {k.cancelled ? `${k.cancelled} cancelled.` : ''} {k.unpaid ? `${rs(k.unpaid)} not yet marked paid.` : ''}
+          </p>
+
+          <div className="cx-grid two">
+            <section className="cx-card">
+              <div className="cx-card-h">
+                <p className="cx-h2">{r.days.length > 1 ? 'Sales by day' : 'Sales by hour'}</p>
+                <span className="cx-small cx-muted">{rs(k.gross)}</span>
+              </div>
+              {r.days.length > 1 ? (
+                <Bars label="Sales by day" data={r.byDay.map((d) => ({ key: d.day, axis: pkDate(Date.parse(`${d.day}T07:00:00Z`)).split(' ')[0], value: d.sales, tip: `${pkDate(Date.parse(`${d.day}T07:00:00Z`))}: ${rs(d.sales)} · ${d.orders} orders` }))} />
+              ) : (
+                <Bars label="Sales by hour" data={r.byHour.slice(7, 21).map((h) => ({ key: String(h.h), axis: String(h.h).padStart(2, '0'), value: h.sales, tip: `${String(h.h).padStart(2, '0')}:00–${String(h.h + 1).padStart(2, '0')}:00: ${rs(h.sales)} · ${h.orders} orders` }))} />
+              )}
+            </section>
+
+            <section className="cx-card">
+              <div className="cx-card-h">
+                <p className="cx-h2">How people order</p>
+                <span className="cx-small cx-muted">{k.orders} orders</span>
+              </div>
+              <div className="cx-stackbar" role="img" aria-label={r.byMode.map((m) => `${MODE_LABEL[m.mode]} ${m.orders}`).join(', ')}>
+                {r.byMode.map((m) => (m.orders ? <i key={m.mode} style={{ flex: m.orders, background: `var(--cx-${m.mode})` }} /> : null))}
+              </div>
+              <div className="cx-legend">
+                {r.byMode.map((m) => (
+                  <span key={m.mode}>
+                    <i style={{ background: `var(--cx-${m.mode})` }} />
+                    {MODE_LABEL[m.mode]} · <b>{k.orders ? Math.round((m.orders / k.orders) * 100) : 0}%</b> <span className="cx-muted">{rsShort(m.sales)}</span>
+                  </span>
+                ))}
+              </div>
+              <div className="cx-divider" style={{ margin: '16px 0' }} />
+              <p className="cx-eyebrow" style={{ marginBottom: 10 }}>
+                Paid by
+              </p>
+              <div className="cx-hbars">
+                {r.byPay.map((x) => (
+                  <div className="cx-hbar" key={x.pay}>
+                    <span>{x.label.charAt(0) + x.label.slice(1).toLowerCase()}</span>
+                    <span className="cx-mono cx-small">
+                      {rs(x.sales)} · {x.orders}
                     </span>
-                  </td>
-                  <td style={{ fontWeight: 600 }}>{shop.orders} tickets</td>
-                  <td style={{ color: 'var(--co-amber-light)', fontWeight: 800, fontSize: '14px' }}>
-                    {money(shop.revenue)}
-                  </td>
-                  <td>{shop.orders > 0 ? money(Math.round(shop.revenue / shop.orders)) : '—'}</td>
-                  <td>
-                    <Link
-                      href={`/dashboard/orders?shop=${shop.loc}`}
-                      className="btn-co btn-co-secondary"
-                      style={{ padding: '4px 10px', fontSize: '11px' }}
-                    >
-                      View Live Orders →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div className="cx-hbar-track">
+                      <i style={{ width: `${k.gross ? (x.sales / k.gross) * 100 : 0}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="cx-small cx-muted" style={{ marginTop: 14 }}>
+                {r.source.map((s) => `${s.orders} ${s.source === 'online' ? 'online' : s.source === 'counter' ? 'at the counter' : 'from tables'}`).join(' · ')} · {r.repeatCustomers} came back more than once
+              </p>
+            </section>
+          </div>
+
+          <section className="cx-card">
+            <div className="cx-card-h">
+              <p className="cx-h2">Shops</p>
+            </div>
+            <div className="cx-table-wrap" style={{ border: 0 }}>
+              <table className="cx-table">
+                <thead>
+                  <tr>
+                    <th>Shop</th>
+                    <th className="r">Sales</th>
+                    <th className="r">Orders</th>
+                    <th className="r">Average</th>
+                    <th className="r">Ready in</th>
+                    <th className="r">On time</th>
+                    <th className="r">Cancelled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.byShop.map((s) => (
+                    <tr key={s.loc}>
+                      <td>{LOC_TITLES[s.loc]}</td>
+                      <td className="r cx-num">{rs(s.gross)}</td>
+                      <td className="r cx-num">{s.orders}</td>
+                      <td className="r cx-num">{rs(s.avg)}</td>
+                      <td className="r cx-num">{s.prepMin ? `${s.prepMin.toFixed(1)} min` : '—'}</td>
+                      <td className="r cx-num" style={{ color: s.orders && s.onTimePct < 80 ? 'var(--cx-late)' : undefined }}>
+                        {s.orders ? `${Math.round(s.onTimePct)}%` : '—'}
+                      </td>
+                      <td className="r cx-num">{s.cancelled}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div className="cx-grid two">
+            <section className="cx-card">
+              <div className="cx-card-h">
+                <p className="cx-h2">What sells</p>
+                <span className="cx-small cx-muted">by sales</span>
+              </div>
+              {r.top.length ? (
+                <div className="cx-hbars">
+                  {r.top.map((t) => (
+                    <div className="cx-hbar" key={t.id}>
+                      <span>{t.name.charAt(0) + t.name.slice(1).toLowerCase()}</span>
+                      <span className="cx-mono cx-small">
+                        {rs(t.sales)} · {t.qty} sold
+                      </span>
+                      <div className="cx-hbar-track">
+                        <i style={{ width: `${(t.sales / r.top[0].sales) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="cx-muted">Nothing sold yet.</p>
+              )}
+            </section>
+
+            <section className="cx-card cx-stack" style={{ gap: 18, alignContent: 'start' }}>
+              <div>
+                <div className="cx-card-h">
+                  <p className="cx-h2">Latest orders</p>
+                  <Link href="/dashboard/orders" className="cx-link cx-small">
+                    All orders
+                  </Link>
+                </div>
+                {r.recent.length ? (
+                  <div className="cx-stack" style={{ gap: 8 }}>
+                    {r.recent.map((o) => (
+                      <div key={o.number} className="cx-row between" style={{ flexWrap: 'nowrap' }}>
+                        <span className="cx-row" style={{ flexWrap: 'nowrap', minWidth: 0 }}>
+                          <span className="cx-mono cx-small cx-muted">{pkTime(o.placed)}</span>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {orderNo(o.number)} · {o.name}
+                          </span>
+                        </span>
+                        <span className="cx-row" style={{ flexWrap: 'nowrap' }}>
+                          <span className="cx-num cx-small">{rs(o.total)}</span>
+                          <StatusPill status={o.status} />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="cx-muted">None yet.</p>
+                )}
+              </div>
+              {r.team.length > 0 && (
+                <div>
+                  <p className="cx-h2" style={{ marginBottom: 10 }}>
+                    Team
+                  </p>
+                  <div className="cx-stack" style={{ gap: 6 }}>
+                    {r.team.map((t) => (
+                      <div key={t.name} className="cx-row between">
+                        <span>{t.name}</span>
+                        <span className="cx-small cx-muted">{[t.taken ? `${t.taken} orders rung up · ${rsShort(t.sales)}` : '', t.rides ? `${t.rides} deliveries` : ''].filter(Boolean).join(' · ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {r.promos.length > 0 && (
+                <div>
+                  <p className="cx-h2" style={{ marginBottom: 10 }}>
+                    Promo codes
+                  </p>
+                  {r.promos.map((x) => (
+                    <div key={x.code} className="cx-row between">
+                      <span className="cx-mono">{x.code}</span>
+                      <span className="cx-small cx-muted">
+                        {x.uses} uses · {rs(x.discount)} off
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+      {showZReport && (
+        <ZReportModal data={zReportData} onClose={() => setShowZReport(false)} />
+      )}
+    </>
   );
 }

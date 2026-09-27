@@ -1,243 +1,252 @@
-/* Pure TypeScript byte-mode QR Code SVG generator (Versions 1-6, Low/Medium EC).
-   Produces clean vector SVGs for table ordering QR codes without external dependencies. */
+/* A QR code encoder, small enough to keep in the repo: byte mode, error
+   correction level M, versions 1–10 (up to 213 bytes, far more than a table's
+   link needs), with the standard mask chosen by penalty score. Follows the
+   ISO/IEC 18004 construction; used for the table QR codes on the Shops page.
+   Returns a square of booleans (true = dark), without the quiet zone. */
 
-// Galois Field GF(256) math with primitive polynomial 0x11d (285)
-const EXP: number[] = new Array(512);
-const LOG: number[] = new Array(256);
-let x = 1;
-for (let i = 0; i < 255; i++) {
-  EXP[i] = x;
-  EXP[i + 255] = x;
-  LOG[x] = i;
-  x = (x << 1) ^ (x >= 128 ? 0x11d : 0);
-}
+// Level M: [ecc codewords per block, blocks in group 1, data codewords each, blocks in group 2, data codewords each] for versions 1–10.
+const M_BLOCKS: [number, number, number, number, number][] = [
+  [10, 1, 16, 0, 0],
+  [16, 1, 28, 0, 0],
+  [26, 1, 44, 0, 0],
+  [18, 2, 32, 0, 0],
+  [24, 2, 43, 0, 0],
+  [16, 4, 27, 0, 0],
+  [18, 4, 31, 0, 0],
+  [22, 2, 38, 2, 39],
+  [22, 3, 36, 2, 37],
+  [26, 4, 43, 1, 44],
+];
+const ALIGN: number[][] = [[], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]];
 
-function gfMul(a: number, b: number): number {
-  if (a === 0 || b === 0) return 0;
-  return EXP[LOG[a] + LOG[b]];
-}
-
-function polyMul(p1: number[], p2: number[]): number[] {
-  const result = new Array(p1.length + p2.length - 1).fill(0);
-  for (let i = 0; i < p1.length; i++) {
-    for (let j = 0; j < p2.length; j++) {
-      result[i + j] ^= gfMul(p1[i], p2[j]);
-    }
+/* ── Reed–Solomon over GF(256), polynomial 0x11d ── */
+const EXP = new Uint8Array(512);
+const LOG = new Uint8Array(256);
+{
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    EXP[i] = x;
+    LOG[x] = i;
+    x <<= 1;
+    if (x & 0x100) x ^= 0x11d;
   }
-  return result;
+  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
 }
+const mul = (a: number, b: number) => (a && b ? EXP[LOG[a] + LOG[b]] : 0);
 
-function getGeneratorPoly(degree: number): number[] {
-  let g = [1];
+function rsDivisor(degree: number) {
+  let poly = [1];
   for (let i = 0; i < degree; i++) {
-    g = polyMul(g, [1, EXP[i]]);
-  }
-  return g;
-}
-
-function calculateReedSolomon(data: number[], ecCount: number): number[] {
-  const gen = getGeneratorPoly(ecCount);
-  const msg = [...data, ...new Array(ecCount).fill(0)];
-  for (let i = 0; i < data.length; i++) {
-    const coef = msg[i];
-    if (coef !== 0) {
-      for (let j = 0; j < gen.length; j++) {
-        msg[i + j] ^= gfMul(gen[j], coef);
-      }
+    const next = new Array(poly.length + 1).fill(0);
+    for (let j = 0; j < poly.length; j++) {
+      next[j] ^= poly[j];
+      next[j + 1] ^= mul(poly[j], EXP[i]);
     }
+    poly = next;
   }
-  return msg.slice(data.length);
+  return poly.slice(1);
 }
 
-// Version table capacities (Byte mode, Medium EC): [version, totalBytes, dataBytes, ecBytes, size]
-const VERSIONS = [
-  { version: 1, total: 26, data: 16, ec: 10, size: 21 },
-  { version: 2, total: 44, data: 28, ec: 16, size: 25 },
-  { version: 3, total: 70, data: 44, ec: 26, size: 29 },
-  { version: 4, total: 100, data: 64, ec: 36, size: 33 },
-  { version: 5, total: 134, data: 86, ec: 48, size: 37 },
-  { version: 6, total: 172, data: 108, ec: 64, size: 41 },
+function rsRemainder(data: number[], divisor: number[]) {
+  const out = new Array(divisor.length).fill(0);
+  for (const b of data) {
+    const factor = b ^ out.shift()!;
+    out.push(0);
+    for (let i = 0; i < divisor.length; i++) out[i] ^= mul(divisor[i], factor);
+  }
+  return out;
+}
+
+/* ── format bits: level M is 00, with BCH(15,5) and the fixed mask ── */
+function formatBits(mask: number) {
+  const data = (0b00 << 3) | mask;
+  let rem = data;
+  for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+  return ((data << 10) | rem) ^ 0x5412;
+}
+function versionBits(v: number) {
+  let rem = v;
+  for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1f25);
+  return (v << 12) | rem;
+}
+
+const MASKS: ((x: number, y: number) => boolean)[] = [
+  (x, y) => (x + y) % 2 === 0,
+  (_x, y) => y % 2 === 0,
+  (x) => x % 3 === 0,
+  (x, y) => (x + y) % 3 === 0,
+  (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0,
+  (x, y) => ((x * y) % 2) + ((x * y) % 3) === 0,
+  (x, y) => (((x * y) % 2) + ((x * y) % 3)) % 2 === 0,
+  (x, y) => (((x + y) % 2) + ((x * y) % 3)) % 2 === 0,
 ];
 
-export function generateQrMatrix(text: string): boolean[][] {
-  const bytes = new TextEncoder().encode(text);
-  const v = VERSIONS.find((ver) => ver.data >= bytes.length + 3) || VERSIONS[VERSIONS.length - 1];
-  const size = v.size;
-
-  // Encode data bits: Mode (0100 for Byte) + Character Count + Payload + Terminator
-  const bitBuffer: number[] = [];
-  const pushBits = (val: number, len: number) => {
-    for (let i = len - 1; i >= 0; i--) {
-      bitBuffer.push((val >> i) & 1);
+export function qrMatrix(text: string, forceMask?: number): boolean[][] {
+  const bytes = [...new TextEncoder().encode(text)];
+  // Smallest version that fits: 4 bits mode + 8 (v1–9) or 16 (v10) bits length + data.
+  let version = 0;
+  for (let v = 1; v <= 10; v++) {
+    const [, b1, d1, b2, d2] = M_BLOCKS[v - 1];
+    const capBits = (b1 * d1 + b2 * d2) * 8;
+    if (4 + (v < 10 ? 8 : 16) + bytes.length * 8 <= capBits) {
+      version = v;
+      break;
     }
+  }
+  if (!version) throw new Error('QR: text too long');
+  const [eccLen, b1, d1, b2, d2] = M_BLOCKS[version - 1];
+  const dataCap = b1 * d1 + b2 * d2;
+
+  // Data bits, terminator, padding.
+  const bits: number[] = [];
+  const put = (val: number, len: number) => {
+    for (let i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1);
   };
+  put(0b0100, 4);
+  put(bytes.length, version < 10 ? 8 : 16);
+  bytes.forEach((b) => put(b, 8));
+  put(0, Math.min(4, dataCap * 8 - bits.length));
+  while (bits.length % 8) bits.push(0);
+  const codewords: number[] = [];
+  for (let i = 0; i < bits.length; i += 8) codewords.push(parseInt(bits.slice(i, i + 8).join(''), 2));
+  for (let pad = 0xec; codewords.length < dataCap; pad ^= 0xec ^ 0x11) codewords.push(pad);
 
-  pushBits(0b0100, 4); // Byte mode indicator
-  pushBits(bytes.length, 8); // 8-bit character count indicator for v1-9
-  for (const b of bytes) {
-    pushBits(b, 8);
+  // Blocks, error correction, interleaving.
+  const div = rsDivisor(eccLen);
+  const blocks: { data: number[]; ecc: number[] }[] = [];
+  let k = 0;
+  for (let i = 0; i < b1 + b2; i++) {
+    const len = i < b1 ? d1 : d2;
+    const data = codewords.slice(k, k + len);
+    k += len;
+    blocks.push({ data, ecc: rsRemainder(data, div) });
   }
-  // Terminator
-  const maxBits = v.data * 8;
-  const termLen = Math.min(4, maxBits - bitBuffer.length);
-  pushBits(0, termLen);
-  // Pad to byte
-  while (bitBuffer.length % 8 !== 0) {
-    bitBuffer.push(0);
-  }
-  // Pad bytes
-  const padPatterns = [0xec, 0x11];
-  let pIdx = 0;
-  while (bitBuffer.length < maxBits) {
-    pushBits(padPatterns[pIdx % 2], 8);
-    pIdx++;
-  }
+  const final: number[] = [];
+  for (let i = 0; i < Math.max(d1, d2); i++) for (const b of blocks) if (i < b.data.length) final.push(b.data[i]);
+  for (let i = 0; i < eccLen; i++) for (const b of blocks) final.push(b.ecc[i]);
 
-  // Convert bitBuffer to data bytes
-  const dataBytes: number[] = [];
-  for (let i = 0; i < bitBuffer.length; i += 8) {
-    let byte = 0;
-    for (let j = 0; j < 8; j++) {
-      byte = (byte << 1) | bitBuffer[i + j];
-    }
-    dataBytes.push(byte);
-  }
-
-  // Calculate EC bytes
-  const ecBytes = calculateReedSolomon(dataBytes, v.ec);
-  const fullCodewords = [...dataBytes, ...ecBytes];
-
-  // Initialize matrix
-  const matrix: (boolean | null)[][] = Array.from({ length: size }, () =>
-    new Array(size).fill(null)
-  );
-
-  // Place Finder Patterns (7x7) + Separators
-  const placeFinder = (r0: number, c0: number) => {
-    for (let r = 0; r < 7; r++) {
-      for (let c = 0; c < 7; c++) {
-        const isBlack =
-          r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4);
-        matrix[r0 + r][c0 + c] = isBlack;
-      }
-    }
+  // The grid, with its function patterns.
+  const size = version * 4 + 17;
+  const grid: boolean[][] = Array.from({ length: size }, () => new Array(size).fill(false));
+  const fixed: boolean[][] = Array.from({ length: size }, () => new Array(size).fill(false));
+  const set = (x: number, y: number, dark: boolean) => {
+    grid[y][x] = dark;
+    fixed[y][x] = true;
   };
-  placeFinder(0, 0);
-  placeFinder(0, size - 7);
-  placeFinder(size - 7, 0);
-
-  // Separators
-  for (let i = 0; i < 8; i++) {
-    if (i < size) {
-      if (matrix[7][i] === null) matrix[7][i] = false;
-      if (matrix[i][7] === null) matrix[i][7] = false;
-      if (matrix[7][size - 1 - i] === null) matrix[7][size - 1 - i] = false;
-      if (matrix[i][size - 8] === null) matrix[i][size - 8] = false;
-      if (matrix[size - 8][i] === null) matrix[size - 8][i] = false;
-      if (matrix[size - 1 - i][7] === null) matrix[size - 1 - i][7] = false;
-    }
+  for (let i = 0; i < size; i++) {
+    set(6, i, i % 2 === 0);
+    set(i, 6, i % 2 === 0);
   }
-
-  // Timing patterns
-  for (let i = 8; i < size - 8; i++) {
-    if (matrix[6][i] === null) matrix[6][i] = i % 2 === 0;
-    if (matrix[i][6] === null) matrix[i][6] = i % 2 === 0;
-  }
-
-  // Dark module
-  matrix[4 * v.version + 9][8] = true;
-
-  // Reserved format info areas
-  for (let i = 0; i < 9; i++) {
-    if (matrix[8][i] === null) matrix[8][i] = false;
-    if (matrix[i][8] === null) matrix[i][8] = false;
-  }
-  for (let i = 0; i < 8; i++) {
-    if (matrix[8][size - 1 - i] === null) matrix[8][size - 1 - i] = false;
-    if (matrix[size - 1 - i][8] === null) matrix[size - 1 - i][8] = false;
-  }
-
-  // Alignment patterns for v2+
-  if (v.version >= 2) {
-    const pos = [6, v.size - 7];
-    for (const r of pos) {
-      for (const c of pos) {
-        if (matrix[r][c] !== null) continue;
-        for (let dr = -2; dr <= 2; dr++) {
-          for (let dc = -2; dc <= 2; dc++) {
-            matrix[r + dr][c + dc] =
-              Math.max(Math.abs(dr), Math.abs(dc)) === 2 || (dr === 0 && dc === 0);
-          }
-        }
+  const finder = (cx: number, cy: number) => {
+    for (let dy = -4; dy <= 4; dy++)
+      for (let dx = -4; dx <= 4; dx++) {
+        const x = cx + dx, y = cy + dy;
+        if (x < 0 || y < 0 || x >= size || y >= size) continue;
+        const d = Math.max(Math.abs(dx), Math.abs(dy));
+        set(x, y, d !== 2 && d !== 4);
       }
+  };
+  finder(3, 3);
+  finder(size - 4, 3);
+  finder(3, size - 4);
+  const al = ALIGN[version - 1];
+  for (const ay of al)
+    for (const ax of al) {
+      if ((ax === 6 && ay === 6) || (ax === 6 && ay === al.at(-1)) || (ax === al.at(-1) && ay === 6)) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+    }
+  const drawFormat = (mask: number) => {
+    const f = formatBits(mask);
+    const bit = (i: number) => ((f >>> i) & 1) === 1;
+    for (let i = 0; i <= 5; i++) set(8, i, bit(i));
+    set(8, 7, bit(6));
+    set(8, 8, bit(7));
+    set(7, 8, bit(8));
+    for (let i = 9; i < 15; i++) set(14 - i, 8, bit(i));
+    for (let i = 0; i < 8; i++) set(size - 1 - i, 8, bit(i));
+    for (let i = 8; i < 15; i++) set(8, size - 15 + i, bit(i));
+    set(8, size - 8, true); // the dark module
+  };
+  drawFormat(0);
+  if (version >= 7) {
+    const vb = versionBits(version);
+    for (let i = 0; i < 18; i++) {
+      const dark = ((vb >>> i) & 1) === 1;
+      const a = size - 11 + (i % 3), b = Math.floor(i / 3);
+      set(a, b, dark);
+      set(b, a, dark);
     }
   }
 
-  // Place codewords in zig-zag
-  const allBits: number[] = [];
-  for (const byte of fullCodewords) {
-    for (let i = 7; i >= 0; i--) {
-      allBits.push((byte >> i) & 1);
-    }
-  }
-
-  let bitIdx = 0;
-  let dir = -1; // up
-  let c = size - 1;
-  while (c > 0) {
-    if (c === 6) c--; // Skip vertical timing column
-    const rStart = dir === -1 ? size - 1 : 0;
-    const rEnd = dir === -1 ? -1 : size;
-    for (let r = rStart; r !== rEnd; r += dir === -1 ? -1 : 1) {
-      for (let colOffset = 0; colOffset < 2; colOffset++) {
-        const col = c - colOffset;
-        if (matrix[r][col] === null) {
-          const bit = bitIdx < allBits.length ? allBits[bitIdx++] : 0;
-          // Mask 0: (r + col) % 2 === 0
-          const mask = (r + col) % 2 === 0;
-          matrix[r][col] = (bit ^ (mask ? 1 : 0)) === 1;
-        }
+  // Data, in the zig-zag.
+  let bi = 0;
+  const dataBits = final.flatMap((c) => Array.from({ length: 8 }, (_, i) => (c >>> (7 - i)) & 1));
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let vert = 0; vert < size; vert++)
+      for (let j = 0; j < 2; j++) {
+        const x = right - j;
+        const upward = ((right + 1) & 2) === 0;
+        const y = upward ? size - 1 - vert : vert;
+        if (fixed[y][x]) continue;
+        grid[y][x] = bi < dataBits.length ? dataBits[bi++] === 1 : false;
       }
-    }
-    dir = -dir;
-    c -= 2;
   }
 
-  // Format Information (Mask 0, Error Level M: 00)
-  // Format bit string for EC M + Mask 0: 101010000010010 (BCH 15,5 code)
-  const formatBits = [1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0];
-  for (let i = 0; i < 6; i++) matrix[8][i] = formatBits[i] === 1;
-  matrix[8][7] = formatBits[6] === 1;
-  matrix[8][8] = formatBits[7] === 1;
-  matrix[7][8] = formatBits[8] === 1;
-  for (let i = 9; i < 15; i++) matrix[14 - i][8] = formatBits[i] === 1;
-
-  for (let i = 0; i < 8; i++) matrix[size - 1 - i][8] = formatBits[i] === 1;
-  for (let i = 8; i < 15; i++) matrix[8][size - 15 + i] = formatBits[i] === 1;
-
-  return matrix.map((row) => row.map((cell) => cell === true));
+  const applyMask = (m: number) => {
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fixed[y][x] && MASKS[m](x, y)) grid[y][x] = !grid[y][x];
+  };
+  let best = forceMask ?? 0;
+  if (forceMask === undefined) {
+    let bestScore = Infinity;
+    for (let m = 0; m < 8; m++) {
+      applyMask(m);
+      drawFormat(m);
+      const s = penalty(grid);
+      if (s < bestScore) (bestScore = s), (best = m);
+      applyMask(m);
+    }
+  }
+  applyMask(best);
+  drawFormat(best);
+  return grid;
 }
 
-export function generateQrSvg(text: string, options: { size?: number; fill?: string; bg?: string } = {}): string {
-  const matrix = generateQrMatrix(text);
-  const matrixSize = matrix.length;
-  const padding = 2;
-  const total = matrixSize + padding * 2;
-  const displaySize = options.size || 200;
-  const fill = options.fill || '#111110';
-  const bg = options.bg || '#F7F5F0';
-
-  let rects = '';
-  for (let r = 0; r < matrixSize; r++) {
-    for (let c = 0; c < matrixSize; c++) {
-      if (matrix[r][c]) {
-        rects += `<rect x="${c + padding}" y="${r + padding}" width="1" height="1" fill="${fill}"/>`;
+function penalty(g: boolean[][]) {
+  const n = g.length;
+  let score = 0;
+  const lines = (get: (i: number, j: number) => boolean) => {
+    for (let i = 0; i < n; i++) {
+      let run = 1;
+      for (let j = 1; j <= n; j++) {
+        if (j < n && get(i, j) === get(i, j - 1)) run++;
+        else {
+          if (run >= 5) score += run - 2;
+          run = 1;
+        }
+      }
+      // Finder-like runs: 1:1:3:1:1 with four light on either side.
+      for (let j = 0; j + 10 < n; j++) {
+        const p = Array.from({ length: 11 }, (_, k) => get(i, j + k));
+        const a = [true, false, true, true, true, false, true, false, false, false, false];
+        const b = [...a].reverse();
+        if (p.every((v, k) => v === a[k]) || p.every((v, k) => v === b[k])) score += 40;
       }
     }
-  }
+  };
+  lines((i, j) => g[i][j]);
+  lines((i, j) => g[j][i]);
+  for (let y = 0; y < n - 1; y++) for (let x = 0; x < n - 1; x++) if (g[y][x] === g[y][x + 1] && g[y][x] === g[y + 1][x] && g[y][x] === g[y + 1][x + 1]) score += 3;
+  const dark = g.flat().filter(Boolean).length;
+  score += Math.floor(Math.abs(dark * 20 - n * n * 10) / (n * n)) * 10;
+  return score;
+}
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="${displaySize}" height="${displaySize}" shape-rendering="crispEdges">
-    <rect width="${total}" height="${total}" fill="${bg}"/>
-    ${rects}
-  </svg>`;
+/** The code as SVG markup, with a four-module quiet zone. */
+export function qrSvg(text: string) {
+  const m = qrMatrix(text);
+  const n = m.length + 8;
+  let d = '';
+  m.forEach((row, y) => row.forEach((dark, x) => dark && (d += `M${x + 4} ${y + 4}h1v1h-1z`)));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
 }

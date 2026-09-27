@@ -1,19 +1,14 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { STAFF_COOKIE_NAME, deleteSession } from '@/lib/server/auth';
+import { currentStaff, endSession, saveUser } from '@/lib/server/auth';
+import { json, readBody, route } from '@/lib/server/http';
 
-export async function POST() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(STAFF_COOKIE_NAME)?.value;
-  if (token) {
-    deleteSession(token);
+/** Signs out here, or with `everywhere` ends every session of the account (staff and customers alike). */
+export const POST = route(async (req) => {
+  const b = await readBody(req);
+  const kind = b.kind === 'customer' ? 'customer' : 'staff';
+  if (b.everywhere && kind === 'staff') {
+    const ctx = await currentStaff();
+    if (ctx) await saveUser({ ...ctx.user, v: ctx.user.v + 1 });
   }
-
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(STAFF_COOKIE_NAME, '', {
-    path: '/',
-    maxAge: 0,
-    expires: new Date(0),
-  });
-  return res;
-}
+  await endSession(kind);
+  return json({ ok: true, next: kind === 'staff' ? '/staff/signin' : '/' });
+});

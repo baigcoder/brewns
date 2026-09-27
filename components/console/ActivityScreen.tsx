@@ -1,93 +1,76 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import type { AuditEntry } from '@/lib/server/storage';
+import { useEffect, useMemo, useState } from 'react';
+import { ROLE_INFO, type Role } from '@/lib/rbac';
+import { api, pkDate, pkTime } from './api';
+import { useRun } from './Toasts';
 
+type Entry = { t: number; uid: string; name: string; role: string; action: string; detail: string };
+
+/** The activity log: sign-ins, orders taken, payments, cancellations, menu and team changes. */
 export function ActivityScreen() {
-  const [logs, setLogs] = useState<AuditEntry[]>([]);
-
-  const fetchLogs = async () => {
-    try {
-      const res = await fetch('/api/audit');
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.audit || []);
-      }
-    } catch {
-      // Ignored
-    }
-  };
-
+  const run = useRun();
+  const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [q, setQ] = useState('');
+  const [who, setWho] = useState('');
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchLogs();
-    }, 0);
-    const interval = setInterval(fetchLogs, 6000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, []);
-
+    run(() => api<{ entries: Entry[] }>('/api/staff/audit')).then((r) => r && setEntries(r.entries));
+  }, [run]);
+  const people = useMemo(() => [...new Map((entries || []).filter((e) => e.uid).map((e) => [e.uid, e.name])).entries()], [entries]);
+  const list = (entries || []).filter((e) => (!who || e.uid === who) && (!q.trim() || `${e.action} ${e.detail} ${e.name}`.toLowerCase().includes(q.trim().toLowerCase())));
   return (
-    <div>
-      <div className="co-page-title">
+    <>
+      <div className="cx-pagehead">
         <div>
-          <h1>Activity &amp; Audit Log</h1>
-          <p>Chronological record of staff actions, order status changes, and menu adjustments.</p>
+          <p className="cx-eyebrow">
+            <b>{'//'}</b> The last 1,000 changes
+          </p>
+          <h1 className="cx-h1">Activity</h1>
         </div>
       </div>
-
-      <div style={{ background: 'var(--co-panel)', border: '1px solid var(--co-border)', borderRadius: '14px', overflow: 'hidden' }}>
-        <table className="co-table">
-          <thead>
-            <tr>
-              <th>TIME</th>
-              <th>STAFF MEMBER</th>
-              <th>ROLE</th>
-              <th>ACTION</th>
-              <th>TARGET</th>
-              <th>DETAILS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log) => (
-              <tr key={log.id}>
-                <td style={{ fontFamily: 'monospace', fontSize: '11px', color: 'var(--co-cream-dim)', whiteSpace: 'nowrap' }}>
-                  {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </td>
-                <td style={{ fontWeight: 600 }}>{log.actorName}</td>
-                <td>
-                  <span
-                    style={{
-                      fontFamily: 'monospace',
-                      fontSize: '10px',
-                      padding: '2px 6px',
-                      background: 'rgba(255,255,255,0.06)',
-                      borderRadius: '4px',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {log.role}
-                  </span>
-                </td>
-                <td style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--co-amber-light)' }}>
-                  {log.action}
-                </td>
-                <td style={{ fontWeight: 600 }}>{log.target}</td>
-                <td style={{ color: 'var(--co-cream-dim)', fontSize: '12px' }}>{log.details}</td>
-              </tr>
-            ))}
-            {logs.length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--co-cream-dim)', padding: '30px' }}>
-                  No activity logged yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="cx-row" style={{ marginBottom: 12 }}>
+        <input className="cx-input" style={{ maxWidth: 280 }} placeholder="Search: cancelled, sold out, #1024…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className="cx-select" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Person">
+          <option value="">Everyone</option>
+          {people.map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
       </div>
-    </div>
+      {!entries ? (
+        <p className="cx-empty">Loading…</p>
+      ) : !list.length ? (
+        <p className="cx-empty">Nothing yet.</p>
+      ) : (
+        <div className="cx-card">
+          <ol className="cx-timeline" style={{ gap: 10 }}>
+            {list.map((e, i) => {
+              const day = pkDate(e.t);
+              const head = i === 0 || pkDate(list[i - 1].t) !== day;
+              return (
+                <li key={i} style={{ gridTemplateColumns: '52px minmax(0,1fr)' }}>
+                  <time>
+                    {head ? (
+                      <>
+                        {day}
+                        <br />
+                      </>
+                    ) : null}
+                    {pkTime(e.t)}
+                  </time>
+                  <span>
+                    <b style={{ color: 'var(--cx-text)' }}>{e.name}</b>
+                    {e.role && ROLE_INFO[e.role as Role] ? <span className="cx-faint"> · {ROLE_INFO[e.role as Role].label}</span> : null} — {e.action}
+                    {e.detail ? <span className="cx-faint"> · {e.detail}</span> : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+    </>
   );
 }

@@ -1,451 +1,334 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import type { Order, WaiterCall } from '@/lib/server/storage';
-import { money } from '@/lib/catalog';
 import Link from 'next/link';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LOC_TITLES, PAY } from '@/lib/catalog';
+import { orderNo } from '@/lib/orderFlow';
+import { ago, api, rs } from './api';
+import { useLive, type StaffOrder } from './Live';
+import { playWaiterBell } from '@/lib/audio-alerts';
+import { itemsLine, StatusPill } from './OrderBits';
+import { useMe } from './Shell';
+import { useRun } from './Toasts';
 
-type TableSection = 'all' | 'window' | 'hall' | 'patio';
-
+/** The floor: every table at a glance, calls from tables, food ready to serve, bills to settle. */
 export function FloorScreen() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [calls, setCalls] = useState<WaiterCall[]>([]);
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const [sectionFilter, setSectionFilter] = useState<TableSection>('all');
-  const [actionLoading, setActionLoading] = useState(false);
-
-  const fetchData = async () => {
-    try {
-      const [ordersRes, callsRes] = await Promise.all([
-        fetch('/api/orders?type=dinein'),
-        fetch('/api/floor/calls'),
-      ]);
-      if (ordersRes.ok) {
-        const oData = await ordersRes.json();
-        setOrders(oData.orders || []);
-      }
-      if (callsRes.ok) {
-        const cData = await callsRes.json();
-        setCalls(cData.calls || []);
-      }
-    } catch {
-      // Ignored
-    }
-  };
+  const { data, act, refresh } = useLive();
+  const { me, can, canAny } = useMe();
+  const run = useRun();
+  const shops = me.shops.length ? me.shops : LOC_TITLES.map((_, i) => i);
+  const [loc, setLoc] = useState(shops[0]);
+  const [table, setTable] = useState<number | null>(null);
+  const [tab, setTab] = useState<'tables' | 'reservations'>('tables');
+  const [reservations, setReservations] = useState<any[]>([]);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchData();
-    }, 0);
-    const interval = setInterval(fetchData, 4000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
+    const t = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(t);
   }, []);
 
-  const handleResolveCall = async (callId: string) => {
-    setActionLoading(true);
-    try {
-      await fetch('/api/floor/calls', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: callId }),
-      });
-      await fetchData();
-    } catch {
-      // Ignored
-    } finally {
-      setActionLoading(false);
+  const loadReservations = useCallback(() => {
+    fetch(`/api/reservations?loc=${loc}`)
+      .then((res) => res.json())
+      .then((d) => {
+        if (d?.reservations) setReservations(d.reservations);
+      })
+      .catch(() => {});
+  }, [loc]);
+
+  useEffect(() => {
+    if (tab === 'reservations') {
+      loadReservations();
     }
+  }, [tab, loadReservations]);
+
+  const calls = (data?.calls || []).filter((c) => c.loc === loc);
+  // A brass service bell chime when a new call comes in, not when one is answered.
+  const callCount = data?.calls.length || 0;
+  const lastCalls = useRef(callCount);
+  useEffect(() => {
+    if (callCount > lastCalls.current) playWaiterBell();
+    lastCalls.current = callCount;
+  }, [callCount]);
+
+  const tables = data?.shops[loc]?.tables || 0;
+  const atTables = (data?.orders || []).filter((o) => o.mode === 'dinein' && o.loc === loc && o.status !== 'cancelled');
+  const ordersAt = (n: number) => atTables.filter((o) => o.table === n);
+  const toServe = atTables.filter((o) => o.status === 'ready');
+  const stateOf = (n: number) => {
+    const list = ordersAt(n);
+    if (calls.some((c) => c.table === n)) return 'call';
+    if (list.some((o) => o.status === 'ready')) return 'serve';
+    if (list.length && list.every((o) => o.status === 'served') && list.some((o) => !o.paid)) return 'bill';
+    if (list.length) return 'busy';
+    return 'free';
   };
+  const LABEL = { call: 'Calling', serve: 'Food ready', bill: 'Eating · bill open', busy: 'Order in', free: 'Free' } as const;
 
-  const handleAction = async (orderId: string, action: string) => {
-    setActionLoading(true);
-    try {
-      await fetch(`/api/orders/${orderId}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      await fetchData();
-    } catch {
-      // Ignored
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Generate 16 tables
-  const allTables = Array.from({ length: 16 }, (_, i) => {
-    const num = i + 1;
-    const id = `T-${String(num).padStart(2, '0')}`;
-    let section: 'window' | 'hall' | 'patio' = 'hall';
-    let seats = 4;
-    let label = 'Dining Table';
-
-    if (num <= 4) {
-      section = 'window';
-      seats = 2;
-      label = 'Window Nook';
-    } else if (num >= 13) {
-      section = 'patio';
-      seats = 4;
-      label = 'Patio Table';
-    } else if (num === 7 || num === 8) {
-      seats = 6;
-      label = 'Executive Booth';
-    }
-
-    return { id, num, section, seats, label };
-  });
-
-  const filteredTables = allTables.filter((t) => {
-    if (sectionFilter === 'all') return true;
-    return t.section === sectionFilter;
-  });
-
-  // Calculate stats
-  const activeDineInOrders = orders.filter((o) =>
-    ['placed', 'accepted', 'preparing', 'ready', 'served'].includes(o.status)
-  );
-  const occupiedCount = new Set(activeDineInOrders.map((o) => o.table)).size;
-  const vacantCount = 16 - occupiedCount;
-  const readyToServeCount = activeDineInOrders.filter((o) => o.status === 'ready').length;
-  const activeCallsCount = calls.filter((c) => c.status === 'active').length;
+  const answer = (id: string) => run(() => api('/api/staff/calls', { id }).then(refresh), 'On your way.');
 
   return (
-    <div>
-      {/* Title Header */}
-      <div className="co-page-title">
+    <>
+      <div className="cx-pagehead">
         <div>
-          <h1>Floor Map &amp; Table Service</h1>
-          <p>Interactive 16-table dining layout, guest call signals, and bill settlements.</p>
+          <p className="cx-eyebrow">
+            <b>{'//'}</b> {LOC_TITLES[loc]} · {tab === 'tables' ? `${atTables.length} table order${atTables.length === 1 ? '' : 's'} open` : `${reservations.length} booking${reservations.length === 1 ? '' : 's'}`}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <h1 className="cx-h1" style={{ margin: 0 }}>Floor</h1>
+            <div className="cx-seg" role="tablist">
+              <button type="button" aria-pressed={tab === 'tables'} onClick={() => setTab('tables')}>
+                🍽️ Live Tables
+              </button>
+              <button type="button" aria-pressed={tab === 'reservations'} onClick={() => setTab('reservations')}>
+                📅 Bookings ({reservations.filter((r) => r.status === 'confirmed').length})
+              </button>
+            </div>
+          </div>
         </div>
-
-        <Link href="/dashboard/new" className="btn-co btn-co-primary" style={{ textDecoration: 'none' }}>
-          + New Walk-in / Table Order
-        </Link>
+        {shops.length > 1 && (
+          <div className="cx-seg" role="group" aria-label="Shop">
+            {shops.map((i) => (
+              <button type="button" key={i} aria-pressed={loc === i} onClick={() => setLoc(i)}>
+                {LOC_TITLES[i].split(',')[0]}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* KPI Stats Suite */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '24px' }}>
-        <div className="co-kpi-card">
-          <div style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '4px' }}>
-            TABLES OCCUPIED
+      {tab === 'reservations' ? (
+        <section className="cx-card" style={{ marginBottom: 24 }}>
+          <div className="cx-card-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p className="cx-h2">Table Bookings & Reservations</p>
+              <span className="cx-small cx-muted">Today&apos;s guest reservations for {LOC_TITLES[loc]}</span>
+            </div>
+            <Link href="/reserve" target="_blank" className="cx-btn primary sm">
+              + New Reservation
+            </Link>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--co-amber-light)' }}>
-            {occupiedCount} <span style={{ fontSize: '13px', color: 'var(--co-cream-dim)' }}>/ 16</span>
-          </div>
-        </div>
-
-        <div className="co-kpi-card">
-          <div style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '4px' }}>
-            TABLES AVAILABLE
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--co-green)' }}>
-            {vacantCount}
-          </div>
-        </div>
-
-        <div className="co-kpi-card">
-          <div style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '4px' }}>
-            READY TO SERVE
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: readyToServeCount > 0 ? '#60A5FA' : 'var(--co-cream)' }}>
-            {readyToServeCount}
-          </div>
-        </div>
-
-        <div className="co-kpi-card">
-          <div style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '4px' }}>
-            ACTIVE GUEST CALLS
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, color: activeCallsCount > 0 ? 'var(--co-red)' : 'var(--co-cream)' }}>
-            {activeCallsCount}
-          </div>
-        </div>
-      </div>
-
-      {/* Active Waiter Calls Alert Strip */}
-      {calls.length > 0 && (
-        <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {calls.map((c) => (
-            <div
-              key={c.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '14px 20px',
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid var(--co-red)',
-                borderRadius: '10px',
-                boxShadow: '0 4px 16px rgba(239, 68, 68, 0.2)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '22px' }}>🔔</span>
-                <div>
-                  <span style={{ fontWeight: 800, fontSize: '15px', color: '#fff' }}>
-                    TABLE {c.table}
-                  </span>
-                  <span style={{ marginLeft: '10px', color: 'var(--co-cream)', fontSize: '13px' }}>
-                    Guest requested <strong>{c.type.toUpperCase()}</strong> assistance
-                  </span>
+          {reservations.length === 0 ? (
+            <p className="cx-empty" style={{ padding: '32px 16px' }}>
+              No reservations recorded yet for {LOC_TITLES[loc]}.
+            </p>
+          ) : (
+            <div className="cx-stack">
+              {reservations.map((r) => (
+                <div
+                  key={r.id}
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '14px 16px',
+                    borderBottom: '1px solid var(--cx-line-2, #262624)',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <b style={{ fontSize: 16 }}>{r.name}</b>
+                      <span className="cx-small cx-muted" style={{ fontFamily: 'var(--font-space-mono)' }}>{r.code}</span>
+                      <span
+                        className="cx-small"
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          background: r.status === 'seated' ? 'rgba(34, 197, 94, 0.15)' : r.status === 'cancelled' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(201, 147, 85, 0.15)',
+                          color: r.status === 'seated' ? '#4ade80' : r.status === 'cancelled' ? '#f87171' : 'var(--cx-accent, #c99355)',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+                    <div className="cx-small cx-muted" style={{ display: 'flex', gap: 12 }}>
+                      <span>🕒 {r.time} ({r.date})</span>
+                      <span>👥 {r.guests} Guests</span>
+                      <span>📍 Area: {r.area === 'indoor' ? '🛋️ Lounge' : r.area === 'terrace' ? '🌿 Terrace' : '☕ Bar'}</span>
+                      <span>📞 {r.phone}</span>
+                    </div>
+                    {r.notes && (
+                      <div className="cx-small" style={{ color: '#ccc', fontStyle: 'italic', marginTop: 2 }}>
+                        “{r.notes}”
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {r.status === 'confirmed' && (
+                      <>
+                        <button
+                          type="button"
+                          className="cx-btn go sm"
+                          onClick={() => {
+                            fetch('/api/reservations', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: r.id, status: 'seated' }),
+                            }).then(loadReservations);
+                          }}
+                        >
+                          Seat Guests
+                        </button>
+                        <button
+                          type="button"
+                          className="cx-btn sm"
+                          onClick={() => {
+                            fetch('/api/reservations', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: r.id, status: 'cancelled' }),
+                            }).then(loadReservations);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <button
-                type="button"
-                className="btn-co btn-co-primary"
-                onClick={() => handleResolveCall(c.id)}
-                disabled={actionLoading}
-              >
-                Resolve &amp; Clear Call
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {calls.length > 0 && (
+        <div className="cx-callbar" style={{ marginBottom: 18 }}>
+          {calls.map((c) => (
+            <div className="cx-call" key={c.id}>
+              <span>
+                <b style={{ fontFamily: 'var(--font-geist)', fontSize: 18 }}>Table {c.table}</b> {c.kind === 'bill' ? 'wants the bill' : 'is calling a waiter'} <span className="cx-muted cx-small">· {ago(c.t, now)}</span>
+              </span>
+              <button type="button" className="cx-btn primary" onClick={() => answer(c.id)}>
+                On my way
               </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Section Filter Tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {[
-          ['all', 'All Dining Areas (16)'],
-          ['window', 'Window Lounges (T-01 to T-04)'],
-          ['hall', 'Main Roastery Hall (T-05 to T-12)'],
-          ['patio', 'Courtyard Patio (T-13 to T-16)'],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            className={`btn-co ${sectionFilter === key ? 'btn-co-primary' : 'btn-co-secondary'}`}
-            style={{ padding: '6px 14px', fontSize: '11px' }}
-            onClick={() => setSectionFilter(key as TableSection)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Interactive Table Map Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '14px',
-        }}
-      >
-        {filteredTables.map((t) => {
-          const tableOrders = orders.filter(
-            (o) => o.table === t.id && ['placed', 'accepted', 'preparing', 'ready', 'served'].includes(o.status)
-          );
-          const activeOrder = tableOrders[0];
-          const hasCall = calls.some((c) => c.table === t.id && c.status === 'active');
-          const isReadyToServe = activeOrder?.status === 'ready';
-          const isSelected = selectedTable === t.id;
-
-          let borderColor = 'var(--co-border)';
-          let bg = 'linear-gradient(180deg, #181412 0%, #110E0D 100%)';
-          let statusText = '🟢 VACANT';
-          let statusColor = 'var(--co-green)';
-
-          if (hasCall) {
-            borderColor = 'var(--co-red)';
-            bg = 'rgba(239, 68, 68, 0.15)';
-            statusText = '🔔 GUEST CALL';
-            statusColor = 'var(--co-red)';
-          } else if (isReadyToServe) {
-            borderColor = '#60A5FA';
-            bg = 'rgba(59, 130, 246, 0.15)';
-            statusText = '🍽️ READY TO SERVE';
-            statusColor = '#60A5FA';
-          } else if (activeOrder?.status === 'served') {
-            borderColor = 'var(--co-amber)';
-            bg = 'rgba(217, 138, 44, 0.1)';
-            statusText = '💳 SEATED (BILL OPEN)';
-            statusColor = 'var(--co-amber-light)';
-          } else if (activeOrder) {
-            borderColor = 'rgba(245, 158, 11, 0.4)';
-            bg = 'rgba(245, 158, 11, 0.08)';
-            statusText = '⏳ PREPARING';
-            statusColor = '#FB923C';
-          }
-
-          if (isSelected) {
-            borderColor = 'var(--co-amber-light)';
-          }
-
-          return (
-            <div
-              key={t.id}
-              style={{
-                background: bg,
-                border: `1.5px solid ${borderColor}`,
-                borderRadius: '12px',
-                padding: '16px',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: isSelected ? '0 0 20px rgba(217, 138, 44, 0.2)' : '0 4px 12px rgba(0,0,0,0.3)',
-              }}
-              onClick={() => setSelectedTable(t.id)}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '16px', color: 'var(--co-cream)' }}>
-                  {t.id}
-                </span>
-                <span style={{ fontSize: '10px', color: 'var(--co-cream-dim)' }}>
-                  {t.seats} Seats · {t.label}
-                </span>
-              </div>
-
-              <div style={{ fontSize: '11px', fontWeight: 700, color: statusColor, marginBottom: '6px' }}>
-                {statusText}
-              </div>
-
-              {activeOrder ? (
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--co-cream)' }}>
-                    {activeOrder.name}
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--co-amber-light)', fontWeight: 700, marginTop: '2px' }}>
-                    {money(activeOrder.totals.total)} · {activeOrder.items.length} item(s)
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize: '11px', color: 'var(--co-cream-faint)', marginTop: '4px' }}>
-                  Tap to view or seat guests
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Selected Table Inspection & Action Drawer */}
-      {selectedTable && (
-        <div
-          style={{
-            marginTop: '32px',
-            background: 'var(--co-panel)',
-            border: '1px solid var(--co-border-strong)',
-            borderRadius: '14px',
-            padding: '24px',
-            boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
-                Table {selectedTable} Service Console
-              </h2>
-              <span style={{ fontSize: '11px', fontFamily: 'monospace', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
-                {allTables.find((t) => t.id === selectedTable)?.label}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="btn-co btn-co-secondary"
-              onClick={() => setSelectedTable(null)}
-            >
-              ✕ Close
-            </button>
+      {toServe.length > 0 && (
+        <section className="cx-card" style={{ marginBottom: 18 }}>
+          <div className="cx-card-h">
+            <p className="cx-h2">Ready to serve</p>
+            <span className="cx-small cx-muted">{toServe.length}</span>
           </div>
-
-          {(() => {
-            const tableOrders = orders.filter(
-              (o) => o.table === selectedTable && ['placed', 'accepted', 'preparing', 'ready', 'served'].includes(o.status)
-            );
-
-            if (tableOrders.length === 0) {
-              return (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                  <p style={{ color: 'var(--co-cream-dim)', margin: 0, fontSize: '13px' }}>
-                    This table is currently vacant and clean. Guests can scan the table QR code to order, or you can take an order immediately.
-                  </p>
-                  <Link
-                    href={`/dashboard/new?table=${selectedTable}`}
-                    className="btn-co btn-co-primary"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    Ring Up POS Order for Table {selectedTable} →
-                  </Link>
-                </div>
-              );
-            }
-
-            const o = tableOrders[0];
-            return (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--co-border)', paddingBottom: '12px' }}>
-                  <div>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '16px' }}>{o.id}</span>
-                    <span style={{ marginLeft: '12px', color: 'var(--co-cream)', fontSize: '14px', fontWeight: 600 }}>
-                      Guest: {o.name}
-                    </span>
-                    <span style={{ marginLeft: '12px', fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)' }}>
-                      STATUS: {o.status.toUpperCase()}
-                    </span>
-                  </div>
-                  <span style={{ fontWeight: 800, color: 'var(--co-amber-light)', fontSize: '18px' }}>
-                    {money(o.totals.total)}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '18px' }}>
-                  <div style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '4px' }}>
-                    ORDER ITEMS &amp; STATION PROGRESS
-                  </div>
-                  {o.items.map((it, i) => (
-                    <div key={i} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>
-                        <strong style={{ color: 'var(--co-amber-light)' }}>{it.qty}×</strong> {it.name}
-                      </span>
-                      <span style={{ fontFamily: 'monospace', fontSize: '11px', color: it.done ? 'var(--co-green)' : 'var(--co-cream-dim)' }}>
-                        {it.done ? '✓ READY' : 'PREPARING'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  {o.status === 'ready' && (
-                    <button
-                      type="button"
-                      className="btn-co btn-co-green"
-                      style={{ padding: '10px 18px', fontSize: '13px' }}
-                      onClick={() => handleAction(o.id, 'serve')}
-                      disabled={actionLoading}
-                    >
-                      🍽️ Serve Food to Table
-                    </button>
-                  )}
-
-                  {o.status === 'served' && (
-                    <button
-                      type="button"
-                      className="btn-co btn-co-primary"
-                      style={{ padding: '10px 18px', fontSize: '13px' }}
-                      onClick={() => handleAction(o.id, 'complete')}
-                      disabled={actionLoading}
-                    >
-                      💳 Settle Bill &amp; Clear Table
-                    </button>
-                  )}
-
-                  <Link
-                    href={`/dashboard/new?table=${selectedTable}`}
-                    className="btn-co btn-co-secondary"
-                    style={{ textDecoration: 'none', padding: '10px 18px' }}
-                  >
-                    + Add More Items (Add-on Order)
-                  </Link>
-                </div>
+          <div className="cx-stack">
+            {toServe.map((o) => (
+              <div key={o.number} className="cx-row between">
+                <span>
+                  <b>Table {o.table}</b> <span className="cx-muted">· {itemsLine(o)}</span>
+                </span>
+                {canAny('floor.tables', 'orders.manage') && (
+                  <button type="button" className="cx-btn go" onClick={() => run(() => act(o.number, { type: 'served' }))}>
+                    Served
+                  </button>
+                )}
               </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!data ? (
+        <p className="cx-empty">Loading the floor…</p>
+      ) : !tables ? (
+        <p className="cx-empty">
+          <b>No tables set up for this shop.</b>The owner or a manager can add them on the Shops page.
+        </p>
+      ) : (
+        <div className="cx-tables">
+          {Array.from({ length: tables }, (_, i) => i + 1).map((n) => {
+            const st = stateOf(n);
+            const list = ordersAt(n);
+            return (
+              <button type="button" key={n} className={`cx-table-tile ${st === 'free' ? '' : st}`} onClick={() => setTable(n)}>
+                <b>{n}</b>
+                <span className="cx-small">{LABEL[st]}</span>
+                {list.length > 0 && <span className="cx-small cx-muted cx-num">{rs(list.reduce((s, o) => s + o.totals.total, 0))}</span>}
+              </button>
             );
-          })()}
+          })}
         </div>
       )}
+
+      {table !== null && <TableSheet loc={loc} table={table} orders={ordersAt(table)} onClose={() => setTable(null)} canCreate={can('orders.create')} canPay={can('orders.pay')} />}
+    </>
+  );
+}
+
+function TableSheet({ loc, table, orders, onClose, canCreate, canPay }: { loc: number; table: number; orders: StaffOrder[]; onClose: () => void; canCreate: boolean; canPay: boolean }) {
+  const { act } = useLive();
+  const run = useRun();
+  const [method, setMethod] = useState(0);
+  const unpaid = orders.filter((o) => !o.paid);
+  const due = unpaid.reduce((s, o) => s + o.totals.total, 0);
+  const settle = async () => {
+    for (const o of unpaid) await run(() => act(o.number, { type: 'paid', method }));
+    onClose();
+  };
+  return (
+    <div className="cx-modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="cx-modal" role="dialog" aria-modal="true" aria-label={`Table ${table}`}>
+        <div className="cx-row between">
+          <h2 className="cx-h1" style={{ fontSize: 26 }}>
+            Table {table}
+          </h2>
+          <button type="button" className="cx-btn sm" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        {orders.length ? (
+          orders.map((o) => (
+            <div key={o.number} className="cx-card cx-stack" style={{ gap: 6 }}>
+              <div className="cx-row between">
+                <b className="cx-mono">{orderNo(o.number)}</b>
+                <StatusPill status={o.status} />
+              </div>
+              <p className="cx-muted cx-small">{itemsLine(o)}</p>
+              <div className="cx-row between">
+                <span className="cx-num">{rs(o.totals.total)}</span>
+                <span className="cx-small">{o.paid ? `Paid · ${PAY[o.paid.method][0]}` : 'Unpaid'}</span>
+              </div>
+              {o.status === 'ready' && (
+                <button type="button" className="cx-btn go" onClick={() => run(() => act(o.number, { type: 'served' }))}>
+                  Served
+                </button>
+              )}
+            </div>
+          ))
+        ) : (
+          <p className="cx-muted">Nothing ordered at this table right now.</p>
+        )}
+        {canPay && unpaid.length > 0 && (
+          <div className="cx-card cx-stack">
+            <p className="cx-h2">The bill · {rs(due)}</p>
+            <p className="cx-small cx-muted">Sales tax is on each order: 16% cash, 5% card or wallet, as the customer chose. Taking a different method here only records how they paid.</p>
+            <div className="cx-row">
+              <select className="cx-select" value={method} onChange={(e) => setMethod(+e.target.value)} aria-label="Paid by">
+                {PAY.map((p, i) => (
+                  <option key={i} value={i}>
+                    {p[0]}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="cx-btn primary" onClick={settle}>
+                Settle {rs(due)}
+              </button>
+            </div>
+          </div>
+        )}
+        {canCreate && (
+          <Link className="cx-btn big" href={`/dashboard/new?loc=${loc}&table=${table}`}>
+            + Add an order for table {table}
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
