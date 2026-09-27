@@ -3938,3 +3938,67 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
 @media (prefers-reduced-motion: reduce) {
   .hdr-sound, .hdr .hdr-voice, .hdr-bag { transition: none !important; }
 }
+
+/* ═══════════ floating call button: small and out of the way ═══════════
+   Just the gold phone button with a live dot; the "Call concierge" label
+   slides out beside it on hover or keyboard focus. */
+.voice-call-floating {
+  bottom: 1.5rem !important;
+  right: 1.5rem !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.voice-call-floating:hover { transform: none; box-shadow: none; }
+.voice-call-floating:focus-visible { outline: none; }
+.voice-call-float-btn {
+  width: 3.25rem;
+  height: 3.25rem;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(201 147 85 / 0.55);
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms ease;
+}
+.voice-call-float-btn svg { width: 18px; height: 18px; }
+.voice-call-float-btn::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px #1a140f;
+}
+.voice-call-floating:hover .voice-call-float-btn,
+.voice-call-floating:focus-visible .voice-call-float-btn { transform: scale(1.07); box-shadow: 0 14px 34px rgb(0 0 0 / 0.5), 0 0 0 2px rgb(201 147 85 / 0.8); }
+.voice-call-float-text {
+  position: absolute;
+  right: calc(100% + 0.6rem);
+  top: 50%;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9999px;
+  background: rgb(18 14 11 / 0.94);
+  border: 1px solid rgb(201 147 85 / 0.5);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(8px, -50%);
+  transition: opacity 200ms ease, transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.voice-call-float-text .hdr-voice-dot,
+.voice-call-float-sub { display: none; }
+.voice-call-floating:hover .voice-call-float-text,
+.voice-call-floating:focus-visible .voice-call-float-text { opacity: 1; transform: translate(0, -50%); }
+@media (max-width: 639.98px) {
+  .voice-call-floating { bottom: 1rem !important; right: 1rem !important; }
+  .voice-call-float-btn { width: 2.9rem; height: 2.9rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-call-float-btn, .voice-call-float-text { transition: none; }
+  .voice-call-float-btn::after { animation: none; }
+}
