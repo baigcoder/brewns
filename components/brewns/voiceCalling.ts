@@ -101,6 +101,10 @@ export function initVoiceCalling({
     if (avatarPulse) {
       avatarPulse.classList.toggle('active', isSpeaking);
     }
+    const avatarContainer = document.getElementById('vc-avatar-container');
+    if (avatarContainer) {
+      avatarContainer.classList.toggle('speaking', isSpeaking);
+    }
   }
 
   function stopAudio() {
@@ -411,7 +415,7 @@ export function initVoiceCalling({
     currentGender = gender;
     const isFemale = gender === 'female';
     if (voiceCurrentEl) {
-      voiceCurrentEl.textContent = isFemale ? 'HOST: SARAH' : 'HOST: HAMZA';
+      voiceCurrentEl.textContent = isFemale ? 'SARAH' : 'HAMZA';
     }
     if (agentTitleEl) {
       agentTitleEl.textContent = isFemale ? 'Sarah · Brewns Front Desk' : 'Hamza · Roastery & Bar';
@@ -421,8 +425,10 @@ export function initVoiceCalling({
         ? 'Guest Concierge · Direct Line · MM Alam & DHA'
         : 'Specialty Roaster & Hospitality Lead';
     }
-    if (avatarIcon) {
-      avatarIcon.innerHTML = `<span class="vc-avatar-badge">${isFemale ? 'S' : 'H'}</span><span class="vc-avatar-status-dot"></span>`;
+    const avatarImg = document.getElementById('vc-avatar-img') as HTMLImageElement | null;
+    if (avatarImg) {
+      avatarImg.src = isFemale ? '/assets/concierge/sarah.jpg' : '/assets/concierge/hamza.jpg';
+      avatarImg.alt = isFemale ? 'Sarah · Brewns Concierge' : 'Hamza · Brewns Roaster';
     }
     playSoftClick?.();
   }
