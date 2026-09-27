@@ -10,7 +10,7 @@ export const GET = route(async (req) => {
   if (!line) fail(404, 'Nothing to say.');
   await rateLimit(`voice-tts:${clientIp(req)}`, 240, 3600, 'The line is busy.');
 
-  const audio = await streamElevenLabsVoice(line!.text, line!.gender);
+  const audio = await streamElevenLabsVoice(line!.text, line!.gender, line!.lang);
   if (!audio) fail(502, 'The voice is unavailable right now.');
   return new Response(audio, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, no-store' } });
 });

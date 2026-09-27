@@ -18,6 +18,7 @@ export const POST = route(async (req) => {
     .filter((t: VoiceTurn) => t.content);
   const state = b.state && typeof b.state === 'object' ? (b.state as ScriptState) : {};
 
-  const result = await processVoiceCallPrompt(prompt || 'call_init', history, gender, state);
+  const lang = b.lang === 'ur' ? 'ur' : 'en';
+  const result = await processVoiceCallPrompt(prompt || 'call_init', history, gender, state, lang);
   return json({ success: true, ...result });
 });

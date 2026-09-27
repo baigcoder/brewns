@@ -3768,3 +3768,27 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
   color: rgba(255, 255, 255, 0.5);
   box-shadow: none;
 }
+
+/* EN / اردو on the call: the lit half is the language the line listens in. */
+.vc-lang {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid rgba(201, 147, 85, 0.35);
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--font-space-mono);
+  font-size: 0.6875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.vc-lang span {
+  padding: 0.3rem 0.55rem;
+  border-radius: 9999px;
+  color: rgba(255, 255, 255, 0.55);
+  transition: background-color 200ms ease, color 200ms ease;
+}
+.vc-lang .vc-lang-ur { font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", system-ui, sans-serif; font-size: 0.8125rem; padding-block: 0.15rem; }
+.vc-lang[data-lang="en"] .vc-lang-en,
+.vc-lang[data-lang="ur"] .vc-lang-ur { background: #c99355; color: #14100c; }
+.voice-caption-text[dir="rtl"] { font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", system-ui, sans-serif; line-height: 2; text-align: right; }
