@@ -3877,3 +3877,64 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
 .voice-call-badge { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .voice-call-top { gap: 0.6rem; }
 @media (max-width: 520px) { .voice-call-badge #vc-badge-text { font-size: 0.625rem; } }
+
+/* ═══════════ header actions: one family of buttons ═══════════
+   Sound, Call concierge, Order online and Bag share one height, one radius and
+   one quiet outline, so the right side reads as a set; Order online stays the
+   single gold button. Desktop only: phones keep their compact icon row. */
+@media (min-width: 1024px) {
+  .hdr-right { gap: 0.625rem; }
+  .hdr-sound,
+  .hdr .hdr-voice,
+  .hdr-order,
+  .hdr-bag {
+    height: 2.5rem;
+    border-radius: 9999px;
+    font-family: var(--font-space-mono) !important;
+    font-size: 0.75rem !important;
+    letter-spacing: 0.08em !important;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .hdr-sound,
+  .hdr .hdr-voice,
+  .hdr-bag {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    padding: 0 1rem !important;
+    border: 1px solid rgb(255 255 255 / 0.16) !important;
+    background: rgb(255 255 255 / 0.04) !important;
+    color: inherit !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(12px) !important;
+    transition: background-color 220ms ease, border-color 220ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .hdr-sound:hover,
+  .hdr .hdr-voice:hover,
+  .hdr-bag:hover {
+    opacity: 1;
+    background: rgb(255 255 255 / 0.1) !important;
+    border-color: rgb(255 255 255 / 0.3) !important;
+    color: inherit !important;
+    transform: translateY(-1px) !important;
+  }
+  /* The concierge keeps its gold hint and live dot, so it still reads as "call a person". */
+  .hdr .hdr-voice { border-color: rgb(201 147 85 / 0.45) !important; background: rgb(201 147 85 / 0.1) !important; }
+  .hdr .hdr-voice:hover { background: rgb(201 147 85 / 0.2) !important; border-color: rgb(201 147 85 / 0.7) !important; }
+  .hdr-sound.active { background: rgb(255 255 255 / 0.12) !important; }
+  .hdr-order { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0 1.15rem; }
+  .hdr-bag { padding-right: 0.45rem !important; }
+  .hdr-bag-count { min-width: 1.6rem; height: 1.6rem; font-size: 0.75rem; }
+
+  /* Over light sections the outlines turn dark to stay visible. */
+  .hdr[data-theme="light"]:not(.open) .hdr-sound,
+  .hdr[data-theme="light"]:not(.open) .hdr-bag { border-color: rgb(7 7 7 / 0.16) !important; background: rgb(7 7 7 / 0.03) !important; }
+  .hdr[data-theme="light"]:not(.open) .hdr-sound:hover,
+  .hdr[data-theme="light"]:not(.open) .hdr-bag:hover { background: rgb(7 7 7 / 0.07) !important; border-color: rgb(7 7 7 / 0.3) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hdr-sound, .hdr .hdr-voice, .hdr-bag { transition: none !important; }
+}
