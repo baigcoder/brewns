@@ -1,7 +1,7 @@
 /* The voice concierge: what Sarah / Hamza hear, think and say.
 
    Two brains behind one call:
-   - Claude, when ANTHROPIC_API_KEY is set. A real conversation: it listens,
+   - Gemini, when GEMINI_API_KEY is set. A real conversation: it listens,
      asks one thing at a time, reads the booking back before it commits, and
      books through tools that write to the same store as the website forms.
    - A small slot-filling script otherwise, so the call still works on a laptop
@@ -11,7 +11,6 @@
    The voice is ElevenLabs when ELEVENLABS_API_KEY is set; without it the reply
    comes back as text and the browser speaks it with its own voice. */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { randomBytes } from 'node:crypto';
 import { kv, withLock } from './store';
 import { CATALOG, CLOSE_MIN, DELIVERY, LOC_TITLES, OPEN_MIN, SHOP_COUNT, catalogItem, defaultSel, money, pkMobile, unitPrice, validSel, type Product, type Sel } from '@/lib/catalog';
@@ -66,7 +65,7 @@ export interface VoiceCallResponse {
   audioBase64?: string;
   actions: VoiceAction[];
   state?: ScriptState;
-  brain: 'claude' | 'script';
+  brain: 'gemini' | 'script';
 }
 
 export const agentName = (g: VoiceGender) => (g === 'male' ? 'Hamza' : 'Sarah');
@@ -175,7 +174,13 @@ export function parseTime(text: string): number {
     if (!ap && h >= 1 && h <= 8) h += 12;
     if (h <= 23 && min <= 59) return h * 60 + min;
   }
-  if (/\bmorning\b/.test(t)) return 10 * 60;
+  const baje = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*baje\b/);
+  if (baje) {
+    let h = Number(baje[1]);
+    if (/\b(shaam|sham|raat|dopahar|dopehar)\b/.test(t) || (!/\b(subah|subha)\b/.test(t) && h >= 1 && h <= 8)) h = h < 12 ? h + 12 : h;
+    return h * 60 + Number(baje[2] || 0);
+  }
+  if (/\b(morning|subah|subha)\b/.test(t)) return 10 * 60;
   if (/\b(lunch|afternoon)\b/.test(t)) return 14 * 60;
   if (/\b(evening|dinner|tonight)\b/.test(t)) return 19 * 60;
   return -1;
@@ -317,6 +322,7 @@ function checkBag(items: unknown): Check<{ items: BagLine[]; total: number }> {
 /** { milk: "oat" } → the choice index, falling back to each option's default. */
 function pickOptions(p: Product, opts: unknown): Sel {
   const sel = defaultSel(p);
+  if (typeof opts === 'string') opts = Object.fromEntries(opts.split(/[,;]/).map((kv) => kv.split(/[=:]/).map((x) => x.trim())).filter((kv) => kv.length === 2 && kv[0]));
   if (opts && typeof opts === 'object') {
     for (const o of p.options) {
       const want = s((opts as Record<string, unknown>)[o.key]).toLowerCase();
@@ -328,9 +334,16 @@ function pickOptions(p: Product, opts: unknown): Sel {
   return validSel(p, sel) ? sel : defaultSel(p);
 }
 
-/* ═══════════ Claude ═══════════ */
+/* ═══════════ Gemini ═══════════ */
 
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5';
+/* Tried in order. Each model has its own quota (the free tier allows only a few
+   requests a minute per model), so when one is busy or used up the call moves
+   to the next instead of dropping out of the conversation. */
+const GEMINI_MODELS = [...new Set([process.env.GEMINI_MODEL || 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview'])];
+/** Models that refused minimal thinking; they get a plain request from then on. */
+const noMinimalThinking = new Set<string>();
+/** model → when its quota is back (ms), from the "retry in Ns" Google sends with a 429. */
+const coolingUntil = new Map<string, number>();
 
 const MENU_TEXT = CATALOG.filter((p) => !p.gift)
   .map((p) => {
@@ -384,69 +397,62 @@ ${MENU_TEXT}`;
 const bookingProps = {
   name: { type: 'string', description: "Guest's name" },
   phone: { type: 'string', description: 'Pakistani mobile number, e.g. 03001234567' },
-  shop: { type: 'integer', enum: [0, 1, 2], description: '0 MM Alam Road, 1 DHA Phase 5, 2 Johar Town' },
+  shop: { type: 'integer', description: '0 MM Alam Road, 1 DHA Phase 5, 2 Johar Town' },
   date: { type: 'string', description: 'YYYY-MM-DD, resolved from today in Lahore' },
   time: { type: 'string', description: 'HH:MM, 24-hour' },
   guests: { type: 'integer' },
   notes: { type: 'string', description: 'Anything else the caller asked for (high chair, cake, window seat); empty if none' },
-} as const;
+};
 
-const TOOLS: Anthropic.Beta.BetaTool[] = [
+const TOOLS = [
   {
-    name: 'reserve_table',
-    description: 'Book a table after the caller has confirmed all the details you read back. Returns the confirmation code, or an error explaining what to fix.',
-    strict: true,
-    input_schema: {
-      type: 'object',
-      properties: { ...bookingProps, area: { type: 'string', enum: ['indoor', 'terrace', 'bar'] } },
-      required: ['name', 'phone', 'shop', 'date', 'time', 'guests', 'area', 'notes'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'book_party',
-    description: 'Book a party or event (8 to 120 guests) after the caller has confirmed the details you read back. Returns the booking code, or an error.',
-    strict: true,
-    input_schema: {
-      type: 'object',
-      properties: { ...bookingProps, occasion: { type: 'string', description: 'e.g. Birthday party, Corporate gathering, Private evening' } },
-      required: ['name', 'phone', 'shop', 'date', 'time', 'guests', 'occasion', 'notes'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'add_to_bag',
-    description: "Add menu items to the caller's website bag. Use exact ids from the menu. options maps an option key to the choice label the caller asked for (e.g. {\"milk\": \"oat\", \"size\": \"12\\\"\"}); leave it empty for defaults.",
-    input_schema: {
-      type: 'object',
-      properties: {
-        items: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string' },
-              qty: { type: 'integer' },
-              options: { type: 'object', additionalProperties: { type: 'string' } },
-            },
-            required: ['id', 'qty'],
-          },
+    functionDeclarations: [
+      {
+        name: 'reserve_table',
+        description: 'Book a table after the caller has confirmed all the details you read back. Returns the confirmation code, or an error explaining what to fix.',
+        parameters: {
+          type: 'object',
+          properties: { ...bookingProps, area: { type: 'string', enum: ['indoor', 'terrace', 'bar'] } },
+          required: ['name', 'phone', 'shop', 'date', 'time', 'guests', 'area'],
         },
       },
-      required: ['items'],
-    },
-  },
-  {
-    name: 'end_call',
-    description: 'Hang up after you have said goodbye.',
-    input_schema: { type: 'object', properties: {} },
+      {
+        name: 'book_party',
+        description: 'Book a party or event (8 to 120 guests) after the caller has confirmed the details you read back. Returns the booking code, or an error.',
+        parameters: {
+          type: 'object',
+          properties: { ...bookingProps, occasion: { type: 'string', description: 'e.g. Birthday party, Corporate gathering, Private evening' } },
+          required: ['name', 'phone', 'shop', 'date', 'time', 'guests', 'occasion'],
+        },
+      },
+      {
+        name: 'add_to_bag',
+        description: "Add menu items to the caller's website bag, only when they ask to order. Use exact ids from the menu.",
+        parameters: {
+          type: 'object',
+          properties: {
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', description: 'Exact menu id' },
+                  qty: { type: 'integer' },
+                  options: { type: 'string', description: 'Choices the caller asked for as key=label pairs, e.g. "milk=oat, size=16 oz"; empty for defaults' },
+                },
+                required: ['id', 'qty'],
+              },
+            },
+          },
+          required: ['items'],
+        },
+      },
+      { name: 'end_call', description: 'Hang up after you have said goodbye.' },
+    ],
   },
 ];
 
-let client: Anthropic | null = null;
-const claude = () => (client ??= new Anthropic({ timeout: 25_000, maxRetries: 1 }));
-
-export const claudeEnabled = () => Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+export const geminiEnabled = () => Boolean(process.env.GEMINI_API_KEY);
 
 /** Tidy anything that would sound wrong read aloud. */
 const speakable = (t: string) =>
@@ -456,7 +462,9 @@ const speakable = (t: string) =>
     .replace(/\s*\n+\s*/g, ' ')
     .trim();
 
-async function runTool(name: string, input: Record<string, unknown>, transcript: string, actions: VoiceAction[]): Promise<{ content: string; isError?: boolean }> {
+type ToolOut = { content: string; isError?: boolean };
+
+async function runTool(name: string, input: Record<string, unknown>, transcript: string, actions: VoiceAction[]): Promise<ToolOut> {
   if (name === 'reserve_table') {
     const r = await saveReservation(input, transcript);
     if (!r.ok) return { content: r.error, isError: true };
@@ -482,58 +490,111 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
   return { content: `Unknown tool ${name}`, isError: true };
 }
 
-async function claudeTurn(prompt: string, history: VoiceTurn[], gender: VoiceGender): Promise<{ reply: string; actions: VoiceAction[] }> {
-  const now = lahoreNow();
-  const messages: Anthropic.Beta.BetaMessageParam[] = [];
-  // The API wants turns to start with the caller; the greeting is folded in as context.
-  for (const t of history) {
-    if (!messages.length && t.role === 'assistant') messages.push({ role: 'user', content: '(call connected)' });
-    messages.push({ role: t.role, content: t.content });
+const BYE = /\b(bye|goodbye|that's all|thats all|nothing else|no thanks|khuda hafiz|allah hafiz)\b/i;
+
+type GeminiPart = { text?: string; thought?: boolean; functionCall?: { name: string; args?: Record<string, unknown> }; functionResponse?: unknown; thoughtSignature?: string };
+type GeminiContent = { role: 'user' | 'model'; parts: GeminiPart[] };
+type GeminiBody = { generationConfig: Record<string, unknown>; [key: string]: unknown };
+
+async function gemini(body: GeminiBody, model: string): Promise<{ parts: GeminiPart[]; finish?: string; blocked?: string }> {
+  // Least thinking = quickest reply; models differ in what they accept, so fall back to their default.
+  const minimal = !noMinimalThinking.has(model);
+  const payload = minimal ? { ...body, generationConfig: { ...body.generationConfig, thinkingConfig: { thinkingLevel: 'minimal' } } } : body;
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY || '', 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(12_000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg: string = data?.error?.message || res.statusText;
+    if (res.status === 400 && minimal && /thinking|invalid argument/i.test(msg)) {
+      noMinimalThinking.add(model);
+      return gemini(body, model);
+    }
+    if (res.status === 429) {
+      const wait = Number(msg.match(/retry in ([\d.]+)s/i)?.[1] || 60);
+      coolingUntil.set(model, Date.now() + wait * 1000);
+    }
+    throw Object.assign(new Error(`Gemini ${model} ${res.status}: ${msg.split('\n')[0]}`), { status: res.status });
   }
-  messages.push({ role: 'user', content: prompt });
+  const c = data.candidates?.[0];
+  return { parts: c?.content?.parts || [], finish: c?.finishReason, blocked: data.promptFeedback?.blockReason };
+}
+
+/** One request, moving down the model list on a busy (503) or used-up (429) model. */
+async function geminiAny(body: GeminiBody, stick: { model?: string }) {
+  const order = stick.model ? [stick.model, ...GEMINI_MODELS.filter((m) => m !== stick.model)] : GEMINI_MODELS;
+  const ready = order.filter((m) => (coolingUntil.get(m) || 0) < Date.now());
+  let last: unknown = new Error('Every Gemini model is out of quota right now.');
+  for (const model of ready.length ? ready : order) {
+    try {
+      const r = await gemini(body, model);
+      // Tool results must go back to the model that asked for them.
+      stick.model = model;
+      return r;
+    } catch (err) {
+      last = err;
+      const status = (err as { status?: number }).status;
+      // Busy, out of quota, gone, or too slow: try the next model.
+      if (status && ![400, 403, 404, 429, 500, 503].includes(status)) throw err;
+      if (stick.model === model) delete stick.model;
+    }
+  }
+  throw last;
+}
+
+async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGender): Promise<{ reply: string; actions: VoiceAction[] }> {
+  const now = lahoreNow();
+  const contents: GeminiContent[] = [];
+  // Turns start with the caller; the greeting is folded in as context.
+  for (const t of history) {
+    if (!contents.length && t.role === 'assistant') contents.push({ role: 'user', parts: [{ text: '(call connected)' }] });
+    contents.push({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.content }] });
+  }
+  contents.push({ role: 'user', parts: [{ text: prompt }] });
 
   const actions: VoiceAction[] = [];
   const spoken: string[] = [];
+  const stick: { model?: string } = {};
 
   for (let hop = 0; hop < 4; hop++) {
-    const res = await claude().beta.messages.create({
-      model: MODEL,
-      max_tokens: 1024,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: { effort: 'low' },
-      system: [
-        { type: 'text', text: persona(gender), cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: `Right now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.` },
-      ],
+    const res = await geminiAny({
+      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.` }] },
+      contents,
       tools: TOOLS,
-      messages,
-    });
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+    }, stick);
 
-    if (res.stop_reason === 'refusal') {
+    if (res.blocked || res.finish === 'SAFETY' || res.finish === 'PROHIBITED_CONTENT') {
       return { reply: "Sorry, I can't help with that one. Is there anything about a table, a party or your order I can do for you?", actions };
     }
 
-    for (const b of res.content) if (b.type === 'text' && b.text.trim()) spoken.push(b.text);
-    const uses = res.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
-    if (res.stop_reason !== 'tool_use' || !uses.length) break;
+    for (const part of res.parts) if (part.text?.trim() && !part.thought) spoken.push(part.text);
+    const calls = res.parts.filter((part) => part.functionCall);
+    if (!calls.length) break;
 
-    messages.push({ role: 'assistant', content: res.content });
-    const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
-    for (const u of uses) {
-      const out = await runTool(u.name, (u.input || {}) as Record<string, unknown>, prompt, actions);
-      results.push({ type: 'tool_result', tool_use_id: u.id, content: out.content, is_error: out.isError });
+    // Send the model's turn back as it came (thought signatures included), then the results.
+    contents.push({ role: 'model', parts: res.parts });
+    const responses: GeminiPart[] = [];
+    for (const c of calls) {
+      const { name, args } = c.functionCall!;
+      const out = await runTool(name, args || {}, prompt, actions);
+      responses.push({ functionResponse: { name, response: out.isError ? { error: out.content } : { result: out.content } } });
     }
-    messages.push({ role: 'user', content: results });
+    contents.push({ role: 'user', parts: responses });
     // Hanging up needs no further words once the goodbye is said.
-    if (uses.every((u) => u.name === 'end_call') && spoken.length) break;
+    if (calls.every((c) => c.functionCall!.name === 'end_call') && spoken.length) break;
   }
 
+  // The caller said goodbye and so did the model, but it forgot to hang up.
+  if (!actions.some((a) => a.type === 'END_CALL') && BYE.test(prompt) && /\b(bye|take care|khuda hafiz|allah hafiz|have a (lovely|great|good))\b/i.test(spoken.join(' '))) actions.push({ type: 'END_CALL' });
   const reply = speakable(spoken.join(' ')) || (actions.some((a) => a.type === 'END_CALL') ? 'Thanks for calling brewns. Take care!' : 'Sorry, could you say that again?');
   return { reply, actions };
 }
 
-/* ═══════════ the script, when there is no Claude key ═══════════ */
+/* ═══════════ the script, when there is no Gemini key ═══════════ */
 
 const QUESTIONS: Record<string, (flow: 'table' | 'party') => string> = {
   occasion: () => "Lovely! What's the occasion? A birthday, something for work, or a private evening?",
@@ -568,7 +629,7 @@ function fillSlots(p: string, raw: string, st: ScriptState, asked?: string) {
     if (n[1] && n[1] !== '-1') sl.guests = n[1];
   }
   const t = parseTime(p.replace(/\b\d{1,3}\s*(people|guests|persons|pax|log|of us|friends|adults)\b/g, ''));
-  if (t >= 0 && (asked === 'time' || /\d\s*(am|pm|a\.m|p\.m)|\d:\d\d|\b(at|around|by|about)\s+\d|morning|afternoon|evening|lunch|dinner|tonight/.test(p))) sl.time = hhmm(t);
+  if (t >= 0 && (asked === 'time' || /\d\s*(am|pm|a\.m|p\.m)|\d:\d\d|\b(at|around|by|about)\s+\d|morning|afternoon|evening|lunch|dinner|tonight|baje|shaam|raat|subah/.test(p))) sl.time = hhmm(t);
   if (/\bterrace\b/.test(p)) sl.area = 'terrace';
   else if (/\bbar\b/.test(p)) sl.area = 'bar';
   else if (/\b(indoor|inside|anywhere|doesn.t matter|no preference)\b/.test(p) || asked === 'area') sl.area ||= 'indoor';
@@ -679,7 +740,30 @@ const COFFEE_TALK = () => {
   return `Coffee's our thing! Everything starts with Slow Roast, our house roast, with notes of ${sayList((house.notes || []).map((n) => n.toLowerCase()))}. We also have a single origin ${titleCase(so.name)}, bright with ${sayList((so.notes || []).map((n) => n.toLowerCase()))}. At the bar there's ${sayList(menuNames('drinks', 6).map((n) => n.toLowerCase()))}. Do you like it strong, milky, or cold?`;
 };
 
-async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptState): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
+/** Pick up a booking the AI was in the middle of, from what the caller has said so far. */
+function stateFromHistory(history: VoiceTurn[]): ScriptState {
+  let st: ScriptState = {};
+  for (const t of history) {
+    if (t.role === 'assistant') {
+      // A code read out means that booking is done; anything after is a new request.
+      if (/\b(RES|PTY)\b|R E S|P T Y|code is/i.test(t.content)) st = {};
+      continue;
+    }
+    const p = t.content.toLowerCase();
+    if (!st.flow) {
+      if (/party|event|birthday|celebrat|gathering|corporate|salgirah/.test(p)) st = { flow: 'party', slots: {} };
+      else if (/\b(table|reserve|reservation|book|seat|jagah)\b/.test(p)) st = { flow: 'table', slots: {} };
+      else continue;
+      fillSlots(p, t.content, st);
+    } else {
+      fillSlots(p, t.content, st, ORDER[st.flow].find((k) => !st.slots?.[k as keyof NonNullable<ScriptState['slots']>]));
+    }
+  }
+  return st;
+}
+
+async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptState, history: VoiceTurn[] = []): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
+  if (!state.flow && history.length) state = stateFromHistory(history);
   const r = await scriptAnswer(prompt, gender, state);
   // Answer a salam in kind, whatever else was asked in the same breath.
   if (/\b(a?s+alam|salaam|aoa)\b/i.test(prompt) && !/alaikum assalam/i.test(r.reply)) r.reply = `Wa alaikum assalam! ${r.reply.replace(/^(Hi there!|Sure!|Happy to!)\s*/, '')}`;
@@ -696,7 +780,7 @@ async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptSt
     return scriptBooking(p, raw, state);
   }
 
-  if (/\b(bye|goodbye|that's all|thats all|nothing else|no thanks|khuda hafiz|allah hafiz)\b/.test(p))
+  if (BYE.test(p))
     return { reply: 'Thanks for calling brewns. Have a lovely day!', actions: [{ type: 'END_CALL' }], state: {} };
 
   if (/party|event|birthday|celebrat|gathering|corporate|salgirah/.test(p)) {
@@ -782,20 +866,21 @@ export async function processVoiceCallPrompt(
   gender: VoiceGender = 'female',
   state: ScriptState = {},
 ): Promise<VoiceCallResponse> {
-  const brain = claudeEnabled() ? 'claude' : 'script';
+  let brain: VoiceCallResponse['brain'] = geminiEnabled() ? 'gemini' : 'script';
   let turn: { reply: string; actions: VoiceAction[]; state?: ScriptState };
 
   if (prompt === 'call_init') {
     turn = { reply: greeting(gender), actions: [] };
   } else if (prompt === 'voice_switch') {
     turn = { reply: `Hi, ${agentName(gender)} here, I'll take it from here. Where were we?`, actions: [], state };
-  } else if (brain === 'claude') {
+  } else if (brain === 'gemini') {
     try {
-      turn = await claudeTurn(prompt, history, gender);
+      turn = await geminiTurn(prompt, history, gender);
     } catch (err) {
       // Keep the call alive on a bad network moment; the script can carry on.
-      console.error('[Voice Claude]', err instanceof Anthropic.APIError ? `${err.status} ${err.message}` : err);
-      turn = await scriptTurn(prompt, gender, state);
+      console.error('[Voice Gemini]', err instanceof Error ? err.message : err);
+      turn = await scriptTurn(prompt, gender, state, history);
+      brain = 'script';
     }
   } else {
     turn = await scriptTurn(prompt, gender, state);

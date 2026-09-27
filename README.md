@@ -95,8 +95,8 @@ Copy `.env.example` to `.env.local` for local use; on Vercel, add them under **S
 | `NEXT_PUBLIC_ORDER_ENDPOINT` | A form-to-email endpoint that receives every order, for example a [Formspree](https://formspree.io) form pointed at the café's inbox. Each order arrives as a table (order, type, customer, mobile, address or shop, time, items, total, payment, note) with the customer's email as reply-to. | none: the confirmation offers "email me this receipt" and "email the café" links instead |
 | `NEXT_PUBLIC_CAFE_EMAIL` | Shown on the "email the café" links. | `orders@brewns.coffee` |
 | `NEXT_PUBLIC_SITE_URL` | The site's public address, for canonical links, the sitemap and share previews. | `https://brewns.coffee` |
-| `ANTHROPIC_API_KEY` | Gives the AI voice call a real conversation: Claude listens, asks one thing at a time, reads bookings back and books tables, parties and bag items through the same store as the website. | none: the call runs a built-in script that still collects every detail and books for real |
-| `ANTHROPIC_MODEL` | The Claude model for the voice call. | `claude-opus-5` |
+| `GEMINI_API_KEY` | Gives the AI voice call a real conversation: Gemini listens, asks one thing at a time, reads bookings back and books tables, parties and bag items through the same store as the website. | none: the call runs a built-in script that still collects every detail and books for real |
+| `GEMINI_MODEL` | The Gemini model for the voice call. | `gemini-flash-latest` |
 | `ELEVENLABS_API_KEY` | A natural ElevenLabs voice for the call. Server-side only; never commit it. | none: the browser's own voice speaks the replies |
 | `ELEVENLABS_VOICE_ID_FEMALE` / `ELEVENLABS_VOICE_ID_MALE` / `ELEVENLABS_MODEL_ID` | Which ElevenLabs voices and model Sarah and George use. | Sarah, George, `eleven_flash_v2_5` |
 
