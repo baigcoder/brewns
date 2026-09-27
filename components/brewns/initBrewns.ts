@@ -2750,14 +2750,35 @@ const opalesce = (wrapper) => {
   whenReady(() => fade.classList.add("on"));
   if (!REDUCED) stopFrame = loop(frame);
 };
-$$("[data-opal]").forEach(opalesce);
+/* Heavy scenes start when they're about to be seen, not at load: only the hero
+   compiles its shaders up front, so the first screen is ready sooner and the
+   page stays smooth while it loads. */
+const whenNear = (el, start, margin = "1500px 0px") => {
+  if (!el) return;
+  let started = false;
+  const go = () => {
+    if (started) return;
+    started = true;
+    io?.disconnect();
+    start();
+  };
+  const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && go(), { rootMargin: margin }) : null;
+  if (!io) return go();
+  io.observe(el);
+  // …or in the first quiet moment after the page is in, so the work never lands mid-scroll.
+  whenReady(() => {
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
+    setTimeout(() => idle(go, { timeout: 4000 }), 1500);
+  });
+};
+$$("[data-opal]").forEach((w) => (w.closest("#hero") ? opalesce(w) : whenNear(w, () => opalesce(w))));
 
 /* ═══════════ three.js layers ═══════════ */
 const threeReady = Promise.resolve({ ...THREE, GLTFLoader, DRACOLoader, RoomEnvironment });
 threeReady
   .then((T) => {
     heroModel(T, $("#hero-mount"), heroHandle, (role) => role && setCard(role));
-    philosophyScene(T, $("#phil-scene"));
+    whenNear($("#phil-scene"), () => philosophyScene(T, $("#phil-scene")));
   })
   .catch((error) => {
     console.error("three", error);
@@ -2839,7 +2860,7 @@ function heroModel(T, mount, handle, onPiece) {
 
   let renderer;
   try {
-    renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: true });
+    renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
   } catch {
     canvas.remove();
     return;
