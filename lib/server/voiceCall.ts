@@ -339,7 +339,9 @@ function pickOptions(p: Product, opts: unknown): Sel {
 /* Tried in order. Each model has its own quota (the free tier allows only a few
    requests a minute per model), so when one is busy or used up the call moves
    to the next instead of dropping out of the conversation. */
-const GEMINI_MODELS = [...new Set([process.env.GEMINI_MODEL || 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview'])];
+// Flash-Lite first: about a second per reply, which is what makes a call feel live.
+// Pro models are too slow for a phone turn (and have no free-tier quota at all).
+const GEMINI_MODELS = [...new Set([process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
 /** Models that refused minimal thinking; they get a plain request from then on. */
 const noMinimalThinking = new Set<string>();
 /** model → when its quota is back (ms), from the "retry in Ns" Google sends with a 429. */
