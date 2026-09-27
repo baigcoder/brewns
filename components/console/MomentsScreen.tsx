@@ -165,7 +165,7 @@ export function MomentsScreen() {
       <div className="cx-pagehead" style={{ marginBottom: '1.5rem' }}>
         <div>
           <p className="cx-eyebrow">
-            <b>//</b> Community &amp; Customer Moments
+            <b>{'//'}</b> Community &amp; Customer Moments
           </p>
           <h1 className="cx-h1">Moments Gallery</h1>
         </div>
@@ -739,7 +739,7 @@ export function MomentsScreen() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
               <div>
                 <p style={{ margin: 0, color: 'var(--accent, #c99355)', fontSize: '0.75rem', fontFamily: 'var(--font-space-mono)', fontWeight: 600 }}>
-                  // OWNER UPLOAD
+                  {'//'} OWNER UPLOAD
                 </p>
                 <h2 style={{ margin: '0.25rem 0 0', fontSize: '1.25rem', fontWeight: 700 }}>
                   Add Photo or Video Moment
