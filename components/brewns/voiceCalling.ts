@@ -76,6 +76,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let history: Turn[] = [];
   let scriptState: unknown = {};
   let hangUpAfterSpeech = false;
+  /** Names this call in the café's call log, so the dashboard can follow it live. */
+  let callId = '';
   /** Bumped on every new turn, hang-up or interruption; late replies for an old turn are dropped. */
   let turnId = 0;
 
@@ -414,7 +416,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const res = await fetch('/api/voice/call', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gender, history, state: scriptState, lang, ...body }),
+      body: JSON.stringify({ gender, history, state: scriptState, lang, callId, ...body }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Voice server responded with ${res.status}`);
@@ -512,6 +514,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     muted = !SpeechRec;
     history = [];
     scriptState = {};
+    callId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     setLang(/^ur/i.test(navigator.language) ? 'ur' : 'en');
     hangUpAfterSpeech = false;
     modal!.hidden = false;
@@ -551,6 +554,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (!callActive) return;
     callActive = false;
     turnId++;
+    // Tell the log the call is over; keepalive lets it go out even as the page closes.
+    if (callId) {
+      fetch('/api/voice/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'call_end', callId }), keepalive: true }).catch(() => {});
+      callId = '';
+    }
     clearInterval(timer);
     stopSpeaking();
     stopListening();
@@ -601,6 +609,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   on(document, 'keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape' && callActive) endCall();
   });
+  // Closing the tab mid-call still ends the call in the café's log.
+  on(window, 'pagehide', () => callActive && endCall());
 
   on($('vc-voice-switch'), 'click', async (e: Event) => {
     e.preventDefault();
