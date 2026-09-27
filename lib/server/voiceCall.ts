@@ -8,10 +8,11 @@
      with no keys. It asks for the same details, one at a time, and keeps its
      place in `state`, which the browser sends back with the next turn.
 
-   The voice is ElevenLabs when ELEVENLABS_API_KEY is set; without it the reply
-   comes back as text and the browser speaks it with its own voice. */
+   The voice is ElevenLabs when ELEVENLABS_API_KEY is set, streamed to the
+   browser so it starts talking straight away; without it the browser speaks
+   the reply with its own voice. */
 
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { kv, withLock } from './store';
 import { CATALOG, CLOSE_MIN, DELIVERY, LOC_TITLES, OPEN_MIN, SHOP_COUNT, catalogItem, defaultSel, money, pkMobile, unitPrice, validSel, type Product, type Sel } from '@/lib/catalog';
 import type { Reservation } from '@/app/api/reservations/route';
@@ -62,7 +63,8 @@ export interface ScriptState {
 
 export interface VoiceCallResponse {
   reply: string;
-  audioBase64?: string;
+  /** Where the browser streams the ElevenLabs voice from; absent without a key. */
+  audioUrl?: string;
   actions: VoiceAction[];
   state?: ScriptState;
   brain: 'gemini' | 'script';
@@ -78,28 +80,68 @@ const VOICE_IDS: Record<VoiceGender, string> = {
   male: process.env.ELEVENLABS_VOICE_ID_MALE || 'JBFqnCBsd6RMkjVDRZzb', // George
 };
 
-/** Speak `text` with ElevenLabs. Conversational settings: a little less stable
-    and a little more style than narration, so it sounds like someone talking,
-    not reading. Null when there is no key or the call fails; the browser then
-    uses its own voice. */
-export async function synthesizeElevenLabsVoice(text: string, gender: VoiceGender): Promise<string | null> {
+/** What the voice should say, as a person would say it: "Rs 2,550" → "2,550
+    rupees", a mobile number in the groups people read it in. The caption keeps
+    the written form. */
+export function forSpeech(text: string) {
+  return text
+    .replace(/\bRs\.?\s?([\d,]+)/g, '$1 rupees')
+    .replace(/\b(03\d{2})[\s-]?(\d{3})[\s-]?(\d{4})\b/g, (_, a: string, b: string, c: string) => [a, b, c].map((g) => g.split('').join(' ')).join(', '))
+    .replace(/\s*—\s*/g, ', ')
+    .replace(/(\d)\s*×\s*/g, '$1 ');
+}
+
+export const ttsEnabled = () => Boolean(ELEVENLABS_API_KEY);
+
+/* The browser fetches the voice from /api/voice/tts, so it can start playing
+   the first words while ElevenLabs is still speaking the rest. The URL carries
+   the reply signed by this server, so the endpoint only ever speaks our own
+   lines and can't be used to spend the café's characters on anything else. */
+
+const ttsSecret = () => createHmac('sha256', 'brewns-voice-tts').update(process.env.SESSION_SECRET || ELEVENLABS_API_KEY).digest();
+const TTS_TTL_MS = 10 * 60_000;
+
+export function ttsUrl(text: string, gender: VoiceGender) {
+  const payload = Buffer.from(JSON.stringify({ t: forSpeech(text).slice(0, 900), g: gender, e: Date.now() + TTS_TTL_MS })).toString('base64url');
+  const sig = createHmac('sha256', ttsSecret()).update(payload).digest('base64url');
+  return `/api/voice/tts?p=${payload}&s=${sig}`;
+}
+
+export function readTtsToken(payload: string, sig: string): { text: string; gender: VoiceGender } | null {
+  if (!payload || !sig || !ELEVENLABS_API_KEY) return null;
+  const want = createHmac('sha256', ttsSecret()).update(payload).digest();
+  const got = Buffer.from(sig, 'base64url');
+  if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
+  try {
+    const { t, g, e } = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (typeof t !== 'string' || !t || Number(e) < Date.now()) return null;
+    return { text: t, gender: g === 'male' ? 'male' : 'female' };
+  } catch {
+    return null;
+  }
+}
+
+/** Stream `text` from ElevenLabs as MP3. Conversational settings: a little less
+    stable and a little more style than narration, so it sounds like someone
+    talking, not reading. Null when it fails; the browser then uses its own voice. */
+export async function streamElevenLabsVoice(text: string, gender: VoiceGender): Promise<ReadableStream<Uint8Array> | null> {
   if (!ELEVENLABS_API_KEY || !text) return null;
   try {
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_IDS[gender]}?output_format=mp3_44100_128&optimize_streaming_latency=3`, {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_IDS[gender]}/stream?output_format=mp3_44100_128`, {
       method: 'POST',
-      headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
       body: JSON.stringify({
         text,
         model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5',
         voice_settings: { stability: 0.38, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true, speed: 1.02 },
       }),
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(15_000),
     });
-    if (!res.ok) {
-      console.error('[ElevenLabs TTS]', res.status, (await res.text()).slice(0, 300));
+    if (!res.ok || !res.body) {
+      console.error('[ElevenLabs TTS]', res.status, (await res.text().catch(() => '')).slice(0, 300));
       return null;
     }
-    return `data:audio/mpeg;base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
+    return res.body;
   } catch (err) {
     console.error('[ElevenLabs TTS]', err instanceof Error ? err.message : err);
     return null;
@@ -888,6 +930,6 @@ export async function processVoiceCallPrompt(
     turn = await scriptTurn(prompt, gender, state);
   }
 
-  const audioBase64 = (await synthesizeElevenLabsVoice(turn.reply, gender)) || undefined;
-  return { reply: turn.reply, audioBase64, actions: turn.actions, state: turn.state, brain };
+  const audioUrl = ttsEnabled() ? ttsUrl(turn.reply, gender) : undefined;
+  return { reply: turn.reply, audioUrl, actions: turn.actions, state: turn.state, brain };
 }
