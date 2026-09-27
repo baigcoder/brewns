@@ -27,7 +27,9 @@ export default async function StaffSignin() {
         ]}
         footer={
           <>
-            <p>New here? Open the invite link your manager sent you.</p>
+            <p>
+              New here? <Link href="/staff/signup">Join the team · Sign up</Link> or open your invite link.
+            </p>
             <p>Forgot your password? Ask the owner or a manager for a new link.</p>
             <p>
               The owner? <Link href="/owner/signin">Owner sign-in</Link>

@@ -37,7 +37,7 @@ import { addStamps, birthdayTreat, CLUB, emptyClub, isDrink, memberNumber, norma
 import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TITLES, LOCS, money, OPEN_MIN, PAY, pkMobile, PREP_MIN, PRODUCTS_BASE, selLabel, SHOP_CODES, TAX, TAX_CARD, unitPrice } from "@/lib/catalog";
 import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
-
+import { initVoiceCalling } from './voiceCalling';
 
 export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
   if (cafeRecording !== null) setCafeRecording(cafeRecording);
@@ -800,15 +800,30 @@ document.addEventListener(
   (e) => {
     const img = e.target;
     if (img?.tagName !== "IMG" || img.dataset.artFallback) return;
-    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)\.\w+$/)?.[1];
+    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)(\.\w+)?$/)?.[1];
     if (!id || !KITCHEN_ART[id]) return;
     img.dataset.artFallback = "1";
     img.src = KITCHEN_ART[id];
   },
   true,
 );
+const CLOUDINARY_CLOUD = "e4j256t4";
+const cldProductUrl = (path: string) => {
+  if (!path || path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) return path;
+  const clean = path.replace(/^\/?assets\//, "").replace(/^\//, "");
+  if (clean.startsWith("kitchen/")) {
+    const id = clean.replace("kitchen/", "").replace(/\.\w+$/, "");
+    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD}/image/upload/f_auto,q_auto/brewns/products/kitchen/${id}`;
+  }
+  if (clean.startsWith("shop/snap/")) {
+    const id = clean.replace("shop/snap/", "").replace(/\.\w+$/, "");
+    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD}/image/upload/f_auto,q_auto/brewns/products/shop/${id}`;
+  }
+  return `${ASSET_BASE_URL}${clean}`;
+};
+
 // Photos are asset paths; drawn dishes arrive as data URIs.
-const photoSrc = (photo) => (photo.startsWith("data:") ? photo : `${ASSET_BASE_URL}${photo}`);
+const photoSrc = (photo: string) => (photo.startsWith("data:") ? photo : cldProductUrl(photo));
 
 /* ═══════════ generated markup: menu cards, footer columns ═══════════ */
 const ALL_MENU_CARDS = [
@@ -824,7 +839,7 @@ const ALL_MENU_CARDS = [
   { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", file: "bag-slow-roast.webp", size: [611, 1040], frame: [112, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns Slow Roast bag in charcoal and sage green" },
   { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", file: "bag-yirgacheffe.webp", size: [654, 1040], frame: [119, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns Ethiopia single origin bag with an orange mountain landscape" },
   { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "tumbler-black.webp", size: [1000, 1000], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
-  ...KITCHEN.map((k) => ({ shot: true, id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: `${ASSET_BASE_URL}${k.photo}`, size: [1000, 1000], frame: [225, 225, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
+  ...KITCHEN.map((k) => ({ shot: true, id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: cldProductUrl(k.photo), size: [1000, 1000], frame: [225, 225, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
 ];
 
 const cardHTML = (c, o) => {
@@ -853,55 +868,274 @@ $("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map(cardHTML).join("");
 /* The shop prints a receipt for every order, so a review arrives the same way:
    on a slip, in the same mono, torn off at the bottom. What someone ordered is
    part of the review — it ties the words back to the menu two sections up. */
-const REVIEWS = [
-  { quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", product: "iced-matcha", when: "12.05", stars: 5, verified: true, helpful: 42 },
-  { quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", product: "latte", when: "04.05", stars: 5, verified: false, helpful: 31 },
-  { quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", product: "slow-roast", when: "28.04", stars: 5, verified: true, helpful: 27 },
-  { quote: "A smash burger with properly crispy edges, from a coffee house. Better than the burger places down the road.", name: "Hamza K.", place: "Gulberg", order: "Classic Smash Burger · Meal", product: "smash-burger", when: "19.09", stars: 5, verified: true, helpful: 18 },
-  { quote: "Ordered to Model Town in the rain. The rider messaged from the gate and the latte was still hot.", name: "Usman T.", place: "Gulberg", order: "Latte · 12 oz · Delivery", product: "latte", when: "16.09", stars: 5, verified: true, helpful: 24 },
-  { quote: "Cardamom bun and a cortado at 8am has become my whole personality. The bun sells out by ten, go early.", name: "Ayesha N.", place: "DHA", order: "Cardamom Bun", product: "cardamom-bun", when: "14.09", stars: 5, verified: false, helpful: 15 },
-  { quote: "Tikka paratha roll with the mint chutney, eaten in the car in the parking. Zero regrets.", name: "Bilal A.", place: "Johar Town", order: "Chicken Tikka Paratha Roll", product: "tikka-roll", when: "11.09", stars: 5, verified: true, helpful: 12 },
-  { quote: "Four stars only because the lounge was full on Saturday evening. The cinnamon roll was worth the wait.", name: "Sana M.", place: "Gulberg", order: "Cinnamon Roll · Warmed", product: "cinnamon-roll", when: "07.09", stars: 4, verified: false, helpful: 9 },
-  { quote: "Nitro cold brew that tastes like coffee, not like a can. Smooth all the way to the bottom.", name: "Omar F.", place: "DHA", order: "Nitro Cold Brew", product: "nitro-cold-brew", when: "02.09", stars: 5, verified: true, helpful: 14 },
-  { quote: "A margherita with real char on the crust. The kids fought over the last slice, so now we order two.", name: "Fatima Z.", place: "Johar Town", order: "Margherita Pizza · 12 in", product: "margherita-pizza", when: "29.08", stars: 5, verified: true, helpful: 21 },
-  { quote: "Bought the Ethiopia beans for home. Bright, a bit of blueberry, exactly what the bag says.", name: "Ali R.", place: "DHA", order: "Ethiopia Yirgacheffe · 250 g", product: "single-origin", when: "24.08", stars: 5, verified: false, helpful: 11 },
-  { quote: "Mango smoothie in August is the only correct decision. Real Chaunsa, not the syrup stuff.", name: "Mehak S.", place: "Gulberg", order: "Mango Smoothie · Large", product: "mango-smoothie", when: "18.08", stars: 5, verified: true, helpful: 16 },
+const STATIC_REVIEWS = [
+  { id: "s0", quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", product: "iced-matcha", when: "12.05", stars: 5, verified: true, helpful: 42 },
+  { id: "s1", quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", product: "latte", when: "04.05", stars: 5, verified: false, helpful: 31 },
+  { id: "s2", quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", product: "slow-roast", when: "28.04", stars: 5, verified: true, helpful: 27 },
+  { id: "s3", quote: "A smash burger with properly crispy edges, from a coffee house. Better than the burger places down the road.", name: "Hamza K.", place: "Gulberg", order: "Classic Smash Burger · Meal", product: "smash-burger", when: "19.09", stars: 5, verified: true, helpful: 18 },
+  { id: "s4", quote: "Ordered to Model Town in the rain. The rider messaged from the gate and the latte was still hot.", name: "Usman T.", place: "Gulberg", order: "Latte · 12 oz · Delivery", product: "latte", when: "16.09", stars: 5, verified: true, helpful: 24 },
+  { id: "s5", quote: "Cardamom bun and a cortado at 8am has become my whole personality. The bun sells out by ten, go early.", name: "Ayesha N.", place: "DHA", order: "Cardamom Bun", product: "cardamom-bun", when: "14.09", stars: 5, verified: false, helpful: 15 },
+  { id: "s6", quote: "Tikka paratha roll with the mint chutney, eaten in the car in the parking. Zero regrets.", name: "Bilal A.", place: "Johar Town", order: "Chicken Tikka Paratha Roll", product: "tikka-roll", when: "11.09", stars: 5, verified: true, helpful: 12 },
+  { id: "s7", quote: "Four stars only because the lounge was full on Saturday evening. The cinnamon roll was worth the wait.", name: "Sana M.", place: "Gulberg", order: "Cinnamon Roll · Warmed", product: "cinnamon-roll", when: "07.09", stars: 4, verified: false, helpful: 9 },
+  { id: "s8", quote: "Nitro cold brew that tastes like coffee, not like a can. Smooth all the way to the bottom.", name: "Omar F.", place: "DHA", order: "Nitro Cold Brew", product: "nitro-cold-brew", when: "02.09", stars: 5, verified: true, helpful: 14 },
+  { id: "s9", quote: "A margherita with real char on the crust. The kids fought over the last slice, so now we order two.", name: "Fatima Z.", place: "Johar Town", order: "Margherita Pizza · 12 in", product: "margherita-pizza", when: "29.08", stars: 5, verified: true, helpful: 21 },
+  { id: "s10", quote: "Bought the Ethiopia beans for home. Bright, a bit of blueberry, exactly what the bag says.", name: "Ali R.", place: "DHA", order: "Ethiopia Yirgacheffe · 250 g", product: "single-origin", when: "24.08", stars: 5, verified: false, helpful: 11 },
+  { id: "s11", quote: "Mango smoothie in August is the only correct decision. Real Chaunsa, not the syrup stuff.", name: "Mehak S.", place: "Gulberg", order: "Mango Smoothie · Large", product: "mango-smoothie", when: "18.08", stars: 5, verified: true, helpful: 16 },
 ];
 
-/* The breakdown behind the 4.9. A single headline number invites the question of
-   what sits underneath it; the bars answer before anyone has to ask. */
-const RATINGS = [
-  [5, 91],
-  [4, 7],
-  [3, 1],
-  [2, 0],
-  [1, 1],
-];
-$("#rev-dist").innerHTML = RATINGS.map(
-  ([stars, pct], i) => `<li>
+let refreshRevBar: () => void = () => {};
+
+/* ── render helpers ── */
+const escHtml = (s: any) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
+
+const renderReviewCard = (r: any, o: number) => {
+  const d = (o % 3) * 90;
+  const isLive = !String(r.id || "").startsWith("s");
+  const starsCount = Math.max(1, Math.min(5, Number(r.stars) || 5));
+  const helpfulCount = Number(r.helpful) || 0;
+  return `<li data-place="${escHtml(r.place)}" data-product="${escHtml(r.product || "")}"><div class="lean"><div class="rev-hold"><article class="rev-slip is-in" data-product="${escHtml(r.product || "")}">
+  <div class="rev-slip-head">
+    <p class="rev-idx">#${String(o + 1).padStart(2, "0")}</p>
+    <p class="rev-when">${escHtml(r.when)}${isLive ? '<span class="rev-live-dot" title="Live review">●</span>' : ""}</p>
+  </div>
+  <p class="rev-stars" role="img" aria-label="Rated ${starsCount} out of 5">${"★".repeat(starsCount)}<span class="rev-stars-off">${"★".repeat(5 - starsCount)}</span></p>
+  <blockquote class="rev-quote"><p>${escHtml(r.quote)}</p></blockquote>
+  <div class="rc-rule" aria-hidden="true"></div>
+  <div class="rev-foot"><p class="rev-author-name">${escHtml(r.name)}</p><p class="rev-place-name">${escHtml(r.place)}</p></div>
+  ${r.order ? `<p class="rev-order"><span>Ordered</span><span>${escHtml(r.order)}</span></p>` : ""}
+  <button type="button" class="rev-helpful" data-helpful="${escHtml(r.id)}" data-base="${helpfulCount}" aria-pressed="false"><span aria-hidden="true">▲</span> HELPFUL · <b>${helpfulCount}</b></button>
+  ${r.verified ? '<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>' : ""}
+</article></div></div></li>`;
+};
+
+const renderRatings = (stats: any) => {
+  const ratings = [
+    [5, stats?.dist?.[0] ?? 91],
+    [4, stats?.dist?.[1] ?? 7],
+    [3, stats?.dist?.[2] ?? 1],
+    [2, stats?.dist?.[3] ?? 0],
+    [1, stats?.dist?.[4] ?? 1],
+  ];
+  $("#rev-dist").innerHTML = ratings.map(
+    ([stars, pct], i) => `<li>
     <span class="rev-dist-k">${stars}<span aria-hidden="true">★</span></span>
     <span class="rev-dist-bar"><i data-iv="rule-x" data-d="${560 + i * 70}" style="width: ${pct}%; transform: scaleX(0)"></i></span>
     <span class="rev-dist-v"><span data-dr data-d="${620 + i * 70}">${String(pct).padStart(2, "0")}</span>%</span>
   </li>`,
-).join("");
+  ).join("");
+};
 
-// Slips reveal in threes: the carousel shows at most three at a time.
-$("#rev-cards").innerHTML = REVIEWS.map((r, o) => {
-  const d = (o % 3) * 90;
-  return `<li data-place="${r.place}" data-product="${r.product}"><div class="lean"><div class="rev-hold"><article class="rev-slip" data-product="${r.product}" data-iv="rise" data-y="28" data-c="80,26" data-d="${d}">
-  <div class="rev-slip-head">
-    <p class="rev-idx"><span data-dr data-d="${d + 160}">${String(o + 1).padStart(2, "0")}</span></p>
-    <p class="rev-when"><span data-dr data-d="${d + 200}">${r.when}</span></p>
-  </div>
-  <p class="rev-stars" role="img" aria-label="Rated ${r.stars} out of 5">${"★".repeat(r.stars)}<span class="rev-stars-off">${"★".repeat(5 - r.stars)}</span></p>
-  <blockquote class="rev-quote"><p data-te="words" data-dur="620" data-st="12" data-d="${d + 260}" data-margin="0px 0px -15% 0px">${r.quote}</p></blockquote>
-  <div class="rc-rule" aria-hidden="true"></div>
-  <div class="rev-foot"><p data-iv="print30" data-c="58,26" data-d="${d + 320}" style="clip-path: inset(0 100% -30% 0)">${r.name}</p><p>${r.place}</p></div>
-  <p class="rev-order"><span>Ordered</span><span>${r.order}</span></p>
-  <button type="button" class="rev-helpful" data-helpful="seed-${o}" data-base="${r.helpful}" aria-pressed="false"><span aria-hidden="true">▲</span> HELPFUL · <b>${r.helpful}</b></button>
-  ${r.verified ? '<span class="rev-stamp" aria-label="Verified order">VERIFIED<br>ORDER</span>' : ""}
-</article></div></div></li>`;
-}).join("");
+const renderScore = (avg: any, total: any) => {
+  const scoreN = $(".rev-score-n");
+  if (scoreN) scoreN.innerHTML = `<span data-dr data-d="420">${avg}</span>`;
+  const countEl = $(".rev-score-meta");
+  if (countEl) {
+    const p = countEl.querySelector("p:last-child");
+    if (p) p.innerHTML = `<span class="blk"><span data-dr data-d="520">${total.toLocaleString()}</span> reviews</span><span class="blk">across three shops</span>`;
+  }
+};
+
+/* ── initial render with static data ── */
+const STATIC_RATINGS = { avg: 4.9, total: 1284, dist: [91, 7, 1, 0, 1] };
+renderRatings(STATIC_RATINGS);
+$("#rev-cards").innerHTML = STATIC_REVIEWS.map(renderReviewCard).join("");
+
+/* ── fetch live reviews and merge ── */
+let currentLiveReviews: any[] = [];
+
+const refreshReviews = () => {
+  fetch("/api/public/reviews")
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!data) return;
+      const liveReviews = data.reviews || [];
+      currentLiveReviews = liveReviews;
+      const merged = [...liveReviews, ...STATIC_REVIEWS];
+
+      if (liveReviews.length > 0) {
+        const total = STATIC_RATINGS.total + liveReviews.length;
+        const liveSum = liveReviews.reduce((s: number, r: any) => s + r.stars, 0);
+        const staticSum = STATIC_RATINGS.avg * STATIC_RATINGS.total;
+        const avg = Math.round(((staticSum + liveSum) / total) * 10) / 10;
+        const dist = [0, 0, 0, 0, 0];
+        for (const r of liveReviews) dist[5 - r.stars] += 1;
+        const totalWithStatic = STATIC_RATINGS.total + liveReviews.length;
+        const pctDist = STATIC_RATINGS.dist.map((sp, i) =>
+          Math.round(((sp / 100 * STATIC_RATINGS.total + dist[i]) / totalWithStatic) * 100)
+        );
+        renderRatings({ dist: pctDist });
+        renderScore(avg, total);
+      } else {
+        renderRatings(STATIC_RATINGS);
+        renderScore(STATIC_RATINGS.avg, STATIC_RATINGS.total);
+      }
+
+      // Re-render review cards with merged data
+      const cardsEl = $("#rev-cards");
+      if (cardsEl) {
+        cardsEl.innerHTML = merged.map(renderReviewCard).join("");
+        // Re-wire declarative primitives for new DOM
+        $$("#rev-cards [data-rise]").forEach(rise);
+        $$("#rev-cards .lean").forEach((outer) => lean(outer.firstElementChild, outer));
+      }
+      refreshRevBar();
+    })
+    .catch(() => {});
+};
+
+// Initial fetch and 15s real-time poll
+refreshReviews();
+setInterval(refreshReviews, 15000);
+
+/* ── live upvote via API ── */
+document.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest("[data-helpful]") as HTMLElement;
+  if (!btn) return;
+  const id = btn.dataset.helpful;
+  if (!id) return;
+  const isStatic = id.startsWith("s");
+  if (btn.getAttribute("aria-pressed") === "true") return;
+  btn.setAttribute("aria-pressed", "true");
+  const b = btn.querySelector("b");
+  const base = Number(btn.dataset.base) || 0;
+  if (b) b.textContent = String(base + 1);
+  if (!isStatic) {
+    fetch("/api/public/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "upvote", id }),
+    }).catch(() => {});
+  }
+});
+
+/* ── interactive review modal & star picker ── */
+const revModal = $("#rev-modal") as HTMLElement | null;
+const revOpenBtn = $("#rev-open-form") as HTMLElement | null;
+const revCloseBtn = $("#rev-modal-close") as HTMLElement | null;
+const revCancelBtn = $("#rev-cancel-btn") as HTMLElement | null;
+const revBackdrop = $("#rev-modal-backdrop") as HTMLElement | null;
+const revModalForm = $("#rev-form") as HTMLFormElement | null;
+const starBtns = $$("#rev-star-picker .rev-star-btn") as HTMLElement[];
+const starInput = $("#rev-input-stars") as HTMLInputElement | null;
+const starLabel = $("#rev-star-label") as HTMLElement | null;
+const revError = $("#rev-form-error") as HTMLElement | null;
+const revSubmitBtn = $("#rev-submit-btn") as HTMLButtonElement | null;
+
+// Expose refreshReviews for other review flows
+(window as any).__refreshBrewnsReviews = refreshReviews;
+
+const STAR_LABELS: Record<number, string> = {
+  5: "5.0 / 5.0 — Exceptional",
+  4: "4.0 / 5.0 — Great",
+  3: "3.0 / 5.0 — Good",
+  2: "2.0 / 5.0 — Fair",
+  1: "1.0 / 5.0 — Disappointing",
+};
+
+const updateStarDisplay = (val: number) => {
+  if (starInput) starInput.value = String(val);
+  if (starLabel) starLabel.textContent = STAR_LABELS[val] || `${val}.0 / 5.0`;
+  starBtns.forEach((b) => {
+    const s = Number(b.dataset.star) || 0;
+    b.classList.toggle("active", s <= val);
+  });
+};
+
+const openRevModal = (prefill?: { name?: string; order?: string; place?: string }) => {
+  if (!revModal) return;
+  if (prefill) {
+    if (prefill.name && $("#rev-input-name")) ($("#rev-input-name") as HTMLInputElement).value = prefill.name;
+    if (prefill.order && $("#rev-input-order")) ($("#rev-input-order") as HTMLInputElement).value = prefill.order;
+    if (prefill.place && $("#rev-input-place")) ($("#rev-input-place") as HTMLSelectElement).value = prefill.place;
+  }
+  updateStarDisplay(5);
+  if (revError) revError.style.display = "none";
+  revModal.hidden = false;
+  document.body.style.overflow = "hidden";
+  setTimeout(() => {
+    const quoteEl = $("#rev-input-quote") as HTMLElement | null;
+    quoteEl?.focus();
+  }, 100);
+};
+
+const closeRevModal = () => {
+  if (!revModal) return;
+  revModal.hidden = true;
+  document.body.style.overflow = "";
+};
+
+revOpenBtn?.addEventListener("click", () => openRevModal());
+revCloseBtn?.addEventListener("click", closeRevModal);
+revCancelBtn?.addEventListener("click", closeRevModal);
+revBackdrop?.addEventListener("click", closeRevModal);
+
+starBtns.forEach((b) => {
+  b.addEventListener("click", () => {
+    const val = Number(b.dataset.star) || 5;
+    updateStarDisplay(val);
+  });
+});
+
+revModalForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (revError) revError.style.display = "none";
+  const name = ($("#rev-input-name") as HTMLInputElement)?.value?.trim();
+  const place = ($("#rev-input-place") as HTMLSelectElement)?.value?.trim();
+  const order = ($("#rev-input-order") as HTMLInputElement)?.value?.trim() || "";
+  const quote = ($("#rev-input-quote") as HTMLTextAreaElement)?.value?.trim();
+  const stars = Number(starInput?.value || 5);
+
+  if (!quote || quote.length < 5) {
+    if (revError) {
+      revError.textContent = "Please write a sentence or two about your experience.";
+      revError.style.display = "block";
+    }
+    return;
+  }
+  if (!name) {
+    if (revError) {
+      revError.textContent = "Please enter your name.";
+      revError.style.display = "block";
+    }
+    return;
+  }
+
+  if (revSubmitBtn) {
+    revSubmitBtn.disabled = true;
+    revSubmitBtn.innerHTML = `<span>POSTING RECEIPT…</span>`;
+  }
+
+  try {
+    const res = await fetch("/api/public/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "add", name, place, order, quote, stars }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Submission failed" }));
+      throw new Error(err.error || "Failed to post review");
+    }
+    closeRevModal();
+    revModalForm.reset();
+    updateStarDisplay(5);
+
+    // Refresh immediately and scroll to reviews
+    refreshReviews();
+    const reviewsSection = $("#reviews");
+    reviewsSection?.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "start" });
+  } catch (err: any) {
+    if (revError) {
+      revError.textContent = err.message || "Failed to submit. Please try again.";
+      revError.style.display = "block";
+    }
+  } finally {
+    if (revSubmitBtn) {
+      revSubmitBtn.disabled = false;
+      revSubmitBtn.innerHTML = `<span>SUBMIT REVIEW</span>`;
+    }
+  }
+});
 
 /* A slow band of one-liners under the slips — the overheard half of a review,
    the part too short to letter onto a card. Doubled so the loop has no seam. */
@@ -918,13 +1152,399 @@ $("#rev-ticker").innerHTML = [...OVERHEARD, ...OVERHEARD]
   .map((line) => `<span>${line}</span><span class="rev-ticker-dot" aria-hidden="true">●</span>`)
   .join("");
 
+/* ═══════════════════════ Community & Moments ═══════════════════════ */
+const momentsGrid = $("#moments-grid");
+const momentsModal = $("#moments-modal") as HTMLElement | null;
+const momentsOpenBtn = $("#moments-open-upload") as HTMLElement | null;
+const momentsCloseBtn = $("#moments-modal-close") as HTMLElement | null;
+const momentsCancelBtn = $("#moments-cancel-btn") as HTMLElement | null;
+const momentsBackdrop = $("#moments-modal-backdrop") as HTMLElement | null;
+const momentsForm = $("#moments-form") as HTMLFormElement | null;
+const momentsDropzone = $("#moments-dropzone") as HTMLElement | null;
+const momentsFileInput = $("#moments-file-input") as HTMLInputElement | null;
+const momentsPreviewEmpty = $("#moments-preview-empty") as HTMLElement | null;
+const momentsPreviewFilled = $("#moments-preview-filled") as HTMLElement | null;
+const momentsPreviewImg = $("#moments-preview-img") as HTMLImageElement | null;
+const momentsPreviewVideo = $("#moments-preview-video") as HTMLVideoElement | null;
+const momentsChangePhoto = $("#moments-change-photo") as HTMLElement | null;
+const momentsInputImage = $("#moments-input-image") as HTMLInputElement | null;
+const momentsInputMediaType = $("#moments-input-mediatype") as HTMLInputElement | null;
+const momentsFormError = $("#moments-form-error") as HTMLElement | null;
+const momentsFormSuccess = $("#moments-form-success") as HTMLElement | null;
+const momentsSubmitBtn = $("#moments-submit-btn") as HTMLButtonElement | null;
+
+const momentsLightbox = $("#moments-lightbox") as HTMLElement | null;
+const momentsLightboxImg = $("#moments-lightbox-img") as HTMLImageElement | null;
+const momentsLightboxVideo = $("#moments-lightbox-video") as HTMLVideoElement | null;
+const momentsLightboxMeta = $("#moments-lightbox-meta") as HTMLElement | null;
+const momentsLightboxClose = $("#moments-lightbox-close") as HTMLElement | null;
+const momentsLightboxBackdrop = $("#moments-lightbox-backdrop") as HTMLElement | null;
+
+let selectedMomentFile: File | null = null;
+
+const renderMomentCard = (m: any) => {
+  const isVideo = m.mediaType === "video" || /\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i.test(m.imageUrl || "");
+  return `
+    <div class="moments-card" data-moment-id="${m.id}">
+      <div class="moments-photo-wrap" data-lightbox-photo="${esc(m.imageUrl)}" data-media-type="${isVideo ? 'video' : 'image'}" data-author="${esc(m.author)}" data-caption="${esc(m.caption)}" data-place="${esc(m.location)}">
+        ${isVideo ? `
+          <video src="${esc(m.imageUrl)}" muted loop playsinline autoplay preload="metadata" style="pointer-events:none;"></video>
+          <span class="moments-video-badge"><i>▶</i> VIDEO</span>
+        ` : `
+          <img src="${esc(m.imageUrl)}" alt="${esc(m.caption)}" loading="lazy" />
+        `}
+        <span class="moments-loc-tag">📍 ${esc(m.location)}</span>
+      </div>
+      <div class="moments-card-body">
+        <div class="moments-card-top">
+          <span class="moments-author">${esc(m.author)}</span>
+          <span class="mono-fine" style="color:rgba(244,242,236,0.5); font-size:0.75rem;">${esc(m.name)}</span>
+        </div>
+        <p class="moments-caption">&ldquo;${esc(m.caption)}&rdquo;</p>
+        <div class="moments-card-footer">
+          <span class="moments-product-tag">${m.product ? `☕ ${esc(m.product)}` : 'brewns café'}</span>
+          <button type="button" class="moments-like-btn" data-moment-like="${m.id}" data-likes="${m.likes || 0}" aria-pressed="false" aria-label="Like moment">
+            <span>♥</span> <b>${m.likes || 0}</b>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
+const refreshCommunityMoments = () => {
+  if (!momentsGrid) return;
+  fetch("/api/public/moments")
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!data?.moments) return;
+      momentsGrid.innerHTML = data.moments.map(renderMomentCard).join("");
+      momentsGrid.querySelectorAll("video").forEach((v) => {
+        v.muted = true;
+        v.play().catch(() => {});
+      });
+    })
+    .catch(() => {});
+};
+
+refreshCommunityMoments();
+setInterval(refreshCommunityMoments, 20000);
+
+// Modal open & close
+const openMomentsModal = () => {
+  if (!momentsModal) return;
+  if (momentsFormError) momentsFormError.style.display = "none";
+  if (momentsFormSuccess) momentsFormSuccess.style.display = "none";
+  momentsModal.hidden = false;
+  document.body.style.overflow = "hidden";
+};
+
+const closeMomentsModal = () => {
+  if (!momentsModal) return;
+  momentsModal.hidden = true;
+  document.body.style.overflow = "";
+};
+
+momentsOpenBtn?.addEventListener("click", openMomentsModal);
+momentsCloseBtn?.addEventListener("click", closeMomentsModal);
+momentsCancelBtn?.addEventListener("click", closeMomentsModal);
+momentsBackdrop?.addEventListener("click", closeMomentsModal);
+
+// Photo & video selection & drag-and-drop
+const handleFileSelected = (file: File) => {
+  const isImage = file.type.startsWith("image/");
+  const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|m4v|ogg)$/i.test(file.name);
+
+  if (!isImage && !isVideo) {
+    if (momentsFormError) {
+      momentsFormError.textContent = "Please select a photo (JPEG, PNG, WebP) or video (MP4, WebM, MOV).";
+      momentsFormError.style.display = "block";
+    }
+    return;
+  }
+
+  const maxBytes = isVideo ? 60 * 1024 * 1024 : 12 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    if (momentsFormError) {
+      momentsFormError.textContent = isVideo
+        ? "Video file is too large (max 60MB). Please choose a shorter clip."
+        : "Image is too large (max 12MB). Please choose a smaller image.";
+      momentsFormError.style.display = "block";
+    }
+    return;
+  }
+  if (momentsFormError) momentsFormError.style.display = "none";
+  selectedMomentFile = file;
+
+  if (momentsInputMediaType) {
+    momentsInputMediaType.value = isVideo ? "video" : "image";
+  }
+
+  if (isVideo) {
+    const objectUrl = URL.createObjectURL(file);
+    if (momentsPreviewVideo) {
+      momentsPreviewVideo.src = objectUrl;
+      momentsPreviewVideo.style.display = "block";
+      momentsPreviewVideo.play().catch(() => {});
+    }
+    if (momentsPreviewImg) {
+      momentsPreviewImg.style.display = "none";
+      momentsPreviewImg.src = "";
+    }
+    if (momentsPreviewEmpty) momentsPreviewEmpty.style.display = "none";
+    if (momentsPreviewFilled) momentsPreviewFilled.style.display = "block";
+    if (momentsInputImage) momentsInputImage.value = file.name;
+  } else {
+    if (momentsPreviewVideo) {
+      momentsPreviewVideo.pause();
+      momentsPreviewVideo.style.display = "none";
+      momentsPreviewVideo.src = "";
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (momentsInputImage) momentsInputImage.value = result;
+      if (momentsPreviewImg) {
+        momentsPreviewImg.src = result;
+        momentsPreviewImg.style.display = "block";
+      }
+      if (momentsPreviewEmpty) momentsPreviewEmpty.style.display = "none";
+      if (momentsPreviewFilled) momentsPreviewFilled.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+momentsDropzone?.addEventListener("click", (e) => {
+  if (e.target !== momentsChangePhoto) {
+    momentsFileInput?.click();
+  }
+});
+momentsChangePhoto?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  momentsFileInput?.click();
+});
+momentsFileInput?.addEventListener("change", () => {
+  if (momentsFileInput.files?.[0]) {
+    handleFileSelected(momentsFileInput.files[0]);
+  }
+});
+
+momentsDropzone?.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  momentsDropzone.classList.add("dragover");
+});
+momentsDropzone?.addEventListener("dragleave", () => {
+  momentsDropzone.classList.remove("dragover");
+});
+momentsDropzone?.addEventListener("drop", (e) => {
+  e.preventDefault();
+  momentsDropzone.classList.remove("dragover");
+  if (e.dataTransfer?.files?.[0]) {
+    handleFileSelected(e.dataTransfer.files[0]);
+  }
+});
+
+// Form submit
+momentsForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (momentsFormError) momentsFormError.style.display = "none";
+  if (momentsFormSuccess) momentsFormSuccess.style.display = "none";
+
+  const imageUrl = momentsInputImage?.value;
+  const name = ($("#moments-input-name") as HTMLInputElement)?.value?.trim();
+  const author = ($("#moments-input-author") as HTMLInputElement)?.value?.trim() || name;
+  const location = ($("#moments-input-location") as HTMLSelectElement)?.value?.trim() || "Gulberg";
+  const product = ($("#moments-input-product") as HTMLInputElement)?.value?.trim() || "";
+  const caption = ($("#moments-input-caption") as HTMLTextAreaElement)?.value?.trim();
+  const mediaType = momentsInputMediaType?.value || "image";
+
+  if (!selectedMomentFile && !imageUrl) {
+    if (momentsFormError) {
+      momentsFormError.textContent = "Please choose a photo or video of your Brewns moment.";
+      momentsFormError.style.display = "block";
+    }
+    return;
+  }
+  if (!name) {
+    if (momentsFormError) {
+      momentsFormError.textContent = "Please enter your name.";
+      momentsFormError.style.display = "block";
+    }
+    return;
+  }
+  if (!caption || caption.length < 5) {
+    if (momentsFormError) {
+      momentsFormError.textContent = "Please add a short caption or story about your moment.";
+      momentsFormError.style.display = "block";
+    }
+    return;
+  }
+
+  if (momentsSubmitBtn) {
+    momentsSubmitBtn.disabled = true;
+    momentsSubmitBtn.innerHTML = `<span>SENDING TO TEAM…</span>`;
+  }
+
+  try {
+    let res: Response;
+    if (selectedMomentFile) {
+      const formData = new FormData();
+      formData.append("file", selectedMomentFile);
+      formData.append("name", name);
+      formData.append("author", author);
+      formData.append("location", location);
+      formData.append("product", product);
+      formData.append("caption", caption);
+      formData.append("mediaType", mediaType);
+
+      res = await fetch("/api/public/moments", {
+        method: "POST",
+        body: formData,
+      });
+    } else {
+      res = await fetch("/api/public/moments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl,
+          mediaType,
+          name,
+          author,
+          location,
+          product,
+          caption,
+        }),
+      });
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Submission failed" }));
+      throw new Error(err.error || "Failed to submit moment");
+    }
+    if (momentsFormSuccess) {
+      momentsFormSuccess.textContent = "✦ Moment submitted! Your upload was sent to the owner for review. Once approved, it will be published to the community wall.";
+      momentsFormSuccess.style.display = "block";
+    }
+    setTimeout(() => {
+      closeMomentsModal();
+      momentsForm.reset();
+      selectedMomentFile = null;
+      if (momentsInputImage) momentsInputImage.value = "";
+      if (momentsPreviewFilled) momentsPreviewFilled.style.display = "none";
+      if (momentsPreviewEmpty) momentsPreviewEmpty.style.display = "block";
+      if (momentsPreviewVideo) {
+        momentsPreviewVideo.pause();
+        momentsPreviewVideo.src = "";
+        momentsPreviewVideo.style.display = "none";
+      }
+      if (momentsPreviewImg) {
+        momentsPreviewImg.src = "";
+        momentsPreviewImg.style.display = "none";
+      }
+    }, 2200);
+  } catch (err: any) {
+    if (momentsFormError) {
+      momentsFormError.textContent = err.message || "Failed to submit. Please try again.";
+      momentsFormError.style.display = "block";
+    }
+  } finally {
+    if (momentsSubmitBtn) {
+      momentsSubmitBtn.disabled = false;
+      momentsSubmitBtn.innerHTML = `<span>SUBMIT MOMENT</span>`;
+    }
+  }
+});
+
+// Like handler & Lightbox click
+document.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement;
+
+  // Like button
+  const likeBtn = target.closest("[data-moment-like]") as HTMLElement | null;
+  if (likeBtn) {
+    const id = likeBtn.dataset.momentLike;
+    if (!id || likeBtn.getAttribute("aria-pressed") === "true") return;
+    likeBtn.setAttribute("aria-pressed", "true");
+    const countEl = likeBtn.querySelector("b");
+    const base = Number(likeBtn.dataset.likes) || 0;
+    if (countEl) countEl.textContent = String(base + 1);
+    fetch("/api/public/moments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "like", id }),
+    }).catch(() => {});
+    return;
+  }
+
+  // Lightbox photo/video open
+  const photoWrap = target.closest("[data-lightbox-photo]") as HTMLElement | null;
+  if (photoWrap && momentsLightbox && momentsLightboxMeta) {
+    const src = photoWrap.dataset.lightboxPhoto || "";
+    const isVid = photoWrap.dataset.mediaType === "video" || /\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i.test(src);
+    const author = photoWrap.dataset.author || "";
+    const place = photoWrap.dataset.place || "";
+    const caption = photoWrap.dataset.caption || "";
+
+    if (isVid) {
+      if (momentsLightboxImg) {
+        momentsLightboxImg.style.display = "none";
+        momentsLightboxImg.src = "";
+      }
+      if (momentsLightboxVideo) {
+        momentsLightboxVideo.src = src;
+        momentsLightboxVideo.currentTime = 0;
+        momentsLightboxVideo.style.display = "block";
+        momentsLightboxVideo.load();
+        const playProm = momentsLightboxVideo.play();
+        if (playProm !== undefined) {
+          playProm.catch(() => {
+            // If browser blocks unmuted playback, mute and retry so video immediately plays
+            momentsLightboxVideo.muted = true;
+            momentsLightboxVideo.play().catch(() => {});
+          });
+        }
+      }
+    } else {
+      if (momentsLightboxVideo) {
+        momentsLightboxVideo.pause();
+        momentsLightboxVideo.style.display = "none";
+        momentsLightboxVideo.src = "";
+      }
+      if (momentsLightboxImg) {
+        momentsLightboxImg.src = src;
+        momentsLightboxImg.style.display = "block";
+      }
+    }
+
+    momentsLightboxMeta.innerHTML = `<b style="color:var(--accent,#c99355);">${esc(author)}</b> · <span>${esc(place)}</span><p style="margin:4px 0 0;font-size:0.875rem;font-family:var(--font-geist);">${esc(caption)}</p>`;
+    momentsLightbox.hidden = false;
+    document.body.style.overflow = "hidden";
+    return;
+  }
+
+  // Lightbox close
+  if (target === momentsLightboxBackdrop || target.closest("#moments-lightbox-close")) {
+    if (momentsLightbox) {
+      momentsLightbox.hidden = true;
+      document.body.style.overflow = "";
+      if (momentsLightboxVideo) {
+        momentsLightboxVideo.pause();
+        momentsLightboxVideo.removeAttribute("src");
+        momentsLightboxVideo.load();
+      }
+    }
+  }
+});
+
 /* [label, where it goes, what it does there]. The action (see "footer shortcuts"
    near the end) filters the shop or menu, or opens a product or form; the href is
    where the link lands without it. */
 const COLUMNS = [
   ["Shop", [["COFFEE", "#shop", "shop:beans"], ["SUBSCRIPTIONS", "#shop/slow-roast", "product:slow-roast:plan=1"], ["MERCH", "#shop", "shop:merch"], ["GIFT CARDS", "#shop/gift-card", "product:gift-card"]]],
   ["Menu", [["COFFEE", "#menu", "menu:coffee"], ["COLD BAR", "#menu", "menu:specialty"], ["KITCHEN", "#menu", "menu:burgers"], ["FULL MENU", "#menu", "fullmenu"]]],
-  ["about us", [["OUR STORY", "#story"], ["BREW AT HOME", "#brew"], ["BREWNS CLUB", "#club"], ["EVENTS & CATERING", "#faq", "enquiry:event"], ["CAREERS", "#faq", "enquiry:careers"]]],
+  ["Experience", [["COMMUNITY MOMENTS", "#moments"], ["TABLE RESERVATIONS", "/reserve"], ["BREW TIMER & RATIOS", "/brew-timer"], ["FLAVOR WHEEL", "/flavor-wheel"]]],
+  ["About & Staff", [["OUR STORY", "#story"], ["BREW AT HOME", "#brew"], ["BREWNS CLUB", "#club"], ["STAFF PORTAL", "/staff/signin"]]],
 ];
 $("#ftr-nav").innerHTML = COLUMNS.map(([heading, links], i) =>
   `<div class="ftr-col"><p data-rise data-d="${160 + i * 130}">${heading}</p><ul class="ftr-list">${links
@@ -1042,20 +1662,29 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
     const { day, min } = lahore();
     const open = min >= OPEN_MIN && min < CLOSE_MIN;
     const left = CLOSE_MIN - min;
-    $("#in-open").textContent = open ? "OPEN NOW" : "CLOSED NOW";
-    $("#in-close").textContent = open ? `CLOSES ${hhmm(CLOSE_MIN)} · ${left >= 60 ? `${Math.floor(left / 60)}H ` : ""}${left % 60}M LEFT` : `OPENS ${hhmm(OPEN_MIN)}`;
-    $(".inside-now", section).classList.toggle("closed", !open);
+    const elOpen = $("#in-open");
+    const elClose = $("#in-close");
+    const elNow = $(".inside-now", section);
+    const elDay = $("#in-day");
+    const elBars = $("#in-bars");
+    const elBusy = $("#in-busy");
+    if (!elOpen) return; // elements not yet injected
+    elOpen.textContent = open ? "OPEN NOW" : "CLOSED NOW";
+    if (elClose) elClose.textContent = open ? `CLOSES ${hhmm(CLOSE_MIN)} · ${left >= 60 ? `${Math.floor(left / 60)}H ` : ""}${left % 60}M LEFT` : `OPENS ${hhmm(OPEN_MIN)}`;
+    elNow?.classList.toggle("closed", !open);
     const weekend = day === "Saturday" || day === "Sunday";
     const curve = weekend ? BUSY.weekend : BUSY.weekday;
     const hour = Math.floor(min / 60);
     const idx = hour - 7;
-    $("#in-day").textContent = `TYPICAL ${day.toUpperCase()}`;
-    const bars = $("#in-bars");
-    bars.innerHTML = curve.map((v, i) => `<i style="--h:${v}%"${open && i === idx ? ' class="now"' : ""}></i>`).join("");
-    bars.setAttribute("aria-label", `Typical busyness on ${day}s, from 7am to 9pm`);
+    if (elDay) elDay.textContent = `TYPICAL ${day.toUpperCase()}`;
+    if (elBars) {
+      elBars.innerHTML = curve.map((v, i) => `<i style="--h:${v}%"${open && i === idx ? ' class="now"' : ""}></i>`).join("");
+      elBars.setAttribute("aria-label", `Typical busyness on ${day}s, from 7am to 9pm`);
+    }
     const v = open && idx >= 0 && idx < curve.length ? curve[idx] : null;
-    $("#in-busy").textContent = v == null ? "QUIET: WE'RE CLOSED" : v < 35 ? "USUALLY QUIET AROUND NOW" : v < 65 ? "USUALLY A LITTLE BUSY AROUND NOW" : "USUALLY BUSY AROUND NOW";
+    if (elBusy) elBusy.textContent = v == null ? "QUIET: WE'RE CLOSED" : v < 35 ? "USUALLY QUIET AROUND NOW" : v < 65 ? "USUALLY A LITTLE BUSY AROUND NOW" : "USUALLY BUSY AROUND NOW";
   };
+
   queueMicrotask(renderNow); // the opening hours are declared further down
   setInterval(renderNow, 60000);
 
@@ -4802,7 +5431,30 @@ function renderCheckout({ animate = true } = {}) {
         <div class="co-block">
           <p class="co-label mono-fine"><span>PAYMENT</span><span>PAID ${delivery ? "ON DELIVERY" : "AT PICKUP"} · NOTHING IS CHARGED ONLINE</span></p>
           <div class="loc-cards" role="radiogroup" aria-label="Payment">${PAY.map(([label, atShop, atDoor], i) => radio("co-pay", i, co.pay === i, label, delivery ? atDoor : atShop)).join("")}</div>
-          ${co.pay ? "" : `<p class="co-note mono-fine">PAY BY CARD OR WALLET AND PUNJAB SALES TAX DROPS FROM 16% TO 5%.</p>`}
+          ${co.pay === 2 ? `
+            <div style="margin-top:12px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:11px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <span class="mono-fine" style="color:var(--accent,#c99355);">⚡ INSTANT DIGITAL WALLET &amp; RAAST</span>
+                <span class="mono-fine" style="color:#4ade80;">PRA 5% TAX BENEFIT APPLIED</span>
+              </div>
+              <p style="margin:0 0 6px;color:#ccc;line-height:1.4;">Pay seamlessly via <b>JazzCash</b>, <b>EasyPaisa</b>, or any banking app using our central <b>Raast ID</b>.</p>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.1);">
+                <div><span style="color:#777;">RAAST ID: </span><b style="color:#fff;font-family:var(--font-space-mono);">brewns@habibbank</b></div>
+                <div><span style="color:#777;">TITLE: </span><b style="color:#fff;">BREWNS COFFEE SMC-PVT</b></div>
+              </div>
+              <p class="mono-fine" style="margin:8px 0 0;color:#888;">The ${delivery ? "rider will present our dynamic merchant QR code upon arrival" : "barista will present our counter QR display for instant 1-tap confirmation"}.</p>
+            </div>
+          ` : co.pay === 1 ? `
+            <div style="margin-top:12px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:11px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <span class="mono-fine" style="color:var(--accent,#c99355);">💳 CREDIT / DEBIT CARD</span>
+                <span class="mono-fine" style="color:#4ade80;">PRA 5% CONCESSIONAL TAX</span>
+              </div>
+              <p style="margin:0;color:#ccc;line-height:1.4;">We accept <b>Visa</b>, <b>MasterCard</b>, <b>PayPak</b>, and <b>UnionPay</b>. Tap or chip with the ${delivery ? "rider's wireless POS machine" : "counter terminal"}.</p>
+            </div>
+          ` : `
+            <p class="co-note mono-fine">PAY BY CARD OR WALLET AND PUNJAB SALES TAX DROPS FROM 16% TO 5%.</p>
+          `}
         </div>
         ${Object.values(co.errors).some(Boolean) ? `<p class="co-err mono-fine" role="alert">CHECK ${Object.entries(co.errors).filter(([, v]) => v).map(([k]) => ({ name: "YOUR NAME", phone: "YOUR MOBILE NUMBER", address: "THE ADDRESS", email: "THE EMAIL" })[k]).join(", ")} ABOVE.</p>` : ""}
         <div class="co-actions"><button type="button" class="btn btn-ghost" data-co="back">BACK</button><button type="button" class="btn btn-dark" data-co="place" ${co.placing ? "disabled" : ""}>${co.placing ? `<span class="co-spin" aria-hidden="true"></span>SENDING TO ${esc(isDelivery() ? LOCS[DELIVERY.areas[co.area][1]][0] : LOCS[co.loc][0])}…` : `PLACE ORDER · ${money(totals.total)} ${ARROW_SVG}`}</button></div>`;
@@ -5598,11 +6250,8 @@ coEl.addEventListener("submit", (e) => {
     if (c && list.length) c.textContent = count.toLocaleString("en-US");
     refreshRevBar();
   };
-  let refreshRevBar = () => {};
+  refreshRevBar = () => {};
   renderMyReviews();
-
-  // "Leave a review", next to the score.
-  $(".rev-panel")?.insertAdjacentHTML("beforeend", `<button type="button" class="btn btn-dark rev-write" data-review>LEAVE A REVIEW ${ARROW_SVG}</button>`);
 
   /* The slips are a carousel: filter by what was ordered or by shop, page
      through with the arrows (or swipe), and mark a review helpful. */
@@ -5738,6 +6387,23 @@ coEl.addEventListener("submit", (e) => {
     if (err) return;
     const place = ["Gulberg", "DHA", "Johar Town"][+f.place.value];
     writeStore("brewns-reviews", [{ t: Date.now(), stars: revCtx.stars, text, name, place, product: f.product.value, order: revCtx.order || null }, ...myReviews()].slice(0, 30));
+    const prodItem = productById(f.product.value);
+    const orderStr = revCtx.order ? `Order #${revCtx.order}` : prodItem ? prodItem.name : "";
+    fetch("/api/public/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add",
+        name,
+        place,
+        order: orderStr,
+        product: f.product.value,
+        quote: text,
+        stars: revCtx.stars,
+      }),
+    })
+      .then(() => (window as any).__refreshBrewnsReviews?.())
+      .catch(() => {});
     if (revCtx.order) {
       const o = readStore("brewns-orders", []).find((x) => x.number === revCtx.order);
       if (o) {
@@ -5757,9 +6423,9 @@ coEl.addEventListener("submit", (e) => {
     if (co?.trk) renderCheckout({ animate: false });
   });
   document.addEventListener("click", (e) => {
-    if (e.target.closest("[data-review]")) openReview();
+    if ((e.target as HTMLElement)?.closest("[data-review]")) openRevModal();
   });
-  window.__brewnsReview = openReview;
+  (window as any).__brewnsReview = openRevModal;
 
   /* ═══════════════════════ the printed receipt ═══════════════════════
      The receipt feeds out of the printer as you scroll to it, so it carries the
@@ -6290,8 +6956,21 @@ coEl.addEventListener("submit", (e) => {
     if (kind === "enquiry") return openEnquiry(arg);
   });
 
+  /* ═══════════════════════ AI Voice Calling ═══════════════════════ */
+  const cleanupVoiceCalling = initVoiceCalling({
+    cart,
+    productById,
+    defaultSel,
+    openBag,
+    toast,
+    playChime,
+    playSoftClick,
+    triggerHaptic,
+  });
+
   return () => {
     try {
+      cleanupVoiceCalling?.();
       lenis?.destroy();
       clearInterval(footerClock);
       cancelAnimationFrame(brew.raf);

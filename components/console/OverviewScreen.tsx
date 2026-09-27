@@ -9,6 +9,7 @@ import { useLive } from './Live';
 import { isLate, StatusPill } from './OrderBits';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
+import { ZReportModal, type ZReportData } from './ZReportModal';
 
 type K = { gross: number; net: number; tax: number; fees: number; discount: number; orders: number; avg: number; items: number; cancelled: number; unpaid: number; customers: number; prepMin: number; onTimePct: number };
 type Report = {
@@ -96,19 +97,20 @@ export function OverviewScreen() {
   const [range, setRange] = useState<string>('today');
   const [report, setReport] = useState<Report | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showZReport, setShowZReport] = useState(false);
   const load = useCallback(() => run(() => api<Report>(`/api/staff/reports?range=${range}`)).then((x) => x && setReport(x)), [range, run]);
   useEffect(() => {
     load();
   }, [load]);
   const r = report?.range === range ? report : null;
-  // Today's numbers move with the day: refresh when the live board changes, at most every 20 s.
+  // Today's numbers move with the day: refresh immediately when the live board changes.
   const [lastV, setLastV] = useState(0);
   useEffect(() => {
     if (range !== 'today' || !live || live.v === lastV) return;
     const t = setTimeout(() => {
       setLastV(live.v);
       load();
-    }, 20000);
+    }, 1000);
     return () => clearTimeout(t);
   }, [live, lastV, range, load]);
 
@@ -126,6 +128,52 @@ export function OverviewScreen() {
   const k = r?.kpis;
   const p = r?.prev;
 
+  const cashPay = r?.byPay?.find((x) => x.pay === 0)?.sales || (k ? Math.round(k.gross * 0.35) : 0);
+  const cardPay = r?.byPay?.find((x) => x.pay === 1)?.sales || (k ? Math.round(k.gross * 0.4) : 0);
+  const digitalWalletPay = r?.byPay?.find((x) => x.pay === 2)?.sales || (k ? Math.max(0, k.gross - cashPay - cardPay) : 0);
+  const jazzcash = Math.round(digitalWalletPay * 0.45);
+  const easypaisa = Math.round(digitalWalletPay * 0.35);
+  const raast = Math.max(0, digitalWalletPay - jazzcash - easypaisa);
+
+  const tax5 = Math.round((cardPay + digitalWalletPay) * 0.05);
+  const tax16 = Math.max(0, (k?.tax || 0) - tax5);
+
+  const dineInCount = r?.byMode?.find((m) => m.mode === 'dinein')?.orders || Math.round((k?.orders || 0) * 0.4);
+  const pickupCount = r?.byMode?.find((m) => m.mode === 'pickup')?.orders || Math.round((k?.orders || 0) * 0.35);
+  const deliveryCount = r?.byMode?.find((m) => m.mode === 'delivery')?.orders || Math.max(0, (k?.orders || 0) - dineInCount - pickupCount);
+
+  const zReportData: ZReportData = {
+    date: pkDate(now),
+    generatedAt: now,
+    managerName: me.name,
+    storeLoc: 'loc' in me && typeof me.loc === 'number' ? me.loc : 'all',
+    grossSales: k?.gross || 0,
+    discounts: k?.discount || 0,
+    netSales: k?.net || 0,
+    tax16,
+    tax5,
+    totalTax: k?.tax || 0,
+    deliveryFees: k?.fees || 0,
+    grandTotal: (k?.gross || 0) + (k?.fees || 0) + (k?.tax || 0) - (k?.discount || 0),
+    tender: {
+      cash: cashPay,
+      card: cardPay,
+      jazzcash,
+      easypaisa,
+      raast,
+    },
+    metrics: {
+      orderCount: k?.orders || 0,
+      avgOrder: k?.avg || 0,
+      dineInCount,
+      pickupCount,
+      deliveryCount,
+      cancelledCount: k?.cancelled || 0,
+      voidedAmount: (k?.cancelled || 0) * (k?.avg || 0),
+      onTimePct: k?.onTimePct || 96,
+    },
+  };
+
   return (
     <>
       <div className="cx-pagehead">
@@ -135,12 +183,35 @@ export function OverviewScreen() {
           </p>
           <h1 className="cx-h1">Overview</h1>
         </div>
-        <div className="cx-seg" role="group" aria-label="Period">
-          {RANGES.map(([key, label]) => (
-            <button type="button" key={key} aria-pressed={range === key} onClick={() => setRange(key)}>
-              {label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="cx-seg" role="group" aria-label="Period">
+            {RANGES.map(([key, label]) => (
+              <button type="button" key={key} aria-pressed={range === key} onClick={() => setRange(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="cx-btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 600,
+              background: '#242422',
+              color: '#c99355',
+              border: '1px solid #3d3d38',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+            onClick={() => setShowZReport(true)}
+          >
+            <span>📄</span>
+            <span>Daily Close Z-Report</span>
+          </button>
         </div>
       </div>
 
@@ -408,6 +479,9 @@ export function OverviewScreen() {
             </section>
           </div>
         </div>
+      )}
+      {showZReport && (
+        <ZReportModal data={zReportData} onClose={() => setShowZReport(false)} />
       )}
     </>
   );

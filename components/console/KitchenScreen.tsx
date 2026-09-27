@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { orderNo, STATION_LABEL, type Station } from '@/lib/orderFlow';
 import { pkTime } from './api';
-import { chime, useLive, type StaffOrder } from './Live';
+import { useLive, type StaffOrder } from './Live';
+import { playKitchenChime } from '@/lib/audio-alerts';
 import { ShopFilter } from './OrdersScreen';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
@@ -32,7 +33,7 @@ export function KitchenScreen() {
     return () => clearInterval(t);
   }, []);
   useEffect(() => {
-    const on = () => sound && chime();
+    const on = () => sound && playKitchenChime();
     window.addEventListener('brewns:new-orders', on);
     return () => window.removeEventListener('brewns:new-orders', on);
   }, [sound]);
@@ -136,6 +137,7 @@ export function KitchenScreen() {
 function TicketCard({ t, now, showStation, onBump, onLine }: { t: Ticket; now: number; showStation: boolean; onBump: (t: Ticket, s: 'making' | 'done') => void; onLine: (i: number, done: boolean) => void }) {
   const { o, station } = t;
   const left = Math.round((o.target - now) / 60000);
+  const elapsed = Math.max(0, Math.floor((now - o.placed) / 60000));
   const tone = left < 0 ? 't-late' : left <= 5 ? 't-warn' : 't-ok';
   const state = o.stations[station];
   const lines = o.items.map((l, i) => ({ l, i })).filter(({ l }) => l.station === station);
@@ -144,7 +146,23 @@ function TicketCard({ t, now, showStation, onBump, onLine }: { t: Ticket; now: n
     <article className={`cx-ticket ${tone}`} aria-label={`Ticket ${orderNo(o.number)}`}>
       <div className="cx-ticket-top">
         <span className="cx-ticket-no">{orderNo(o.number)}</span>
-        <span className={`cx-ticket-age${left < 0 ? ' late' : ''}`}>{left < 0 ? `${-left} min late` : `${left} min left`}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: left < 0 ? 'rgba(239, 68, 68, 0.25)' : elapsed >= 8 ? 'rgba(234, 179, 8, 0.25)' : 'rgba(34, 197, 94, 0.2)',
+              color: left < 0 ? '#ef4444' : elapsed >= 8 ? '#eab308' : '#22c55e',
+            }}
+          >
+            {left < 0 ? 'Urgent' : elapsed >= 8 ? 'Aging' : 'Fresh'} ({elapsed}m)
+          </span>
+          <span className={`cx-ticket-age${left < 0 ? ' late' : ''}`}>{left < 0 ? `${-left} min late` : `${left} min left`}</span>
+        </div>
       </div>
       <p className="cx-ticket-meta">
         {o.mode === 'dinein' ? `Table ${o.table}` : o.mode === 'delivery' ? 'Delivery' : 'Pickup'} · {o.name.split(' ')[0]} · due {pkTime(o.target)}
