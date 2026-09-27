@@ -102,6 +102,7 @@ export const SECTIONS: Section[] = [
   { key: 'new', href: '/dashboard/new', label: 'New order', any: ['orders.create'], group: 'Run' },
   { key: 'kitchen', href: '/dashboard/kitchen', label: 'Kitchen', any: ['kitchen.bar', 'kitchen.food'], group: 'Run' },
   { key: 'floor', href: '/dashboard/floor', label: 'Floor', any: ['floor.tables'], group: 'Run' },
+  { key: 'bookings', href: '/dashboard/bookings', label: 'Bookings & AI calls', any: ['reports.view', 'floor.tables', 'orders.view'], group: 'Run' },
   { key: 'deliveries', href: '/dashboard/deliveries', label: 'Deliveries', any: ['delivery.ride', 'delivery.assign'], group: 'Run' },
   { key: 'menu', href: '/dashboard/menu', label: 'Menu', any: ['menu.availability', 'menu.promos'], group: 'Manage' },
   { key: 'shops', href: '/dashboard/shops', label: 'Shops', any: ['shops.manage'], group: 'Manage' },

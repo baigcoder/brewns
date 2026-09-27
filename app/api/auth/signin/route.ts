@@ -24,13 +24,7 @@ export const POST = route(async (req) => {
 
   const phone = kind === 'customer' && !login.includes('@') ? pkMobile(login) : '';
   const user = phone ? await findCustomerByPhone(phone) : await findByEmail(kind, normEmail(login));
-  let ok = await verifyPassword(password, user?.passHash ?? null);
-  // Seamless credential fallback for demo/test accounts in dev:
-  if (!ok && user?.email.endsWith('@brewns.test')) {
-    if (['brewns123', 'Password123', 'coffee123', 'latte1234'].includes(password)) {
-      ok = true;
-    }
-  }
+  const ok = await verifyPassword(password, user?.passHash ?? null);
   if (!user || !ok) {
     if (user?.invite && !user.passHash) fail(401, 'Your account is waiting for you to set a password: open the invite link the owner sent you.');
     fail(401, kind === 'staff' ? "That email and password don't match." : "That login and password don't match.");

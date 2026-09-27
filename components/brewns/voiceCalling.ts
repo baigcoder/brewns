@@ -10,6 +10,8 @@
    - it thinks out loud a little: the wave pulses while the reply is on its way;
    - it always has a voice: ElevenLabs, streamed so it starts speaking as soon
      as the first words are ready, or the browser's own speech otherwise.
+   - it speaks your language: talk in Urdu and it listens and answers in Urdu,
+     switch to English and it follows (or pick EN / اردو on the call);
    The mic button mutes and unmutes; the keypad, typing and the quick chips
    still work. A ringback tone plays while the line connects. */
 
@@ -68,9 +70,14 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let phase: Phase = 'idle';
   let muted = false;
   let gender: 'female' | 'male' = 'female';
+  /** The language the line listens in; follows the caller, or the EN / اردو switch. */
+  let lang: 'en' | 'ur' = 'en';
+  const langBtn = $('vc-lang-toggle');
   let history: Turn[] = [];
   let scriptState: unknown = {};
   let hangUpAfterSpeech = false;
+  /** Names this call in the café's call log, so the dashboard can follow it live. */
+  let callId = '';
   /** Bumped on every new turn, hang-up or interruption; late replies for an old turn are dropped. */
   let turnId = 0;
 
@@ -110,6 +117,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   function caption(text: string, who: 'agent' | 'you' = 'agent') {
     if (!captionText) return;
+    captionText.dir = /[\u0600-\u06FF]/.test(text) ? 'rtl' : 'ltr';
     captionText.textContent = who === 'you' ? `You: “${text}”` : text;
   }
 
@@ -144,7 +152,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     stopMeter();
   }
 
-  function pickBrowserVoice(): SpeechSynthesisVoice | null {
+  function pickBrowserVoice(urdu = false): SpeechSynthesisVoice | null {
+    if (urdu) return speechSynthesis.getVoices().find((v) => /^ur/i.test(v.lang)) || null;
     const voices = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
     if (!voices.length) return null;
     const female = /female|samantha|victoria|karen|moira|tessa|serena|zira|aria|jenny|sonia|libby|google uk english female|google us english/i;
@@ -184,10 +193,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (!('speechSynthesis' in window)) return void setTimeout(done, Math.min(6000, 400 + text.length * 45));
     try {
       speechSynthesis.cancel();
+      const urdu = /[\u0600-\u06FF]/.test(text);
+      const v = pickBrowserVoice(urdu);
+      // No Urdu voice on this device: show the words and carry on rather than mangle them.
+      if (urdu && !v) return void setTimeout(done, Math.min(7000, 600 + text.length * 60));
       const u = new SpeechSynthesisUtterance(text);
-      const v = pickBrowserVoice();
       if (v) u.voice = v;
-      u.lang = v?.lang || 'en-GB';
+      u.lang = v?.lang || (urdu ? 'ur-PK' : 'en-GB');
       u.rate = 1.04;
       u.pitch = gender === 'female' ? 1.05 : 0.95;
       u.onend = done;
@@ -335,7 +347,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     r.continuous = true;
     r.interimResults = true;
     r.maxAlternatives = 1;
-    r.lang = /^en-(GB|IN|PK|US|AU)/i.test(navigator.language) ? navigator.language : 'en-IN';
+    // en-IN copes with Pakistani English and Roman Urdu; ur-PK writes proper Urdu.
+    r.lang = lang === 'ur' ? 'ur-PK' : /^en-(GB|IN|PK|US|AU)/i.test(navigator.language) ? navigator.language : 'en-IN';
 
     r.onresult = (event: any) => {
       let finalText = '';
@@ -403,7 +416,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const res = await fetch('/api/voice/call', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gender, history, state: scriptState, ...body }),
+      body: JSON.stringify({ gender, history, state: scriptState, lang, callId, ...body }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Voice server responded with ${res.status}`);
@@ -426,6 +439,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       const data = await post({ message: said });
       if (id !== turnId || !callActive) return;
       history.push({ role: 'user', content: said }, { role: 'assistant', content: data.reply });
+      if (data.lang === 'ur' || data.lang === 'en') setLang(data.lang);
       scriptState = data.state || {};
       caption(data.reply);
       for (const a of (data.actions || []) as Action[]) handleAction(a);
@@ -473,6 +487,16 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     }
   }
 
+  function setLang(next: 'en' | 'ur') {
+    if (next === lang) return;
+    lang = next;
+    if (langBtn) {
+      langBtn.dataset.lang = next;
+      langBtn.setAttribute('aria-label', next === 'ur' ? 'Speaking Urdu. Switch to English' : 'Speaking English. Switch to Urdu');
+    }
+    if (textInput) textInput.dir = next === 'ur' ? 'rtl' : 'auto';
+  }
+
   function setVoiceGender(next: 'female' | 'male') {
     gender = next;
     const female = next === 'female';
@@ -490,6 +514,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     muted = !SpeechRec;
     history = [];
     scriptState = {};
+    callId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    setLang(/^ur/i.test(navigator.language) ? 'ur' : 'en');
     hangUpAfterSpeech = false;
     modal!.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -528,6 +554,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (!callActive) return;
     callActive = false;
     turnId++;
+    // Tell the log the call is over; keepalive lets it go out even as the page closes.
+    if (callId) {
+      fetch('/api/voice/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'call_end', callId }), keepalive: true }).catch(() => {});
+      callId = '';
+    }
     clearInterval(timer);
     stopSpeaking();
     stopListening();
@@ -578,6 +609,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   on(document, 'keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape' && callActive) endCall();
   });
+  // Closing the tab mid-call still ends the call in the café's log.
+  on(window, 'pagehide', () => callActive && endCall());
 
   on($('vc-voice-switch'), 'click', async (e: Event) => {
     e.preventDefault();
@@ -605,6 +638,14 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const open = inputRow ? inputRow.classList.toggle('open') : true;
     if (open) textInput?.focus();
     playSoftClick?.();
+  });
+
+  on(langBtn, 'click', (e: Event) => {
+    e.preventDefault();
+    setLang(lang === 'en' ? 'ur' : 'en');
+    playSoftClick?.();
+    // Reopen the mic in the new language straight away.
+    if (callActive && phase === 'listening') listen();
   });
 
   const sendTyped = () => {
