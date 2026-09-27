@@ -48,7 +48,7 @@ export interface PartyBooking {
   date: string;
   time: string;
   guests: number;
-  status: 'confirmed';
+  status: 'confirmed' | 'done' | 'cancelled';
   notes: string;
   source: 'voice';
   createdAt: number;
@@ -95,6 +95,12 @@ export function detectLang(text: string): VoiceLang {
   const hits = (text.match(ROMAN_URDU) || []).length;
   return hits >= 2 || (hits === 1 && words <= 3 && !/^(ji|han|haan|salam)$/i.test(text.trim())) ? 'ur' : 'en';
 }
+
+/* Once a caller is speaking Urdu, a line of names and numbers ("terrace, Hamad
+   Baig, 0300 1234567") shouldn't flip the call to English; a real English
+   sentence should. */
+const ENGLISH = /\b(the|is|are|what|when|where|how|can|could|would|will|you|your|i|i'm|i'd|we|my|please|want|like|tell|have|do|does|about|price|in english)\b/gi;
+export const clearlyEnglish = (text: string) => (text.match(ENGLISH) || []).length >= 2 && !(text.match(ROMAN_URDU) || []).length;
 
 /** Urdu written in Urdu script is what the Urdu voice reads properly. */
 export const replyLang = (reply: string): VoiceLang => (/[\u0600-\u06FF]/.test(reply) ? 'ur' : 'en');
@@ -335,6 +341,11 @@ async function saveReservation(b: BookingInput, transcript: string): Promise<Che
   const areaRaw = s(b.area).toLowerCase();
   const area: Reservation['area'] = areaRaw === 'terrace' || areaRaw === 'bar' ? areaRaw : 'indoor';
   const item = await withLock('reservations', async () => {
+    // The same guest, shop and slot again (a repeated "yes", a retried turn): that's the booking already made.
+    const same = Object.values((await kv.hall<Reservation>('reservations')) || {}).find(
+      (x) => x.status !== 'cancelled' && x.phone === c.value.phone && x.loc === c.value.loc && x.date === c.value.date && x.time === c.value.time,
+    );
+    if (same) return same;
     const r: Reservation = {
       id: `res_${Date.now()}_${randomBytes(3).toString('hex')}`,
       code: makeCode('RES'),
@@ -356,6 +367,10 @@ async function saveParty(b: BookingInput): Promise<Check<PartyBooking>> {
   if (!c.ok) return c;
   const occasion = s(b.occasion, 40) || 'Private party';
   const item = await withLock('party_bookings', async () => {
+    const same = Object.values((await kv.hall<PartyBooking>('party_bookings')) || {}).find(
+      (x) => x.status !== 'cancelled' && x.phone === c.value.phone && x.loc === c.value.loc && x.date === c.value.date && x.time === c.value.time,
+    );
+    if (same) return same;
     const p: PartyBooking = {
       id: randomBytes(6).toString('hex'),
       code: makeCode('PTY'),
@@ -542,7 +557,14 @@ const speakable = (t: string) =>
 
 type ToolOut = { content: string; isError?: boolean };
 
+/** "yes", "haan bilkul", "book kar dein", "ٹھیک ہے": the caller agreeing to what was read back. */
+const CONFIRM = /\b(yes|yeah|yep|yup|sure|ok|okay|correct|right|confirm|confirmed|go ahead|book it|do it|perfect|sounds good|haan|han|ji|jee|theek|thik|bilkul|zaroor|kar do|kar dein|kardo|kardein|done)\b|ہاں|جی|ٹھیک|بالکل|ضرور|کر دیں|کردیں/i;
+
 async function runTool(name: string, input: Record<string, unknown>, transcript: string, actions: VoiceAction[]): Promise<ToolOut> {
+  // A booking goes through only on the caller's yes to the details read back, never on the turn they're given.
+  if ((name === 'reserve_table' || name === 'book_party') && !CONFIRM.test(transcript)) {
+    return { content: 'Not booked yet: read the details back to the caller in one short sentence and ask them to confirm. Book on their yes.', isError: true };
+  }
   if (name === 'reserve_table') {
     const r = await saveReservation(input, transcript);
     if (!r.ok) return { content: r.error, isError: true };
@@ -946,7 +968,7 @@ export async function processVoiceCallPrompt(
   hint: VoiceLang = 'en',
 ): Promise<VoiceCallResponse> {
   const special = prompt === 'call_init' || prompt === 'voice_switch';
-  const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !/[a-z]{3,}/i.test(prompt) ? 'ur' : 'en';
+  const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !clearlyEnglish(prompt) ? 'ur' : 'en';
   let brain: VoiceCallResponse['brain'] = geminiEnabled() ? 'gemini' : 'script';
   let turn: { reply: string; actions: VoiceAction[]; state?: ScriptState };
 
