@@ -33,6 +33,7 @@ function Nav({ perms, onGo }: { perms: Permission[]; onGo: () => void }) {
     kitchen: { n: orders.filter((o) => ['accepted', 'preparing'].includes(o.status) && Object.values(o.stations).some((s) => s !== 'done')).length },
     floor: { n: (data?.calls.length || 0) + orders.filter((o) => o.mode === 'dinein' && o.status === 'ready').length, alert: !!data?.calls.length },
     deliveries: { n: orders.filter((o) => o.mode === 'delivery' && !o.rider && ['accepted', 'preparing', 'ready'].includes(o.status)).length },
+    bookings: { n: data?.aiLive || 0, alert: !!data?.aiLive },
   };
   const visible = SECTIONS.filter((s) => canOpen(perms, s));
   return (

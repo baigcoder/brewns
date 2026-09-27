@@ -114,9 +114,9 @@ export function OverviewScreen() {
     return () => clearTimeout(t);
   }, [live, lastV, range, load]);
 
-  const demo = async (action: 'seed' | 'clear') => {
+  const clearSamples = async () => {
     setBusy(true);
-    await run(() => api('/api/staff/demo', { action }), action === 'seed' ? 'Sample data loaded: 30 days of orders.' : 'Sample data cleared.');
+    await run(() => api('/api/staff/demo', { action: 'clear' }), 'Sample data cleared.');
     setBusy(false);
     load();
   };
@@ -244,21 +244,15 @@ export function OverviewScreen() {
         )}
       </section>
 
-      {r && !k?.orders && !r.demo && me.role === 'owner' && (
-        <section className="cx-card cx-row between" style={{ marginBottom: 14, borderColor: 'rgb(213 140 61 / 0.5)' }}>
-          <div className="cx-stack" style={{ gap: 4, maxWidth: 620 }}>
-            <p className="cx-h2">No orders {range === 'today' ? 'yet today' : 'in this period'}.</p>
-            <p className="cx-small cx-muted">Want to see the dashboard working first? Load 30 days of sample orders across the three shops. They’re marked as samples and clear in one click.</p>
-          </div>
-          <button type="button" className="cx-btn primary" disabled={busy} onClick={() => demo('seed')}>
-            {busy ? 'Loading…' : 'Load sample data'}
-          </button>
-        </section>
+      {r && !k?.orders && (
+        <p className="cx-empty" style={{ marginBottom: 14 }}>
+          No orders {range === 'today' ? 'yet today' : 'in this period'}. Everything here is live: new orders, calls and bookings appear as they happen.
+        </p>
       )}
       {r?.demo && me.role === 'owner' && (
         <p className="cx-banner cx-row between">
-          <span>You’re looking at sample orders (numbers from 900001). Clear them before you open for real.</span>
-          <button type="button" className="cx-btn sm" disabled={busy} onClick={() => window.confirm('Remove every sample order?') && demo('clear')}>
+          <span>Sample orders from an older version are still mixed into these numbers (numbers from 900001). Clear them to see only real sales.</span>
+          <button type="button" className="cx-btn sm" disabled={busy} onClick={() => window.confirm('Remove every sample order? Real orders are not touched.') && clearSamples()}>
             Clear sample data
           </button>
         </p>

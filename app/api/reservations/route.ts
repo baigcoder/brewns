@@ -1,7 +1,8 @@
-import { currentStaff } from '@/lib/server/auth';
+import { currentStaff, requireStaff } from '@/lib/server/auth';
 import { clientIp, fail, isEmail, json, rateLimit, readBody, route, str, int } from '@/lib/server/http';
 import { kv, withLock } from '@/lib/server/store';
 import { pkMobile, SHOP_COUNT } from '@/lib/catalog';
+import { bumpLive } from '@/lib/server/orders';
 
 export type Reservation = {
   id: string;
@@ -21,8 +22,9 @@ export type Reservation = {
 
 const makeCode = () => `RES-${Math.floor(1000 + Math.random() * 9000)}`;
 
-/** GET /api/reservations: staff view of table bookings */
+/** GET /api/reservations: staff view of table bookings (names and numbers, so staff only). */
 export const GET = route(async (req) => {
+  await requireStaff(['floor.tables', 'orders.view', 'reports.view'], 'any');
   const url = new URL(req.url);
   const locParam = url.searchParams.get('loc');
   const dateParam = url.searchParams.get('date');
@@ -87,6 +89,7 @@ export const POST = route(async (req) => {
     return item;
   });
 
+  await bumpLive();
   return json({ ok: true, reservation: res }, 201);
 });
 
@@ -111,5 +114,6 @@ export const PATCH = route(async (req) => {
     return next;
   });
 
+  await bumpLive();
   return json({ ok: true, reservation: updated });
 });

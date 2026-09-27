@@ -8,7 +8,7 @@ import { api } from './api';
 export type StaffOrder = Omit<ServerOrder, 'key'>;
 export type Call = { id: string; loc: number; table: number; kind: 'waiter' | 'bill'; t: number };
 export type Rider = { id: string; name: string; plate: string; shops: number[]; online: boolean };
-export type LiveData = { v: number; now: number; orders: StaffOrder[]; calls: Call[]; riders: Rider[]; soldOut: string[]; shops: ShopSettings[] };
+export type LiveData = { v: number; now: number; orders: StaffOrder[]; calls: Call[]; riders: Rider[]; aiLive?: number; soldOut: string[]; shops: ShopSettings[] };
 
 type Live = {
   data: LiveData | null;
