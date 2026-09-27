@@ -3,14 +3,15 @@
 /* The AI voice call, in the browser.
 
    It behaves like a phone call rather than a walkie-talkie:
-   - hands-free: when Sarah / George finishes a sentence the mic opens by itself,
+   - hands-free: when Sarah / Hamza finishes a sentence the mic opens by itself,
      and it sends what you said once you pause, so you just talk;
    - you can interrupt: speak over the voice and it stops to listen (a level
      meter on an echo-cancelled mic, so it doesn't hear itself);
    - it thinks out loud a little: the wave pulses while the reply is on its way;
    - it always has a voice: ElevenLabs when the server sends audio, the
      browser's own speech otherwise.
-   The mic button mutes and unmutes; typing and the quick chips still work. */
+   The mic button mutes and unmutes; the keypad, typing and the quick chips
+   still work. A ringback tone plays while the line connects. */
 
 export interface VoiceCallingDeps {
   cart: {
@@ -47,16 +48,17 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   const voiceCurrentEl = $('vc-voice-current');
   const agentTitleEl = $('vc-agent-title');
   const agentSubtitleEl = $('vc-agent-subtitle');
-  const badgeEl = $('vc-badge-text');
   const avatarRing = $('vc-avatar-ring');
-  const avatarIcon = $('vc-avatar-icon');
+  const avatarPulse = $('vc-avatar-pulse');
+  const avatarContainer = $('vc-avatar-container');
+  const avatarImg = $<HTMLImageElement>('vc-avatar-img');
+  const inputRow = $('voice-input-row');
   const soundwave = $('voice-soundwave');
   const captionStatus = $('voice-caption-status');
   const captionText = $('voice-caption-text');
   const textInput = $<HTMLInputElement>('voice-text-input');
   const micToggleBtn = $('voice-mic-toggle');
   const micLabel = $('voice-mic-label');
-  const micIcon = $('voice-mic-icon');
 
   const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const ac = new AbortController();
@@ -86,7 +88,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let meterCtx: AudioContext | null = null;
   let meterRaf = 0;
 
-  const agent = () => (gender === 'female' ? 'Sarah' : 'George');
+  const agent = () => (gender === 'female' ? 'Sarah' : 'Hamza');
 
   /* ── what the screen says ── */
 
@@ -96,10 +98,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     soundwave?.classList.toggle('thinking', next === 'thinking' || next === 'connecting');
     soundwave?.classList.toggle('listening', next === 'listening');
     avatarRing?.classList.toggle('active', next === 'speaking');
+    avatarPulse?.classList.toggle('active', next === 'speaking');
+    avatarContainer?.classList.toggle('speaking', next === 'speaking');
     modal!.dataset.phase = next;
     const label =
       status ||
-      { idle: '// READY', connecting: '// CONNECTING…', speaking: `// ${agent().toUpperCase()} SPEAKING`, listening: '// LISTENING. JUST TALK', thinking: `// ${agent().toUpperCase()} IS THINKING…`, muted: '// MIC MUTED. TAP TO TALK OR TYPE' }[next];
+      { idle: 'READY', connecting: 'DIALING DIRECT LINE…', speaking: `${agent().toUpperCase()} ON LINE`, listening: 'LISTENING…', thinking: `${agent().toUpperCase()} IS THINKING…`, muted: 'MIC MUTED' }[next];
     if (captionStatus) captionStatus.textContent = label;
     updateMicUI();
   }
@@ -112,9 +116,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   function updateMicUI() {
     const live = phase === 'listening';
     micToggleBtn?.classList.toggle('active', live);
+    micToggleBtn?.classList.toggle('muted', muted || !SpeechRec);
     micToggleBtn?.setAttribute('aria-pressed', String(!muted));
-    if (micLabel) micLabel.textContent = !SpeechRec ? 'TYPE BELOW' : muted ? 'TAP TO TALK' : live ? 'LISTENING · TAP TO MUTE' : 'MIC ON · TAP TO MUTE';
-    if (micIcon) micIcon.textContent = muted || !SpeechRec ? '🎙️' : live ? '🔴' : '🎧';
+    if (micLabel) micLabel.textContent = !SpeechRec ? 'USE KEYPAD' : muted ? 'SPEAK LIVE' : live ? 'LISTENING…' : 'MIC ON';
   }
 
   function tick() {
@@ -194,6 +198,59 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     }
   }
 
+  /* ── line tones ── */
+
+  /** One ring of a Pakistani/US-style PBX ringback: 440 + 480 Hz for about a second. */
+  function playRingbackTone(): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return resolve();
+        const ctx: AudioContext = new Ctx();
+        ctx.resume().catch(() => {});
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.06, ctx.currentTime + 0.85);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.05);
+        gain.connect(ctx.destination);
+        for (const f of [440, 480]) {
+          const o = ctx.createOscillator();
+          o.frequency.setValueAtTime(f, ctx.currentTime);
+          o.connect(gain);
+          o.start();
+          o.stop(ctx.currentTime + 1.1);
+        }
+        setTimeout(() => {
+          ctx.close().catch(() => {});
+          resolve();
+        }, 1050);
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  function playHangupTone() {
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx: AudioContext = new Ctx();
+      ctx.resume().catch(() => {});
+      const o = ctx.createOscillator();
+      const gain = ctx.createGain();
+      o.frequency.setValueAtTime(380, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.16);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.16);
+      o.connect(gain);
+      gain.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.18);
+      setTimeout(() => ctx.close().catch(() => {}), 220);
+    } catch {}
+  }
+
   /* ── barge-in: hear the caller talk over the voice ── */
 
   async function ensureMic() {
@@ -267,7 +324,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   function listen() {
     if (!callActive) return;
-    if (!SpeechRec || muted) return setPhase(SpeechRec ? 'muted' : 'idle', SpeechRec ? undefined : '// TYPE YOUR REPLY BELOW');
+    if (!SpeechRec || muted) return setPhase(SpeechRec ? 'muted' : 'idle', SpeechRec ? undefined : 'TYPE YOUR REPLY BELOW');
     stopListening();
     heard = '';
     setPhase('listening');
@@ -305,14 +362,16 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         muted = true;
         stopListening();
-        setPhase('muted', '// MIC BLOCKED');
+        setPhase('muted', 'MIC BLOCKED');
         caption('I need microphone access to hear you. Allow it in the address bar, or just type below.');
+        inputRow?.classList.add('open');
       } else if (event.error === 'audio-capture' || event.error === 'network') {
         // No mic, or the browser's speech service is unreachable: reopening would just spin.
         muted = true;
         stopListening();
-        setPhase('muted', event.error === 'network' ? '// VOICE INPUT OFFLINE' : '// NO MICROPHONE FOUND');
+        setPhase('muted', event.error === 'network' ? 'VOICE INPUT OFFLINE' : 'NO MICROPHONE FOUND');
         caption("I can't hear you right now, but you can type your reply below.");
+        inputRow?.classList.add('open');
       }
       // 'no-speech' and 'aborted' fall through to onend, which reopens the mic.
     };
@@ -416,10 +475,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   function setVoiceGender(next: 'female' | 'male') {
     gender = next;
     const female = next === 'female';
-    if (voiceCurrentEl) voiceCurrentEl.textContent = female ? 'SARAH (FEMALE)' : 'GEORGE (MALE)';
-    if (agentTitleEl) agentTitleEl.textContent = `${agent()} · Brewns Concierge`;
-    if (agentSubtitleEl) agentSubtitleEl.textContent = female ? 'Barista & Host · Urdu & English' : 'Roaster & Concierge · Urdu & English';
-    if (avatarIcon) avatarIcon.textContent = female ? '☕' : '🎙️';
+    if (voiceCurrentEl) voiceCurrentEl.textContent = agent().toUpperCase();
+    if (agentTitleEl) agentTitleEl.textContent = female ? 'Sarah · Brewns Front Desk' : 'Hamza · Roastery & Bar';
+    if (agentSubtitleEl) agentSubtitleEl.textContent = female ? 'Guest Concierge · Urdu & English' : 'Specialty Roaster & Hospitality Lead';
+    if (avatarImg) {
+      avatarImg.src = `/assets/concierge/${female ? 'sarah' : 'hamza'}.jpg`;
+      avatarImg.alt = female ? 'Sarah · Brewns Concierge' : 'Hamza · Brewns Roaster';
+    }
   }
 
   /* ── the call ── */
@@ -439,7 +501,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     timer = setInterval(tick, 1000);
     playChime?.();
     triggerHaptic?.(50);
-    caption('Connecting you to brewns…');
+    caption(`Connecting to ${agent()} at brewns…`);
+    if (!SpeechRec) inputRow?.classList.add('open');
     setPhase('connecting');
     // Voices load lazily in some browsers; ask early so the first reply has one.
     try {
@@ -454,10 +517,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
     const id = ++turnId;
     // Ask for the mic while the greeting loads, so the prompt doesn't cut into the conversation.
-    const [data] = await Promise.all([post({ message: 'call_init', history: [] }).catch(() => null), SpeechRec ? ensureMic() : null]);
+    // …and ring the line meanwhile, so the wait sounds like a call connecting.
+    const [data] = await Promise.all([post({ message: 'call_init', history: [] }).catch(() => null), SpeechRec ? ensureMic() : null, playRingbackTone()]);
     if (id !== turnId || !callActive) return;
     const hello = data?.reply || `Hi, thanks for calling brewns! This is ${agent()}. What can I do for you?`;
-    if (badgeEl) badgeEl.textContent = data?.brain === 'claude' ? (data?.audioBase64 ? 'LIVE AI · ELEVENLABS VOICE' : 'LIVE AI CALL') : data?.audioBase64 ? 'ELEVENLABS · VOICE CONCIERGE' : 'VOICE CONCIERGE';
     history.push({ role: 'assistant', content: hello });
     caption(hello);
     speak(hello, data?.audioBase64, id);
@@ -477,12 +540,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     modal!.hidden = true;
     document.body.style.removeProperty('overflow');
     setPhase('idle');
-    playSoftClick?.();
+    playHangupTone();
   }
 
   function toggleMic() {
     if (!SpeechRec) {
       caption('Voice input works in Chrome, Edge and Safari. You can type your request below instead.');
+      inputRow?.classList.add('open');
       textInput?.focus();
       return;
     }
@@ -538,6 +602,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     toggleMic();
   });
 
+  on($('voice-keypad-toggle'), 'click', (e: Event) => {
+    e.preventDefault();
+    const open = inputRow ? inputRow.classList.toggle('open') : true;
+    if (open) textInput?.focus();
+    playSoftClick?.();
+  });
+
   const sendTyped = () => {
     const txt = textInput?.value.trim() || '';
     if (txt) sendPrompt(txt);
@@ -556,7 +627,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   on(textInput, 'focus', () => {
     if (phase === 'listening') {
       stopListening();
-      setPhase('muted', '// TYPING…');
+      setPhase('muted', 'TYPING…');
     }
   });
 
