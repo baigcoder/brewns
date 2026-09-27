@@ -8,8 +8,8 @@
    - you can interrupt: speak over the voice and it stops to listen (a level
      meter on an echo-cancelled mic, so it doesn't hear itself);
    - it thinks out loud a little: the wave pulses while the reply is on its way;
-   - it always has a voice: ElevenLabs when the server sends audio, the
-     browser's own speech otherwise.
+   - it always has a voice: ElevenLabs, streamed so it starts speaking as soon
+     as the first words are ready, or the browser's own speech otherwise.
    The mic button mutes and unmutes; the keypad, typing and the quick chips
    still work. A ringback tone plays while the line connects. */
 
@@ -154,7 +154,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   }
 
   /** Speak one reply, then carry on the call (listen, or hang up if it said goodbye). */
-  function speak(text: string, audioBase64: string | undefined, id: number) {
+  function speak(text: string, audioUrl: string | undefined, id: number) {
     stopSpeaking();
     const done = () => {
       if (id !== turnId || !callActive) return;
@@ -167,8 +167,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     setPhase('speaking');
     startMeter(id);
 
-    if (audioBase64) {
-      const a = new Audio(audioBase64);
+    if (audioUrl) {
+      const a = new Audio(audioUrl);
+      a.preload = 'auto';
       audioEl = a;
       a.onended = done;
       a.onerror = () => speakWithBrowser(text, done);
@@ -428,7 +429,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       scriptState = data.state || {};
       caption(data.reply);
       for (const a of (data.actions || []) as Action[]) handleAction(a);
-      speak(data.reply, data.audioBase64, id);
+      speak(data.reply, data.audioUrl, id);
     } catch (err) {
       if (id !== turnId || !callActive) return;
       console.warn('Voice call error:', err);
@@ -523,7 +524,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const hello = data?.reply || `Hi, thanks for calling brewns! This is ${agent()}. What can I do for you?`;
     history.push({ role: 'assistant', content: hello });
     caption(hello);
-    speak(hello, data?.audioBase64, id);
+    speak(hello, data?.audioUrl, id);
   }
 
   function endCall() {
@@ -594,7 +595,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (id !== turnId || !callActive) return;
     const line = data?.reply || `Hi, ${agent()} here. Where were we?`;
     caption(line);
-    speak(line, data?.audioBase64, id);
+    speak(line, data?.audioUrl, id);
   });
 
   on(micToggleBtn, 'click', (e: Event) => {
