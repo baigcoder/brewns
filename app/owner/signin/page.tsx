@@ -10,6 +10,7 @@ export const metadata: Metadata = { title: 'Owner sign-in · brewns', robots: { 
 export default async function OwnerSignin() {
   if (await currentStaff()) redirect('/dashboard');
   const setUp = await ownerExists();
+  if (!setUp) redirect('/owner/signup');
   return (
     <AuthFrame title={<>Good to<br />see you.</>} lede="Today’s sales, what’s on the pass, and the team, in one place.">
       <AuthForm

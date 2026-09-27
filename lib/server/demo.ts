@@ -160,8 +160,36 @@ export async function clearDemo() {
     n += demo.length;
   }
   await kv.del('demo:days');
+
+  // Also clean any lingering test orders in orders:where
+  const where = await kv.hall<string>('orders:where');
+  for (const [no, day] of Object.entries(where)) {
+    const o = await kv.hget<ServerOrder>(`orders:day:${day}`, no);
+    if (!o || o.demo || String(no).startsWith('9') || ['1001', '1002', '1003'].includes(String(no))) {
+      await kv.hdel(`orders:day:${day}`, no);
+      await kv.hdel('orders:where', no);
+      await kv.hdel('orders:active', no);
+      n++;
+    }
+  }
+
+  // Purge all mock/test role accounts (keep owner)
+  const users = await kv.hall<Record<string, unknown>>('users');
+  let removedStaff = 0;
+  for (const [id, u] of Object.entries(users)) {
+    if (u.role === 'owner') continue;
+    const email = String(u.email || '').toLowerCase();
+    const name = String(u.name || '').toLowerCase();
+    if (u.kind === 'staff' && (email.endsWith('.test') || email.includes('_') || name.includes('test') || name.includes('sample'))) {
+      await kv.hdel('users', id);
+      await kv.hdel('idx:staff-email', email);
+      removedStaff++;
+    }
+  }
+
   await bumpLive();
-  return { removed: n };
+  return { removed: n, removedStaff };
 }
 
 export const hasDemo = async () => !!(await kv.get<string[]>('demo:days'))?.length;
+

@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LOC_TITLES, PAY } from '@/lib/catalog';
 import { orderNo } from '@/lib/orderFlow';
 import { ago, api, rs } from './api';
-import { chime, useLive, type StaffOrder } from './Live';
+import { useLive, type StaffOrder } from './Live';
+import { playWaiterBell } from '@/lib/audio-alerts';
 import { itemsLine, StatusPill } from './OrderBits';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
@@ -18,17 +19,36 @@ export function FloorScreen() {
   const shops = me.shops.length ? me.shops : LOC_TITLES.map((_, i) => i);
   const [loc, setLoc] = useState(shops[0]);
   const [table, setTable] = useState<number | null>(null);
+  const [tab, setTab] = useState<'tables' | 'reservations'>('tables');
+  const [reservations, setReservations] = useState<any[]>([]);
   const [now, setNow] = useState(() => Date.now());
+
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000);
     return () => clearInterval(t);
   }, []);
+
+  const loadReservations = useCallback(() => {
+    fetch(`/api/reservations?loc=${loc}`)
+      .then((res) => res.json())
+      .then((d) => {
+        if (d?.reservations) setReservations(d.reservations);
+      })
+      .catch(() => {});
+  }, [loc]);
+
+  useEffect(() => {
+    if (tab === 'reservations') {
+      loadReservations();
+    }
+  }, [tab, loadReservations]);
+
   const calls = (data?.calls || []).filter((c) => c.loc === loc);
-  // A chime when a new call comes in, not when one is answered.
+  // A brass service bell chime when a new call comes in, not when one is answered.
   const callCount = data?.calls.length || 0;
   const lastCalls = useRef(callCount);
   useEffect(() => {
-    if (callCount > lastCalls.current) chime();
+    if (callCount > lastCalls.current) playWaiterBell();
     lastCalls.current = callCount;
   }, [callCount]);
 
@@ -53,9 +73,19 @@ export function FloorScreen() {
       <div className="cx-pagehead">
         <div>
           <p className="cx-eyebrow">
-            <b>{'//'}</b> {LOC_TITLES[loc]} · {atTables.length} table order{atTables.length === 1 ? '' : 's'} open
+            <b>{'//'}</b> {LOC_TITLES[loc]} · {tab === 'tables' ? `${atTables.length} table order${atTables.length === 1 ? '' : 's'} open` : `${reservations.length} booking${reservations.length === 1 ? '' : 's'}`}
           </p>
-          <h1 className="cx-h1">Floor</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <h1 className="cx-h1" style={{ margin: 0 }}>Floor</h1>
+            <div className="cx-seg" role="tablist">
+              <button type="button" aria-pressed={tab === 'tables'} onClick={() => setTab('tables')}>
+                🍽️ Live Tables
+              </button>
+              <button type="button" aria-pressed={tab === 'reservations'} onClick={() => setTab('reservations')}>
+                📅 Bookings ({reservations.filter((r) => r.status === 'confirmed').length})
+              </button>
+            </div>
+          </div>
         </div>
         {shops.length > 1 && (
           <div className="cx-seg" role="group" aria-label="Shop">
@@ -67,6 +97,105 @@ export function FloorScreen() {
           </div>
         )}
       </div>
+
+      {tab === 'reservations' ? (
+        <section className="cx-card" style={{ marginBottom: 24 }}>
+          <div className="cx-card-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p className="cx-h2">Table Bookings & Reservations</p>
+              <span className="cx-small cx-muted">Today&apos;s guest reservations for {LOC_TITLES[loc]}</span>
+            </div>
+            <Link href="/reserve" target="_blank" className="cx-btn primary sm">
+              + New Reservation
+            </Link>
+          </div>
+          {reservations.length === 0 ? (
+            <p className="cx-empty" style={{ padding: '32px 16px' }}>
+              No reservations recorded yet for {LOC_TITLES[loc]}.
+            </p>
+          ) : (
+            <div className="cx-stack">
+              {reservations.map((r) => (
+                <div
+                  key={r.id}
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '14px 16px',
+                    borderBottom: '1px solid var(--cx-line-2, #262624)',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <b style={{ fontSize: 16 }}>{r.name}</b>
+                      <span className="cx-small cx-muted" style={{ fontFamily: 'var(--font-space-mono)' }}>{r.code}</span>
+                      <span
+                        className="cx-small"
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          background: r.status === 'seated' ? 'rgba(34, 197, 94, 0.15)' : r.status === 'cancelled' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(201, 147, 85, 0.15)',
+                          color: r.status === 'seated' ? '#4ade80' : r.status === 'cancelled' ? '#f87171' : 'var(--cx-accent, #c99355)',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+                    <div className="cx-small cx-muted" style={{ display: 'flex', gap: 12 }}>
+                      <span>🕒 {r.time} ({r.date})</span>
+                      <span>👥 {r.guests} Guests</span>
+                      <span>📍 Area: {r.area === 'indoor' ? '🛋️ Lounge' : r.area === 'terrace' ? '🌿 Terrace' : '☕ Bar'}</span>
+                      <span>📞 {r.phone}</span>
+                    </div>
+                    {r.notes && (
+                      <div className="cx-small" style={{ color: '#ccc', fontStyle: 'italic', marginTop: 2 }}>
+                        “{r.notes}”
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {r.status === 'confirmed' && (
+                      <>
+                        <button
+                          type="button"
+                          className="cx-btn go sm"
+                          onClick={() => {
+                            fetch('/api/reservations', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: r.id, status: 'seated' }),
+                            }).then(loadReservations);
+                          }}
+                        >
+                          Seat Guests
+                        </button>
+                        <button
+                          type="button"
+                          className="cx-btn sm"
+                          onClick={() => {
+                            fetch('/api/reservations', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: r.id, status: 'cancelled' }),
+                            }).then(loadReservations);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {calls.length > 0 && (
         <div className="cx-callbar" style={{ marginBottom: 18 }}>

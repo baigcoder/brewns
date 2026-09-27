@@ -9,7 +9,7 @@
      sleeps, so the console warns about it (`storeInfo().ephemeral`).
    No SDK: the REST API is plain fetch, and the file needs nothing at all. */
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -56,21 +56,35 @@ function upstash(url: string, token: string): Backend {
 type FileData = { s: Record<string, string>; h: Record<string, Record<string, string>>; l: Record<string, string[]>; x: Record<string, number> };
 
 function fileBackend(file: string): Backend {
-  let data: FileData;
-  try {
-    data = JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    data = { s: {}, h: {}, l: {}, x: {} };
-  }
-  data.s ||= {};
-  data.h ||= {};
-  data.l ||= {};
-  data.x ||= {};
+  let data: FileData = { s: {}, h: {}, l: {}, x: {} };
+  let lastMtime = 0;
+
+  const reload = () => {
+    try {
+      const stat = statSync(file);
+      if (stat.mtimeMs > lastMtime) {
+        data = JSON.parse(readFileSync(file, 'utf8'));
+        lastMtime = stat.mtimeMs;
+      }
+    } catch {
+      // file might not exist yet
+    }
+    data.s ||= {};
+    data.h ||= {};
+    data.l ||= {};
+    data.x ||= {};
+  };
+
+  reload();
+
   const save = () => {
     mkdirSync(path.dirname(file), { recursive: true });
     const tmp = `${file}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(data));
     renameSync(tmp, file);
+    try {
+      lastMtime = statSync(file).mtimeMs;
+    } catch {}
   };
   const alive = (k: string) => {
     const at = data.x[k];
@@ -86,6 +100,7 @@ function fileBackend(file: string): Backend {
   const exists = (k: string) => alive(k) && (k in data.s || k in data.h || k in data.l);
   const range = (list: string[], a: number, b: number) => list.slice(a < 0 ? Math.max(0, list.length + a) : a, b < 0 ? list.length + b + 1 : b + 1);
   const run = (cmd: Cmd): unknown => {
+    reload();
     const [name, ...a] = cmd.map(String);
     const k = a[0];
     switch (name.toUpperCase()) {
@@ -179,7 +194,7 @@ type StoreState = { backend: Backend; kind: 'redis' | 'file'; ephemeral: boolean
 const g = globalThis as unknown as { __brewnsStore?: StoreState; __brewnsLocks?: Map<string, Promise<unknown>> };
 
 function state(): StoreState {
-  if (g.__brewnsStore) return g.__brewnsStore;
+  if (process.env.NODE_ENV === 'production' && g.__brewnsStore) return g.__brewnsStore;
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
   if (url && token) g.__brewnsStore = { backend: upstash(url, token), kind: 'redis', ephemeral: false, where: new URL(url).host };
