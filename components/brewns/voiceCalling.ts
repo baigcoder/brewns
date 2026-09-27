@@ -1,5 +1,17 @@
 'use client';
 
+/* The AI voice call, in the browser.
+
+   It behaves like a phone call rather than a walkie-talkie:
+   - hands-free: when Sarah / George finishes a sentence the mic opens by itself,
+     and it sends what you said once you pause, so you just talk;
+   - you can interrupt: speak over the voice and it stops to listen (a level
+     meter on an echo-cancelled mic, so it doesn't hear itself);
+   - it thinks out loud a little: the wave pulses while the reply is on its way;
+   - it always has a voice: ElevenLabs when the server sends audio, the
+     browser's own speech otherwise.
+   The mic button mutes and unmutes; typing and the quick chips still work. */
+
 export interface VoiceCallingDeps {
   cart: {
     add: (id: string, sel: Record<string, number>, qty?: number, message?: string) => void;
@@ -14,466 +26,553 @@ export interface VoiceCallingDeps {
   triggerHaptic?: (ms?: number) => void;
 }
 
-export function initVoiceCalling({
-  cart,
-  productById,
-  defaultSel,
-  openBag,
-  toast,
-  playChime,
-  playSoftClick,
-  triggerHaptic,
-}: VoiceCallingDeps) {
+type Phase = 'idle' | 'connecting' | 'speaking' | 'listening' | 'thinking' | 'muted';
+type Turn = { role: 'user' | 'assistant'; content: string };
+type Action = { type: string; data?: any };
+
+/** How long a pause means "I'm done talking", after some words have come in. */
+const END_OF_SPEECH_MS = 900;
+/** Mic level (RMS, 0..1) and how long it must hold to count as talking over the voice. */
+const BARGE_IN_LEVEL = 0.06;
+const BARGE_IN_MS = 280;
+
+export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast, playChime, playSoftClick, triggerHaptic }: VoiceCallingDeps) {
   if (typeof window === 'undefined') return () => {};
 
-  // Elements
-  const hdrBtn = document.getElementById('hdr-voice-btn');
-  const floatBtn = document.getElementById('voice-call-float');
-  const menuLink = document.getElementById('menu-voice-call-link');
-  const modal = document.getElementById('voice-call-modal') as HTMLElement | null;
-  const backdrop = document.getElementById('voice-call-backdrop');
-  const closeBtn = document.getElementById('voice-call-close');
-  const hangupBtn = document.getElementById('voice-hangup-btn');
-  const timerEl = document.getElementById('voice-call-timer');
-  const voiceSwitchBtn = document.getElementById('vc-voice-switch');
-  const voiceCurrentEl = document.getElementById('vc-voice-current');
-  const agentTitleEl = document.getElementById('vc-agent-title');
-  const agentSubtitleEl = document.getElementById('vc-agent-subtitle');
-  const avatarRing = document.getElementById('vc-avatar-ring');
-  const avatarIcon = document.getElementById('vc-avatar-icon');
-  const soundwave = document.getElementById('voice-soundwave');
-  const captionStatus = document.getElementById('voice-caption-status');
-  const captionText = document.getElementById('voice-caption-text');
-  const textInput = document.getElementById('voice-text-input') as HTMLInputElement | null;
-  const sendBtn = document.getElementById('voice-send-btn');
-  const micToggleBtn = document.getElementById('voice-mic-toggle');
-  const micLabel = document.getElementById('voice-mic-label');
-  const micIcon = document.getElementById('voice-mic-icon');
-  const chipsWrap = document.getElementById('voice-chips-wrap');
-
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T | null;
+  const modal = $('voice-call-modal');
   if (!modal) return () => {};
 
-  // State
-  let isCallActive = false;
-  let callTimerInterval: any = null;
-  let callSeconds = 0;
-  let currentGender: 'female' | 'male' = 'female';
-  let isListening = false;
-  let recognition: any = null;
-  let audioElement: HTMLAudioElement | null = null;
-  let conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
-  let isProcessing = false;
+  const timerEl = $('voice-call-timer');
+  const voiceCurrentEl = $('vc-voice-current');
+  const agentTitleEl = $('vc-agent-title');
+  const agentSubtitleEl = $('vc-agent-subtitle');
+  const badgeEl = $('vc-badge-text');
+  const avatarRing = $('vc-avatar-ring');
+  const avatarIcon = $('vc-avatar-icon');
+  const soundwave = $('voice-soundwave');
+  const captionStatus = $('voice-caption-status');
+  const captionText = $('voice-caption-text');
+  const textInput = $<HTMLInputElement>('voice-text-input');
+  const micToggleBtn = $('voice-mic-toggle');
+  const micLabel = $('voice-mic-label');
+  const micIcon = $('voice-mic-icon');
 
-  // Initialize Speech Recognition if supported
   const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const ac = new AbortController();
+  const on = (el: EventTarget | null, ev: string, fn: (e: any) => void) => el?.addEventListener(ev, fn, { signal: ac.signal });
 
-  function updateTimerDisplay() {
-    if (!timerEl) return;
-    const m = Math.floor(callSeconds / 60);
-    const s = callSeconds % 60;
-    timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  let callActive = false;
+  let phase: Phase = 'idle';
+  let muted = false;
+  let gender: 'female' | 'male' = 'female';
+  let history: Turn[] = [];
+  let scriptState: unknown = {};
+  let hangUpAfterSpeech = false;
+  /** Bumped on every new turn, hang-up or interruption; late replies for an old turn are dropped. */
+  let turnId = 0;
+
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let seconds = 0;
+
+  let recognition: any = null;
+  let heard = '';
+  let silenceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  let audioEl: HTMLAudioElement | null = null;
+  let utterance: SpeechSynthesisUtterance | null = null;
+
+  let micStream: MediaStream | null = null;
+  let meterCtx: AudioContext | null = null;
+  let meterRaf = 0;
+
+  const agent = () => (gender === 'female' ? 'Sarah' : 'George');
+
+  /* ── what the screen says ── */
+
+  function setPhase(next: Phase, status?: string) {
+    phase = next;
+    soundwave?.classList.toggle('speaking', next === 'speaking');
+    soundwave?.classList.toggle('thinking', next === 'thinking' || next === 'connecting');
+    soundwave?.classList.toggle('listening', next === 'listening');
+    avatarRing?.classList.toggle('active', next === 'speaking');
+    modal!.dataset.phase = next;
+    const label =
+      status ||
+      { idle: '// READY', connecting: '// CONNECTING…', speaking: `// ${agent().toUpperCase()} SPEAKING`, listening: '// LISTENING. JUST TALK', thinking: `// ${agent().toUpperCase()} IS THINKING…`, muted: '// MIC MUTED. TAP TO TALK OR TYPE' }[next];
+    if (captionStatus) captionStatus.textContent = label;
+    updateMicUI();
   }
 
-  function startTimer() {
-    clearInterval(callTimerInterval);
-    callSeconds = 0;
-    updateTimerDisplay();
-    callTimerInterval = setInterval(() => {
-      callSeconds++;
-      updateTimerDisplay();
-    }, 1000);
-  }
-
-  function stopTimer() {
-    clearInterval(callTimerInterval);
-  }
-
-  function setSpeaking(isSpeaking: boolean) {
-    if (soundwave) {
-      soundwave.classList.toggle('speaking', isSpeaking);
-    }
-    if (avatarRing) {
-      avatarRing.classList.toggle('active', isSpeaking);
-    }
-  }
-
-  function stopAudio() {
-    if (audioElement) {
-      audioElement.pause();
-      audioElement.currentTime = 0;
-      audioElement = null;
-    }
-    setSpeaking(false);
-  }
-
-  function playVoiceAudio(audioBase64: string | undefined, onComplete?: () => void) {
-    stopAudio();
-    if (!audioBase64) {
-      setSpeaking(false);
-      onComplete?.();
-      return;
-    }
-
-    try {
-      const audio = new Audio(audioBase64);
-      audioElement = audio;
-
-      audio.onplay = () => {
-        setSpeaking(true);
-        if (captionStatus) captionStatus.textContent = `// ${currentGender === 'female' ? 'SARAH' : 'GEORGE'} SPEAKING`;
-      };
-
-      audio.onended = () => {
-        setSpeaking(false);
-        if (captionStatus) captionStatus.textContent = '// LISTENING FOR YOUR REQUEST';
-        audioElement = null;
-        onComplete?.();
-      };
-
-      audio.onerror = (e) => {
-        console.warn('Audio playback error:', e);
-        setSpeaking(false);
-        if (captionStatus) captionStatus.textContent = '// READY';
-        audioElement = null;
-        onComplete?.();
-      };
-
-      audio.play().catch((err) => {
-        console.warn('Audio autoplay failed:', err);
-        setSpeaking(false);
-        onComplete?.();
-      });
-    } catch (e) {
-      console.error('Failed to create Audio instance:', e);
-      setSpeaking(false);
-      onComplete?.();
-    }
-  }
-
-  async function sendPrompt(promptText: string) {
-    if (!promptText || isProcessing) return;
-    isProcessing = true;
-    playSoftClick?.();
-
-    if (captionStatus) captionStatus.textContent = '// PROCESSING...';
-    if (captionText) captionText.textContent = `You: "${promptText}"`;
-    if (textInput) textInput.value = '';
-
-    // Stop recognition while AI replies
-    if (isListening && recognition) {
-      try {
-        recognition.stop();
-      } catch {}
-      isListening = false;
-      updateMicUI();
-    }
-
-    try {
-      const res = await fetch('/api/voice/call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: promptText,
-          conversationHistory,
-          gender: currentGender,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Voice server responded with ${res.status}`);
-      }
-
-      const data = await res.json();
-      const reply = data.reply || "I've noted that! How else can I assist you at Brewns?";
-
-      // Update history
-      conversationHistory.push({ role: 'user', content: promptText });
-      conversationHistory.push({ role: 'assistant', content: reply });
-
-      // Update Subtitles
-      if (captionText) {
-        captionText.innerHTML = reply;
-      }
-
-      // Execute returned action if any
-      if (data.action) {
-        handleAction(data.action);
-      }
-
-      // Play realistic ElevenLabs voice audio
-      playVoiceAudio(data.audioBase64);
-    } catch (err) {
-      console.error('Voice call error:', err);
-      if (captionStatus) captionStatus.textContent = '// CONCIERGE';
-      if (captionText) {
-        captionText.textContent = "I'm having trouble with the voice connection, but our team at Brewns is always ready to serve you! Please try again or tap one of the quick options.";
-      }
-      setSpeaking(false);
-    } finally {
-      isProcessing = false;
-    }
-  }
-
-  function handleAction(action: { type: string; data?: any }) {
-    if (!action) return;
-
-    if (action.type === 'ADD_TO_BAG') {
-      const pIds: string[] = action.data?.productIds || [];
-      if (pIds.length > 0) {
-        for (const pid of pIds) {
-          try {
-            const p = productById(pid);
-            if (p) {
-              const sel = defaultSel(p);
-              cart.add(pid, sel, 1);
-            }
-          } catch (e) {
-            console.warn('Could not add product to cart:', pid, e);
-          }
-        }
-        playChime?.();
-        triggerHaptic?.(40);
-        toast(`AI CALL — ADDED ${pIds.length} ITEM(S) TO BAG`, 'VIEW BAG', () => openBag());
-      }
-    } else if (action.type === 'RESERVE_TABLE') {
-      const code = action.data?.code || 'CONFIRMED';
-      playChime?.();
-      triggerHaptic?.(50);
-      toast(`TABLE RESERVED: ${code}`, 'VIEW', () => {
-        window.location.href = '/reserve';
-      });
-    } else if (action.type === 'BOOK_PARTY') {
-      const code = action.data?.code || 'CONFIRMED';
-      playChime?.();
-      triggerHaptic?.(50);
-      toast(`PARTY BOOKING SAVED: ${code}`, 'DETAILS');
-    }
+  function caption(text: string, who: 'agent' | 'you' = 'agent') {
+    if (!captionText) return;
+    captionText.textContent = who === 'you' ? `You: “${text}”` : text;
   }
 
   function updateMicUI() {
-    if (!micToggleBtn) return;
-    micToggleBtn.classList.toggle('active', isListening);
-    if (micLabel) {
-      micLabel.textContent = isListening ? 'LISTENING... (TAP TO SEND)' : 'TAP TO TALK';
+    const live = phase === 'listening';
+    micToggleBtn?.classList.toggle('active', live);
+    micToggleBtn?.setAttribute('aria-pressed', String(!muted));
+    if (micLabel) micLabel.textContent = !SpeechRec ? 'TYPE BELOW' : muted ? 'TAP TO TALK' : live ? 'LISTENING · TAP TO MUTE' : 'MIC ON · TAP TO MUTE';
+    if (micIcon) micIcon.textContent = muted || !SpeechRec ? '🎙️' : live ? '🔴' : '🎧';
+  }
+
+  function tick() {
+    seconds++;
+    if (timerEl) timerEl.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  /* ── speaking ── */
+
+  function stopSpeaking() {
+    if (audioEl) {
+      audioEl.onended = audioEl.onerror = null;
+      audioEl.pause();
+      audioEl = null;
     }
-    if (micIcon) {
-      micIcon.textContent = isListening ? '🔴' : '🎙️';
+    if (utterance) {
+      utterance.onend = utterance.onerror = null;
+      utterance = null;
+      try {
+        speechSynthesis.cancel();
+      } catch {}
     }
+    stopMeter();
+  }
+
+  function pickBrowserVoice(): SpeechSynthesisVoice | null {
+    const voices = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
+    if (!voices.length) return null;
+    const female = /female|samantha|victoria|karen|moira|tessa|serena|zira|aria|jenny|sonia|libby|google uk english female|google us english/i;
+    const male = /male|daniel|alex|fred|oliver|arthur|george|guy|ryan|david|mark|google uk english male/i;
+    const want = gender === 'female' ? female : male;
+    return voices.find((v) => want.test(v.name) && !(gender === 'female' && /\bmale\b/i.test(v.name))) || voices.find((v) => /en-(GB|IN|PK)/i.test(v.lang)) || voices[0];
+  }
+
+  /** Speak one reply, then carry on the call (listen, or hang up if it said goodbye). */
+  function speak(text: string, audioBase64: string | undefined, id: number) {
+    stopSpeaking();
+    const done = () => {
+      if (id !== turnId || !callActive) return;
+      audioEl = null;
+      utterance = null;
+      stopMeter();
+      if (hangUpAfterSpeech) return void setTimeout(() => callActive && endCall(), 350);
+      listen();
+    };
+    setPhase('speaking');
+    startMeter(id);
+
+    if (audioBase64) {
+      const a = new Audio(audioBase64);
+      audioEl = a;
+      a.onended = done;
+      a.onerror = () => speakWithBrowser(text, done);
+      a.play().catch(() => speakWithBrowser(text, done));
+      return;
+    }
+    speakWithBrowser(text, done);
+  }
+
+  function speakWithBrowser(text: string, done: () => void) {
+    audioEl = null;
+    if (!('speechSynthesis' in window)) return void setTimeout(done, Math.min(6000, 400 + text.length * 45));
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const v = pickBrowserVoice();
+      if (v) u.voice = v;
+      u.lang = v?.lang || 'en-GB';
+      u.rate = 1.04;
+      u.pitch = gender === 'female' ? 1.05 : 0.95;
+      u.onend = done;
+      u.onerror = done;
+      utterance = u;
+      speechSynthesis.speak(u);
+    } catch {
+      done();
+    }
+  }
+
+  /* ── barge-in: hear the caller talk over the voice ── */
+
+  async function ensureMic() {
+    if (micStream || !navigator.mediaDevices?.getUserMedia) return micStream;
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch {
+      micStream = null;
+    }
+    return micStream;
+  }
+
+  function startMeter(id: number) {
+    if (!micStream || muted) return;
+    try {
+      meterCtx ||= new AudioContext();
+      const src = meterCtx.createMediaStreamSource(micStream);
+      const an = meterCtx.createAnalyser();
+      an.fftSize = 1024;
+      src.connect(an);
+      const buf = new Float32Array(an.fftSize);
+      let loudSince = 0;
+      // Give the voice a moment to start so its first syllable isn't mistaken for the caller.
+      const armAt = performance.now() + 450;
+      const loop = () => {
+        if (id !== turnId || phase !== 'speaking') return src.disconnect();
+        an.getFloatTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        const rms = Math.sqrt(sum / buf.length);
+        const now = performance.now();
+        if (now > armAt && rms > BARGE_IN_LEVEL) {
+          loudSince ||= now;
+          if (now - loudSince > BARGE_IN_MS) {
+            src.disconnect();
+            interrupt();
+            return;
+          }
+        } else loudSince = 0;
+        meterRaf = requestAnimationFrame(loop);
+      };
+      meterRaf = requestAnimationFrame(loop);
+    } catch {}
+  }
+
+  function stopMeter() {
+    cancelAnimationFrame(meterRaf);
+  }
+
+  function interrupt() {
+    turnId++;
+    stopSpeaking();
+    hangUpAfterSpeech = false;
+    triggerHaptic?.(15);
+    listen();
+  }
+
+  /* ── listening ── */
+
+  function stopListening() {
+    clearTimeout(silenceTimer);
+    const r = recognition;
+    recognition = null;
+    if (r) {
+      r.onresult = r.onerror = r.onend = null;
+      try {
+        r.abort();
+      } catch {}
+    }
+  }
+
+  function listen() {
+    if (!callActive) return;
+    if (!SpeechRec || muted) return setPhase(SpeechRec ? 'muted' : 'idle', SpeechRec ? undefined : '// TYPE YOUR REPLY BELOW');
+    stopListening();
+    heard = '';
+    setPhase('listening');
+
+    const r = new SpeechRec();
+    recognition = r;
+    r.continuous = true;
+    r.interimResults = true;
+    r.maxAlternatives = 1;
+    r.lang = /^en-(GB|IN|PK|US|AU)/i.test(navigator.language) ? navigator.language : 'en-IN';
+
+    r.onresult = (event: any) => {
+      let finalText = '';
+      let interim = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const res = event.results[i];
+        if (res.isFinal) finalText += res[0].transcript;
+        else interim += res[0].transcript;
+      }
+      heard = (finalText + ' ' + interim).replace(/\s+/g, ' ').trim();
+      if (!heard) return;
+      if (textInput) textInput.value = heard;
+      caption(heard + '…', 'you');
+      // Wait for a real pause rather than the first "final" chunk, so a caller
+      // who stops to think mid-sentence isn't cut off.
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        const said = heard;
+        stopListening();
+        if (said) sendPrompt(said);
+      }, interim ? END_OF_SPEECH_MS + 400 : END_OF_SPEECH_MS);
+    };
+
+    r.onerror = (event: any) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        muted = true;
+        stopListening();
+        setPhase('muted', '// MIC BLOCKED');
+        caption('I need microphone access to hear you. Allow it in the address bar, or just type below.');
+      } else if (event.error === 'audio-capture' || event.error === 'network') {
+        // No mic, or the browser's speech service is unreachable: reopening would just spin.
+        muted = true;
+        stopListening();
+        setPhase('muted', event.error === 'network' ? '// VOICE INPUT OFFLINE' : '// NO MICROPHONE FOUND');
+        caption("I can't hear you right now, but you can type your reply below.");
+      }
+      // 'no-speech' and 'aborted' fall through to onend, which reopens the mic.
+    };
+
+    // Browsers close recognition after a stretch of silence; on a call the line stays open.
+    r.onend = () => {
+      if (recognition !== r) return;
+      recognition = null;
+      if (heard) {
+        clearTimeout(silenceTimer);
+        const said = heard;
+        heard = '';
+        return void sendPrompt(said);
+      }
+      if (callActive && phase === 'listening' && !muted) setTimeout(() => phase === 'listening' && listen(), 150);
+    };
+
+    try {
+      r.start();
+    } catch {
+      setPhase('muted');
+    }
+  }
+
+  /* ── talking to the concierge ── */
+
+  async function post(body: Record<string, unknown>) {
+    const res = await fetch('/api/voice/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gender, history, state: scriptState, ...body }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Voice server responded with ${res.status}`);
+    return data;
+  }
+
+  async function sendPrompt(text: string) {
+    const said = text.trim();
+    if (!said || !callActive) return;
+    const id = ++turnId;
+    stopSpeaking();
+    stopListening();
+    hangUpAfterSpeech = false;
+    playSoftClick?.();
+    if (textInput) textInput.value = '';
+    caption(said, 'you');
+    setPhase('thinking');
+
+    try {
+      const data = await post({ message: said });
+      if (id !== turnId || !callActive) return;
+      history.push({ role: 'user', content: said }, { role: 'assistant', content: data.reply });
+      scriptState = data.state || {};
+      caption(data.reply);
+      for (const a of (data.actions || []) as Action[]) handleAction(a);
+      speak(data.reply, data.audioBase64, id);
+    } catch (err) {
+      if (id !== turnId || !callActive) return;
+      console.warn('Voice call error:', err);
+      const msg = err instanceof Error && /busy/i.test(err.message) ? err.message : "Sorry, the line broke up for a second there. Could you say that again?";
+      caption(msg);
+      speak(msg, undefined, id);
+    }
+  }
+
+  function handleAction(action: Action) {
+    if (action.type === 'ADD_TO_BAG') {
+      let added = 0;
+      for (const line of action.data?.items || []) {
+        const p = productById(line.id);
+        if (!p) continue;
+        try {
+          cart.add(line.id, line.sel || defaultSel(p), line.qty || 1);
+          added += line.qty || 1;
+        } catch (e) {
+          console.warn('Could not add product to cart:', line.id, e);
+        }
+      }
+      if (added) {
+        playChime?.();
+        triggerHaptic?.(40);
+        toast(`ADDED ${added} ITEM${added > 1 ? 'S' : ''} TO YOUR BAG`, 'VIEW BAG', () => {
+          endCall();
+          openBag();
+        });
+      }
+    } else if (action.type === 'RESERVE_TABLE') {
+      playChime?.();
+      triggerHaptic?.(50);
+      toast(`TABLE BOOKED · ${action.data?.code || 'CONFIRMED'}`);
+    } else if (action.type === 'BOOK_PARTY') {
+      playChime?.();
+      triggerHaptic?.(50);
+      toast(`PARTY BOOKED · ${action.data?.code || 'CONFIRMED'} · WE'LL CALL YOU`);
+    } else if (action.type === 'END_CALL') {
+      hangUpAfterSpeech = true;
+    }
+  }
+
+  function setVoiceGender(next: 'female' | 'male') {
+    gender = next;
+    const female = next === 'female';
+    if (voiceCurrentEl) voiceCurrentEl.textContent = female ? 'SARAH (FEMALE)' : 'GEORGE (MALE)';
+    if (agentTitleEl) agentTitleEl.textContent = `${agent()} · Brewns Concierge`;
+    if (agentSubtitleEl) agentSubtitleEl.textContent = female ? 'Barista & Host · Urdu & English' : 'Roaster & Concierge · Urdu & English';
+    if (avatarIcon) avatarIcon.textContent = female ? '☕' : '🎙️';
+  }
+
+  /* ── the call ── */
+
+  async function startCall() {
+    if (callActive) return;
+    callActive = true;
+    muted = !SpeechRec;
+    history = [];
+    scriptState = {};
+    hangUpAfterSpeech = false;
+    modal!.hidden = false;
+    document.body.style.overflow = 'hidden';
+    seconds = -1;
+    tick();
+    clearInterval(timer);
+    timer = setInterval(tick, 1000);
+    playChime?.();
+    triggerHaptic?.(50);
+    caption('Connecting you to brewns…');
+    setPhase('connecting');
+    // Voices load lazily in some browsers; ask early so the first reply has one.
+    try {
+      speechSynthesis.getVoices();
+    } catch {}
+
+    // Made inside the click so autoplay rules don't leave it suspended.
+    try {
+      meterCtx ||= new AudioContext();
+      meterCtx.resume().catch(() => {});
+    } catch {}
+
+    const id = ++turnId;
+    // Ask for the mic while the greeting loads, so the prompt doesn't cut into the conversation.
+    const [data] = await Promise.all([post({ message: 'call_init', history: [] }).catch(() => null), SpeechRec ? ensureMic() : null]);
+    if (id !== turnId || !callActive) return;
+    const hello = data?.reply || `Hi, thanks for calling brewns! This is ${agent()}. What can I do for you?`;
+    if (badgeEl) badgeEl.textContent = data?.brain === 'claude' ? (data?.audioBase64 ? 'LIVE AI · ELEVENLABS VOICE' : 'LIVE AI CALL') : data?.audioBase64 ? 'ELEVENLABS · VOICE CONCIERGE' : 'VOICE CONCIERGE';
+    history.push({ role: 'assistant', content: hello });
+    caption(hello);
+    speak(hello, data?.audioBase64, id);
+  }
+
+  function endCall() {
+    if (!callActive) return;
+    callActive = false;
+    turnId++;
+    clearInterval(timer);
+    stopSpeaking();
+    stopListening();
+    micStream?.getTracks().forEach((t) => t.stop());
+    micStream = null;
+    meterCtx?.close().catch(() => {});
+    meterCtx = null;
+    modal!.hidden = true;
+    document.body.style.removeProperty('overflow');
+    setPhase('idle');
+    playSoftClick?.();
   }
 
   function toggleMic() {
     if (!SpeechRec) {
-      if (captionStatus) captionStatus.textContent = '// MIC NOTICE';
-      if (captionText) {
-        captionText.textContent = "Voice speech recognition is supported in Chrome, Edge, and Safari. You can easily type your order or question in the box below!";
-      }
+      caption('Voice input works in Chrome, Edge and Safari. You can type your request below instead.');
       textInput?.focus();
       return;
     }
-
-    if (isListening) {
-      if (recognition) {
-        try {
-          recognition.stop();
-        } catch {}
-      }
-      isListening = false;
-      updateMicUI();
-      return;
-    }
-
-    try {
-      recognition = new SpeechRec();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        isListening = true;
-        updateMicUI();
-        if (captionStatus) captionStatus.textContent = '// LISTENING...';
-        stopAudio();
-      };
-
-      recognition.onresult = (event: any) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          transcript += event.results[i][0].transcript;
-        }
-        if (textInput) textInput.value = transcript;
-        if (captionText) captionText.textContent = `Hearing: "${transcript}"...`;
-
-        // If final result
-        if (event.results[0] && event.results[0].isFinal) {
-          isListening = false;
-          updateMicUI();
-          sendPrompt(transcript);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error:', event.error);
-        isListening = false;
-        updateMicUI();
-        if (event.error === 'not-allowed') {
-          if (captionStatus) captionStatus.textContent = '// MIC PERMISSION NEEDED';
-          if (captionText) captionText.textContent = 'Microphone permission was denied. Please allow microphone access or type your message below.';
-        }
-      };
-
-      recognition.onend = () => {
-        isListening = false;
-        updateMicUI();
-      };
-
-      recognition.start();
-    } catch (e) {
-      console.error('Failed to start speech recognition:', e);
-      isListening = false;
-      updateMicUI();
-    }
-  }
-
-  function setVoiceGender(gender: 'female' | 'male') {
-    currentGender = gender;
-    const isFemale = gender === 'female';
-    if (voiceCurrentEl) {
-      voiceCurrentEl.textContent = isFemale ? 'SARAH (FEMALE)' : 'GEORGE (MALE)';
-    }
-    if (agentTitleEl) {
-      agentTitleEl.textContent = isFemale ? 'Sarah · Brewns Concierge' : 'George · Brewns Concierge';
-    }
-    if (agentSubtitleEl) {
-      agentSubtitleEl.textContent = isFemale ? 'Specialty Barista & Host · ElevenLabs Real Voice' : 'Master Roaster & Concierge · ElevenLabs Real Voice';
-    }
-    if (avatarIcon) {
-      avatarIcon.textContent = isFemale ? '☕' : '🎙️';
-    }
+    muted = !muted;
     playSoftClick?.();
+    if (muted) {
+      stopListening();
+      if (phase !== 'speaking' && phase !== 'thinking') setPhase('muted');
+      else updateMicUI();
+    } else if (phase === 'speaking') {
+      interrupt();
+    } else if (phase !== 'thinking') {
+      ensureMic().finally(listen);
+    } else updateMicUI();
   }
 
-  function startCall() {
-    if (!modal) return;
-    isCallActive = true;
-    modal.hidden = false;
-    document.body.style.overflow = 'hidden';
-    conversationHistory = [];
-    startTimer();
+  /* ── wiring ── */
 
-    playChime?.();
-    triggerHaptic?.(50);
+  const openCall = (e: Event) => {
+    e.preventDefault();
+    startCall();
+  };
+  on($('hdr-voice-btn'), 'click', openCall);
+  on($('voice-call-float'), 'click', openCall);
+  on($('menu-voice-call-link'), 'click', openCall);
+  for (const id of ['voice-call-close', 'voice-hangup-btn', 'voice-call-backdrop'])
+    on($(id), 'click', (e: Event) => {
+      e.preventDefault();
+      endCall();
+    });
+  on(document, 'keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && callActive) endCall();
+  });
 
-    // Initial greeting trigger
-    const initialGreeting = "Welcome to Brewns Coffee House, Lahore! I'm Sarah, your AI barista and concierge. I can take your food or coffee order for delivery, reserve a table at any of our three counters, or book a private terrace party. How can I help you today?";
-    conversationHistory.push({ role: 'assistant', content: initialGreeting });
-
-    if (captionStatus) captionStatus.textContent = '// CONNECTED';
-    if (captionText) captionText.textContent = initialGreeting;
-
-    // Fetch initial greeting audio
-    fetch('/api/voice/call', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: 'call_init',
-        gender: currentGender,
-        conversationHistory: [],
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.audioBase64 && isCallActive) {
-          playVoiceAudio(data.audioBase64);
-        }
-      })
-      .catch((err) => console.warn('Init voice call failed:', err));
-  }
-
-  function endCall() {
-    if (!modal) return;
-    isCallActive = false;
-    modal.hidden = true;
-    document.body.style.removeProperty('overflow');
-    stopTimer();
-    stopAudio();
-
-    if (isListening && recognition) {
-      try {
-        recognition.stop();
-      } catch {}
-      isListening = false;
-      updateMicUI();
-    }
-
+  on($('vc-voice-switch'), 'click', async (e: Event) => {
+    e.preventDefault();
+    setVoiceGender(gender === 'female' ? 'male' : 'female');
     playSoftClick?.();
-  }
-
-  // Bind Listeners
-  hdrBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    startCall();
+    if (!callActive) return;
+    const id = ++turnId;
+    stopSpeaking();
+    stopListening();
+    setPhase('thinking');
+    const data = await post({ message: 'voice_switch' }).catch(() => null);
+    if (id !== turnId || !callActive) return;
+    const line = data?.reply || `Hi, ${agent()} here. Where were we?`;
+    caption(line);
+    speak(line, data?.audioBase64, id);
   });
 
-  floatBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    startCall();
-  });
-
-  menuLink?.addEventListener('click', (e) => {
-    e.preventDefault();
-    startCall();
-  });
-
-  closeBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    endCall();
-  });
-
-  hangupBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    endCall();
-  });
-
-  backdrop?.addEventListener('click', () => {
-    endCall();
-  });
-
-  voiceSwitchBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    const nextGender = currentGender === 'female' ? 'male' : 'female';
-    setVoiceGender(nextGender);
-    sendPrompt(`Switching voice to ${nextGender === 'female' ? 'Sarah' : 'George'}. Please greet me in your new voice.`);
-  });
-
-  micToggleBtn?.addEventListener('click', (e) => {
+  on(micToggleBtn, 'click', (e: Event) => {
     e.preventDefault();
     toggleMic();
   });
 
-  sendBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
+  const sendTyped = () => {
     const txt = textInput?.value.trim() || '';
     if (txt) sendPrompt(txt);
+  };
+  on($('voice-send-btn'), 'click', (e: Event) => {
+    e.preventDefault();
+    sendTyped();
   });
-
-  textInput?.addEventListener('keydown', (e) => {
+  on(textInput, 'keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const txt = textInput.value.trim();
-      if (txt) sendPrompt(txt);
+      sendTyped();
+    }
+  });
+  // Typing pauses the mic so it doesn't talk over what you're writing.
+  on(textInput, 'focus', () => {
+    if (phase === 'listening') {
+      stopListening();
+      setPhase('muted', '// TYPING…');
     }
   });
 
-  chipsWrap?.addEventListener('click', (e) => {
+  on($('voice-chips-wrap'), 'click', (e: Event) => {
     const chip = (e.target as HTMLElement).closest('.voice-chip') as HTMLElement | null;
-    if (chip && chip.dataset.prompt) {
+    if (chip?.dataset.prompt) {
       e.preventDefault();
       sendPrompt(chip.dataset.prompt);
     }
   });
 
-  // Cleanup on unmount
+  setVoiceGender('female');
+  updateMicUI();
+
   return () => {
     endCall();
+    ac.abort();
   };
 }
