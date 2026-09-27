@@ -51,7 +51,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   const avatarRing = $('vc-avatar-ring');
   const avatarPulse = $('vc-avatar-pulse');
   const avatarContainer = $('vc-avatar-container');
-  const avatarImg = $<HTMLImageElement>('vc-avatar-img');
+  const avatarMono = $('vc-avatar-mono');
   const inputRow = $('voice-input-row');
   const soundwave = $('voice-soundwave');
   const captionStatus = $('voice-caption-status');
@@ -479,10 +479,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (voiceCurrentEl) voiceCurrentEl.textContent = agent().toUpperCase();
     if (agentTitleEl) agentTitleEl.textContent = female ? 'Sarah · Brewns Front Desk' : 'Hamza · Roastery & Bar';
     if (agentSubtitleEl) agentSubtitleEl.textContent = female ? 'Guest Concierge · Urdu & English' : 'Specialty Roaster & Hospitality Lead';
-    if (avatarImg) {
-      avatarImg.src = `/assets/concierge/${female ? 'sarah' : 'hamza'}.jpg`;
-      avatarImg.alt = female ? 'Sarah · Brewns Concierge' : 'Hamza · Brewns Roaster';
-    }
+    if (avatarMono) avatarMono.textContent = agent()[0];
   }
 
   /* ── the call ── */
