@@ -68,6 +68,8 @@ export interface VoiceCallResponse {
   actions: VoiceAction[];
   state?: ScriptState;
   brain: 'gemini' | 'script';
+  /** The language the caller spoke, so the browser listens in it next turn. */
+  lang: VoiceLang;
 }
 
 export const agentName = (g: VoiceGender) => (g === 'male' ? 'Hamza' : 'Sarah');
@@ -80,12 +82,29 @@ const VOICE_IDS: Record<VoiceGender, string> = {
   male: process.env.ELEVENLABS_VOICE_ID_MALE || 'JBFqnCBsd6RMkjVDRZzb', // George
 };
 
+export type VoiceLang = 'en' | 'ur';
+
+/* Words that only turn up when someone is speaking Urdu in Latin letters
+   ("mujhe kal table chahiye"). Two of them, or one in a short line, is enough. */
+const ROMAN_URDU = /\b(hai|hain|hay|mujhe|mujhay|humein|hamein|aap|ap|apka|apki|kya|kia|kyun|kaise|kaisa|kitne|kitna|chahiye|chahie|karna|karni|karen|kardo|kar do|dein|dain|nahi|nahin|haan|han|ji|jee|theek|thik|acha|accha|achha|shukriya|meherbani|log|logon|baje|shaam|sham|subah|raat|kal|parso|aaj|mein|main|ke liye|wala|wali|bhai|yaar|batao|bataen|bataiye|kab|kahan|kidhar|bohat|bahut|zaroor|salam|assalam|walaikum)\b/gi;
+
+/** Which language the caller is speaking: Urdu script or Roman Urdu → 'ur'. */
+export function detectLang(text: string): VoiceLang {
+  if (/[\u0600-\u06FF]/.test(text)) return 'ur';
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const hits = (text.match(ROMAN_URDU) || []).length;
+  return hits >= 2 || (hits === 1 && words <= 3 && !/^(ji|han|haan|salam)$/i.test(text.trim())) ? 'ur' : 'en';
+}
+
+/** Urdu written in Urdu script is what the Urdu voice reads properly. */
+export const replyLang = (reply: string): VoiceLang => (/[\u0600-\u06FF]/.test(reply) ? 'ur' : 'en');
+
 /** What the voice should say, as a person would say it: "Rs 2,550" → "2,550
     rupees", a mobile number in the groups people read it in. The caption keeps
     the written form. */
-export function forSpeech(text: string) {
+export function forSpeech(text: string, lang: VoiceLang = 'en') {
   return text
-    .replace(/\bRs\.?\s?([\d,]+)/g, '$1 rupees')
+    .replace(/\bRs\.?\s?([\d,]+)/g, lang === 'ur' ? '$1 روپے' : '$1 rupees')
     .replace(/\b(03\d{2})[\s-]?(\d{3})[\s-]?(\d{4})\b/g, (_, a: string, b: string, c: string) => [a, b, c].map((g) => g.split('').join(' ')).join(', '))
     .replace(/\s*—\s*/g, ', ')
     .replace(/(\d)\s*×\s*/g, '$1 ');
@@ -101,21 +120,21 @@ export const ttsEnabled = () => Boolean(ELEVENLABS_API_KEY);
 const ttsSecret = () => createHmac('sha256', 'brewns-voice-tts').update(process.env.SESSION_SECRET || ELEVENLABS_API_KEY).digest();
 const TTS_TTL_MS = 10 * 60_000;
 
-export function ttsUrl(text: string, gender: VoiceGender) {
-  const payload = Buffer.from(JSON.stringify({ t: forSpeech(text).slice(0, 900), g: gender, e: Date.now() + TTS_TTL_MS })).toString('base64url');
+export function ttsUrl(text: string, gender: VoiceGender, lang: VoiceLang = 'en') {
+  const payload = Buffer.from(JSON.stringify({ t: forSpeech(text, lang).slice(0, 900), g: gender, l: lang, e: Date.now() + TTS_TTL_MS })).toString('base64url');
   const sig = createHmac('sha256', ttsSecret()).update(payload).digest('base64url');
   return `/api/voice/tts?p=${payload}&s=${sig}`;
 }
 
-export function readTtsToken(payload: string, sig: string): { text: string; gender: VoiceGender } | null {
+export function readTtsToken(payload: string, sig: string): { text: string; gender: VoiceGender; lang: VoiceLang } | null {
   if (!payload || !sig || !ELEVENLABS_API_KEY) return null;
   const want = createHmac('sha256', ttsSecret()).update(payload).digest();
   const got = Buffer.from(sig, 'base64url');
   if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
   try {
-    const { t, g, e } = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const { t, g, l, e } = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     if (typeof t !== 'string' || !t || Number(e) < Date.now()) return null;
-    return { text: t, gender: g === 'male' ? 'male' : 'female' };
+    return { text: t, gender: g === 'male' ? 'male' : 'female', lang: l === 'ur' ? 'ur' : 'en' };
   } catch {
     return null;
   }
@@ -124,7 +143,17 @@ export function readTtsToken(payload: string, sig: string): { text: string; gend
 /** Stream `text` from ElevenLabs as MP3. Conversational settings: a little less
     stable and a little more style than narration, so it sounds like someone
     talking, not reading. Null when it fails; the browser then uses its own voice. */
-export async function streamElevenLabsVoice(text: string, gender: VoiceGender): Promise<ReadableStream<Uint8Array> | null> {
+/* English uses Flash v2.5, the fastest model. Urdu isn't one of Flash's
+   languages, so Urdu lines go to Eleven v3, which speaks it natively (override
+   with ELEVENLABS_URDU_MODEL_ID). v3 takes only a few stability steps. */
+const TTS_MODEL: Record<VoiceLang, string> = {
+  en: process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5',
+  ur: process.env.ELEVENLABS_URDU_MODEL_ID || 'eleven_v3',
+};
+const voiceSettings = (model: string) =>
+  model.startsWith('eleven_v3') ? { stability: 0.5, similarity_boost: 0.8 } : { stability: 0.38, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true, speed: 1.02 };
+
+export async function streamElevenLabsVoice(text: string, gender: VoiceGender, lang: VoiceLang = 'en'): Promise<ReadableStream<Uint8Array> | null> {
   if (!ELEVENLABS_API_KEY || !text) return null;
   try {
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_IDS[gender]}/stream?output_format=mp3_44100_128`, {
@@ -132,8 +161,8 @@ export async function streamElevenLabsVoice(text: string, gender: VoiceGender): 
       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
       body: JSON.stringify({
         text,
-        model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5',
-        voice_settings: { stability: 0.38, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true, speed: 1.02 },
+        model_id: TTS_MODEL[lang],
+        voice_settings: voiceSettings(TTS_MODEL[lang]),
       }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -407,7 +436,12 @@ How to sound like a real person on the phone:
 - Talk, don't write. Contractions, warm and relaxed, the odd "sure", "lovely", "okay, got it". No lists, bullet points, headings, emoji, markdown, or URLs.
 - Say prices as "fourteen fifty rupees" or "Rs 1,450", times as "8 PM", dates as "this Friday" or "the 12th of October".
 - Speech recognition makes mistakes. If something sounds garbled or a number seems off, check it naturally ("sorry, was that four people or fourteen?") instead of guessing.
-- Mirror the caller: if they speak Roman Urdu or mix Urdu and English, answer the same way (e.g. "Ji bilkul, kitne log honge?"). Greet with "Assalam-o-Alaikum" only when they do.
+- Language: answer in the language the caller is using right now, and switch the moment they do.
+  - English → natural English.
+  - Urdu, whether it reaches you in Urdu script or Roman Urdu ("mujhe kal table chahiye") → natural spoken Urdu written in Urdu script, so the Urdu voice pronounces it properly. Speak like a friendly Lahori on the phone, not formal textbook Urdu: "جی بالکل! کتنے لوگ ہوں گے؟". Everyday English words people use in Urdu are fine as they are (ٹیبل، آرڈر، بکنگ، ڈیلیوری، برگر، لاٹے).
+  - In Urdu, keep numbers, times and codes as digits (7 بجے، 4 لوگ، RES-4821) and prices as "Rs 1,350".
+  - Menu item names can stay in English in either language.
+- Greet with "Assalam-o-Alaikum" (or "وعلیکم السلام" in reply) only when they do.
 - If they interrupt or change their mind, just go with it. Never repeat the whole conversation back.
 - Don't say you're an AI unless asked; if asked, say so plainly and cheerfully.
 
@@ -589,7 +623,7 @@ async function geminiAny(body: GeminiBody, stick: { model?: string }) {
   throw last;
 }
 
-async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGender): Promise<{ reply: string; actions: VoiceAction[] }> {
+async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGender, lang: VoiceLang): Promise<{ reply: string; actions: VoiceAction[] }> {
   const now = lahoreNow();
   const contents: GeminiContent[] = [];
   // Turns start with the caller; the greeting is folded in as context.
@@ -605,7 +639,7 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
 
   for (let hop = 0; hop < 4; hop++) {
     const res = await geminiAny({
-      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.` }] },
+      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.\nThe caller's latest line is in ${lang === 'ur' ? 'Urdu: reply in Urdu script' : 'English: reply in English'}.` }] },
       contents,
       tools: TOOLS,
       generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
@@ -909,7 +943,10 @@ export async function processVoiceCallPrompt(
   history: VoiceTurn[] = [],
   gender: VoiceGender = 'female',
   state: ScriptState = {},
+  hint: VoiceLang = 'en',
 ): Promise<VoiceCallResponse> {
+  const special = prompt === 'call_init' || prompt === 'voice_switch';
+  const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !/[a-z]{3,}/i.test(prompt) ? 'ur' : 'en';
   let brain: VoiceCallResponse['brain'] = geminiEnabled() ? 'gemini' : 'script';
   let turn: { reply: string; actions: VoiceAction[]; state?: ScriptState };
 
@@ -919,7 +956,7 @@ export async function processVoiceCallPrompt(
     turn = { reply: `Hi, ${agentName(gender)} here, I'll take it from here. Where were we?`, actions: [], state };
   } else if (brain === 'gemini') {
     try {
-      turn = await geminiTurn(prompt, history, gender);
+      turn = await geminiTurn(prompt, history, gender, lang);
     } catch (err) {
       // Keep the call alive on a bad network moment; the script can carry on.
       console.error('[Voice Gemini]', err instanceof Error ? err.message : err);
@@ -930,6 +967,6 @@ export async function processVoiceCallPrompt(
     turn = await scriptTurn(prompt, gender, state);
   }
 
-  const audioUrl = ttsEnabled() ? ttsUrl(turn.reply, gender) : undefined;
-  return { reply: turn.reply, audioUrl, actions: turn.actions, state: turn.state, brain };
+  const audioUrl = ttsEnabled() ? ttsUrl(turn.reply, gender, replyLang(turn.reply)) : undefined;
+  return { reply: turn.reply, audioUrl, actions: turn.actions, state: turn.state, brain, lang };
 }
