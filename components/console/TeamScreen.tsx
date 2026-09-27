@@ -1,596 +1,329 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import type { StaffUser, Invite } from '@/lib/server/storage';
-import {
-  ROLES,
-  ROLE_INFO,
-  type Role,
-  type Permission,
-  PERMISSIONS,
-  OWNER_ONLY,
-  PERMISSION_GROUPS,
-} from '@/lib/rbac';
-import { LOCS, LOC_TITLES } from '@/lib/catalog';
+import { useEffect, useState } from 'react';
+import { LOC_TITLES } from '@/lib/catalog';
+import { outranks, ROLE_INFO, ROLES, type Role } from '@/lib/rbac';
+import { ago, api, initials, useNow } from './api';
+import { useMe } from './Shell';
+import { useRun, useToast } from './Toasts';
 
-interface StaffUserWithPerms extends StaffUser {
-  customPerms?: Permission[];
-  deniedPerms?: Permission[];
-  effectivePerms?: Permission[];
-}
+type Member = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  plate: string;
+  role: Role;
+  shops: number[];
+  active: boolean;
+  createdAt: number;
+  lastLoginAt: number;
+  lastSeenAt: number;
+  invited: boolean;
+  inviteExpired: boolean;
+  invitedBy: string;
+};
+
+const shopsLabel = (s: number[]) => (s.length ? s.map((i) => LOC_TITLES[i].split(',')[0]).join(', ') : 'All shops');
 
 export function TeamScreen() {
-  const [staff, setStaff] = useState<StaffUserWithPerms[]>([]);
-  const [invites, setInvites] = useState<Invite[]>([]);
-  const [currentUserRole, setCurrentUserRole] = useState<string>('');
-  
-  // Invite Modal State
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteRole, setInviteRole] = useState<Role>('barista');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteShop, setInviteShop] = useState(0);
-  const [createdInviteToken, setCreatedInviteToken] = useState<string | null>(null);
-
-  // Per-User Permissions Override Modal State
-  const [selectedStaff, setSelectedStaff] = useState<StaffUserWithPerms | null>(null);
-  const [editingCustomPerms, setEditingCustomPerms] = useState<Permission[]>([]);
-  const [editingDeniedPerms, setEditingDeniedPerms] = useState<Permission[]>([]);
-  const [savingOverrides, setSavingOverrides] = useState(false);
-
-  const fetchTeam = async () => {
-    try {
-      const res = await fetch('/api/staff');
-      if (res.ok) {
-        const data = await res.json();
-        setStaff(data.staff || []);
-        setInvites(data.invites || []);
-      }
-      const meRes = await fetch('/api/auth/me');
-      if (meRes.ok) {
-        const me = await meRes.json();
-        setCurrentUserRole(me.user?.role || '');
-      }
-    } catch {
-      // Ignored
-    }
-  };
-
+  const { me, can } = useMe();
+  const run = useRun();
+  const [team, setTeam] = useState<Member[] | null>(null);
+  const [edit, setEdit] = useState<Member | 'new' | null>(null);
+  const [link, setLink] = useState<{ name: string; url: string; reset: boolean } | null>(null);
+  const [filter, setFilter] = useState<Role | 'all'>('all');
+  const load = () => run(() => api<{ team: Member[] }>('/api/staff/users')).then((r) => r && setTeam(r.team));
   useEffect(() => {
-    fetchTeam();
-  }, []);
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleCreateInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/staff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: inviteRole,
-          shops: [inviteShop],
-          email: inviteEmail || undefined,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setCreatedInviteToken(data.invite?.token || null);
-        fetchTeam();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to create invite');
-      }
-    } catch {
-      alert('Error creating invite');
-    }
-  };
-
-  const handleToggleActive = async (user: StaffUser) => {
-    const actionText = user.active ? 'deactivate' : 'reactivate';
-    const warning = user.active ? '\nThis will immediately terminate all active login sessions for this user.' : '';
-    if (!confirm(`Are you sure you want to ${actionText} ${user.name}?${warning}`)) {
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/staff', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: user.id,
-          active: !user.active,
-        }),
-      });
-      if (res.ok) {
-        fetchTeam();
-      }
-    } catch {
-      // Ignored
-    }
-  };
-
-  const handleOpenOverrides = (u: StaffUserWithPerms) => {
-    setSelectedStaff(u);
-    setEditingCustomPerms(u.customPerms || []);
-    setEditingDeniedPerms(u.deniedPerms || []);
-  };
-
-  const handleSaveOverrides = async () => {
-    if (!selectedStaff) return;
-    setSavingOverrides(true);
-    try {
-      const res = await fetch('/api/staff', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedStaff.id,
-          customPerms: editingCustomPerms,
-          deniedPerms: editingDeniedPerms,
-        }),
-      });
-      if (res.ok) {
-        setSelectedStaff(null);
-        await fetchTeam();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to save permission overrides');
-      }
-    } catch {
-      alert('Error updating user overrides');
-    } finally {
-      setSavingOverrides(false);
-    }
-  };
-
-  const inviteUrl = createdInviteToken
-    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://brewns.pk'}/invite/${createdInviteToken}`
-    : '';
-
-  const isOwner = currentUserRole === 'owner';
-  const allPermsList = Object.entries(PERMISSIONS) as [Permission, (typeof PERMISSIONS)[keyof typeof PERMISSIONS]][];
+  const manage = can('staff.manage');
+  const canEdit = (m: Member) => manage && (m.id === me.id || outranks(me.role, m.role));
+  const list = (team || []).filter((m) => filter === 'all' || m.role === filter);
+  const now = useNow(30000);
 
   return (
-    <div>
-      <div className="co-page-title" style={{ flexWrap: 'wrap', gap: '16px' }}>
+    <>
+      <div className="cx-pagehead">
         <div>
-          <h1>Staff &amp; Access Roster</h1>
-          <p>Multi-branch staff directory, role governance, session kill switch, and per-user permission overrides.</p>
+          <p className="cx-eyebrow">
+            <b>{'//'}</b> {team ? `${team.filter((m) => m.active && !m.invited).length} active · ${team.filter((m) => m.invited).length} invited` : 'Loading…'}
+          </p>
+          <h1 className="cx-h1">Team</h1>
         </div>
-
-        <div>
-          <button
-            type="button"
-            className="btn-co btn-co-primary"
-            onClick={() => {
-              setCreatedInviteToken(null);
-              setShowInviteModal(true);
-            }}
-          >
-            + Invite Team Member
+        {manage && (
+          <button type="button" className="cx-btn primary" onClick={() => setEdit('new')}>
+            + Invite someone
           </button>
-        </div>
+        )}
+      </div>
+      <div className="cx-seg" role="group" aria-label="Role" style={{ marginBottom: 14 }}>
+        <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+          Everyone
+        </button>
+        {ROLES.map((r) => (
+          <button type="button" key={r} aria-pressed={filter === r} onClick={() => setFilter(r)}>
+            {ROLE_INFO[r].label}s
+          </button>
+        ))}
       </div>
 
-      {/* Staff List Table */}
-      <div style={{ background: 'var(--co-panel)', border: '1px solid var(--co-border)', borderRadius: '14px', overflowX: 'auto', marginBottom: '32px' }}>
-        <table className="co-table">
-          <thead>
-            <tr>
-              <th>NAME &amp; CONTACT</th>
-              <th>ROLE &amp; BADGE</th>
-              <th>ASSIGNED BRANCHES</th>
-              <th>CUSTOM PERMISSIONS</th>
-              <th>STATUS</th>
-              <th>ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {staff.map((u) => {
-              const roleMeta = ROLE_INFO[u.role] || { label: u.role, color: 'var(--co-cream)', badge: '' };
-              const customCount = (u.customPerms || []).length;
-              const deniedCount = (u.deniedPerms || []).length;
+      {link && (
+        <div className="cx-card cx-stack" style={{ marginBottom: 16, borderColor: 'var(--cx-accent)' }}>
+          <p className="cx-h2">{link.reset ? `A new password link for ${link.name}` : `Send ${link.name} their invite`}</p>
+          <p className="cx-small cx-muted">This link works once and for 7 days. Anyone with it can set the password, so send it only to them.</p>
+          <div className="cx-row">
+            <input className="cx-input cx-mono" readOnly value={link.url} onFocus={(e) => e.target.select()} style={{ flex: 1, minWidth: 240 }} aria-label="Invite link" />
+            <CopyButton text={link.url} />
+            <a className="cx-btn" target="_blank" rel="noopener" href={`https://wa.me/?text=${encodeURIComponent(`Salam ${link.name.split(' ')[0]}! ${link.reset ? 'Set a new password' : 'Join the brewns console'} here: ${link.url}`)}`}>
+              WhatsApp
+            </a>
+            <button type="button" className="cx-btn ghost" onClick={() => setLink(null)}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
-              return (
-                <tr key={u.id}>
+      {!team ? (
+        <p className="cx-empty">Loading…</p>
+      ) : (
+        <div className="cx-table-wrap">
+          <table className="cx-table">
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Role</th>
+                <th>Shops</th>
+                <th>Status</th>
+                <th>Last seen</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((m) => (
+                <tr key={m.id} style={{ opacity: m.active ? 1 : 0.5 }}>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{u.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>
-                      {u.email} · {u.phone}
-                    </div>
-                    {u.riderPlate && (
-                      <div style={{ fontSize: '10px', fontFamily: 'monospace', color: 'var(--co-blue)', marginTop: '2px' }}>
-                        🛵 Motorbike: {u.riderPlate}
+                    <div className="cx-row" style={{ flexWrap: 'nowrap' }}>
+                      <span className="cx-avatar">{initials(m.name)}</span>
+                      <div>
+                        <p style={{ fontWeight: 600 }}>
+                          {m.name}
+                          {m.id === me.id ? <span className="cx-muted"> (you)</span> : null}
+                        </p>
+                        <p className="cx-small cx-muted">
+                          {m.email}
+                          {m.plate ? ` · ${m.plate}` : ''}
+                        </p>
                       </div>
-                    )}
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        fontFamily: 'monospace',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        background: 'rgba(255,255,255,0.06)',
-                        border: `1px solid ${roleMeta.color}`,
-                        color: roleMeta.color,
-                      }}
-                    >
-                      {roleMeta.badge} {roleMeta.label.toUpperCase()}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: '12px' }}>
-                    {u.shops.length === 0 || u.shops.length === 3 ? (
-                      <span style={{ color: 'var(--co-amber-light)', fontWeight: 600 }}>All Branches (Enterprise)</span>
-                    ) : (
-                      u.shops.map((s) => (
-                        <span
-                          key={s}
-                          style={{
-                            display: 'inline-block',
-                            background: 'rgba(255,255,255,0.06)',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            marginRight: '4px',
-                          }}
-                        >
-                          {LOC_TITLES[s] || LOCS[s]?.[0]}
-                        </span>
-                      ))
-                    )}
-                  </td>
-                  <td>
-                    {u.role === 'owner' ? (
-                      <span style={{ fontSize: '11px', color: 'var(--co-amber-light)', fontWeight: 600 }}>
-                        👑 Full Root (All)
-                      </span>
-                    ) : (
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {customCount > 0 && (
-                          <span style={{ fontSize: '11px', background: 'rgba(34, 197, 94, 0.15)', color: '#4ADE80', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                            +{customCount} grants
-                          </span>
-                        )}
-                        {deniedCount > 0 && (
-                          <span style={{ fontSize: '11px', background: 'rgba(239, 68, 68, 0.15)', color: '#F87171', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                            −{deniedCount} denied
-                          </span>
-                        )}
-                        {customCount === 0 && deniedCount === 0 && (
-                          <span style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>
-                            Standard Role Default
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        fontFamily: 'monospace',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        color: u.active ? '#4ADE80' : '#F87171',
-                      }}
-                    >
-                      {u.active ? '● ACTIVE' : '○ SUSPENDED'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      {isOwner && u.role !== 'owner' && (
-                        <button
-                          type="button"
-                          className="btn-co btn-co-secondary"
-                          style={{ padding: '4px 8px', fontSize: '11px' }}
-                          onClick={() => handleOpenOverrides(u)}
-                          title="Grant or restrict specific permissions for this employee"
-                        >
-                          Overrides
-                        </button>
-                      )}
-
-                      {u.role !== 'owner' && (
-                        <button
-                          type="button"
-                          className={`btn-co ${u.active ? 'btn-co-danger' : 'btn-co-secondary'}`}
-                          style={{ padding: '4px 10px', fontSize: '11px' }}
-                          onClick={() => handleToggleActive(u)}
-                        >
-                          {u.active ? 'Suspend' : 'Reactivate'}
-                        </button>
-                      )}
                     </div>
+                  </td>
+                  <td>{ROLE_INFO[m.role].label}</td>
+                  <td className="cx-muted">{shopsLabel(m.shops)}</td>
+                  <td>
+                    {!m.active ? (
+                      <span className="cx-pill cancelled">Switched off</span>
+                    ) : m.invited && !m.lastLoginAt ? (
+                      <span className={`cx-pill ${m.inviteExpired ? 'cancelled' : 'received'}`}>{m.inviteExpired ? 'Invite expired' : 'Invited'}</span>
+                    ) : now - m.lastSeenAt < 10 * 60000 ? (
+                      <span className="cx-pill ready">Online</span>
+                    ) : (
+                      <span className="cx-pill plain">Active</span>
+                    )}
+                  </td>
+                  <td className="cx-small cx-muted">{m.lastSeenAt ? ago(m.lastSeenAt, now) : '—'}</td>
+                  <td className="r">
+                    {canEdit(m) && (
+                      <button type="button" className="cx-btn sm" onClick={() => setEdit(m)}>
+                        Manage
+                      </button>
+                    )}
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Individual Custom Permission Overrides Modal */}
-      {selectedStaff && (
-        <div className="co-drawer-overlay" onClick={() => setSelectedStaff(null)}>
-          <div
-            style={{
-              background: 'var(--co-panel)',
-              border: '1px solid var(--co-border-strong)',
-              borderRadius: '16px',
-              padding: '28px',
-              width: '680px',
-              maxWidth: '92%',
-              maxHeight: '85vh',
-              overflowY: 'auto',
-              margin: 'auto',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.8)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
-                  Custom Permission Overrides: {selectedStaff.name}
-                </h2>
-                <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--co-cream-dim)' }}>
-                  Role: <strong style={{ color: 'var(--co-amber-light)' }}>{ROLE_INFO[selectedStaff.role]?.label}</strong>. You can grant extra privileges or restrict specific actions.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn-co btn-co-secondary"
-                style={{ padding: '4px 10px' }}
-                onClick={() => setSelectedStaff(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-              {PERMISSION_GROUPS.map((grp) => {
-                const groupPerms = allPermsList.filter(([, meta]) => meta.group === grp.id);
-                return (
-                  <div key={grp.id} style={{ background: 'var(--co-card)', padding: '14px', borderRadius: '10px' }}>
-                    <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--co-amber-light)', marginBottom: '8px' }}>
-                      {grp.icon} {grp.label.toUpperCase()}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {groupPerms.map(([pKey, pMeta]) => {
-                        if (OWNER_ONLY.includes(pKey)) return null;
-
-                        const isCustomGranted = editingCustomPerms.includes(pKey);
-                        const isExplicitlyDenied = editingDeniedPerms.includes(pKey);
-
-                        return (
-                          <div
-                            key={pKey}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              fontSize: '12px',
-                              padding: '6px 0',
-                              borderBottom: '1px solid rgba(255,255,255,0.04)',
-                            }}
-                          >
-                            <div>
-                              <div style={{ fontWeight: 600 }}>{pMeta.label}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>{pMeta.desc}</div>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button
-                                type="button"
-                                style={{
-                                  padding: '3px 8px',
-                                  fontSize: '10px',
-                                  fontFamily: 'monospace',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer',
-                                  border: '1px solid',
-                                  background: isCustomGranted ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
-                                  borderColor: isCustomGranted ? '#4ADE80' : 'var(--co-border)',
-                                  color: isCustomGranted ? '#4ADE80' : 'var(--co-cream-dim)',
-                                }}
-                                onClick={() => {
-                                  if (isCustomGranted) {
-                                    setEditingCustomPerms(editingCustomPerms.filter((p) => p !== pKey));
-                                  } else {
-                                    setEditingCustomPerms([...editingCustomPerms, pKey]);
-                                    setEditingDeniedPerms(editingDeniedPerms.filter((p) => p !== pKey));
-                                  }
-                                }}
-                              >
-                                {isCustomGranted ? '✓ Extra Granted' : '+ Grant'}
-                              </button>
-
-                              <button
-                                type="button"
-                                style={{
-                                  padding: '3px 8px',
-                                  fontSize: '10px',
-                                  fontFamily: 'monospace',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer',
-                                  border: '1px solid',
-                                  background: isExplicitlyDenied ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-                                  borderColor: isExplicitlyDenied ? '#F87171' : 'var(--co-border)',
-                                  color: isExplicitlyDenied ? '#F87171' : 'var(--co-cream-dim)',
-                                }}
-                                onClick={() => {
-                                  if (isExplicitlyDenied) {
-                                    setEditingDeniedPerms(editingDeniedPerms.filter((p) => p !== pKey));
-                                  } else {
-                                    setEditingDeniedPerms([...editingDeniedPerms, pKey]);
-                                    setEditingCustomPerms(editingCustomPerms.filter((p) => p !== pKey));
-                                  }
-                                }}
-                              >
-                                {isExplicitlyDenied ? '⛔ Explicitly Denied' : '− Deny'}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="btn-co btn-co-secondary"
-                onClick={() => setSelectedStaff(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-co btn-co-primary"
-                onClick={handleSaveOverrides}
-                disabled={savingOverrides}
-              >
-                {savingOverrides ? 'Applying...' : 'Save User Permissions'}
-              </button>
-            </div>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* Invite Modal */}
-      {showInviteModal && (
-        <div className="co-drawer-overlay" onClick={() => setShowInviteModal(false)}>
-          <div
-            style={{
-              background: 'var(--co-panel)',
-              border: '1px solid var(--co-border-strong)',
-              borderRadius: '14px',
-              padding: '28px',
-              width: '460px',
-              maxWidth: '90%',
-              margin: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 800 }}>
-              Invite Team Member
-            </h2>
-            <p style={{ margin: '0 0 20px', fontSize: '12px', color: 'var(--co-cream-dim)' }}>
-              Generate an invite link with predefined role and shop assignments.
-            </p>
+      <section className="cx-grid three" style={{ marginTop: 22 }}>
+        {ROLES.map((r) => (
+          <div key={r} className="cx-card">
+            <p className="cx-h2">{ROLE_INFO[r].label}</p>
+            <p className="cx-small cx-muted">{ROLE_INFO[r].blurb}</p>
+          </div>
+        ))}
+      </section>
 
-            {!createdInviteToken ? (
-              <form onSubmit={handleCreateInvite} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '4px' }}>
-                    ROLE
-                  </label>
-                  <select
-                    className="co-input"
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value as Role)}
-                  >
-                    {ROLES.filter((r) => r !== 'owner').map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_INFO[r].label} — {ROLE_INFO[r].blurb}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+      {edit && (
+        <MemberForm
+          member={edit === 'new' ? null : edit}
+          onClose={() => setEdit(null)}
+          onSaved={(r) => {
+            setEdit(null);
+            if (r.link) setLink(r.link);
+            load();
+          }}
+        />
+      )}
+    </>
+  );
+}
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '4px' }}>
-                    PRIMARY SHOP LOCATION
-                  </label>
-                  <select
-                    className="co-input"
-                    value={inviteShop}
-                    onChange={(e) => setInviteShop(Number(e.target.value))}
-                  >
-                    <option value={0}>MM Alam Road (Gulberg)</option>
-                    <option value={1}>CCA, DHA Phase 5</option>
-                    <option value={2}>Main Boulevard (Johar Town)</option>
-                  </select>
-                </div>
+function CopyButton({ text }: { text: string }) {
+  const toast = useToast();
+  return (
+    <button
+      type="button"
+      className="cx-btn primary"
+      onClick={() =>
+        navigator.clipboard?.writeText(text).then(
+          () => toast('Link copied.', 'good'),
+          () => toast('Select the link and copy it.', 'bad'),
+        )
+      }
+    >
+      Copy
+    </button>
+  );
+}
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '4px' }}>
-                    EMAIL (OPTIONAL)
-                  </label>
-                  <input
-                    className="co-input"
-                    type="email"
-                    placeholder="teammember@brewns.pk"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                </div>
+function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClose: () => void; onSaved: (r: { link?: { name: string; url: string; reset: boolean } }) => void }) {
+  const { me } = useMe();
+  const run = useRun();
+  const self = member?.id === me.id;
+  const myShops = me.shops.length ? me.shops : LOC_TITLES.map((_, i) => i);
+  const roles = ROLES.filter((r) => me.role === 'owner' || outranks(me.role, r));
+  const [f, setF] = useState({
+    name: member?.name || '',
+    email: member?.email || '',
+    phone: member?.phone || '',
+    plate: member?.plate || '',
+    role: (member?.role || (roles.includes('waiter') ? 'waiter' : roles[0])) as Role,
+    shops: member?.shops || (me.shops.length ? me.shops : []),
+  });
+  const [busy, setBusy] = useState(false);
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <button
-                    type="button"
-                    className="btn-co btn-co-secondary"
-                    style={{ flex: 1 }}
-                    onClick={() => setShowInviteModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn-co btn-co-primary" style={{ flex: 1 }}>
-                    Create Link
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div>
-                <p style={{ fontSize: '13px', color: 'var(--co-green)', marginBottom: '14px' }}>
-                  ✓ Invitation link generated! Valid for 7 days.
-                </p>
+  const submit = async () => {
+    setBusy(true);
+    if (!member) {
+      const r = await run(() => api<{ link: string }>('/api/staff/users', f), `${f.name} is invited.`);
+      setBusy(false);
+      if (r) onSaved({ link: { name: f.name, url: r.link, reset: false } });
+      return;
+    }
+    const body: Record<string, unknown> = { name: f.name, phone: f.phone, plate: f.plate };
+    if (!self) {
+      body.role = f.role;
+      body.shops = f.shops;
+    } else if (me.role === 'owner') body.shops = f.shops;
+    const r = await run(() => api(`/api/staff/users/${member.id}`, body), 'Saved.');
+    setBusy(false);
+    if (r) onSaved({});
+  };
+  const action = async (body: Record<string, unknown>, done: string, confirm?: string) => {
+    if (confirm && !window.confirm(confirm)) return;
+    const r = await run(() => api<{ link: string }>(`/api/staff/users/${member!.id}`, body), done);
+    if (r) onSaved(r.link ? { link: { name: member!.name, url: r.link, reset: !!member!.lastLoginAt } } : {});
+  };
 
-                <input
-                  className="co-input"
-                  readOnly
-                  value={inviteUrl}
-                  style={{ marginBottom: '14px', fontSize: '12px' }}
-                />
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <button
-                    type="button"
-                    className="btn-co btn-co-primary"
-                    onClick={() => {
-                      navigator.clipboard.writeText(inviteUrl);
-                      alert('Invitation link copied to clipboard!');
-                    }}
-                  >
-                    Copy Link to Clipboard
-                  </button>
-
-                  <a
-                    href={`https://wa.me/?text=${encodeURIComponent(`Join the Brewns team as ${ROLE_INFO[inviteRole].label}: ${inviteUrl}`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-co btn-co-secondary"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    Share via WhatsApp
-                  </a>
-
-                  <button
-                    type="button"
-                    className="btn-co btn-co-secondary"
-                    onClick={() => setShowInviteModal(false)}
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
+  return (
+    <div className="cx-modal-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="cx-modal" role="dialog" aria-modal="true" aria-label={member ? `Manage ${member.name}` : 'Invite someone'}>
+        <div className="cx-row between">
+          <h2 className="cx-h1" style={{ fontSize: 24 }}>
+            {member ? member.name : 'Invite someone'}
+          </h2>
+          <button type="button" className="cx-btn sm" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="cx-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label className="cx-field">
+            <span>Name</span>
+            <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={60} />
+          </label>
+          <label className="cx-field">
+            <span>Email {member ? '' : '· they sign in with it'}</span>
+            <input type="email" value={f.email} disabled={!!member} onChange={(e) => setF({ ...f, email: e.target.value })} maxLength={120} />
+          </label>
+          <label className="cx-field">
+            <span>Mobile · optional</span>
+            <input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} maxLength={20} />
+          </label>
+          {f.role === 'rider' && (
+            <label className="cx-field">
+              <span>Bike plate</span>
+              <input value={f.plate} onChange={(e) => setF({ ...f, plate: e.target.value })} maxLength={20} placeholder="LEB 21 4471" />
+            </label>
+          )}
+        </div>
+        <label className="cx-field">
+          <span>Role{self ? ' · another owner can change yours' : ''}</span>
+          <select value={f.role} disabled={self} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>
+            {(self ? [f.role] : roles).map((r) => (
+              <option key={r} value={r}>
+                {ROLE_INFO[r].label} — {ROLE_INFO[r].blurb}
+              </option>
+            ))}
+          </select>
+        </label>
+        <fieldset className="cx-stack" style={{ gap: 8 }} disabled={self && me.role !== 'owner'}>
+          <legend className="cx-eyebrow" style={{ marginBottom: 8 }}>
+            Works at
+          </legend>
+          <div className="cx-row">
+            {!me.shops.length && (
+              <label className="cx-check">
+                <input type="checkbox" checked={!f.shops.length} onChange={() => setF({ ...f, shops: f.shops.length ? [] : [0] })} />
+                All shops
+              </label>
             )}
+            {myShops.map((i) => (
+              <label className="cx-check" key={i}>
+                <input type="checkbox" checked={f.shops.includes(i)} onChange={(e) => setF({ ...f, shops: e.target.checked ? [...f.shops, i].sort() : f.shops.filter((x) => x !== i) })} />
+                {LOC_TITLES[i].split(',')[0]}
+              </label>
+            ))}
           </div>
-        </div>
-      )}
+          <p className="cx-small cx-muted">They only see orders, tables and deliveries at these shops.</p>
+        </fieldset>
+        <button type="button" className="cx-btn primary big" disabled={busy || f.name.trim().length < 2 || (!member && !f.email.includes('@'))} onClick={submit}>
+          {member ? 'Save' : 'Create the invite link'}
+        </button>
+
+        {member && !self && (
+          <div className="cx-stack">
+            <div className="cx-divider" />
+            <div className="cx-row">
+              {member.active && (
+                <button type="button" className="cx-btn sm" onClick={() => action({ reset: true }, 'New link ready.')}>
+                  {member.lastLoginAt ? 'New password link' : 'New invite link'}
+                </button>
+              )}
+              {member.lastLoginAt > 0 && (
+                <button type="button" className="cx-btn sm" onClick={() => action({ signout: true }, 'Signed out on every device.')}>
+                  Sign out everywhere
+                </button>
+              )}
+              {member.lastLoginAt ? (
+                <button
+                  type="button"
+                  className={`cx-btn sm${member.active ? ' danger' : ''}`}
+                  onClick={() => action({ active: !member.active }, member.active ? `${member.name} is switched off and signed out.` : `${member.name} can sign in again.`, member.active ? `Switch off ${member.name}? They are signed out at once and can't sign in until switched back on. Their history stays.` : undefined)}
+                >
+                  {member.active ? 'Switch off' : 'Switch on'}
+                </button>
+              ) : (
+                <button type="button" className="cx-btn sm danger" onClick={() => action({ remove: true }, 'Invite withdrawn.', `Withdraw the invite for ${member.name}?`)}>
+                  Withdraw invite
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

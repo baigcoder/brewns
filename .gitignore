@@ -29,7 +29,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/tools/upscale/
+__pycache__/
 
-daemon.log
-.data/
-scratch_tex/
+# local data for the console (the JSON store when Redis is not configured)
+/.data/

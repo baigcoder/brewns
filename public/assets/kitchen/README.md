@@ -24,8 +24,8 @@ development, or the next build in production.
 Use only photos you have the rights to: your own shoot, or a library whose
 licence allows commercial use (Unsplash, Pexels).
 
-To put the photos on a clean white background like the coffee shots (dish
-cut out, centred, soft shadow), run this once after adding them:
+To cut the dishes out like the coffee shots (transparent background, centred,
+soft shadow, so they sit straight on the cards), run this once after adding them:
 
     bun install
     bun run kitchen:white

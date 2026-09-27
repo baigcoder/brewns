@@ -1,309 +1,196 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import type { Order } from '@/lib/server/storage';
-import { StatusPill } from './OrderBits';
-import { LOC_TITLES } from '@/lib/catalog';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { orderNo, STATION_LABEL, type Station } from '@/lib/orderFlow';
+import { pkTime } from './api';
+import { useLive, type StaffOrder } from './Live';
+import { playKitchenChime } from '@/lib/audio-alerts';
+import { ShopFilter } from './OrdersScreen';
+import { useMe } from './Shell';
+import { useRun } from './Toasts';
 
-function playTicketChime() {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    gain.gain.setValueAtTime(0.12, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.35);
-  } catch {
-    // Ignored
-  }
-}
+type Ticket = { o: StaffOrder; station: Station };
 
+/**
+ * The kitchen display: a paper ticket per order and station, oldest first.
+ * The top stripe turns amber five minutes before the order is due and red
+ * once it's late. Tap a line to tick it off; Done sends the station's part
+ * to the pass, and the order goes ready when every station is done.
+ */
 export function KitchenScreen() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [stationFilter, setStationFilter] = useState<'all' | 'bar' | 'kitchen'>('all');
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-  const [now, setNow] = useState(0);
-
-  const fetchOrders = async () => {
-    try {
-      const res = await fetch('/api/orders?status=placed,accepted,preparing');
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(data.orders || []);
-      }
-    } catch {
-      // Ignored
-    }
-  };
-
+  const { data, act } = useLive();
+  const { can, canAny } = useMe();
+  const run = useRun();
+  const mine: Station[] = [...(canAny('kitchen.bar', 'orders.manage') ? ['bar' as const] : []), ...(canAny('kitchen.food', 'orders.manage') ? ['kitchen' as const] : [])];
+  const [view, setView] = useState<Station | 'all'>(mine.length === 1 ? mine[0] : 'all');
+  const [shop, setShop] = useState<number | 'all'>('all');
+  const [sound, setSound] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
+  const [done, setDone] = useState<Ticket[]>([]);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setNow(Date.now());
-      fetchOrders();
-    }, 0);
-    const interval = setInterval(() => {
-      setNow(Date.now());
-      fetchOrders();
-    }, 4000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
   }, []);
+  useEffect(() => {
+    const on = () => sound && playKitchenChime();
+    window.addEventListener('brewns:new-orders', on);
+    return () => window.removeEventListener('brewns:new-orders', on);
+  }, [sound]);
 
-  const toggleItemDone = (key: string) => {
-    setCheckedItems((prev) => ({ ...prev, [key]: !prev[key] }));
+  const stations = view === 'all' ? mine : [view];
+  const tickets: Ticket[] = (data?.orders || [])
+    .filter((o) => (shop === 'all' || o.loc === shop) && ['received', 'accepted', 'preparing'].includes(o.status))
+    .flatMap((o) => stations.filter((s) => o.stations[s] && o.stations[s] !== 'done').map((station) => ({ o, station })))
+    .sort((a, b) => a.o.target - b.o.target);
+  // Scheduled for later: out of the way until 25 minutes before.
+  const soon = tickets.filter((t) => t.o.target - now < 25 * 60000);
+  const later = tickets.filter((t) => t.o.target - now >= 25 * 60000);
+
+  const bump = async (t: Ticket, state: 'making' | 'done' | 'queued') => {
+    const ok = await run(() => act(t.o.number, { type: 'station', station: t.station, state }));
+    if (ok && state === 'done') setDone((d) => [t, ...d].slice(0, 6));
+    if (ok && state !== 'done') setDone((d) => d.filter((x) => !(x.o.number === t.o.number && x.station === t.station)));
   };
-
-  const handleFireTicket = async (orderId: string) => {
-    setActionLoadingId(orderId);
-    try {
-      await fetch(`/api/orders/${orderId}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start' }),
-      });
-      if (soundEnabled) playTicketChime();
-      await fetchOrders();
-    } catch {
-      // Ignored
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  const handleMarkReady = async (orderId: string) => {
-    setActionLoadingId(orderId);
-    try {
-      await fetch(`/api/orders/${orderId}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ready' }),
-      });
-      if (soundEnabled) playTicketChime();
-      await fetchOrders();
-    } catch {
-      // Ignored
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  // Station Counts
-  const barCount = orders.filter((o) => o.items.some((it) => it.station === 'bar')).length;
-  const kitchenCount = orders.filter((o) => o.items.some((it) => it.station === 'kitchen')).length;
-
-  // Filter orders by station
-  const stationOrders = orders.filter((o) => {
-    if (stationFilter === 'all') return true;
-    return o.items.some((it) => it.station === stationFilter);
-  });
 
   return (
-    <div>
-      {/* Title & Station Filter Header */}
-      <div className="co-page-title">
+    <>
+      <div className="cx-pagehead">
         <div>
-          <h1>Kitchen Display System (KDS)</h1>
-          <p>Real-time high-contrast station tickets for master baristas and line cooks.</p>
+          <p className="cx-eyebrow">
+            <b>{'//'}</b> {soon.length} ticket{soon.length === 1 ? '' : 's'} now{later.length ? ` · ${later.length} later` : ''}
+          </p>
+          <h1 className="cx-h1">Kitchen</h1>
         </div>
-
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button
-            type="button"
-            className="btn-co btn-co-secondary"
-            style={{ padding: '6px 10px', fontSize: '12px' }}
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            title={soundEnabled ? 'Ticket sound alerts active' : 'Ticket sound muted'}
-          >
-            {soundEnabled ? '🔔 Sound ON' : '🔕 Muted'}
+        <div className="cx-row">
+          {mine.length > 1 && (
+            <div className="cx-seg" role="group" aria-label="Station">
+              <button type="button" aria-pressed={view === 'all'} onClick={() => setView('all')}>
+                Both
+              </button>
+              {mine.map((s) => (
+                <button type="button" key={s} aria-pressed={view === s} onClick={() => setView(s)}>
+                  {STATION_LABEL[s]}
+                </button>
+              ))}
+            </div>
+          )}
+          <ShopFilter value={shop} onChange={setShop} />
+          <button type="button" className="cx-btn sm ghost" onClick={() => setSound(!sound)} aria-pressed={sound}>
+            {sound ? '🔔 Chime on' : '🔕 Chime off'}
           </button>
-
-          <div style={{ display: 'flex', gap: '4px', background: 'var(--co-panel)', padding: '4px', borderRadius: '8px', border: '1px solid var(--co-border)' }}>
-            <button
-              type="button"
-              className={`btn-co ${stationFilter === 'all' ? 'btn-co-primary' : 'btn-co-secondary'}`}
-              style={{ padding: '6px 12px', fontSize: '11px', borderRadius: '6px' }}
-              onClick={() => setStationFilter('all')}
-            >
-              All Tickets ({orders.length})
-            </button>
-            <button
-              type="button"
-              className={`btn-co ${stationFilter === 'bar' ? 'btn-co-primary' : 'btn-co-secondary'}`}
-              style={{ padding: '6px 12px', fontSize: '11px', borderRadius: '6px' }}
-              onClick={() => setStationFilter('bar')}
-            >
-              ☕ Espresso Bar ({barCount})
-            </button>
-            <button
-              type="button"
-              className={`btn-co ${stationFilter === 'kitchen' ? 'btn-co-primary' : 'btn-co-secondary'}`}
-              style={{ padding: '6px 12px', fontSize: '11px', borderRadius: '6px' }}
-              onClick={() => setStationFilter('kitchen')}
-            >
-              🍳 Kitchen Line ({kitchenCount})
-            </button>
-          </div>
+          {can('menu.availability') && (
+            <Link className="cx-btn sm" href="/dashboard/menu">
+              Sold out…
+            </Link>
+          )}
         </div>
       </div>
 
-      {stationOrders.length === 0 ? (
-        <div
-          style={{
-            padding: '80px 20px',
-            textAlign: 'center',
-            background: 'var(--co-panel)',
-            border: '1px dashed var(--co-border)',
-            borderRadius: '16px',
-            color: 'var(--co-cream-dim)',
-          }}
-        >
-          <div style={{ fontSize: '32px', marginBottom: '8px' }}>☕</div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--co-cream)', marginBottom: '4px' }}>
-            ALL TICKETS COMPLETED
-          </div>
-          <div style={{ fontSize: '12px', fontFamily: 'monospace' }}>
-            STATION SCREEN CLEAR · READY FOR NEW INCOMING DRINKS AND DISHES
-          </div>
-        </div>
+      {!data ? (
+        <p className="cx-empty">Loading tickets…</p>
+      ) : !soon.length ? (
+        <p className="cx-empty">
+          <b>All clear.</b>New tickets appear here by themselves, with a chime.
+        </p>
       ) : (
-        <div className="co-ticket-grid">
-          {stationOrders.map((order) => {
-            const visibleItems = stationFilter === 'all'
-              ? order.items
-              : order.items.filter((it) => it.station === stationFilter);
-
-            const elapsedMins = now ? Math.floor((now - order.placed) / 60000) : 0;
-            const isUrgent = elapsedMins >= 10;
-            const isWarning = elapsedMins >= 6 && elapsedMins < 10;
-            const isLoading = actionLoadingId === order.id;
-
-            return (
-              <div
-                key={order.id}
-                className="co-ticket"
-                style={{
-                  borderColor: isUrgent ? 'var(--co-red)' : isWarning ? 'var(--co-amber)' : undefined,
-                  boxShadow: isUrgent ? '0 0 20px rgba(239, 68, 68, 0.25)' : undefined,
-                }}
-              >
-                <div className="co-ticket-header">
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '17px' }}>
-                        {order.id}
-                      </span>
-                      <StatusPill status={order.status} />
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)', marginTop: '3px' }}>
-                      {order.type.toUpperCase()}{order.table ? ` · Table ${order.table}` : ''} · {LOC_TITLES[order.loc]} · {order.name}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      fontFamily: 'monospace',
-                      fontWeight: 800,
-                      fontSize: '13px',
-                      color: isUrgent ? 'var(--co-red)' : isWarning ? 'var(--co-amber-light)' : 'var(--co-green)',
-                      padding: '3px 8px',
-                      borderRadius: '4px',
-                      background: isUrgent ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-                    }}
-                  >
-                    {elapsedMins}M AGO
-                  </div>
-                </div>
-
-                {order.note && (
-                  <div
-                    style={{
-                      background: 'rgba(217, 138, 44, 0.12)',
-                      borderBottom: '1px solid var(--co-border)',
-                      padding: '9px 18px',
-                      fontSize: '12px',
-                      color: 'var(--co-amber-light)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    ⚡ Special Instructions: {order.note}
-                  </div>
-                )}
-
-                <div className="co-ticket-lines">
-                  {visibleItems.map((item, idx) => {
-                    const itemKey = `${order.id}-${idx}`;
-                    const isDone = checkedItems[itemKey] || item.done;
-
-                    return (
-                      <div
-                        key={idx}
-                        className={`co-ticket-line ${isDone ? 'done' : ''}`}
-                        onClick={() => toggleItemDone(itemKey)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <div className={`co-check-box ${isDone ? 'checked' : ''}`}>
-                          {isDone && <span style={{ color: '#000', fontSize: '11px', fontWeight: 800 }}>✓</span>}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '14px', fontWeight: 600, textDecoration: isDone ? 'line-through' : 'none' }}>
-                            <span style={{ color: 'var(--co-amber-light)', marginRight: '8px', fontWeight: 800 }}>
-                              {item.qty}×
-                            </span>
-                            {item.name}
-                            <span style={{ marginLeft: '8px', fontSize: '10px', fontFamily: 'monospace', color: 'var(--co-cream-faint)', textTransform: 'uppercase' }}>
-                              [{item.station}]
-                            </span>
-                          </div>
-                          {Object.keys(item.sel).length > 0 && (
-                            <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)', marginTop: '2px' }}>
-                              {Object.entries(item.sel).map(([k, v]) => `${k}: ${v}`).join(' · ')}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div style={{ padding: '12px 18px', background: 'rgba(255, 255, 255, 0.02)', borderTop: '1px solid var(--co-border)' }}>
-                  {order.status === 'accepted' ? (
-                    <button
-                      type="button"
-                      className="btn-co btn-co-primary"
-                      style={{ width: '100%', padding: '10px' }}
-                      onClick={() => handleFireTicket(order.id)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Firing...' : '🔥 Fire Ticket / Start Prep'}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn-co btn-co-green"
-                      style={{ width: '100%', padding: '10px' }}
-                      onClick={() => handleMarkReady(order.id)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Updating...' : 'Mark Station Ticket Ready ✓'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="cx-kds">
+          {soon.map((t) => (
+            <TicketCard key={`${t.o.number}-${t.station}`} t={t} now={now} showStation={stations.length > 1} onBump={bump} onLine={(i, d) => run(() => act(t.o.number, { type: 'line', index: i, done: d }))} />
+          ))}
         </div>
       )}
-    </div>
+
+      {later.length > 0 && (
+        <section style={{ marginTop: 26 }}>
+          <p className="cx-eyebrow" style={{ marginBottom: 10 }}>
+            Scheduled for later
+          </p>
+          <div className="cx-row">
+            {later.map((t) => (
+              <span key={`${t.o.number}-${t.station}`} className="cx-pill plain">
+                {orderNo(t.o.number)} · {STATION_LABEL[t.station]} · due {pkTime(t.o.target)}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {done.length > 0 && (
+        <section style={{ marginTop: 26 }}>
+          <p className="cx-eyebrow" style={{ marginBottom: 10 }}>
+            Just sent to the pass
+          </p>
+          <div className="cx-row">
+            {done.map((t) => (
+              <button key={`${t.o.number}-${t.station}`} type="button" className="cx-btn sm" onClick={() => bump(t, 'making')}>
+                ↺ Reopen {orderNo(t.o.number)} · {STATION_LABEL[t.station]}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+function TicketCard({ t, now, showStation, onBump, onLine }: { t: Ticket; now: number; showStation: boolean; onBump: (t: Ticket, s: 'making' | 'done') => void; onLine: (i: number, done: boolean) => void }) {
+  const { o, station } = t;
+  const left = Math.round((o.target - now) / 60000);
+  const elapsed = Math.max(0, Math.floor((now - o.placed) / 60000));
+  const tone = left < 0 ? 't-late' : left <= 5 ? 't-warn' : 't-ok';
+  const state = o.stations[station];
+  const lines = o.items.map((l, i) => ({ l, i })).filter(({ l }) => l.station === station);
+  const others = o.items.filter((l) => l.station !== station && l.station !== 'counter');
+  return (
+    <article className={`cx-ticket ${tone}`} aria-label={`Ticket ${orderNo(o.number)}`}>
+      <div className="cx-ticket-top">
+        <span className="cx-ticket-no">{orderNo(o.number)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: left < 0 ? 'rgba(239, 68, 68, 0.25)' : elapsed >= 8 ? 'rgba(234, 179, 8, 0.25)' : 'rgba(34, 197, 94, 0.2)',
+              color: left < 0 ? '#ef4444' : elapsed >= 8 ? '#eab308' : '#22c55e',
+            }}
+          >
+            {left < 0 ? 'Urgent' : elapsed >= 8 ? 'Aging' : 'Fresh'} ({elapsed}m)
+          </span>
+          <span className={`cx-ticket-age${left < 0 ? ' late' : ''}`}>{left < 0 ? `${-left} min late` : `${left} min left`}</span>
+        </div>
+      </div>
+      <p className="cx-ticket-meta">
+        {o.mode === 'dinein' ? `Table ${o.table}` : o.mode === 'delivery' ? 'Delivery' : 'Pickup'} · {o.name.split(' ')[0]} · due {pkTime(o.target)}
+        {showStation ? ` · ${STATION_LABEL[station]}` : ''}
+        {state === 'making' ? ' · making' : ''}
+      </p>
+      <div className="cx-ticket-lines">
+        {lines.map(({ l, i }) => (
+          <button type="button" key={i} className={`cx-ticket-line${l.done ? ' done' : ''}`} onClick={() => onLine(i, !l.done)} aria-pressed={!!l.done}>
+            <b>{l.qty}×</b>
+            <span>{l.name}</span>
+            {l.opts && <small>{l.opts}</small>}
+          </button>
+        ))}
+      </div>
+      {o.note && <p className="cx-ticket-note">“{o.note}”</p>}
+      {others.length > 0 && <p className="cx-ticket-other">With: {others.map((l) => `${l.qty}× ${l.name.toLowerCase()}`).join(', ')}</p>}
+      <div className="cx-row">
+        {state === 'queued' ? (
+          <button type="button" className="cx-btn primary big" style={{ flex: 1 }} onClick={() => onBump(t, 'making')}>
+            Start
+          </button>
+        ) : (
+          <button type="button" className="cx-btn go big" style={{ flex: 1 }} onClick={() => onBump(t, 'done')}>
+            Done
+          </button>
+        )}
+      </div>
+    </article>
   );
 }

@@ -1,371 +1,296 @@
 'use client';
 
-import React, { useState } from 'react';
-import { PRODUCTS, type Product, money, defaultSel, unitPrice, selLabel } from '@/lib/catalog';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { CATALOG, defaultSel, DELIVERY, LOC_TITLES, PAY, selLabel, unitPrice, type Product, type Sel } from '@/lib/catalog';
+import { orderNo, type Mode } from '@/lib/orderFlow';
+import { priceOrder } from '@/lib/pricing';
+import { api, rs } from './api';
+import { useLive, type StaffOrder } from './Live';
+import { useMe } from './Shell';
+import { useRun, useToast } from './Toasts';
 
-export function PosScreen() {
-  const router = useRouter();
-  const [selectedCat, setSelectedCat] = useState<string>('all');
-  const [cartItems, setCartItems] = useState<{ product: Product; sel: Record<string, number>; qty: number }[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [tempSel, setTempSel] = useState<Record<string, number>>({});
+const CATS = [
+  ['all', 'Everything'],
+  ['drinks', 'Coffee'],
+  ['coolers', 'Coolers'],
+  ['bakery', 'Bakery'],
+  ['kitchen', 'Kitchen'],
+  ['beans', 'Beans'],
+  ['merch', 'Merch'],
+  ['gifts', 'Gift cards'],
+] as const;
 
-  // Order meta
-  const [orderType, setOrderType] = useState<'pickup' | 'dinein' | 'delivery'>('dinein');
-  const [loc, setLoc] = useState<number>(0);
-  const [tableName, setTableName] = useState<string>('T-01');
-  const [custName, setCustName] = useState<string>('Counter Guest');
-  const [custPhone, setCustPhone] = useState<string>('0300 1234567');
-  const [custAddress, setCustAddress] = useState<string>('');
-  const [promoCode, setPromoCode] = useState<string>('');
-  const [placing, setPlacing] = useState(false);
+type Line = { key: string; p: Product; sel: Sel; qty: number };
 
-  const categories = [
-    { key: 'all', label: 'All Items' },
-    { key: 'drinks', label: 'Coffee & Drinks' },
-    { key: 'bakery', label: 'Bakery' },
-    { key: 'kitchen', label: 'Kitchen & Burgers' },
-    { key: 'coolers', label: 'Coolers & Teas' },
-    { key: 'beans', label: 'Whole Beans' },
-  ];
+/** Ring up an order at the counter, for a table, or a delivery taken by phone. It goes straight to the kitchen screen. */
+export function PosScreen({ startLoc, startTable }: { startLoc?: number; startTable?: number }) {
+  const { me, can } = useMe();
+  const { data, refresh } = useLive();
+  const run = useRun();
+  const toast = useToast();
+  const shops = me.shops.length ? me.shops : LOC_TITLES.map((_, i) => i);
+  const [cat, setCat] = useState<string>('all');
+  const [q, setQ] = useState('');
+  const [lines, setLines] = useState<Line[]>([]);
+  const [pick, setPick] = useState<{ p: Product; sel: Sel; qty: number } | null>(null);
+  const [mode, setMode] = useState<Mode>(startTable || me.role === 'waiter' ? 'dinein' : 'pickup');
+  const [loc, setLoc] = useState(startLoc !== undefined && shops.includes(startLoc) ? startLoc : shops[0]);
+  const [table, setTable] = useState(startTable || 1);
+  const [area, setArea] = useState(0);
+  const [who, setWho] = useState({ name: '', phone: '', address: '', note: '' });
+  const [pay, setPay] = useState(0);
+  const [sending, setSending] = useState(false);
 
-  const filteredProducts = PRODUCTS.filter((p) => {
-    if (selectedCat === 'all') return true;
-    return p.cat === selectedCat;
-  });
+  const soldOut = new Set(data?.soldOut || []);
+  const items = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return CATALOG.filter((p) => (cat === 'all' || p.cat === cat) && (!s || p.name.toLowerCase().includes(s)));
+  }, [cat, q]);
+  const tables = data?.shops[loc]?.tables || 0;
+  const bill = priceOrder(
+    lines.map((l) => ({ cat: l.p.cat, qty: l.qty, unit: unitPrice(l.p, l.sel) })),
+    { mode, area: mode === 'delivery' ? area : null, pay, promoPct: 0, useReward: false },
+  );
 
-  const handleOpenProduct = (p: Product) => {
-    setSelectedProduct(p);
-    setTempSel(defaultSel(p));
+  const add = (p: Product, sel: Sel, qty: number) => {
+    const key = `${p.id}|${JSON.stringify(sel)}`;
+    setLines((ls) => (ls.some((l) => l.key === key) ? ls.map((l) => (l.key === key ? { ...l, qty: l.qty + qty } : l)) : [...ls, { key, p, sel, qty }]));
   };
+  const choose = (p: Product) => (p.options.length ? setPick({ p, sel: defaultSel(p), qty: 1 }) : add(p, {}, 1));
 
-  const handleAddToCart = () => {
-    if (!selectedProduct) return;
-    setCartItems((prev) => {
-      const existing = prev.find(
-        (it) => it.product.id === selectedProduct.id && JSON.stringify(it.sel) === JSON.stringify(tempSel)
-      );
-      if (existing) {
-        return prev.map((it) => (it === existing ? { ...it, qty: it.qty + 1 } : it));
-      }
-      return [...prev, { product: selectedProduct, sel: tempSel, qty: 1 }];
-    });
-    setSelectedProduct(null);
-  };
-
-  const handleUpdateQty = (index: number, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((it, i) => (i === index ? { ...it, qty: it.qty + delta } : it))
-        .filter((it) => it.qty > 0)
+  const send = async () => {
+    setSending(true);
+    const r = await run(() =>
+      api<{ order: StaffOrder }>('/api/staff/orders', {
+        items: lines.map((l) => ({ id: l.p.id, qty: l.qty, sel: l.sel })),
+        mode,
+        loc,
+        table: mode === 'dinein' ? table : null,
+        area: mode === 'delivery' ? area : null,
+        address: who.address,
+        name: who.name,
+        phone: who.phone,
+        note: who.note,
+        pay,
+      }),
     );
+    setSending(false);
+    if (!r) return;
+    setLines([]);
+    setWho({ name: '', phone: '', address: '', note: '' });
+    refresh();
+    toast(`${orderNo(r.order.number)} is on the kitchen screen · ${rs(r.order.totals.total)}`, 'good');
   };
 
-  const subtotal = cartItems.reduce((acc, it) => acc + unitPrice(it.product, it.sel) * it.qty, 0);
-  const discount = promoCode.toUpperCase() === 'BREWNS10' ? Math.round(subtotal * 0.1) : 0;
-  const tax = Math.round((subtotal - discount) * 0.05); // 5% POS digital rate
-  const total = subtotal - discount + tax;
-
-  const handlePlacePosOrder = async () => {
-    if (!cartItems.length) return;
-    setPlacing(true);
-
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: cartItems.map((it) => ({
-            id: it.product.id,
-            sel: it.sel,
-            qty: it.qty,
-          })),
-          type: orderType,
-          loc,
-          table: orderType === 'dinein' ? tableName : null,
-          name: custName,
-          phone: custPhone,
-          address: custAddress,
-          pay: 1, // POS card/wallet
-          promo: promoCode || null,
-          isStaffPos: true,
-        }),
-      });
-
-      if (res.ok) {
-        setCartItems([]);
-        router.push('/dashboard/orders');
-      }
-    } catch {
-      // Ignored
-    } finally {
-      setPlacing(false);
-    }
-  };
+  const shopForDelivery = DELIVERY.areas[area][1];
+  const deliveryOk = mode !== 'delivery' || (who.address.trim().length >= 10 && who.phone.trim().length >= 10 && shops.includes(shopForDelivery));
 
   return (
-    <div>
-      <div className="co-page-title">
+    <>
+      <div className="cx-pagehead">
         <div>
-          <h1>Point of Sale (POS)</h1>
-          <p>Quick ring-up for counter walk-ins, phone orders, and table dining.</p>
+          <p className="cx-eyebrow">
+            <b>{'//'}</b> {LOC_TITLES[mode === 'delivery' ? shopForDelivery : loc]}
+          </p>
+          <h1 className="cx-h1">New order</h1>
         </div>
       </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'start' }}>
-        {/* Left: Product Selector */}
-        <div>
-          {/* Category tabs */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {categories.map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                className={`btn-co ${selectedCat === c.key ? 'btn-co-primary' : 'btn-co-secondary'}`}
-                style={{ padding: '7px 16px', borderRadius: '20px' }}
-                onClick={() => setSelectedCat(c.key)}
-              >
-                {c.label}
+      <div className="cx-pos">
+        <div className="cx-stack" style={{ gap: 14 }}>
+          <div className="cx-row">
+            <div className="cx-seg" role="group" aria-label="Category">
+              {CATS.map(([k, label]) => (
+                <button type="button" key={k} aria-pressed={cat === k} onClick={() => setCat(k)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input className="cx-input" style={{ maxWidth: 220 }} placeholder="Find an item" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="cx-items">
+            {items.map((p) => (
+              <button type="button" key={p.id} className="cx-item" disabled={soldOut.has(p.id)} onClick={() => choose(p)}>
+                <b>{p.name}</b>
+                <span className="cx-small cx-muted cx-num">{soldOut.has(p.id) ? 'Sold out' : rs(p.price)}</span>
               </button>
             ))}
           </div>
-
-          {/* Product cards grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '14px' }}>
-            {filteredProducts.map((p) => (
-              <div
-                key={p.id}
-                style={{
-                  background: 'var(--co-panel)',
-                  border: '1px solid var(--co-border)',
-                  borderRadius: '10px',
-                  padding: '16px',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => handleOpenProduct(p)}
-              >
-                <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px' }}>{p.name}</div>
-                <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)', marginBottom: '12px' }}>
-                  {p.station.toUpperCase()} · {p.cat}
-                </div>
-                <div style={{ fontWeight: 800, color: 'var(--co-amber-light)', fontSize: '15px' }}>
-                  {money(p.price)}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
 
-        {/* Right: Cart and Order Details */}
-        <div
-          style={{
-            background: 'var(--co-panel)',
-            border: '1px solid var(--co-border)',
-            borderRadius: '12px',
-            padding: '20px',
-            position: 'sticky',
-            top: '80px',
-          }}
-        >
-          <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 16px' }}>Current Ticket</h2>
-
-          {/* Order Type Toggle */}
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
-            {(['dinein', 'pickup', 'delivery'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                className={`btn-co ${orderType === t ? 'btn-co-primary' : 'btn-co-secondary'}`}
-                style={{ flex: 1, padding: '6px 8px', fontSize: '11px' }}
-                onClick={() => setOrderType(t)}
-              >
-                {t.toUpperCase()}
-              </button>
-            ))}
+        <aside className="cx-card cx-cart" aria-label="This order">
+          <div className="cx-seg" role="group" aria-label="Order type">
+            <button type="button" aria-pressed={mode === 'pickup'} onClick={() => setMode('pickup')}>
+              Counter
+            </button>
+            <button type="button" aria-pressed={mode === 'dinein'} onClick={() => setMode('dinein')}>
+              Table
+            </button>
+            <button type="button" aria-pressed={mode === 'delivery'} onClick={() => setMode('delivery')}>
+              Delivery
+            </button>
           </div>
-
-          {/* Meta inputs */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-            {orderType === 'dinein' && (
-              <input
-                className="co-input"
-                placeholder="Table (e.g. T-04)"
-                value={tableName}
-                onChange={(e) => setTableName(e.target.value)}
-              />
+          <div className="cx-row">
+            {mode !== 'delivery' && shops.length > 1 && (
+              <select className="cx-select" value={loc} onChange={(e) => setLoc(+e.target.value)} aria-label="Shop">
+                {shops.map((i) => (
+                  <option key={i} value={i}>
+                    {LOC_TITLES[i]}
+                  </option>
+                ))}
+              </select>
             )}
-            <input
-              className="co-input"
-              placeholder="Guest Name"
-              value={custName}
-              onChange={(e) => setCustName(e.target.value)}
-            />
-            <input
-              className="co-input"
-              placeholder="Mobile Phone"
-              value={custPhone}
-              onChange={(e) => setCustPhone(e.target.value)}
-            />
-            {orderType === 'delivery' && (
-              <input
-                className="co-input"
-                placeholder="Delivery Address"
-                value={custAddress}
-                onChange={(e) => setCustAddress(e.target.value)}
-              />
+            {mode === 'dinein' && (
+              <select className="cx-select" value={table} onChange={(e) => setTable(+e.target.value)} aria-label="Table">
+                {Array.from({ length: tables }, (_, i) => (
+                  <option key={i} value={i + 1}>
+                    Table {i + 1}
+                  </option>
+                ))}
+              </select>
+            )}
+            {mode === 'delivery' && (
+              <select className="cx-select" value={area} onChange={(e) => setArea(+e.target.value)} aria-label="Area">
+                {DELIVERY.areas.map((a, i) => (
+                  <option key={i} value={i} disabled={!shops.includes(a[1])}>
+                    {a[0]} · {rs(a[2])}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
 
-          {/* Cart items */}
-          <div
-            style={{
-              maxHeight: '220px',
-              overflowY: 'auto',
-              borderTop: '1px solid var(--co-border)',
-              borderBottom: '1px solid var(--co-border)',
-              padding: '12px 0',
-              marginBottom: '16px',
-            }}
-          >
-            {cartItems.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--co-cream-dim)', fontSize: '12px', margin: '20px 0' }}>
-                Tap items on the left to add to ticket
-              </p>
-            ) : (
-              cartItems.map((it, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{it.product.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--co-cream-dim)' }}>
-                      {selLabel(it.product, it.sel)}
-                    </div>
+          {lines.length ? (
+            <div className="cx-stack">
+              {lines.map((l) => (
+                <div key={l.key} className="cx-row between" style={{ flexWrap: 'nowrap' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontWeight: 600, fontSize: 13 }}>{l.p.name}</p>
+                    {l.p.options.length > 0 && <p className="cx-small cx-muted">{selLabel(l.p, l.sel)}</p>}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      type="button"
-                      className="btn-co btn-co-secondary"
-                      style={{ padding: '2px 8px' }}
-                      onClick={() => handleUpdateQty(idx, -1)}
-                    >
-                      −
-                    </button>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{it.qty}</span>
-                    <button
-                      type="button"
-                      className="btn-co btn-co-secondary"
-                      style={{ padding: '2px 8px' }}
-                      onClick={() => handleUpdateQty(idx, 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Pricing sums */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--co-cream-dim)' }}>
-              <span>Subtotal</span>
-              <span>{money(subtotal)}</span>
-            </div>
-            {discount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--co-green)' }}>
-                <span>Discount</span>
-                <span>−{money(discount)}</span>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--co-cream-dim)' }}>
-              <span>Sales Tax (5%)</span>
-              <span>{money(tax)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '15px', marginTop: '6px', borderTop: '1px solid var(--co-border)', paddingTop: '6px' }}>
-              <span>Total</span>
-              <span style={{ color: 'var(--co-amber-light)' }}>{money(total)}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="btn-co btn-co-primary"
-            style={{ width: '100%', padding: '12px' }}
-            disabled={!cartItems.length || placing}
-            onClick={handlePlacePosOrder}
-          >
-            {placing ? 'Submitting...' : `Charge & Ring Up · ${money(total)}`}
-          </button>
-        </div>
-      </div>
-
-      {/* Product Customizer Modal */}
-      {selectedProduct && (
-        <div className="co-drawer-overlay" onClick={() => setSelectedProduct(null)}>
-          <div
-            style={{
-              background: 'var(--co-panel)',
-              border: '1px solid var(--co-border)',
-              borderRadius: '12px',
-              padding: '24px',
-              width: '440px',
-              maxWidth: '90%',
-              margin: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 800 }}>
-              {selectedProduct.name}
-            </h2>
-            <p style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--co-cream-dim)' }}>
-              Select drink/meal options
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-              {selectedProduct.options.map((opt) => (
-                <div key={opt.key}>
-                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'monospace', color: 'var(--co-cream-dim)', marginBottom: '6px' }}>
-                    {opt.label}
-                  </label>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {opt.choices.map(([label, delta], cIdx) => (
-                      <button
-                        key={cIdx}
-                        type="button"
-                        className={`btn-co ${tempSel[opt.key] === cIdx ? 'btn-co-primary' : 'btn-co-secondary'}`}
-                        style={{ padding: '6px 12px', fontSize: '11px' }}
-                        onClick={() => setTempSel((s) => ({ ...s, [opt.key]: cIdx }))}
-                      >
-                        {label} {delta > 0 ? `(+${money(delta)})` : ''}
+                  <div className="cx-row" style={{ flexWrap: 'nowrap' }}>
+                    <span className="cx-qty">
+                      <button type="button" aria-label="One less" onClick={() => setLines((ls) => ls.flatMap((x) => (x.key !== l.key ? [x] : x.qty > 1 ? [{ ...x, qty: x.qty - 1 }] : [])))}>
+                        −
                       </button>
-                    ))}
+                      <span>{l.qty}</span>
+                      <button type="button" aria-label="One more" onClick={() => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, qty: x.qty + 1 } : x)))}>
+                        +
+                      </button>
+                    </span>
+                    <span className="cx-mono cx-small" style={{ minWidth: 64, textAlign: 'right' }}>
+                      {rs(unitPrice(l.p, l.sel) * l.qty)}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
+          ) : (
+            <p className="cx-small cx-muted">Tap items to add them.</p>
+          )}
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="cx-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <label className="cx-field">
+              <span>Name{mode === 'delivery' ? '' : ' · optional'}</span>
+              <input value={who.name} onChange={(e) => setWho({ ...who, name: e.target.value })} maxLength={40} />
+            </label>
+            <label className="cx-field">
+              <span>Mobile{mode === 'delivery' ? '' : ' · optional'}</span>
+              <input value={who.phone} onChange={(e) => setWho({ ...who, phone: e.target.value })} maxLength={16} inputMode="tel" />
+            </label>
+          </div>
+          {mode === 'delivery' && (
+            <label className="cx-field">
+              <span>Address</span>
+              <textarea value={who.address} onChange={(e) => setWho({ ...who, address: e.target.value })} maxLength={160} placeholder="House, street, block, landmark" />
+            </label>
+          )}
+          <label className="cx-field">
+            <span>Note for the kitchen · optional</span>
+            <input value={who.note} onChange={(e) => setWho({ ...who, note: e.target.value })} maxLength={140} placeholder="Extra hot, no onions…" />
+          </label>
+          <label className="cx-field">
+            <span>Payment</span>
+            <select value={pay} onChange={(e) => setPay(+e.target.value)}>
+              {PAY.map((p, i) => (
+                <option key={i} value={i}>
+                  {p[0]} · {i ? '5%' : '16%'} tax
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="cx-sums cx-num">
+            <div>
+              <span className="cx-muted">Subtotal</span>
+              <span>{rs(bill.sub)}</span>
+            </div>
+            {bill.fee > 0 && (
+              <div>
+                <span className="cx-muted">Delivery</span>
+                <span>{rs(bill.fee)}</span>
+              </div>
+            )}
+            <div>
+              <span className="cx-muted">Sales tax {Math.round(bill.rate * 100)}%</span>
+              <span>{rs(bill.tax)}</span>
+            </div>
+            <div className="total">
+              <span>Total</span>
+              <span>{rs(bill.total)}</span>
+            </div>
+          </div>
+          <button type="button" className="cx-btn primary big block" disabled={!lines.length || sending || !deliveryOk || (mode === 'dinein' && !tables) || !can('orders.create')} onClick={send}>
+            {sending ? 'Sending…' : `Send to the kitchen · ${rs(bill.total)}`}
+          </button>
+          {mode === 'delivery' && !deliveryOk && <p className="cx-small cx-muted">A delivery needs a mobile number and the full address.</p>}
+        </aside>
+      </div>
+
+      {pick && (
+        <div className="cx-modal-bg" onClick={(e) => e.target === e.currentTarget && setPick(null)}>
+          <div className="cx-modal" role="dialog" aria-modal="true" aria-label={pick.p.name}>
+            <div className="cx-row between">
+              <h2 className="cx-h2" style={{ fontSize: 20 }}>
+                {pick.p.name}
+              </h2>
+              <span className="cx-mono">{rs(unitPrice(pick.p, pick.sel) * pick.qty)}</span>
+            </div>
+            {pick.p.options.map((o) => (
+              <div className="cx-opt" key={o.key}>
+                <p className="cx-eyebrow">{o.label}</p>
+                <div className="cx-opt-choices">
+                  {o.choices.map((c, i) => (
+                    <button type="button" key={i} aria-pressed={pick.sel[o.key] === i} onClick={() => setPick({ ...pick, sel: { ...pick.sel, [o.key]: i } })}>
+                      {c[0]}
+                      {c[1] ? ` ${c[1] > 0 ? '+' : '−'}${Math.abs(c[1])}` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="cx-row between">
+              <span className="cx-qty">
+                <button type="button" aria-label="One less" onClick={() => setPick({ ...pick, qty: Math.max(1, pick.qty - 1) })}>
+                  −
+                </button>
+                <span>{pick.qty}</span>
+                <button type="button" aria-label="One more" onClick={() => setPick({ ...pick, qty: pick.qty + 1 })}>
+                  +
+                </button>
+              </span>
               <button
                 type="button"
-                className="btn-co btn-co-secondary"
-                style={{ flex: 1 }}
-                onClick={() => setSelectedProduct(null)}
+                className="cx-btn primary"
+                onClick={() => {
+                  add(pick.p, pick.sel, pick.qty);
+                  setPick(null);
+                }}
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-co btn-co-primary"
-                style={{ flex: 1 }}
-                onClick={handleAddToCart}
-              >
-                Add · {money(unitPrice(selectedProduct, tempSel))}
+                Add to order
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

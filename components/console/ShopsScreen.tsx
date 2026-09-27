@@ -1,256 +1,153 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { generateQrSvg } from '@/lib/qr';
+import { useEffect, useMemo, useState } from 'react';
+import { LOC_TITLES, SHOP_CODES } from '@/lib/catalog';
+import { qrSvg } from '@/lib/qr';
+import { api } from './api';
+import { useLive } from './Live';
+import { useMe } from './Shell';
+import { useRun } from './Toasts';
 
-type ShopInfo = {
-  id: number;
-  name: string;
-  address: string;
-  paused: boolean;
-  customPrepMin: number;
-  tables: number;
-};
-
+/** Each shop's switches, and the QR codes that go on its tables. */
 export function ShopsScreen() {
-  const [shops, setShops] = useState<ShopInfo[]>([]);
-  const [activeQrShop, setActiveQrShop] = useState<ShopInfo | null>(null);
-  const [selectedTable, setSelectedTable] = useState<string>('T-01');
-
-  const fetchShops = async () => {
-    try {
-      const res = await fetch('/api/shops');
-      if (res.ok) {
-        const data = await res.json();
-        setShops(data.shops || []);
-      }
-    } catch {
-      // Ignored
-    }
-  };
-
+  const { data, refresh } = useLive();
+  const { me } = useMe();
+  const run = useRun();
+  const shops = me.shops.length ? me.shops : LOC_TITLES.map((_, i) => i);
+  const [online, setOnline] = useState<boolean | null>(null);
+  const [qrShop, setQrShop] = useState<number | null>(null);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchShops();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+    if (me.role === 'owner') run(() => api<{ live: boolean }>('/api/public/status')).then((r) => r && setOnline(r.live));
+  }, [me.role, run]);
 
-  const handleUpdateShop = async (shopId: number, fields: Partial<ShopInfo>) => {
-    try {
-      await fetch('/api/shops', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId, ...fields }),
-      });
-      fetchShops();
-    } catch {
-      // Ignored
-    }
-  };
-
-  // Generate table list for QR codes modal
-  const tables = activeQrShop ? Array.from({ length: activeQrShop.tables }, (_, i) => `T-${String(i + 1).padStart(2, '0')}`) : [];
-  const qrUrl = activeQrShop
-    ? `${typeof window !== 'undefined' ? window.location.origin : 'https://brewns.pk'}?dinein=1&table=${selectedTable}&shop=${activeQrShop.id}`
-    : '';
-
-  const qrSvg = qrUrl ? generateQrSvg(qrUrl, { size: 220 }) : '';
+  const save = (body: Record<string, unknown>, done?: string) => run(() => api('/api/staff/shops', body).then(refresh), done);
 
   return (
-    <div>
-      <div className="co-page-title">
+    <>
+      <div className="cx-pagehead cx-noprint">
         <div>
-          <h1>Café Locations &amp; Tables</h1>
-          <p>Manage branch operations, online order pausing, and table QR code kits.</p>
+          <p className="cx-eyebrow">
+            <b>{'//'}</b> Pause, wait times, tables
+          </p>
+          <h1 className="cx-h1">Shops</h1>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
-        {shops.map((shop) => (
-          <div
-            key={shop.id}
-            style={{
-              background: 'var(--co-panel)',
-              border: '1px solid var(--co-border)',
-              borderRadius: '14px',
-              padding: '24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>{shop.name}</h2>
-                <span
-                  style={{
-                    fontFamily: 'monospace',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    background: shop.paused ? 'var(--co-red-dim)' : 'var(--co-green-dim)',
-                    color: shop.paused ? 'var(--co-red)' : 'var(--co-green)',
-                  }}
-                >
-                  {shop.paused ? 'PAUSED' : 'ONLINE'}
-                </span>
-              </div>
-
-              <p style={{ fontSize: '12px', color: 'var(--co-cream-dim)', margin: '0 0 20px' }}>
-                {shop.address}
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px' }}>Prep Lead Time:</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="number"
-                      className="co-input"
-                      style={{ width: '80px', padding: '6px 10px', textAlign: 'center' }}
-                      value={shop.customPrepMin}
-                      onChange={(e) => handleUpdateShop(shop.id, { customPrepMin: Number(e.target.value) })}
-                    />
-                    <span style={{ fontSize: '12px', color: 'var(--co-cream-dim)' }}>mins</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px' }}>Active Dine-In Tables:</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="number"
-                      className="co-input"
-                      style={{ width: '80px', padding: '6px 10px', textAlign: 'center' }}
-                      value={shop.tables}
-                      onChange={(e) => handleUpdateShop(shop.id, { tables: Number(e.target.value) })}
-                    />
-                    <span style={{ fontSize: '12px', color: 'var(--co-cream-dim)' }}>tables</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', borderTop: '1px solid var(--co-border)', paddingTop: '16px' }}>
-              <button
-                type="button"
-                className={`btn-co ${shop.paused ? 'btn-co-green' : 'btn-co-danger'}`}
-                style={{ flex: 1 }}
-                onClick={() => handleUpdateShop(shop.id, { paused: !shop.paused })}
-              >
-                {shop.paused ? 'Resume Orders' : 'Pause Orders'}
-              </button>
-
-              <button
-                type="button"
-                className="btn-co btn-co-secondary"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  setActiveQrShop(shop);
-                  setSelectedTable('T-01');
-                }}
-              >
-                Print Table QRs
-              </button>
-            </div>
+      {me.role === 'owner' && online !== null && (
+        <section className="cx-card cx-row between cx-noprint" style={{ marginBottom: 16 }}>
+          <div className="cx-stack" style={{ gap: 4 }}>
+            <p className="cx-h2">Orders through the console</p>
+            <p className="cx-small cx-muted">
+              On: every order from the site lands here, and customers follow the kitchen’s real progress. Off: the site goes back to email-only orders with an estimated timeline.
+            </p>
           </div>
+          <button
+            type="button"
+            role="switch"
+            className="cx-switch"
+            aria-checked={online}
+            aria-label="Orders through the console"
+            onClick={async () => {
+              const r = await run(() => api('/api/staff/shops', { online: !online }), !online ? 'Orders now come to the console.' : 'The site is back to email-only orders.');
+              if (r) setOnline(!online);
+            }}
+          />
+        </section>
+      )}
+
+      <div className="cx-grid three cx-noprint">
+        {shops.map((i) => {
+          const s = data?.shops[i];
+          if (!s) return null;
+          return (
+            <section key={i} className="cx-card cx-stack" style={{ gap: 14 }}>
+              <div className="cx-row between">
+                <p className="cx-h2">{LOC_TITLES[i]}</p>
+                <span className={`cx-pill ${s.paused ? 'cancelled' : 'ready'}`}>{s.paused ? 'Paused' : 'Taking orders'}</span>
+              </div>
+              <div className="cx-row between" style={{ flexWrap: 'nowrap' }}>
+                <div>
+                  <p style={{ fontWeight: 600 }}>Pause online orders</p>
+                  <p className="cx-small cx-muted">Busy, closing early, power cut. The counter still works.</p>
+                </div>
+                <button type="button" role="switch" className="cx-switch warn" aria-checked={s.paused} aria-label="Pause online orders" onClick={() => save({ loc: i, paused: !s.paused }, s.paused ? 'Taking online orders again.' : 'Online orders paused.')} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 600 }}>Extra wait</p>
+                <p className="cx-small cx-muted" style={{ marginBottom: 8 }}>
+                  Added to every pickup and delivery time the site promises.
+                </p>
+                <div className="cx-seg" role="group" aria-label="Extra wait">
+                  {[0, 5, 10, 15, 20, 30].map((m) => (
+                    <button type="button" key={m} aria-pressed={s.extraMin === m} onClick={() => save({ loc: i, extraMin: m })}>
+                      {m ? `+${m}` : 'None'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="cx-row between" style={{ flexWrap: 'nowrap' }}>
+                <div>
+                  <p style={{ fontWeight: 600 }}>Accept automatically</p>
+                  <p className="cx-small cx-muted">New orders go straight to the kitchen screen. Off: someone accepts each one on Orders.</p>
+                </div>
+                <button type="button" role="switch" className="cx-switch" aria-checked={s.autoAccept} aria-label="Accept automatically" onClick={() => save({ loc: i, autoAccept: !s.autoAccept })} />
+              </div>
+              <div className="cx-row between">
+                <label className="cx-row">
+                  <span style={{ fontWeight: 600 }}>Tables</span>
+                  <input
+                    className="cx-input"
+                    style={{ width: 80 }}
+                    type="number"
+                    min={0}
+                    max={80}
+                    defaultValue={s.tables}
+                    onBlur={(e) => +e.target.value !== s.tables && save({ loc: i, tables: +e.target.value }, 'Tables saved.')}
+                    aria-label="Number of tables"
+                  />
+                </label>
+                <button type="button" className="cx-btn sm" disabled={!s.tables} onClick={() => setQrShop(i)}>
+                  Table QR codes
+                </button>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      {qrShop !== null && <QrSheet loc={qrShop} tables={data?.shops[qrShop]?.tables || 0} origin={window.location.origin} onClose={() => setQrShop(null)} />}
+    </>
+  );
+}
+
+function QrSheet({ loc, tables, origin, onClose }: { loc: number; tables: number; origin: string; onClose: () => void }) {
+  const codes = useMemo(() => Array.from({ length: tables }, (_, i) => ({ n: i + 1, url: `${origin}/?table=${SHOP_CODES[loc]}-${i + 1}` })).map((c) => ({ ...c, svg: qrSvg(c.url) })), [loc, tables, origin]);
+  return (
+    <section style={{ marginTop: 22 }}>
+      <div className="cx-row between cx-noprint" style={{ marginBottom: 12 }}>
+        <div className="cx-stack" style={{ gap: 4 }}>
+          <p className="cx-h2">Table QR codes · {LOC_TITLES[loc]}</p>
+          <p className="cx-small cx-muted">Guests scan, order from their table and can call a waiter or ask for the bill. Print on card, one per table.</p>
+        </div>
+        <div className="cx-row">
+          <button type="button" className="cx-btn primary" onClick={() => window.print()}>
+            Print
+          </button>
+          <button type="button" className="cx-btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+      <div className="cx-qr-grid">
+        {codes.map((c) => (
+          <figure key={c.n} className="cx-qr">
+            <small>BREWNS · {LOC_TITLES[loc].toUpperCase()}</small>
+            <span dangerouslySetInnerHTML={{ __html: c.svg }} />
+            <b>TABLE {c.n}</b>
+            <small>SCAN TO ORDER · CALL A WAITER</small>
+          </figure>
         ))}
       </div>
-
-      {/* Printable QR Code Modal */}
-      {activeQrShop && (
-        <div className="co-drawer-overlay" onClick={() => setActiveQrShop(null)}>
-          <div
-            style={{
-              background: 'var(--co-panel)',
-              border: '1px solid var(--co-border-strong)',
-              borderRadius: '14px',
-              padding: '32px',
-              width: '480px',
-              maxWidth: '90%',
-              margin: 'auto',
-              textAlign: 'center',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: 800 }}>
-              {activeQrShop.name}
-            </h2>
-            <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--co-cream-dim)' }}>
-              Printable table ordering QR stand kit
-            </p>
-
-            {/* Table picker */}
-            <div style={{ marginBottom: '20px' }}>
-              <select
-                className="co-input"
-                value={selectedTable}
-                onChange={(e) => setSelectedTable(e.target.value)}
-                style={{ maxWidth: '200px', margin: '0 auto', textAlign: 'center' }}
-              >
-                {tables.map((t) => (
-                  <option key={t} value={t}>
-                    Table {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* QR Card Preview */}
-            <div
-              style={{
-                background: '#FAF7F2',
-                color: '#111',
-                padding: '28px',
-                borderRadius: '12px',
-                display: 'inline-block',
-                margin: '0 auto 24px',
-                boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
-              }}
-            >
-              <div style={{ fontWeight: 800, fontSize: '15px', letterSpacing: '0.14em', marginBottom: '8px' }}>
-                BREWNS COFFEE
-              </div>
-              <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#666', marginBottom: '16px' }}>
-                SCAN TO ORDER &amp; CALL WAITER
-              </div>
-
-              <div
-                dangerouslySetInnerHTML={{ __html: qrSvg }}
-                style={{ display: 'flex', justifyContent: 'center' }}
-              />
-
-              <div style={{ marginTop: '16px', fontWeight: 800, fontSize: '22px', fontFamily: 'monospace' }}>
-                {selectedTable}
-              </div>
-              <div style={{ fontSize: '11px', color: '#777', marginTop: '2px' }}>
-                {activeQrShop.name}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                type="button"
-                className="btn-co btn-co-secondary"
-                style={{ flex: 1 }}
-                onClick={() => setActiveQrShop(null)}
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                className="btn-co btn-co-primary"
-                style={{ flex: 1 }}
-                onClick={() => window.print()}
-              >
-                Print Sign
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
