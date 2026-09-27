@@ -42,9 +42,9 @@ export async function synthesizeElevenLabsVoice(
         text,
         model_id: 'eleven_turbo_v2_5',
         voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.8,
-          style: 0.15,
+          stability: 0.45,
+          similarity_boost: 0.85,
+          style: 0.22,
           use_speaker_boost: true,
         },
       }),
@@ -73,11 +73,13 @@ export async function processVoiceCallPrompt(
   const p = prompt.toLowerCase().trim();
   const voiceId = gender === 'male' ? DEFAULT_MALE_VOICE : DEFAULT_FEMALE_VOICE;
   const isFemale = gender === 'female';
-  const conciergeName = isFemale ? 'Sarah' : 'George';
+  const conciergeName = isFemale ? 'Sarah' : 'Hamza';
 
   // 1. GREETING / INITIAL HELLO
   if (!prompt || p === 'hello' || p === 'hi' || p === 'hey' || p === 'call_init' || p.includes('assalam')) {
-    const reply = `Assalam-o-Alaikum and welcome to Brewns Coffee House, Lahore! I'm ${conciergeName}, your AI barista and concierge. I can take your food or coffee order for delivery, reserve a table at any of our three counters, or book a private terrace party. How can I help you today?`;
+    const reply = isFemale
+      ? `Assalam-o-Alaikum! Thank you for calling Brewns Coffee House. My name is Sarah at our guest concierge. How may I assist you today? I can prepare your food or coffee order for delivery, reserve a table at any of our three counters, or arrange a private terrace party.`
+      : `Assalam-o-Alaikum and welcome to Brewns! This is Hamza from our roastery and bar. How can I take care of you today? Would you like to place an order, book a table, or schedule a gathering?`;
     const audioBase64 = (await synthesizeElevenLabsVoice(reply, voiceId)) || undefined;
     return { reply, audioBase64, action: { type: 'GENERAL' } };
   }
@@ -102,7 +104,7 @@ export async function processVoiceCallPrompt(
     };
     await kv.hset('party_bookings', partyBooking.id, partyBooking);
 
-    const reply = `Wonderful! We'd love to host your party at Brewns. I've reserved our party package at our ${location} counter for ${guests} guests under booking code ${code}. Our event coordinator will prepare customized catering, specialty coffee baristas, and terrace ambiance.`;
+    const reply = `Delighted to arrange this! I've reserved our private lounge package at our ${location} counter for ${guests} guests under booking code ${code}. Our hospitality coordinator and baristas look forward to hosting you!`;
     const audioBase64 = (await synthesizeElevenLabsVoice(reply, voiceId)) || undefined;
     return {
       reply,
@@ -125,15 +127,15 @@ export async function processVoiceCallPrompt(
     const reservation = {
       id: randomBytes(6).toString('hex'),
       code,
-      name: 'Voice Guest',
+      name: 'Guest Line',
       phone: '0300-1234567',
-      email: 'voice@brewns.coffee',
+      email: 'guest@brewns.coffee',
       loc: locId,
       date: new Date().toISOString().split('T')[0],
       time,
       guests,
       area: (p.includes('terrace') ? 'terrace' : p.includes('bar') ? 'bar' : 'indoor') as 'indoor' | 'terrace' | 'bar',
-      notes: `Booked via ElevenLabs AI Call: "${prompt}"`,
+      notes: `Booked via VIP Direct Line: "${prompt}"`,
       status: 'confirmed' as const,
       createdAt: Date.now(),
     };

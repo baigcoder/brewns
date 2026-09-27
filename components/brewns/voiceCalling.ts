@@ -50,6 +50,8 @@ export function initVoiceCalling({
   const micLabel = document.getElementById('voice-mic-label');
   const micIcon = document.getElementById('voice-mic-icon');
   const chipsWrap = document.getElementById('voice-chips-wrap');
+  const keypadToggleBtn = document.getElementById('voice-keypad-toggle');
+  const inputRow = document.getElementById('voice-input-row');
 
   if (!modal) return () => {};
 
@@ -95,6 +97,10 @@ export function initVoiceCalling({
     if (avatarRing) {
       avatarRing.classList.toggle('active', isSpeaking);
     }
+    const avatarPulse = document.getElementById('vc-avatar-pulse');
+    if (avatarPulse) {
+      avatarPulse.classList.toggle('active', isSpeaking);
+    }
   }
 
   function stopAudio() {
@@ -104,6 +110,70 @@ export function initVoiceCalling({
       audioElement = null;
     }
     setSpeaking(false);
+  }
+
+  function playRingbackTone(): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) { resolve(); return; }
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') ctx.resume();
+
+        // Realistic telephone PBX ringback: dual frequency 440Hz + 480Hz
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(440, ctx.currentTime);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(480, ctx.currentTime);
+
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.06, ctx.currentTime + 0.85);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.05);
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc1.start(ctx.currentTime);
+        osc2.start(ctx.currentTime);
+        osc1.stop(ctx.currentTime + 1.1);
+        osc2.stop(ctx.currentTime + 1.1);
+
+        setTimeout(() => {
+          try { ctx.close(); } catch {}
+          resolve();
+        }, 1050);
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  function playHangupTone() {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(380, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.16);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.18);
+      setTimeout(() => { try { ctx.close(); } catch {} }, 220);
+    } catch {}
   }
 
   function playVoiceAudio(audioBase64: string | undefined, onComplete?: () => void) {
@@ -120,12 +190,12 @@ export function initVoiceCalling({
 
       audio.onplay = () => {
         setSpeaking(true);
-        if (captionStatus) captionStatus.textContent = `// ${currentGender === 'female' ? 'SARAH' : 'GEORGE'} SPEAKING`;
+        if (captionStatus) captionStatus.textContent = `// ${currentGender === 'female' ? 'SARAH' : 'HAMZA'} ON LINE`;
       };
 
       audio.onended = () => {
         setSpeaking(false);
-        if (captionStatus) captionStatus.textContent = '// LISTENING FOR YOUR REQUEST';
+        if (captionStatus) captionStatus.textContent = '// LISTENING TO YOU';
         audioElement = null;
         onComplete?.();
       };
@@ -159,7 +229,7 @@ export function initVoiceCalling({
     if (captionText) captionText.textContent = `You: "${promptText}"`;
     if (textInput) textInput.value = '';
 
-    // Stop recognition while AI replies
+    // Stop recognition while concierge replies
     if (isListening && recognition) {
       try {
         recognition.stop();
@@ -184,7 +254,7 @@ export function initVoiceCalling({
       }
 
       const data = await res.json();
-      const reply = data.reply || "I've noted that! How else can I assist you at Brewns?";
+      const reply = data.reply || "Certainly! How else may I assist you at Brewns today?";
 
       // Update history
       conversationHistory.push({ role: 'user', content: promptText });
@@ -200,13 +270,13 @@ export function initVoiceCalling({
         handleAction(data.action);
       }
 
-      // Play realistic ElevenLabs voice audio
+      // Play ultra-natural voice audio
       playVoiceAudio(data.audioBase64);
     } catch (err) {
       console.error('Voice call error:', err);
       if (captionStatus) captionStatus.textContent = '// CONCIERGE';
       if (captionText) {
-        captionText.textContent = "I'm having trouble with the voice connection, but our team at Brewns is always ready to serve you! Please try again or tap one of the quick options.";
+        captionText.textContent = "I'm having a momentary connection hitch, but our Brewns team is right here for you. Please tap one of the direct shortcuts or try again.";
       }
       setSpeaking(false);
     } finally {
@@ -233,7 +303,7 @@ export function initVoiceCalling({
         }
         playChime?.();
         triggerHaptic?.(40);
-        toast(`AI CALL — ADDED ${pIds.length} ITEM(S) TO BAG`, 'VIEW BAG', () => openBag());
+        toast(`ORDER PLACED — ADDED ${pIds.length} ITEM(S) TO BAG`, 'VIEW BAG', () => openBag());
       }
     } else if (action.type === 'RESERVE_TABLE') {
       const code = action.data?.code || 'CONFIRMED';
@@ -254,10 +324,12 @@ export function initVoiceCalling({
     if (!micToggleBtn) return;
     micToggleBtn.classList.toggle('active', isListening);
     if (micLabel) {
-      micLabel.textContent = isListening ? 'LISTENING... (TAP TO SEND)' : 'TAP TO TALK';
+      micLabel.textContent = isListening ? 'LISTENING...' : 'TAP TO TALK';
     }
     if (micIcon) {
-      micIcon.textContent = isListening ? '🔴' : '🎙️';
+      micIcon.innerHTML = isListening
+        ? `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`
+        : `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`;
     }
   }
 
@@ -265,8 +337,9 @@ export function initVoiceCalling({
     if (!SpeechRec) {
       if (captionStatus) captionStatus.textContent = '// MIC NOTICE';
       if (captionText) {
-        captionText.textContent = "Voice speech recognition is supported in Chrome, Edge, and Safari. You can easily type your order or question in the box below!";
+        captionText.textContent = "Voice speech recognition is supported in modern browsers. You can also type your order or request directly!";
       }
+      if (inputRow) inputRow.classList.add('open');
       textInput?.focus();
       return;
     }
@@ -338,21 +411,23 @@ export function initVoiceCalling({
     currentGender = gender;
     const isFemale = gender === 'female';
     if (voiceCurrentEl) {
-      voiceCurrentEl.textContent = isFemale ? 'SARAH (FEMALE)' : 'GEORGE (MALE)';
+      voiceCurrentEl.textContent = isFemale ? 'HOST: SARAH' : 'HOST: HAMZA';
     }
     if (agentTitleEl) {
-      agentTitleEl.textContent = isFemale ? 'Sarah · Brewns Concierge' : 'George · Brewns Concierge';
+      agentTitleEl.textContent = isFemale ? 'Sarah · Brewns Front Desk' : 'Hamza · Roastery & Bar';
     }
     if (agentSubtitleEl) {
-      agentSubtitleEl.textContent = isFemale ? 'Specialty Barista & Host · ElevenLabs Real Voice' : 'Master Roaster & Concierge · ElevenLabs Real Voice';
+      agentSubtitleEl.textContent = isFemale
+        ? 'Guest Concierge · Direct Line · MM Alam & DHA'
+        : 'Specialty Roaster & Hospitality Lead';
     }
     if (avatarIcon) {
-      avatarIcon.textContent = isFemale ? '☕' : '🎙️';
+      avatarIcon.innerHTML = `<span class="vc-avatar-badge">${isFemale ? 'S' : 'H'}</span><span class="vc-avatar-status-dot"></span>`;
     }
     playSoftClick?.();
   }
 
-  function startCall() {
+  async function startCall() {
     if (!modal) return;
     isCallActive = true;
     modal.hidden = false;
@@ -363,11 +438,22 @@ export function initVoiceCalling({
     playChime?.();
     triggerHaptic?.(50);
 
-    // Initial greeting trigger
-    const initialGreeting = "Welcome to Brewns Coffee House, Lahore! I'm Sarah, your AI barista and concierge. I can take your food or coffee order for delivery, reserve a table at any of our three counters, or book a private terrace party. How can I help you today?";
+    if (captionStatus) captionStatus.textContent = '// DIALING BREWNS DIRECT LINE...';
+    if (captionText) captionText.textContent = `Connecting to ${currentGender === 'female' ? 'Sarah' : 'Hamza'} at Brewns Concierge...`;
+
+    // Realistic telephone ringback tone before greeting
+    await playRingbackTone();
+    if (!isCallActive) return;
+
+    playChime?.();
+
+    const initialGreeting = currentGender === 'female'
+      ? "Assalam-o-Alaikum! Thank you for calling Brewns Coffee House. My name is Sarah at our guest concierge. How may I assist you today? I can prepare your food or coffee order for delivery, reserve a table at any of our three counters, or arrange a private terrace party."
+      : "Assalam-o-Alaikum and welcome to Brewns! This is Hamza from our roastery and bar. How can I take care of you today? Would you like to place an order, book a table, or schedule a gathering?";
+
     conversationHistory.push({ role: 'assistant', content: initialGreeting });
 
-    if (captionStatus) captionStatus.textContent = '// CONNECTED';
+    if (captionStatus) captionStatus.textContent = `// ${currentGender === 'female' ? 'SARAH' : 'HAMZA'} ON LINE`;
     if (captionText) captionText.textContent = initialGreeting;
 
     // Fetch initial greeting audio
@@ -405,6 +491,7 @@ export function initVoiceCalling({
       updateMicUI();
     }
 
+    playHangupTone();
     playSoftClick?.();
   }
 
@@ -442,12 +529,23 @@ export function initVoiceCalling({
     e.preventDefault();
     const nextGender = currentGender === 'female' ? 'male' : 'female';
     setVoiceGender(nextGender);
-    sendPrompt(`Switching voice to ${nextGender === 'female' ? 'Sarah' : 'George'}. Please greet me in your new voice.`);
+    sendPrompt(`Switching voice line to ${nextGender === 'female' ? 'Sarah' : 'Hamza'}. Please greet me in your new voice.`);
   });
 
   micToggleBtn?.addEventListener('click', (e) => {
     e.preventDefault();
     toggleMic();
+  });
+
+  keypadToggleBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (inputRow) {
+      inputRow.classList.toggle('open');
+      textInput?.focus();
+    } else {
+      textInput?.focus();
+    }
+    playSoftClick?.();
   });
 
   sendBtn?.addEventListener('click', (e) => {
