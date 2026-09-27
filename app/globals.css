@@ -3223,6 +3223,10 @@ nextjs-portal,
   opacity: 1;
   transition: opacity 300ms ease;
 }
+/* The floating call pill would sit on the call's own controls. */
+body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
+  display: none !important;
+}
 .voice-call-modal[hidden] {
   display: none;
   opacity: 0;
@@ -3379,12 +3383,19 @@ nextjs-portal,
   transform: scale(1.05);
   box-shadow: 0 0 32px rgba(201, 147, 85, 0.65);
 }
-.vc-avatar-img {
+.vc-avatar-mono {
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center 25%;
-  display: block;
+  background: radial-gradient(circle at 35% 30%, #2a2019 0%, #14100c 70%);
+  font-family: var(--font-geist);
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #e5b378;
+  letter-spacing: -0.02em;
+  user-select: none;
 }
 .vc-avatar-live-tag {
   position: absolute;
@@ -3467,6 +3478,42 @@ nextjs-portal,
 @keyframes waveAnim {
   0% { height: 6px; }
   100% { height: 34px; }
+}
+/* Thinking: a slow travelling dot, like someone about to answer. */
+.voice-soundwave.thinking span {
+  background: rgba(201, 147, 85, 0.6);
+  animation: waveThink 1.1s ease-in-out infinite;
+}
+.voice-soundwave.thinking span:nth-child(n) { animation-delay: calc(var(--i, 0) * 0.09s); }
+.voice-soundwave.thinking span:nth-child(2) { --i: 1; }
+.voice-soundwave.thinking span:nth-child(3) { --i: 2; }
+.voice-soundwave.thinking span:nth-child(4) { --i: 3; }
+.voice-soundwave.thinking span:nth-child(5) { --i: 4; }
+.voice-soundwave.thinking span:nth-child(6) { --i: 5; }
+.voice-soundwave.thinking span:nth-child(7) { --i: 6; }
+.voice-soundwave.thinking span:nth-child(8) { --i: 7; }
+.voice-soundwave.thinking span:nth-child(9) { --i: 8; }
+.voice-soundwave.thinking span:nth-child(10) { --i: 9; }
+.voice-soundwave.thinking span:nth-child(11) { --i: 10; }
+.voice-soundwave.thinking span:nth-child(12) { --i: 11; }
+.voice-soundwave.thinking span:nth-child(13) { --i: 12; }
+@keyframes waveThink {
+  0%, 60%, 100% { height: 6px; }
+  30% { height: 16px; }
+}
+/* Listening: a soft green breath, the line is open. */
+.voice-soundwave.listening span {
+  background: #7fb07a;
+  animation: waveListen 1.6s ease-in-out infinite alternate;
+}
+.voice-soundwave.listening span:nth-child(odd) { animation-delay: 0.4s; }
+@keyframes waveListen {
+  0% { height: 5px; opacity: 0.55; }
+  100% { height: 11px; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-soundwave span { animation: none !important; }
+  .voice-soundwave.speaking span { height: 18px; }
 }
 
 /* Live Caption Subtitle Ticker */
@@ -3712,4 +3759,12 @@ nextjs-portal,
   transform: scale(1.08);
   background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
   box-shadow: 0 8px 28px rgba(239, 68, 68, 0.65);
+}
+
+/* Mic muted on the call dock: dimmed, so it's clear the line can't hear you. */
+.voice-action-btn.primary-mic.muted .voice-action-icon {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
 }
