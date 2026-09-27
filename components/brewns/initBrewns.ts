@@ -1815,6 +1815,34 @@ loop(() => {
   header.classList.toggle("over-footer", footer.getBoundingClientRect().top <= PROBE_OFFSET);
 }, 100);
 
+/* The bar itself: see-through over the hero, a frosted capsule once the page
+   moves, out of the way while reading down and back the moment you scroll up.
+   The link for the section on screen gets a gold dot. */
+(() => {
+  const links = $$(".hdr-nav a[href^='#']");
+  const targets = () => links.map((a) => [a, document.getElementById(a.getAttribute("href").slice(1))]);
+  let lastY = window.scrollY, travelled = 0;
+  loop(() => {
+    const y = window.scrollY;
+    const dy = y - lastY;
+    lastY = y;
+    header.classList.toggle("scrolled", y > 24);
+    // Hide after a real downward run, never with the menu open or focus inside the bar.
+    travelled = Math.sign(dy) === Math.sign(travelled) ? travelled + dy : dy;
+    const busy = header.classList.contains("open") || header.contains(document.activeElement);
+    if (busy || y < 320 || travelled < -8) header.classList.remove("tucked");
+    else if (travelled > 64) header.classList.add("tucked");
+    const probe = window.innerHeight * 0.35;
+    let current = null;
+    for (const [a, el] of targets()) {
+      if (!el) continue;
+      const b = el.getBoundingClientRect();
+      if (b.top <= probe && b.bottom > probe) current = a;
+    }
+    for (const a of links) a.classList.toggle("is-active", a === current);
+  }, 100);
+})();
+
 const toggle = $("#menu-toggle");
 const panel = $("#site-menu");
 const setOpen = (open) => {
