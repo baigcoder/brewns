@@ -38,6 +38,8 @@ const END_OF_SPEECH_MS = 900;
 /** Mic level (RMS, 0..1) and how long it must hold to count as talking over the voice. */
 const BARGE_IN_LEVEL = 0.06;
 const BARGE_IN_MS = 280;
+/** True on iOS / iPadOS / Android – these need extra care for AudioContext & getUserMedia. */
+const IS_MOBILE = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
 export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast, playChime, playSoftClick, triggerHaptic }: VoiceCallingDeps) {
   if (typeof window === 'undefined') return () => {};
@@ -91,6 +93,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let recognition: any = null;
   let heard = '';
   let silenceTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Counts rapid listen() restarts – prevents tight no-speech loops on mobile. */
+  let listenRestartCount = 0;
+  let listenRestartResetTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Tracks the last time recognition.onend fired – guards against instant-end loop. */
+  let lastOnEndTs = 0;
 
   let audioEl: HTMLAudioElement | null = null;
   let utterance: SpeechSynthesisUtterance | null = null;
@@ -283,21 +290,51 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   /* ── barge-in: hear the caller talk over the voice ── */
 
   async function ensureMic() {
-    if (micStream && micStream.getTracks().some((t) => t.readyState === 'live')) return micStream;
+    // On mobile, streams that report 'live' can be stale after backgrounding – verify by checking
+    // all tracks, not just some, and also test that the stream has at least one audio track.
+    if (micStream) {
+      const tracks = micStream.getAudioTracks();
+      const allLive = tracks.length > 0 && tracks.every((t) => t.readyState === 'live' && t.enabled);
+      if (allLive) return micStream;
+      // Stream is stale – stop old tracks so the hardware is freed before re-acquiring.
+      micStream.getTracks().forEach((t) => t.stop());
+      micStream = null;
+    }
     if (!navigator.mediaDevices?.getUserMedia) return null;
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       muted = false;
       return micStream;
-    } catch {
+    } catch (err: any) {
+      console.warn('[brewns-mic] getUserMedia failed:', err?.name, err?.message);
       return null;
     }
+  }
+
+  /** Ensure AudioContext is alive; on mobile it must be resumed inside a user-gesture. */
+  async function resumeAudioCtx() {
+    try {
+      if (!meterCtx || meterCtx.state === 'closed') {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        meterCtx = new Ctx();
+      }
+      if (meterCtx.state === 'suspended') await meterCtx.resume();
+    } catch {}
   }
 
   function startMeter(id: number) {
     if (!micStream || muted) return;
     try {
-      meterCtx ||= new AudioContext();
+      // On mobile, meterCtx may have been closed after backgrounding; recreate if needed.
+      if (!meterCtx || meterCtx.state === 'closed') {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        meterCtx = new Ctx();
+      }
+      meterCtx.resume().catch(() => {});
       const src = meterCtx.createMediaStreamSource(micStream);
       const an = meterCtx.createAnalyser();
       an.fftSize = 1024;
@@ -324,7 +361,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         meterRaf = requestAnimationFrame(loop);
       };
       meterRaf = requestAnimationFrame(loop);
-    } catch {}
+    } catch (e) {
+      console.warn('[brewns-mic] startMeter error:', e);
+    }
   }
 
   function stopMeter() {
@@ -360,23 +399,41 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     heard = '';
     setPhase('listening');
 
+    // Rate-limit restarts: after 6 rapid restarts (usually no-speech loops on mobile),
+    // back off for 2 seconds so the UI stays responsive and battery isn't drained.
+    listenRestartCount++;
+    clearTimeout(listenRestartResetTimer);
+    listenRestartResetTimer = setTimeout(() => { listenRestartCount = 0; }, 5000);
+    if (listenRestartCount > 6) {
+      caption('Still listening… speak whenever you\'re ready.', 'agent');
+      setTimeout(() => {
+        listenRestartCount = 0;
+        if (callActive && phase === 'listening' && !muted) listen();
+      }, 2000);
+      return;
+    }
+
     let r: any;
     try {
       r = new SpeechRec();
     } catch (e) {
-      console.warn('SpeechRec instantiation error:', e);
+      console.warn('[brewns-mic] SpeechRec instantiation error:', e);
       setPhase('muted', 'MIC MUTED');
       return;
     }
     recognition = r;
-    r.continuous = true;
+    // On iOS Safari, continuous mode can cause immediate onend; use non-continuous there.
+    r.continuous = !IS_MOBILE;
     r.interimResults = true;
     r.maxAlternatives = 1;
     // en-IN copes with Pakistani English and Roman Urdu; ur-PK writes proper Urdu.
     r.lang = lang === 'ur' ? 'ur-PK' : /^en-(GB|IN|PK|US|AU)/i.test(navigator.language) ? navigator.language : 'en-IN';
 
+    const startedAt = performance.now();
+
     r.onstart = () => {
       if (recognition !== r) return;
+      listenRestartCount = 0; // successful start — reset the rate-limiter
       setPhase('listening');
       caption('Listening… Speak now', 'agent');
     };
@@ -404,21 +461,26 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     };
 
     r.onerror = (event: any) => {
-      console.warn('Speech recognition error:', event.error);
+      console.warn('[brewns-mic] Speech recognition error:', event.error);
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         muted = true;
         stopListening();
         setPhase('muted', 'MIC BLOCKED');
-        caption('To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below.');
+        caption(
+          IS_MOBILE
+            ? 'Microphone blocked. Open your browser Settings → Site permissions → Microphone → Allow for this site. Or tap "Type message" below.'
+            : 'To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below.'
+        );
         unblockActions?.removeAttribute('hidden');
         inputRow?.classList.add('open');
         textInput?.focus();
       } else if (event.error === 'no-speech') {
-        // Keep listening without locking up
+        // Keep listening – but use the rate-limited restart to avoid tight loops on mobile
         if (callActive && phase === 'listening' && !muted) {
+          const delay = IS_MOBILE ? 600 : 300;
           setTimeout(() => {
             if (callActive && phase === 'listening' && !muted) listen();
-          }, 200);
+          }, delay);
         }
       } else if (event.error === 'audio-capture' || event.error === 'network') {
         // No mic, or the browser's speech service is unreachable
@@ -426,7 +488,19 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         stopListening();
         setPhase('muted', event.error === 'network' ? 'VOICE INPUT OFFLINE' : 'NO MICROPHONE FOUND');
         caption("I can't hear you right now, but you can type your reply below.");
+        unblockActions?.removeAttribute('hidden');
         inputRow?.classList.add('open');
+        textInput?.focus();
+      } else if (event.error === 'aborted') {
+        // Ignore – this fires when we call r.abort() ourselves
+      } else {
+        // language-not-supported, bad-grammar, etc.
+        console.warn('[brewns-mic] Unhandled speech error:', event.error);
+        if (callActive && phase === 'listening' && !muted) {
+          setTimeout(() => {
+            if (callActive && phase === 'listening' && !muted) listen();
+          }, 800);
+        }
       }
     };
 
@@ -440,23 +514,55 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         heard = '';
         return void sendPrompt(said);
       }
-      if (callActive && phase === 'listening' && !muted) setTimeout(() => phase === 'listening' && listen(), 150);
+      // Guard: if onend fires within 120ms of start it means recognition never actually
+      // started (common on iOS Safari). Back off longer before retrying.
+      const elapsed = performance.now() - startedAt;
+      const now = Date.now();
+      if (elapsed < 120 || now - lastOnEndTs < 200) {
+        lastOnEndTs = now;
+        if (callActive && phase === 'listening' && !muted) {
+          setTimeout(() => {
+            if (callActive && phase === 'listening' && !muted) listen();
+          }, IS_MOBILE ? 1200 : 500);
+        }
+        return;
+      }
+      lastOnEndTs = now;
+      if (callActive && phase === 'listening' && !muted) {
+        // Small delay on mobile to let the speech service fully release
+        setTimeout(() => phase === 'listening' && listen(), IS_MOBILE ? 350 : 150);
+      }
     };
 
-    try {
-      r.start();
-    } catch (err: any) {
-      if (err?.name === 'InvalidStateError') {
-        setTimeout(() => {
-          if (callActive && phase === 'listening' && !muted) {
-            try { r.start(); } catch {}
-          }
-        }, 180);
-      } else {
-        console.warn('Could not start recognition:', err);
-        setPhase('muted');
+    // On mobile, wait a tick after abort so the previous instance is fully released
+    const startDelay = IS_MOBILE ? 120 : 0;
+    setTimeout(() => {
+      if (!callActive || recognition !== r || muted) return;
+      try {
+        r.start();
+      } catch (err: any) {
+        if (err?.name === 'InvalidStateError') {
+          // Previous instance not yet fully stopped – retry after a longer delay
+          setTimeout(() => {
+            if (callActive && phase === 'listening' && !muted) {
+              try { r.start(); } catch (e2) {
+                console.warn('[brewns-mic] retry start failed:', e2);
+                // Last resort: create a brand new instance
+                setTimeout(() => {
+                  if (callActive && phase === 'listening' && !muted) listen();
+                }, 400);
+              }
+            }
+          }, IS_MOBILE ? 500 : 250);
+        } else {
+          console.warn('[brewns-mic] Could not start recognition:', err);
+          setPhase('muted', 'MIC UNAVAILABLE');
+          caption('Voice input is temporarily unavailable. You can type your reply below.');
+          inputRow?.classList.add('open');
+          textInput?.focus();
+        }
       }
-    }
+    }, startDelay);
   }
 
   /* ── talking to the concierge ── */
@@ -596,9 +702,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     } catch {}
 
     // Made inside the click so autoplay rules don't leave it suspended.
+    // On mobile, AudioContext MUST be created + resumed inside a user gesture.
     try {
-      meterCtx ||= new AudioContext();
-      meterCtx.resume().catch(() => {});
+      if (!meterCtx || meterCtx.state === 'closed') {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        if (Ctx) meterCtx = new Ctx();
+      }
+      if (meterCtx && meterCtx.state === 'suspended') meterCtx.resume().catch(() => {});
     } catch {}
 
     const id = ++turnId;
@@ -626,7 +736,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     stopListening();
     micStream?.getTracks().forEach((t) => t.stop());
     micStream = null;
-    meterCtx?.close().catch(() => {});
+    try { meterCtx?.close().catch(() => {}); } catch {}
     meterCtx = null;
     modal!.hidden = true;
     document.body.classList.remove('modal-open');
@@ -659,6 +769,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (micLabel) micLabel.textContent = 'CONNECTING…';
     unblockActions?.setAttribute('hidden', '');
 
+    // Resume AudioContext inside this user-gesture (critical for iOS)
+    await resumeAudioCtx();
+
     if (!navigator.mediaDevices?.getUserMedia && !SpeechRec) {
       muted = true;
       setPhase('muted', 'MIC NOT SUPPORTED');
@@ -668,38 +781,56 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       return;
     }
 
-    // Request or resume microphone stream directly without artificial early returns
+    // Request or resume microphone stream
     try {
       let stream: MediaStream | null = micStream;
-      if (!stream || !stream.getTracks().some((t) => t.readyState === 'live')) {
+      // Check ALL audio tracks, not just "some" – a partially dead stream is as bad as no stream
+      const alive = stream && stream.getAudioTracks().length > 0 &&
+                    stream.getAudioTracks().every((t) => t.readyState === 'live' && t.enabled);
+      if (!alive) {
+        // Release old tracks before requesting new ones
+        stream?.getTracks().forEach((t) => t.stop());
         stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
       }
       micStream = stream;
       muted = false;
+      listenRestartCount = 0;
       captionBox?.classList.remove('mic-alert');
       unblockActions?.setAttribute('hidden', '');
 
       stopListening();
       setTimeout(() => {
         if (callActive && !muted) listen();
-      }, 80);
+      }, IS_MOBILE ? 200 : 80);
     } catch (err: any) {
-      console.warn('Microphone permission request error:', err);
+      console.warn('[brewns-mic] Microphone permission request error:', err?.name, err?.message);
       muted = true;
       micStream = null;
-      setPhase('muted', 'MIC BLOCKED');
-      caption('To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below to chat without mic!');
+
+      // AbortError = user dismissed the prompt; NotAllowedError = blocked in settings
+      const blocked = err?.name === 'NotAllowedError' || err?.name === 'AbortError' ||
+                      err?.name === 'PermissionDeniedError';
+      setPhase('muted', blocked ? 'MIC BLOCKED' : 'MIC UNAVAILABLE');
+      caption(
+        IS_MOBILE
+          ? 'Microphone is blocked. Open your browser menu → Settings → Site permissions → Microphone → Allow. Or tap "Type message" below.'
+          : 'To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below!'
+      );
       unblockActions?.removeAttribute('hidden');
       captionBox?.classList.add('mic-alert');
       setTimeout(() => captionBox?.classList.remove('mic-alert'), 600);
       inputRow?.classList.add('open');
       textInput?.focus();
-      toast('TAP 🔒 → CLICK ⚙️ SITE SETTINGS → ALLOW MIC', 'TYPE MESSAGE', () => {
-        inputRow?.classList.add('open');
-        textInput?.focus();
-      });
+      toast(
+        IS_MOBILE ? 'OPEN BROWSER SETTINGS → ALLOW MIC' : 'TAP 🔒 → CLICK ⚙️ SITE SETTINGS → ALLOW MIC',
+        'TYPE MESSAGE',
+        () => {
+          inputRow?.classList.add('open');
+          textInput?.focus();
+        }
+      );
     }
   }
 
