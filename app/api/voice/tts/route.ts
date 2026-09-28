@@ -10,33 +10,30 @@ export const GET = route(async (req): Promise<Response> => {
   if (!line) return fail(404, 'Nothing to say.');
   await rateLimit(`voice-tts:${clientIp(req)}`, 3000, 3600, 'The line is busy.');
 
-  // Prefer Gemini for Urdu: the built-in ElevenLabs Sarah/George defaults are
-  // English voices, and some reject or anglicize Urdu even with v3 selected.
-  const providers = line.lang === 'ur'
-    ? [
-        async () => {
-          const audio = await generateGeminiVoice(line.text, line.gender, line.lang);
-          return audio ? new Response(new ReadableStream<Uint8Array>({
-            start(controller) { controller.enqueue(audio); controller.close(); },
-          }), { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'private, no-store' } }) : null;
+  // Prioritize ElevenLabs Turbo v2.5 for instantaneous, high-fidelity studio voice; fallback to Gemini TTS
+  const providers = [
+    async () => {
+      const audio = await streamElevenLabsVoice(line.text, line.gender, line.lang);
+      return audio ? new Response(audio, {
+        headers: {
+          'Content-Type': 'audio/mpeg',
+          'Cache-Control': 'private, no-store',
+          'Accept-Ranges': 'bytes',
         },
-        async () => {
-          const audio = await streamElevenLabsVoice(line.text, line.gender, line.lang);
-          return audio ? new Response(audio, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, no-store' } }) : null;
+      }) : null;
+    },
+    async () => {
+      const audio = await generateGeminiVoice(line.text, line.gender, line.lang);
+      return audio ? new Response(new ReadableStream<Uint8Array>({
+        start(controller) { controller.enqueue(audio); controller.close(); },
+      }), {
+        headers: {
+          'Content-Type': 'audio/wav',
+          'Cache-Control': 'private, no-store',
         },
-      ]
-    : [
-        async () => {
-          const audio = await streamElevenLabsVoice(line.text, line.gender, line.lang);
-          return audio ? new Response(audio, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, no-store' } }) : null;
-        },
-        async () => {
-          const audio = await generateGeminiVoice(line.text, line.gender, line.lang);
-          return audio ? new Response(new ReadableStream<Uint8Array>({
-            start(controller) { controller.enqueue(audio); controller.close(); },
-          }), { headers: { 'Content-Type': 'audio/wav', 'Cache-Control': 'private, no-store' } }) : null;
-        },
-      ];
+      }) : null;
+    },
+  ];
   for (const generate of providers) {
     const response = await generate();
     if (response) return response;

@@ -86,7 +86,8 @@ export interface VoiceCallResponse {
   lang: VoiceLang;
 }
 
-export const agentName = (g: VoiceGender) => (g === 'male' ? 'Hamza' : 'Sarah');
+export const agentName = (g: VoiceGender, l: VoiceLang = 'en') =>
+  l === 'ur' ? (g === 'male' ? 'حمزہ' : 'سارہ') : (g === 'male' ? 'Hamza' : 'Sarah');
 
 /* ═══════════ voice ═══════════ */
 
@@ -120,14 +121,25 @@ export const clearlyEnglish = (text: string) => (text.match(ENGLISH) || []).leng
 export const replyLang = (reply: string): VoiceLang => (/[\u0600-\u06FF]/.test(reply) ? 'ur' : 'en');
 
 /** What the voice should say, as a person would say it: "Rs 2,550" → "2,550
-    rupees", a mobile number in the groups people read it in. The caption keeps
-    the written form. */
+    rupees", a mobile number in the groups people read it in. Cleans markdown,
+    expands coffee terminology, and formats numbers for natural speech. */
 export function forSpeech(text: string, lang: VoiceLang = 'en') {
   return text
+    // Remove markdown formatting artifacts that trip up voice synthesizers
+    .replace(/[*_#`>~]+/g, '')
+    .replace(/^\s*[-•]\s+/gm, '')
+    // Coffee pronunciation perfection
+    .replace(/\bexpresso\b/gi, 'espresso')
+    // Currency spoken naturally
     .replace(/\bRs\.?\s?([\d,]+)/g, lang === 'ur' ? '$1 روپے' : '$1 rupees')
+    // Group Pakistani mobile numbers naturally with pauses
     .replace(/\b(03\d{2})[\s-]?(\d{3})[\s-]?(\d{4})\b/g, (_, a: string, b: string, c: string) => [a, b, c].map((g) => g.split('').join(' ')).join(', '))
+    // Reservation & Party confirmation codes read with clear phonetic pauses
+    .replace(/\b(RES|PTY)-(\d{4})\b/gi, (_, p: string, d: string) => `${p.toUpperCase().split('').join(' ')}, ${d.split('').join(' ')}`)
     .replace(/\s*—\s*/g, ', ')
-    .replace(/(\d)\s*×\s*/g, '$1 ');
+    .replace(/(\d)\s*×\s*/g, '$1 ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 const voiceSigningSecret = () => process.env.SESSION_SECRET || ELEVENLABS_API_KEY || process.env.GEMINI_API_KEY || '';
@@ -161,17 +173,21 @@ export function readTtsToken(payload: string, sig: string): { text: string; gend
   }
 }
 
-/** Stream `text` from ElevenLabs as MP3. Conversational settings: a little less
-    stable and a little more style than narration, so it sounds like someone
-    talking, not reading. Null when it fails; the browser then uses its own voice. */
-/* Use expressive v3 voices for natural dialogue in both languages. Flash v2.5
-   is faster, but doesn't support Urdu and sounds flatter for a concierge call. */
+/** Stream `text` from ElevenLabs as MP3 with professional studio acoustic calibration.
+    Turbo v2.5 provides ultra-low latency (~700ms) with native conversational presence
+    in both English and Urdu. */
 const TTS_MODEL: Record<VoiceLang, string> = {
-  en: process.env.ELEVENLABS_MODEL_ID || 'eleven_v3',
-  ur: process.env.ELEVENLABS_URDU_MODEL_ID || 'eleven_v3',
+  en: process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5',
+  ur: process.env.ELEVENLABS_URDU_MODEL_ID || 'eleven_turbo_v2_5',
 };
-const voiceSettings = (model: string) =>
-  model.startsWith('eleven_v3') ? { stability: 0.5, similarity_boost: 0.8 } : { stability: 0.38, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true, speed: 1.02 };
+
+const voiceSettings = (model: string) => ({
+  stability: 0.54,         // Steady, professional, natural delivery without voice crackling
+  similarity_boost: 0.85,  // Crisp clarity & authentic character voice fidelity
+  style: 0.18,             // Attentive, warm concierge expressiveness
+  use_speaker_boost: true, // Studio microphone depth and presence
+  speed: 0.98,             // Unhurried, composed, polished pacing
+});
 
 export async function streamElevenLabsVoice(text: string, gender: VoiceGender, lang: VoiceLang = 'en'): Promise<ReadableStream<Uint8Array> | null> {
   if (!ELEVENLABS_API_KEY || !text) return null;
@@ -764,21 +780,21 @@ const MENU_TEXT = CATALOG.filter((p) => !p.gift)
   })
   .join('\n');
 
-const persona = (g: VoiceGender) => `You are ${agentName(g)}, answering the phone at brewns, a specialty coffee house in Lahore. You are on a live voice call: everything you write is spoken aloud by a text-to-speech voice, and the caller's words reach you through speech recognition.
+const persona = (g: VoiceGender) => `You are ${agentName(g)}, Head Concierge at Brewns Specialty Coffee House in Lahore. You are answering a direct voice phone call with a guest. Every reply you generate is spoken aloud live through studio text-to-speech.
 
-How to sound like a real person on the phone:
-- Keep each turn short: one to three sentences, usually under 35 words. Ask one question at a time and then stop talking.
-- Talk, don't write. Contractions, warm and relaxed, the odd "sure", "lovely", "okay, got it". No lists, bullet points, headings, emoji, markdown, or URLs.
-- Say prices as "fourteen fifty rupees" or "Rs 1,450", times as "8 PM", dates as "this Friday" or "the 12th of October".
-- Speech recognition makes mistakes. If something sounds garbled or a number seems off, check it naturally ("sorry, was that four people or fourteen?") instead of guessing.
-- Language: answer in the language the caller is using right now, and switch the moment they do.
-  - English → natural English.
-  - Urdu, whether it reaches you in Urdu script or Roman Urdu ("mujhe kal table chahiye") → natural spoken Urdu written in Urdu script, so the Urdu voice pronounces it properly. Speak like a friendly Lahori on the phone, not formal textbook Urdu: "جی بالکل! کتنے لوگ ہوں گے؟". Everyday English words people use in Urdu are fine as they are (ٹیبل، آرڈر، بکنگ، ڈیلیوری، برگر، لاٹے).
-  - In Urdu, keep numbers, times and codes as digits (7 بجے، 4 لوگ، RES-4821) and prices as "Rs 1,350".
-  - Menu item names can stay in English in either language.
-- Greet with "Assalam-o-Alaikum" (or "وعلیکم السلام" in reply) only when they do.
-- If they interrupt or change their mind, just go with it. Never repeat the whole conversation back.
-- Don't say you're an AI unless asked; if asked, say so plainly and cheerfully.
+Professional Concierge Standards:
+- Demeanor & Politeness: Speak with the poise, warmth, and refined hospitality of a 5-star luxury boutique concierge. Be attentive, courteous, respectful, and calm.
+- Conversational Rhythm: Keep each turn short, crisp, and natural: 1 to 2 spoken sentences, strictly under 30 words. Never monologue, lecture, or dump long lists over the phone. Ask one clear question at a time and pause.
+- Courtesy & Natural Phrasing: Use courteous hospitality phrasing naturally: "Certainly", "Right away", "My absolute pleasure", "Allow me to arrange that for you", "I would be delighted to help".
+- No Formatting Artifacts: Never output markdown, asterisks, bullet points, numbered lists, emojis, bolding, or URLs. Speak naturally as a human on the phone.
+- Numbers & Prices: Say prices as "fourteen fifty rupees" or "Rs 1,450", times as "8 PM" or "7:30 PM", dates as "this Friday" or "tomorrow".
+- Microphone Verification: If speech recognition seems unclear or names/numbers are ambiguous, verify courteously ("Just to ensure everything is perfect, was that for 4 guests?") rather than guessing.
+- Seamless Bilingual Fluency:
+  - English: Sophisticated, courteous, contemporary specialty coffee hospitality.
+  - Urdu: Speak with authentic, polite Lahori hospitality written in Urdu script ("جی بالکل، میں ابھی آپ کے لیے چیک کرتی ہوں", "بہت شکریہ! کتنے مہمانوں کے لیے ٹیبل تیار کروں؟", "آپ کی تشریف آوری کا انتظار رہے گا"). Everyday café loanwords remain natural (ٹیبل، بکنگ، آرڈر، لاٹے، مینو).
+- Greetings: If the guest offers "Assalam-o-Alaikum", respond warmly with "Wa Alaikum Assalam! Welcome to Brewns."
+- Active Listening: If the caller changes their mind, corrects a detail, or interrupts, adapt immediately with "Of course, no problem at all."
+- Don't say you're an AI unless explicitly asked; if asked, answer cheerfully and courteously.
 
 What you can do:
 1. Book a table (1 to 20 guests). Collect: name, mobile number, which counter, date, time, number of guests, and indoor, terrace or bar seating (default indoor). Seating is 7 AM to 8 PM; we close at 9 PM.
@@ -1092,7 +1108,7 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
 /* ═══════════ Groq ═══════════ */
 
 export const groqEnabled = () => Boolean(process.env.GROQ_API_KEY);
-const GROQ_MODELS = [...new Set([process.env.GROQ_MODEL || 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b'])];
+const GROQ_MODELS = [...new Set([process.env.GROQ_MODEL || 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'])];
 
 const GROQ_TOOLS = TOOLS[0].functionDeclarations.map((fn) => ({
   type: 'function',
@@ -1614,35 +1630,38 @@ function getLahoreHour(): number {
 }
 
 export function greeting(g: VoiceGender, lang: VoiceLang = 'en'): string {
-  const name = agentName(g);
+  const name = agentName(g, lang);
   const hour = getLahoreHour();
   const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
   if (lang === 'ur') {
+    const speaking = g === 'male' ? 'بات کر رہا ہوں' : 'بات کر رہی ہوں';
+    const canDo = g === 'male' ? 'کر سکتا ہوں' : 'کر سکتی ہوں';
+
     if (hour >= 5 && hour < 12) {
       return pick([
         `صبح بخیر! برونز کافی ہاؤس میں خوش آمدید، میں ${name} ہوں۔ فرمائیے، آپ کے لیے ٹیبل بک کروں یا ناشتے کا آرڈر لیں؟`,
-        `السلام علیکم، صبح بخیر! برونز فرنٹ ڈیسک سے ${name} حاضر ہے۔ آج آپ کی کیا خدمت کر سکتی ہوں؟`,
-        `صبح بخیر! برونز میں خوش آمدید، ${name} بات کر رہی ہوں۔ تازہ کافی تیار ہے، بتائیے کیا منگوائیں گے؟`,
+        `السلام علیکم، صبح بخیر! برونز فرنٹ ڈیسک سے ${name} حاضر ہے۔ آج آپ کی کیا خدمت ${canDo}؟`,
+        `صبح بخیر! برونز میں خوش آمدید، ${name} ${speaking}۔ تازہ کافی تیار ہے، بتائیے کیا منگوائیں گے؟`,
       ]);
     }
     if (hour >= 12 && hour < 17) {
       return pick([
-        `السلام علیکم! برونز کافی ہاؤس میں خوش آمدید، ${name} بات کر رہی ہوں۔ کیا میں آپ کے لیے ٹیبل بک کروں یا لنچ کا آرڈر لکھوں؟`,
-        `دوپہر بخیر! برونز گلبرگ اور ڈی ایچ اے سے ${name}۔ بتائیے آج آپ کے لیے کیا تیار کروائیں؟`,
+        `السلام علیکم! برونز کافی ہاؤس میں خوش آمدید، ${name} ${speaking}۔ کیا میں آپ کے لیے ٹیبل بک کروں یا لنچ کا آرڈر لکھوں؟`,
+        `دوپہر بخیر! برونز گلبرگ اور ڈی ایچ اے سے ${name} حاضر ہے۔ بتائیے آج آپ کے لیے کیا تیار کروائیں؟`,
         `السلام علیکم! برونز سے ${name} حاضر ہے۔ ٹیبل ریزرویشن، ایونٹ بکنگ یا مینو سے آرڈر کے لیے بتائیے۔`,
       ]);
     }
     if (hour >= 17 && hour < 22) {
       return pick([
-        `شام بخیر! برونز کافی ہاؤس میں خوش آمدید، ${name} حاضر ہوں۔ کیا آپ گلبرگ یا ڈی ایچ اے میں شام کی ٹیبل بک کرنا چاہیں گے؟`,
+        `شام بخیر! برونز کافی ہاؤس میں خوش آمدید، ${name} حاضر ہے۔ کیا آپ گلبرگ یا ڈی ایچ اے میں شام کی ٹیبل بک کرنا چاہیں گے؟`,
         `السلام علیکم! برونز فرنٹ ڈیسک سے ${name}۔ آج رات کے لیے ٹیبل بک کروانی ہے یا کچھ ڈلیور کروائیں؟`,
         `شام بخیر! برونز میں خوش آمدید، میں ${name} ہوں۔ فرمائیے آج آپ کی کیا مدد کروں؟`,
       ]);
     }
     return pick([
-      `السلام علیکم! برونز کافی ہاؤس سے ${name} بات کر رہی ہوں۔ ہمارے کاؤنٹرز اب بند ہیں مگر کل کے لیے ٹیبل یا آرڈر بک کر سکتی ہوں۔ فرمائیے؟`,
-      `ہیلو! برونز سے ${name}۔ کل کی بکنگ یا آرڈر کے لیے فرمائیے، میں حاضر ہوں۔`,
+      `السلام علیکم! برونز کافی ہاؤس سے ${name} ${speaking}۔ ہمارے کاؤنٹرز اب بند ہیں مگر کل کے لیے ٹیبل یا آرڈر بک ${canDo}۔ فرمائیے؟`,
+      `ہیلو! برونز سے ${name} حاضر ہے۔ کل کی بکنگ یا آرڈر کے لیے فرمائیے، میں حاضر ہوں۔`,
     ]);
   }
 
@@ -1693,7 +1712,7 @@ export async function processVoiceCallPrompt(
     turn = { reply: greeting(gender, lang), actions: [] };
   } else if (prompt === 'voice_switch') {
     const sw = lang === 'ur'
-      ? [`جی، میں ${agentName(gender)} ہوں۔ اب میں آپ کی کال سنبھالتی ہوں، ہم کہاں تک پہنچے تھے؟`, `السلام علیکم، ${agentName(gender)} حاضر ہے۔ بتائیے میں کیا مدد کروں؟`]
+      ? [`جی، میں ${agentName(gender, 'ur')} ہوں۔ اب میں آپ کی کال سنبھالتی ہوں، ہم کہاں تک پہنچے تھے؟`, `السلام علیکم، ${agentName(gender, 'ur')} حاضر ہے۔ بتائیے میں کیا مدد کروں؟`]
       : [`Hi, ${agentName(gender)} here, I'll take it from here. Where were we?`, `Hey there! ${agentName(gender)} stepping in. How can I help?`, `Hello, ${agentName(gender)} on the line now. What were you thinking?`];
     turn = { reply: sw[Math.floor(Math.random() * sw.length)], actions: [], state };
   } else if (prompt === 'language_switch') {

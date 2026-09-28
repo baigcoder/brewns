@@ -36,8 +36,10 @@ type Action = { type: string; data?: any };
 /** How long a pause means "I'm done talking", after some words have come in. */
 const END_OF_SPEECH_MS = 450;
 /** Mic level (RMS, 0..1) and how long it must hold to count as talking over the voice. */
-const BARGE_IN_LEVEL = 0.06;
-const BARGE_IN_MS = 280;
+// Phone mics report much quieter RMS levels than desktop mics. 0.06 only
+// detected shouting on several mobile devices, making interruption feel dead.
+const BARGE_IN_LEVEL = 0.018;
+const BARGE_IN_MS = 360;
 /** True on phones and iPads (including iPadOS desktop-mode Safari). */
 const IS_MOBILE = typeof navigator !== 'undefined' && (
   /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
@@ -104,6 +106,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let lastOnEndTs = 0;
   /** How many times RETRY MICROPHONE has been pressed this call without success. */
   let micRetryCount = 0;
+  let lastMobileRecoveryAt = 0;
   /** Live watcher: fires the instant the browser flips mic permission to 'granted'. */
   let permissionWatcher: { status: PermissionStatus | null; cleanup: () => void } | null = null;
 
@@ -219,6 +222,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (audioUrl) {
       const a = new Audio(audioUrl);
       a.preload = 'auto';
+      // Safari on iOS can route a dynamically-created audio element as video
+      // unless it is explicitly marked inline. That can hide call controls or
+      // refuse playback after an asynchronous server response.
+      a.setAttribute('playsinline', '');
+      a.setAttribute('webkit-playsinline', '');
       audioEl = a;
       a.onended = done;
       a.onerror = () => speakWithBrowser(text, done);
@@ -428,7 +436,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         mediaRecorder = new MediaRecorder(stream);
       } catch (e) {
         console.warn('[brewns-recorder] MediaRecorder initialization error:', e);
+        muted = true;
         setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
+        caption('Your browser could not start voice capture. Tap Connect & Test Mic or type your message below.', 'agent');
+        unblockActions?.removeAttribute('hidden');
+        inputRow?.classList.add('open');
         return;
       }
     }
@@ -507,7 +519,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         src.connect(an);
         const data = new Float32Array(an.fftSize);
         let silenceStart = 0;
-        const speechLevel = 0.008; // Accommodate quieter laptop, phone and headset microphones.
+        const speechLevel = 0.006; // Quiet phone/headset input needs a lower floor than desktop.
 
         const vadLoop = () => {
           if (!callActive || phase !== 'listening' || !vadActive || mediaRecorder?.state !== 'recording') {
@@ -526,7 +538,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
             caption('Listening to you…', 'you');
           } else if (vadSpeechDetected) {
             if (!silenceStart) silenceStart = now;
-            else if (now - silenceStart > 650) {
+            else if (now - silenceStart > (IS_MOBILE ? 520 : 600)) {
               try { mediaRecorder?.stop(); } catch {}
               try { src.disconnect(); } catch {}
               return;
@@ -740,6 +752,17 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         }
       }
     }, startDelay);
+  }
+
+  async function recoverMobileListener() {
+    const now = Date.now();
+    // focus and visibilitychange commonly fire together on mobile browsers.
+    if (now - lastMobileRecoveryAt < 1200) return;
+    lastMobileRecoveryAt = now;
+    await resumeAudioCtx();
+    if (!callActive || muted || phase !== 'listening') return;
+    stopListening();
+    listen();
   }
 
   /* ── talking to the concierge ── */
@@ -1078,7 +1101,14 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   // If user switched to Site settings to allow mic and returned to this tab, auto-resume.
   // Also re-check even if we don't have a permission query (some browsers skip it).
   on(window, 'focus', async () => {
-    if (!callActive || !muted) return;
+    if (!callActive) return;
+    if (!muted) {
+      // Mobile browsers can suspend both the mic track and AudioContext while
+      // the caller switches apps. Rebuild the recorder after returning so the
+      // call does not look live while silently listening to a dead track.
+      if (phase === 'listening' && IS_MOBILE) void recoverMobileListener();
+      return;
+    }
     try {
       const p = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
       if (p && p.state === 'granted') {
@@ -1097,6 +1127,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         }
       }
     } catch {}
+  });
+
+  on(document, 'visibilitychange', () => {
+    if (!callActive || document.visibilityState !== 'visible' || muted || phase !== 'listening' || !IS_MOBILE) return;
+    void recoverMobileListener();
   });
 
   on($('vc-voice-switch'), 'click', async (e: Event) => {
