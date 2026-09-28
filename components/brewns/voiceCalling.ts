@@ -38,8 +38,11 @@ const END_OF_SPEECH_MS = 450;
 /** Mic level (RMS, 0..1) and how long it must hold to count as talking over the voice. */
 const BARGE_IN_LEVEL = 0.06;
 const BARGE_IN_MS = 280;
-/** True on iOS / iPadOS / Android – these need extra care for AudioContext & getUserMedia. */
-const IS_MOBILE = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+/** True on phones and iPads (including iPadOS desktop-mode Safari). */
+const IS_MOBILE = typeof navigator !== 'undefined' && (
+  /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+);
 
 export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast, playChime, playSoftClick, triggerHaptic }: VoiceCallingDeps) {
   if (typeof window === 'undefined') return () => {};
@@ -548,6 +551,14 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   async function listen() {
     if (!callActive) return;
     if (muted) return setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
+
+    // Mobile SpeechRecognition is frequently missing, stops after one phrase, or
+    // reports a transcript without reliably retaining the live microphone stream.
+    // Capture directly from the permitted mic on phones/tablets; keep recognition
+    // as a fast path on desktop and as a fallback when mobile recording is absent.
+    if (IS_MOBILE && typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
+      return listenWithRecorder();
+    }
 
     // Use native live recognition first when the browser supports it. This avoids
     // waiting for a recording to finish and uploading it for a separate transcript.
