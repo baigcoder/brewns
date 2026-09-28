@@ -6104,6 +6104,7 @@ function renderDone() {
         <div class="done-actions">
           <button type="button" class="btn btn-solid" data-co="chat">MESSAGE ${delivered ? "RIDER / CAFÉ" : "THE CAFÉ"} <span class="trk-badge" id="trk-badge" hidden>0</span></button>
           <button type="button" class="btn btn-line" data-co="receipt">RECEIPT</button>
+          ${!o.cancelled ? `<button type="button" class="btn btn-line done-reorder" data-co="again"><span aria-hidden="true">↻</span><span>ORDER THESE AGAIN</span><small>${o.items.reduce((sum, item) => sum + item.qty, 0)} ITEMS · REVIEW BEFORE PAYING</small></button>` : ""}
         </div>
         <p class="trk-mail mono-fine">${
           o.sent
@@ -6581,6 +6582,11 @@ coEl.addEventListener("click", (e) => {
       w.document.close();
       w.focus();
       return setTimeout(() => w.print(), 250);
+    }
+    if (act === "again" && !o.cancelled) {
+      o.items.forEach((item) => cart.add(item.id, item.sel, item.qty));
+      closeCheckout();
+      return window.setTimeout(openBag, REDUCED ? 0 : 650);
     }
     if (act === "club-join") {
       closeCheckout();
