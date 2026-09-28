@@ -642,28 +642,37 @@ address { font-style: normal; }
 @media (min-width: 1024px) { .hero-copy { position: absolute; margin-block: 0; left: 2.5rem; top: calc(50% - var(--size-hero-copy-rise)); width: var(--size-hero-copy); transform: translateY(-50%); gap: 1.5rem; } }
 .hero-grid { display: grid; justify-items: start; }
 .hero-head { grid-column-start: 1; grid-row-start: 1; display: flex; flex-direction: column; gap: 0.75rem; text-transform: uppercase; }
-@media (max-width: 639.98px) { .hero-head { gap: 1.25rem; } }
+@media (max-width: 639.98px) { .hero-head { gap: 0.625rem; } }
 @media (min-width: 640px) { .hero-head { gap: 1rem; } }
 @media (min-width: 1024px) { .hero-head { gap: 1.25rem; } }
 .hero-h1 { text-align: left; font-family: var(--font-geist); font-weight: 700; font-size: var(--font-size-display-phone); line-height: var(--leading-display); letter-spacing: var(--letter-spacing-tight); }
-@media (max-width: 639.98px) { .hero-h1 { font-size: clamp(2.45rem, 8.2vw, 3rem); } }
-@media (min-width: 640px) { .hero-h1 { font-size: var(--font-size-display-tablet); } }
+@media (max-width: 639.98px) {
+  .hero-h1 {
+    font-size: clamp(2.15rem, 7.5vw, 2.75rem);
+    line-height: 1.08;
+    max-width: 13ch;
+  }
+  .hero-h1 .hero-h1-row { display: block; }
+}
+@media (min-width: 640px) { .hero-h1 { font-size: var(--font-size-display-tablet); } .hero-h1 .hero-h1-row { display: inline; } }
 @media (min-width: 640px) and (max-width: 1023.98px) { .hero-h1 { font-size: var(--font-size-display-hero-tablet); } }
 @media (min-width: 1024px) { .hero-h1 { font-size: var(--font-size-display); } }
-.hero-script { grid-column-start: 1; grid-row-start: 1; margin-left: var(--size-hero-script-x-phone); margin-top: var(--size-hero-script-y-phone); width: max-content; white-space: nowrap; font-family: var(--font-allura); font-size: var(--font-size-script-phone); line-height: var(--line-height-headline); letter-spacing: var(--letter-spacing-tight); clip-path: inset(-12% 100% -22% -4%); }
+.hero-script { grid-column-start: 1; grid-row-start: 1; margin-left: var(--size-hero-script-x-phone); margin-top: var(--size-hero-script-y-phone); width: max-content; white-space: nowrap; font-family: var(--font-allura), 'Allura', cursive; font-size: var(--font-size-script-phone); line-height: var(--line-height-headline); letter-spacing: var(--letter-spacing-tight); clip-path: inset(-12% 100% -22% -4%); color: #e5b378; }
 @media (max-width: 639.98px) {
   .hero-script {
-    margin-left: clamp(7.25rem, 21vw, 8.5rem) !important;
-    margin-top: clamp(4.75rem, 13vw, 5.25rem) !important;
-    font-size: clamp(2.25rem, 7.5vw, 2.75rem) !important;
+    margin-left: clamp(6.25rem, 20vw, 7.5rem) !important;
+    margin-top: clamp(4.15rem, 13.5vw, 4.75rem) !important;
+    font-size: clamp(2.35rem, 7.8vw, 2.9rem) !important;
+    color: #e5b378 !important;
     max-width: calc(100vw - 2.5rem);
     white-space: nowrap;
+    text-shadow: 0 2px 14px rgba(201, 147, 85, 0.3);
   }
 }
-@media (min-width: 640px) { .hero-script { margin-left: var(--size-hero-script-x-tablet); margin-top: var(--size-hero-script-y-tablet); font-size: var(--font-size-script-tablet); } }
-@media (min-width: 1024px) { .hero-script { margin-left: var(--size-hero-script-x); margin-top: var(--size-hero-script-y); font-size: var(--font-size-script); } }
+@media (min-width: 640px) { .hero-script { margin-left: var(--size-hero-script-x-tablet); margin-top: var(--size-hero-script-y-tablet); font-size: var(--font-size-script-tablet); color: #e5b378; } }
+@media (min-width: 1024px) { .hero-script { margin-left: var(--size-hero-script-x); margin-top: var(--size-hero-script-y); font-size: var(--font-size-script); color: #e5b378; } }
 .hero-lede { display: flex; width: 100%; flex-direction: column; gap: 1.5rem; }
-@media (max-width: 639.98px) { .hero-lede { width: 17rem; gap: 2.25rem; } }
+@media (max-width: 639.98px) { .hero-lede { width: 100%; max-width: 21rem; gap: 1.75rem; } }
 @media (min-width: 640px) { .hero-lede { width: 20rem; gap: 2rem; } }
 @media (min-width: 640px) and (max-width: 1023.98px) { .hero-lede { gap: 2.375rem; } }
 @media (min-width: 1024px) { .hero-lede { width: 16.5rem; gap: 2.5rem; } }
@@ -1285,11 +1294,11 @@ address { font-style: normal; }
 .feature .pcard-media img { max-height: 24rem; }
 @media (min-width: 1024px) { .feature .pcard-media img { max-height: min(24rem, 44vh); } }
 .pcard:hover .pcard-media img, .pcard:hover .pcard-media .giftcard { transform: translateY(-0.5rem) scale(1.04); }
-.pcard-photo { position: absolute; inset: 0; background: var(--surface-inverse); opacity: 0.94; }
-.pcard-photo + img { position: relative; }
+.pcard-photo { position: absolute; inset: 0; background: var(--surface-inverse); opacity: 0.94; z-index: 1; }
+.pcard-photo + img { position: relative; z-index: 2; }
 .pcard-loading { width: 3rem; height: 3rem; border-radius: 9999px; border: 1px solid rgb(255 255 255 / 0.2); border-top-color: #fff; animation: spin 900ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.pcard-view { position: absolute; right: 0.75rem; top: 0.75rem; display: flex; align-items: center; gap: 0.5rem; color: #070707; opacity: 0; transform: translateY(-0.375rem); transition: opacity 300ms var(--ease-entrance), transform 300ms var(--ease-entrance); z-index: 1; }
+.pcard-view { position: absolute; right: 0.75rem; top: 0.75rem; display: flex; align-items: center; gap: 0.5rem; color: #070707; opacity: 0; transform: translateY(-0.375rem); transition: opacity 300ms var(--ease-entrance), transform 300ms var(--ease-entrance); z-index: 3; }
 .pcard-view.on-dark { color: #fff; }
 .pcard:hover .pcard-view { opacity: 1; transform: none; }
 @media (max-width: 767.98px) { .pcard-view { display: none; } }
@@ -1310,12 +1319,12 @@ address { font-style: normal; }
   .shop-grid > li:not(.feature) .pcard { min-height: 0; padding: 0.625rem; }
   .shop-grid > li:not(.feature) .pcard-top > span:last-child:not(.pcard-tag) { display: none; }
   .shop-grid > li:not(.feature) .pcard-tag { font-size: 0.5625rem; padding-inline: 0.4rem; white-space: nowrap; }
-  .shop-grid > li:not(.feature) .pcard-media { min-height: 0; aspect-ratio: 1; margin-block: 0.5rem; }
+  .shop-grid > li:not(.feature) .pcard-media { min-height: 0; aspect-ratio: 1; margin-block: 0.5rem; position: relative; }
   .shop-grid > li:not(.feature) .pcard-media img, .shop-grid > li:not(.feature) .pcard-media .giftcard { max-width: 100%; max-height: 100%; }
   /* the photo fills a square frame and never spills over the name and price;
      tall shots (the iced drinks) fit inside it rather than overflowing */
   .shop-grid > li:not(.feature) .pcard-media:has(img) { overflow: hidden; }
-  .shop-grid > li:not(.feature) .pcard-media img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
+  .shop-grid > li:not(.feature) .pcard-media img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; z-index: 2; }
   .shop-grid > li:not(.feature) .pcard-media img.shot { object-fit: contain; }
   .shop-grid > li:not(.feature) .pcard:hover .pcard-media img { transform: none; }
   .shop-grid > li:not(.feature) .pcard-foot { flex-direction: column; align-items: stretch; gap: 0.5rem; }
@@ -1368,6 +1377,10 @@ address { font-style: normal; }
 .pdp-view[aria-pressed="true"] span { color: var(--view-ink, #070707); }
 .pdp-media.light .pdp-view[aria-pressed="true"] span { color: #f1f1ef; }
 .pdp-hint { position: absolute; right: 1.25rem; bottom: 1.25rem; z-index: 2; opacity: 0.55; pointer-events: none; }
+@media (max-width: 639.98px) {
+  .pdp-hint { left: 1.25rem; right: auto; bottom: 3.75rem; font-size: 0.6875rem; }
+  .pdp-views { left: 1.25rem; bottom: 1.25rem; }
+}
 @media (min-width: 640px) { .pdp-hint { right: 2.5rem; bottom: 2.5rem; } }
 .pdp-close { position: fixed; top: 1.25rem; right: 1.25rem; z-index: 3; color: #fff; background: rgb(7 7 7 / 0.4); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 @media (min-width: 640px) { .pdp-close { top: 1.5rem; right: 2.5rem; } }
@@ -1378,8 +1391,8 @@ address { font-style: normal; }
 .pdp-kicker { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: rgb(255 255 255 / 0.5); }
 .pdp-name { font-family: var(--font-geist); font-weight: 700; font-size: 3rem; line-height: 0.9; letter-spacing: var(--letter-spacing-tight); text-transform: uppercase; }
 @media (min-width: 640px) { .pdp-name { font-size: 4.5rem; } }
-.pdp-priceline { display: flex; align-items: baseline; gap: 0.875rem; margin-top: 1rem; }
-.pdp-price { font-family: var(--font-space-mono); font-size: 1.5rem; line-height: 1; }
+.pdp-priceline { display: flex; align-items: baseline; gap: 0.875rem; margin-top: 1rem; flex-wrap: wrap; }
+.pdp-price { font-family: var(--font-space-mono); font-size: 1.5rem; line-height: 1; white-space: nowrap; flex-shrink: 0; }
 .pdp-was { font-family: var(--font-space-mono); font-size: 0.9375rem; color: rgb(255 255 255 / 0.4); text-decoration: line-through; }
 .pdp-desc { max-width: 32rem; font-family: var(--font-geist); font-weight: 600; font-size: 1.0625rem; line-height: 1.45; color: rgb(255 255 255 / 0.78); }
 .pdp-notes { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: -0.5rem; }
@@ -3866,20 +3879,146 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
 /* Phones: the bar keeps to one line. The concierge and sound buttons go to
    their icons (the labels stay for screen readers), the logo gets its size back. */
 @media (max-width: 639.98px) {
-  .hdr { gap: 0.5rem; }
+  .hdr {
+    left: 0.75rem;
+    right: 0.75rem;
+    top: 0.75rem;
+    gap: 0.35rem;
+  }
+  .hdr.scrolled {
+    padding-inline: 0.75rem;
+    margin-top: -0.35rem;
+  }
+  .hdr-account {
+    height: 1.65rem !important;
+    padding: 0 0.5rem !important;
+    font-size: 0.625rem !important;
+  }
   .hdr .hdr-voice { padding: 0.45rem 0.6rem !important; gap: 0.3rem !important; }
   .hdr .hdr-voice > span:not(.hdr-voice-dot),
   .hdr-sound #sound-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .hdr .hdr-voice-phone-icon { width: 14px; height: 14px; margin-right: 0 !important; }
-  .hdr-sound { margin-left: auto !important; padding-inline: 0.55rem; }
-  .hdr-mark { width: calc(var(--size-logo-width) * 1.15); flex-shrink: 0; }
-  .hdr-bag { margin-left: 0.25rem !important; margin-right: 0.9rem !important; }
+  .hdr-sound { margin-left: auto !important; padding-inline: 0.5rem; }
+  .hdr-mark { width: calc(var(--size-logo-width) * 1.05); flex-shrink: 0; }
+  .hdr-bag { margin-left: 0 !important; margin-right: 0.4rem !important; gap: 0.35rem !important; }
+  .hdr-bag span:first-child { font-size: 0.6875rem !important; }
+  .hdr-bag-count { min-width: 1.35rem !important; height: 1.35rem !important; font-size: 0.6875rem !important; }
+  .hdr-toggle { width: 2.25rem !important; height: 2.25rem !important; }
 }
 
-/* With the EN / اردو pill beside it, the line badge keeps to one line. */
+.vc-badge-short { display: none; }
 .voice-call-badge { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .voice-call-top { gap: 0.6rem; }
-@media (max-width: 520px) { .voice-call-badge #vc-badge-text { font-size: 0.625rem; } }
+
+/* ── Mobile Voice Call UI Full-Screen Luxury Sheet ── */
+@media (max-width: 639.98px) {
+  .vc-badge-full { display: none; }
+  .vc-badge-short { display: inline; }
+
+  .voice-call-modal {
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+  .voice-call-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .voice-call-top {
+    padding: max(env(safe-area-inset-top, 0.75rem), 0.75rem) 1rem 0.65rem !important;
+    gap: 0.5rem !important;
+  }
+  .voice-call-badge {
+    font-size: 0.625rem !important;
+    padding: 0.2rem 0.55rem !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 48vw !important;
+  }
+  .voice-call-top-right {
+    gap: 0.5rem !important;
+  }
+  .voice-call-timer {
+    font-size: 0.6875rem !important;
+    padding: 0.2rem 0.5rem !important;
+  }
+  .voice-call-stage {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 0.75rem 1rem 0.5rem !important;
+    justify-content: center !important;
+  }
+  .voice-avatar-wrap {
+    width: 76px !important;
+    height: 76px !important;
+    margin-bottom: 0.65rem !important;
+  }
+  .voice-avatar {
+    width: 68px !important;
+    height: 68px !important;
+  }
+  .vc-avatar-mono {
+    font-size: 1.85rem !important;
+  }
+  .voice-concierge-name {
+    font-size: 1.15rem !important;
+    margin-bottom: 0.15rem !important;
+  }
+  .voice-concierge-role {
+    font-size: 0.6875rem !important;
+    margin-bottom: 0.65rem !important;
+  }
+  .voice-soundwave {
+    height: 26px !important;
+    margin-bottom: 0.65rem !important;
+  }
+  .voice-caption-box {
+    min-height: 56px !important;
+    padding: 0.6rem 0.85rem !important;
+    margin-bottom: 0.65rem !important;
+    border-radius: 12px !important;
+  }
+  .voice-caption-text {
+    font-size: 0.8125rem !important;
+    line-height: 1.4 !important;
+  }
+  .voice-chips-container {
+    margin-bottom: 0.25rem !important;
+  }
+  .voice-chip {
+    font-size: 0.6875rem !important;
+    padding: 0.35rem 0.75rem !important;
+  }
+  .voice-call-controls {
+    padding: 0.75rem 1rem calc(env(safe-area-inset-bottom, 0.75rem) + 0.85rem) !important;
+    gap: 0.75rem !important;
+    background: rgba(14, 11, 9, 0.96) !important;
+    flex-shrink: 0 !important;
+  }
+  .voice-action-icon {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  .voice-action-btn.primary-mic .voice-action-icon {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .voice-action-btn.hangup .voice-action-icon {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  .voice-action-btn {
+    font-size: 0.5625rem !important;
+    gap: 0.35rem !important;
+  }
+}
 
 /* ═══════════ header actions: one family of buttons ═══════════
    Sound, Call concierge, Order online and Bag share one height, one radius and

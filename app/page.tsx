@@ -2,18 +2,39 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { BrewnsApp } from '@/components/brewns/BrewnsApp';
 
+const DEFAULT_KITCHEN_PHOTOS: Record<string, string> = {
+  'alfredo-pasta': 'alfredo-pasta.webp',
+  'arrabbiata-pasta': 'arrabbiata-pasta.webp',
+  'bbq-burger': 'bbq-burger.webp',
+  'behari-roll': 'behari-roll.webp',
+  'crispy-wrap': 'crispy-wrap.webp',
+  'fajita-pizza': 'fajita-pizza.webp',
+  'lime-soda': 'lime-soda.webp',
+  'mango-smoothie': 'mango-smoothie.webp',
+  'margherita-pizza': 'margherita-pizza.webp',
+  'mint-margarita': 'mint-margarita.webp',
+  'peach-iced-tea': 'peach-iced-tea.webp',
+  'pepperoni-pizza': 'pepperoni-pizza.webp',
+  'pesto-pasta': 'pesto-pasta.webp',
+  'smash-burger': 'smash-burger.webp',
+  'tikka-roll': 'tikka-roll.webp',
+  'zinger-burger': 'zinger-burger.webp',
+};
+
 /** The kitchen photos that exist, by dish id, so the page never asks for a missing one. */
 let cachedPhotos: Record<string, string> | null = null;
 function kitchenPhotos() {
   if (cachedPhotos !== null) return cachedPhotos;
   try {
     const files = readdirSync(path.join(process.cwd(), 'public/assets/kitchen'));
-    cachedPhotos = Object.fromEntries(
+    const discovered = Object.fromEntries(
       files.filter((f) => /\.(jpe?g|png|webp|avif)$/i.test(f)).map((f) => [f.replace(/\.\w+$/, ''), f]),
     );
+    cachedPhotos = Object.keys(discovered).length > 0 ? discovered : DEFAULT_KITCHEN_PHOTOS;
     return cachedPhotos;
   } catch {
-    return {};
+    cachedPhotos = DEFAULT_KITCHEN_PHOTOS;
+    return cachedPhotos;
   }
 }
 

@@ -904,12 +904,10 @@ const KITCHEN = KITCHEN_BASE.map((k) => {
   return {
     ...k,
     cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
-    // A real photo in public/assets/kitchen/ wins; until one is there the drawn
-    // dish stands in. The server lists the photos that exist, so a missing one is
-    // never requested; without that list, try <id>.jpg and fall back on error.
-    photo: kitchenPhotos ? (kitchenPhotos[k.id] ? `kitchen/${kitchenPhotos[k.id]}` : art) : `kitchen/${k.id}.webp`,
+    photo: kitchenPhotos && kitchenPhotos[k.id] ? `kitchen/${kitchenPhotos[k.id]}` : `kitchen/${k.id}.webp`,
     art,
     alt: `The brewns ${k.name.toLowerCase()}`,
+    cutout: true,
     care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
   };
 });
@@ -918,9 +916,11 @@ const KITCHEN_ART = Object.fromEntries(KITCHEN.map((k) => [k.id, k.art]));
 document.addEventListener(
   "error",
   (e) => {
-    const img = e.target;
+    const img = e.target as HTMLImageElement;
     if (img?.tagName !== "IMG" || img.dataset.artFallback) return;
-    const id = img.getAttribute("src")?.match(/\/kitchen\/([\w-]+)(\.\w+)?$/)?.[1];
+    const src = img.getAttribute("src") || "";
+    const id = src.match(/(?:kitchen|products\/kitchen)\/([\w-]+)(?:\.\w+)?$/)?.[1]
+      || img.getAttribute("alt")?.toLowerCase().replace(/^the brewns\s+/, "").replace(/\s+/g, "-");
     if (!id || !KITCHEN_ART[id]) return;
     img.dataset.artFallback = "1";
     img.src = KITCHEN_ART[id];
@@ -931,14 +931,6 @@ const CLOUDINARY_CLOUD = "e4j256t4";
 const cldProductUrl = (path: string) => {
   if (!path || path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) return path;
   const clean = path.replace(/^\/?assets\//, "").replace(/^\//, "");
-  if (clean.startsWith("kitchen/")) {
-    const id = clean.replace("kitchen/", "").replace(/\.\w+$/, "");
-    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD}/image/upload/f_auto,q_auto/brewns/products/kitchen/${id}`;
-  }
-  if (clean.startsWith("shop/snap/")) {
-    const id = clean.replace("shop/snap/", "").replace(/\.\w+$/, "");
-    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD}/image/upload/f_auto,q_auto/brewns/products/shop/${id}`;
-  }
   return `${ASSET_BASE_URL}${clean}`;
 };
 
