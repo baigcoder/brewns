@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { catalogItem, defaultSel, money } from '@/lib/catalog';
+import './flavor.css';
 
 type FlavorNote = {
   id: string;
@@ -112,168 +114,122 @@ export function FlavorMatcher() {
     setTimeout(() => setAdded((a) => (a === c.id ? null : a)), 2500);
   };
 
+  const families = (Object.keys(TONE) as (keyof typeof TONE)[]).map((f) => ({ family: f, notes: FLAVOR_NOTES.filter((n) => n.category === f) }));
+  const none = !selectedNotes.length;
+
   return (
-    <div
-      style={{
-        background: '#141413',
-        border: '1px solid var(--cx-line-2, #262624)',
-        borderRadius: '20px',
-        padding: '36px',
-        maxWidth: '860px',
-        margin: '0 auto',
-      }}
-    >
-      <div style={{ marginBottom: 28 }}>
-        <p className="cx-eyebrow" style={{ color: 'var(--cx-accent, #c99355)', marginBottom: 4 }}>
-          <b>{'//'}</b> Specialty Bean Matcher
-        </p>
-        <h1 style={{ fontSize: '28px', color: '#f5ede3', fontWeight: 600, margin: 0 }}>
-          Find your coffee
-        </h1>
-        <p style={{ color: 'var(--cx-muted, #8e8d88)', fontSize: '14px', marginTop: 6 }}>
-          Pick the flavours you like and we&apos;ll rank our beans for you, roasted weekly in small batches in Lahore.
-        </p>
+    <div className="fm">
+      <div className="fm-head">
+        <p className="fm-eyebrow">{'//'} Bean matcher</p>
+        <h1 className="fm-title">Find your coffee</h1>
+        <p className="fm-sub">Tap the flavours you like. We rank our beans for you, roasted weekly in small batches in Lahore.</p>
       </div>
 
-      {/* Flavor Notes Picker */}
-      <div style={{ marginBottom: 32 }}>
-        <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--cx-muted, #8e8d88)', display: 'block', marginBottom: 10 }}>
-          1. Pick the flavours you enjoy{selectedNotes.length ? ` · ${selectedNotes.length} picked` : ''}
-        </span>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {FLAVOR_NOTES.map((n) => {
-            const active = selectedNotes.includes(n.id);
-            return (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => toggleNote(n.id)}
-                style={{
-                  padding: '9px 15px',
-                  borderRadius: '10px',
-                  border: active ? '1px solid var(--cx-accent, #c99355)' : '1px solid var(--cx-line-2, #262624)',
-                  background: active ? 'rgba(201, 147, 85, 0.16)' : '#191918',
-                  color: active ? '#f5ede3' : 'var(--cx-muted, #8e8d88)',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontWeight: active ? 600 : 400,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: TONE[n.category], flexShrink: 0 }} />
-                <span>{n.label}</span>
+      <div className="fm-grid">
+        <aside className="fm-taste" aria-label="Flavours you like">
+          <div className="fm-taste-top">
+            <p className="fm-k">Your taste{selectedNotes.length ? ` · ${selectedNotes.length}` : ''}</p>
+            {!none && (
+              <button type="button" className="fm-clear" onClick={() => setSelectedNotes([])}>
+                Clear
               </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Matches List */}
-      <div>
-        <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--cx-muted, #8e8d88)', display: 'block', marginBottom: 12 }}>
-          2. Our coffees, best match first
-        </span>
-
-        <div style={{ display: 'grid', gap: '18px' }}>
-          {matches.map((c) => {
-            const pct = Math.round((c.score / Math.max(1, selectedNotes.length)) * 100);
-            const none = !selectedNotes.length;
-            return (
-              <div
-                key={c.id}
-                style={{
-                  background: '#191918',
-                  border: '1px solid var(--cx-line-2, #262624)',
-                  borderRadius: '14px',
-                  padding: 'clamp(16px, 4vw, 24px)',
-                  display: 'grid',
-                  gap: '14px',
-                  minWidth: 0,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <span style={{ fontSize: '11px', color: 'var(--cx-accent, #c99355)', fontWeight: 700, letterSpacing: '0.08em' }}>
-                      {c.tag}
-                    </span>
-                    <h3 style={{ fontSize: '20px', color: '#f5ede3', margin: '2px 0 0', fontWeight: 700 }}>
-                      {c.name}
-                    </h3>
-                    <div style={{ fontSize: '13px', color: 'var(--cx-muted, #8e8d88)', marginTop: 2 }}>
-                      {c.origin} · {c.altitude}
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: '#f5ede3', fontFamily: 'var(--font-space-mono)' }}>
-                      {money(catalogItem(c.id)?.price ?? 0)}
-                    </div>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        padding: '3px 8px',
-                        borderRadius: 6,
-                        background: pct > 50 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(201, 147, 85, 0.15)',
-                        color: pct > 50 ? '#4ade80' : 'var(--cx-accent, #c99355)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {none ? 'Pick a note' : `${pct}% match`}
-                    </span>
-                  </div>
-                </div>
-
-                <p style={{ fontSize: '14px', color: '#ccc', lineHeight: 1.5, margin: 0 }}>
-                  {c.desc}
-                </p>
-
-                {/* Tasting Tags */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {c.notes.map(([note, noteKey]) => {
-                    const matched = !!noteKey && selectedNotes.includes(noteKey);
-                    return (
-                      <span
-                        key={note}
-                        style={{
-                          fontSize: '12px',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          background: matched ? 'rgba(201, 147, 85, 0.2)' : '#242422',
-                          color: matched ? 'var(--cx-accent, #c99355)' : '#aaa',
-                          border: matched ? '1px solid var(--cx-accent, #c99355)' : '1px solid transparent',
-                          fontWeight: matched ? 600 : 400,
-                        }}
-                      >
-                        {matched ? '✓ ' : ''}{note}
-                      </span>
-                    );
-                  })}
-                </div>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid #262624' }}>
-                  <div style={{ fontSize: '12px', color: 'var(--cx-muted, #8e8d88)' }}>
-                    Roast: <b style={{ color: '#eee' }}>{c.roast}</b> · Process: <b style={{ color: '#eee' }}>{c.process}</b>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                    <button
-                      type="button"
-                      className="cx-btn primary"
-                      onClick={() => handleAddToBag(c)}
-                    >
-                      {added === c.id ? '✓ Added' : '+ Add 250 g bag'}
+            )}
+          </div>
+          {families.map(({ family, notes }) => (
+            <div key={family} className="fm-family">
+              <p className="fm-family-name">
+                <i style={{ background: TONE[family] }} aria-hidden="true" />
+                {family}
+              </p>
+              <div className="fm-chips">
+                {notes.map((n) => {
+                  const active = selectedNotes.includes(n.id);
+                  return (
+                    <button key={n.id} type="button" aria-pressed={active} className={`fm-chip${active ? ' on' : ''}`} style={{ '--tone': TONE[n.category] } as React.CSSProperties} onClick={() => toggleNote(n.id)}>
+                      {active && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M5 12l5 5L20 7" />
+                        </svg>
+                      )}
+                      {n.label}
                     </button>
-                    <Link href="/?bag=open" className="cx-btn" style={{ background: '#252524' }}>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </aside>
+
+        <section className="fm-results" aria-label="Our coffees, best match first" aria-live="polite">
+          {matches.map((c, rank) => {
+            const p = catalogItem(c.id);
+            const pct = Math.round((c.score / Math.max(1, selectedNotes.length)) * 100);
+            const best = !none && rank === 0 && c.score > 0;
+            return (
+              <article key={c.id} className={`fm-card${best ? ' best' : ''}`}>
+                <div className="fm-photo">{p?.photo && <Image src={`/assets/${p.photo}`} alt={p.alt || c.name} width={220} height={260} />}</div>
+                <div className="fm-body">
+                  <div className="fm-card-top">
+                    <div>
+                      <p className="fm-tag">
+                        {best && <span className="fm-best">Best match</span>}
+                        {c.tag}
+                      </p>
+                      <h2 className="fm-name">{c.name}</h2>
+                      <p className="fm-origin">{c.origin}</p>
+                    </div>
+                    <p className="fm-price">{money(p?.price ?? 0)}</p>
+                  </div>
+
+                  <div className="fm-match">
+                    <div className="fm-bar" aria-hidden="true">
+                      <i style={{ width: `${none ? 0 : pct}%` }} />
+                    </div>
+                    <span>{none ? 'Pick a flavour to see the match' : `${pct}% match · ${c.score} of ${selectedNotes.length} flavours`}</span>
+                  </div>
+
+                  <p className="fm-desc">{c.desc}</p>
+
+                  <div className="fm-notes">
+                    {c.notes.map(([note, noteKey]) => {
+                      const matched = !!noteKey && selectedNotes.includes(noteKey);
+                      return (
+                        <span key={note} className={`fm-note${matched ? ' on' : ''}`}>
+                          {matched ? '✓ ' : ''}
+                          {note}
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  <dl className="fm-specs">
+                    <div>
+                      <dt>Roast</dt>
+                      <dd>{c.roast}</dd>
+                    </div>
+                    <div>
+                      <dt>Process</dt>
+                      <dd>{c.process}</dd>
+                    </div>
+                    <div>
+                      <dt>Altitude</dt>
+                      <dd>{c.altitude}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="fm-actions">
+                    <button type="button" className={`fm-add${added === c.id ? ' ok' : ''}`} onClick={() => handleAddToBag(c)}>
+                      {added === c.id ? '✓ Added to bag' : `Add 250 g · ${money(p?.price ?? 0)}`}
+                    </button>
+                    <Link href="/?bag=open" className="fm-view">
                       View bag{bagCount ? ` (${bagCount})` : ''} →
                     </Link>
                   </div>
                 </div>
-              </div>
+              </article>
             );
           })}
-        </div>
+        </section>
       </div>
     </div>
   );

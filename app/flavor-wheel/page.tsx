@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function FlavorWheelPage() {
   return (
-    <SitePage current="flavor-wheel" width={860}>
+    <SitePage current="flavor-wheel" width={1120}>
       <FlavorMatcher />
     </SitePage>
   );

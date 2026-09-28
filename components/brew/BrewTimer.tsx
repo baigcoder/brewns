@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { playKitchenChime, playSuccessChime } from '@/lib/audio-alerts';
+import './brew.css';
 
 type BrewMethod = {
   id: string;
@@ -207,263 +208,190 @@ export function BrewTimer() {
     return `${mins.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}`;
   };
 
-  const progressPct = Math.min(100, (sec / method.totalTimeSec) * 100);
+  const setDose = (g: number) => setDoseText(String(Math.min(60, Math.max(5, g))));
+  const stepIdx = done ? method.steps.length : Math.max(0, activeStepIdx);
+  const nextStep = method.steps[stepIdx + 1];
+  const stepLeft = done ? 0 : currentStep.endSec - sec;
+  const pourTo = Math.round(totalWater * currentStep.waterPct);
+
+  // The ring: one arc per step, and the elapsed time drawn over it.
+  const R = 118;
+  const C = 2 * Math.PI * R;
+  const gap = 6;
+  const arcs = method.steps.map((st, i) => {
+    const from = (st.startSec / method.totalTimeSec) * C;
+    const len = ((st.endSec - st.startSec) / method.totalTimeSec) * C - gap;
+    return { i, from, len: Math.max(2, len) };
+  });
+  const elapsed = (sec / method.totalTimeSec) * C;
 
   return (
-    <div
-      style={{
-        background: '#141413',
-        border: '1px solid var(--cx-line-2, #262624)',
-        borderRadius: '20px',
-        padding: '36px',
-        maxWidth: '820px',
-        margin: '0 auto',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+    <div className="bt">
+      <div className="bt-head">
         <div>
-          <p className="cx-eyebrow" style={{ color: 'var(--cx-accent, #c99355)', marginBottom: 4 }}>
-            <b>{'//'}</b> Brew Companion
-          </p>
-          <h1 style={{ fontSize: '28px', color: '#f5ede3', fontWeight: 600, margin: 0 }}>
-            Brew timer
-          </h1>
-          <p style={{ color: 'var(--cx-muted, #8e8d88)', fontSize: '14px', marginTop: 4 }}>
-            Pick a brewer, set your dose, and follow each pour. A chime marks every step. Press space to start or pause.
-          </p>
+          <p className="bt-eyebrow">{'//'} Brew companion</p>
+          <h1 className="bt-title">Brew timer</h1>
+          <p className="bt-sub">Pick a brewer, set your dose, and follow each pour. A chime marks every step.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setAudioEnabled((a) => !a)}
-          style={{
-            background: audioEnabled ? 'rgba(201, 147, 85, 0.15)' : '#222',
-            border: '1px solid #333',
-            color: audioEnabled ? 'var(--cx-accent, #c99355)' : '#888',
-            borderRadius: '8px',
-            padding: '8px 12px',
-            fontSize: '12px',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            cursor: 'pointer',
-          }}
-        >
-          {audioEnabled ? 'Sound on' : 'Sound off'}
+        <button type="button" className={`bt-sound${audioEnabled ? ' on' : ''}`} onClick={() => setAudioEnabled((a) => !a)} aria-pressed={audioEnabled} aria-label={audioEnabled ? 'Mute step chimes' : 'Turn on step chimes'}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M11 5L6 9H3v6h3l5 4z" />
+            {audioEnabled ? <path d="M15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13" /> : <path d="M16 9l5 6M21 9l-5 6" />}
+          </svg>
+          <span>{audioEnabled ? 'Chimes on' : 'Chimes off'}</span>
         </button>
       </div>
 
-      {/* Method Switcher */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginBottom: 28 }}>
+      <div className="bt-methods" role="tablist" aria-label="Brewer">
         {BREW_METHODS.map((m) => {
           const active = method.id === m.id;
           return (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => handleSelectMethod(m)}
-              style={{
-                padding: '12px 14px',
-                borderRadius: '10px',
-                border: active ? '1px solid var(--cx-accent, #c99355)' : '1px solid var(--cx-line-2, #262624)',
-                background: active ? 'rgba(201, 147, 85, 0.12)' : '#181817',
-                color: active ? '#f5ede3' : 'var(--cx-muted, #8e8d88)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontWeight: active ? 600 : 400,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <span style={{ display: 'grid', color: active ? 'var(--cx-accent, #c99355)' : 'inherit' }}><MethodIcon id={m.id} /></span>
-              <span style={{ fontSize: '13px' }}>{m.name}</span>
+            <button key={m.id} type="button" role="tab" aria-selected={active} className={`bt-method${active ? ' on' : ''}`} onClick={() => handleSelectMethod(m)}>
+              <span className="bt-method-icon">
+                <MethodIcon id={m.id} />
+              </span>
+              <span className="bt-method-text">
+                <b>{m.name.replace(' (Inverted)', '')}</b>
+                <small>
+                  1:{m.ratio} · {Math.round(m.totalTimeSec / 60)} min{m.id === 'aeropress' ? ' · inverted' : ''}
+                </small>
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* Calculator Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-          gap: '16px',
-          background: '#1a1a19',
-          padding: '18px 20px',
-          borderRadius: '12px',
-          border: '1px solid #282826',
-          marginBottom: 32,
-        }}
-      >
-        <div>
-          <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', letterSpacing: '0.08em' }}>Coffee Dose</span>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={5}
-              max={60}
-              value={doseText}
-              aria-label="Coffee dose in grams"
-              onChange={(e) => setDoseText(e.target.value.replace(/[^\d]/g, '').slice(0, 2))}
-              onBlur={() => setDoseText(String(dose))}
-              disabled={running}
-              style={{
-                width: '64px',
-                padding: '4px 8px',
-                background: '#0d0d0c',
-                border: '1px solid #333',
-                color: '#fff',
-                fontSize: '18px',
-                fontWeight: 700,
-                borderRadius: '6px',
-              }}
-            />
-            <span style={{ fontSize: '14px', color: '#ccc' }}>grams</span>
+      <div className="bt-main">
+        <div className="bt-clock">
+          <div className="bt-ring">
+            <svg viewBox="0 0 280 280" aria-hidden="true">
+              {arcs.map((a) => (
+                <circle key={a.i} cx="140" cy="140" r={R} className={`bt-arc${a.i < stepIdx ? ' past' : a.i === stepIdx && (running || sec > 0) ? ' now' : ''}`} strokeDasharray={`${a.len} ${C}`} strokeDashoffset={-a.from} />
+              ))}
+              <circle cx="140" cy="140" r={R} className="bt-progress" strokeDasharray={`${elapsed} ${C}`} />
+            </svg>
+            <div className="bt-ring-in">
+              <span className="bt-ring-step">{done ? 'Done' : sec === 0 && !running ? 'Ready' : currentStep.name}</span>
+              <span className={`bt-time${done ? ' done' : ''}`} aria-live="off">
+                {formatMinSec(sec)}
+              </span>
+              <span className="bt-ring-of">of {formatMinSec(method.totalTimeSec)}</span>
+            </div>
           </div>
-        </div>
-
-        <div>
-          <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', letterSpacing: '0.08em' }}>Ratio</span>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: '#f5ede3', marginTop: 4, fontFamily: 'var(--font-space-mono)' }}>
-            1:{method.ratio}
+          <div className="bt-controls">
+            <button type="button" className="bt-play" onClick={togglePlay}>
+              {running ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <rect x="6" y="5" width="4" height="14" rx="1" />
+                  <rect x="14" y="5" width="4" height="14" rx="1" />
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z" />
+                </svg>
+              )}
+              <span>{running ? 'Pause' : done ? 'Brew again' : sec === 0 ? 'Start brew' : 'Resume'}</span>
+            </button>
+            <button type="button" className="bt-reset" onClick={handleReset} disabled={sec === 0 && !running} aria-label="Reset timer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+            </button>
           </div>
+          <p className="bt-hint">
+            <kbd>Space</kbd> to start or pause
+          </p>
         </div>
 
-        <div>
-          <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', letterSpacing: '0.08em' }}>Target Water</span>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--cx-accent, #c99355)', marginTop: 4, fontFamily: 'var(--font-space-mono)' }}>
-            {totalWater} g (ml)
+        <div className="bt-side">
+          <div className={`bt-now${done ? ' done' : ''}`} aria-live="polite">
+            <div className="bt-now-top">
+              <span className="bt-now-label">{done ? 'Brew complete' : `Step ${stepIdx + 1} of ${method.steps.length}`}</span>
+              {!done && (running || sec > 0) && <span className="bt-now-left">next in {formatMinSec(stepLeft)}</span>}
+            </div>
+            <h2 className="bt-now-name">{done ? 'Enjoy your cup' : currentStep.name}</h2>
+            <p className="bt-now-text">{done ? 'Let it cool a minute, then taste. Too sour next time? Grind a little finer. Too bitter? A little coarser.' : currentStep.instructions}</p>
+            <div className="bt-pour">
+              <span>{done ? 'Poured' : 'Pour until the scale reads'}</span>
+              <b>
+                {done ? totalWater : pourTo}
+                <small> g</small>
+              </b>
+            </div>
+            {nextStep && !done && (
+              <p className="bt-next">
+                Then: <b>{nextStep.name}</b> at {formatMinSec(nextStep.startSec)}
+                {Math.round(totalWater * nextStep.waterPct) !== pourTo ? ` · to ${Math.round(totalWater * nextStep.waterPct)} g` : ''}
+              </p>
+            )}
           </div>
-        </div>
 
-        <div style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: '8px 28px', paddingTop: 14, borderTop: '1px solid #282826' }}>
-          <div>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', letterSpacing: '0.08em' }}>Grind</span>
-            <div style={{ fontSize: '14px', color: '#f5ede3', marginTop: 4 }}>{method.grind}</div>
-          </div>
-          <div>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', letterSpacing: '0.08em' }}>Water temperature</span>
-            <div style={{ fontSize: '14px', color: '#f5ede3', marginTop: 4 }}>{method.temp}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Timer Display */}
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-space-mono)',
-            fontSize: '68px',
-            fontWeight: 800,
-            letterSpacing: '0.04em',
-            color: sec >= method.totalTimeSec ? 'var(--cx-accent, #c99355)' : '#ffffff',
-            lineHeight: 1,
-            textShadow: '0 4px 24px rgba(0,0,0,0.8)',
-          }}
-        >
-          {formatMinSec(sec)}
-        </div>
-        <div style={{ fontSize: '14px', color: 'var(--cx-muted, #8e8d88)', marginTop: 8 }}>
-          Target: {formatMinSec(method.totalTimeSec)}
-        </div>
-
-        {/* Progress Bar */}
-        <div style={{ height: '6px', background: '#252523', borderRadius: '3px', margin: '20px auto 0', maxWidth: '400px', overflow: 'hidden' }}>
-          <div
-            style={{
-              height: '100%',
-              width: `${progressPct}%`,
-              background: 'linear-gradient(90deg, #c99355, #f3ca8c)',
-              transition: 'width 0.3s ease',
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Current Step Instruction Card */}
-      <div
-        style={{
-          background: 'rgba(201, 147, 85, 0.08)',
-          border: '1px solid rgba(201, 147, 85, 0.25)',
-          borderRadius: '12px',
-          padding: '20px 24px',
-          marginBottom: 32,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--cx-accent, #c99355)' }}>
-            {done ? 'Brew complete' : `Step ${activeStepIdx + 1} of ${method.steps.length}: ${currentStep.name}`}
-          </span>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#f5ede3', fontFamily: 'var(--font-space-mono)' }}>
-            {done ? `${totalWater}g poured` : `Scale at ${Math.round(totalWater * currentStep.waterPct)}g`}
-          </span>
-        </div>
-        <div style={{ fontSize: '15px', color: '#f5ede3', lineHeight: 1.5 }}>
-          {done ? 'Pour, let it cool a minute, and taste. Too sour next time? Grind a little finer. Too bitter? A little coarser.' : currentStep.instructions}
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: '14px', justifyContent: 'center' }}>
-        <button
-          type="button"
-          onClick={togglePlay}
-          className="cx-btn primary big"
-          style={{ minWidth: '150px', fontSize: '16px' }}
-        >
-          {running ? 'Pause' : done ? 'Brew again' : sec === 0 ? 'Start brew' : 'Resume'}
-        </button>
-        <button
-          type="button"
-          onClick={handleReset}
-          className="cx-btn big"
-          style={{ background: '#222', minWidth: '110px' }}
-        >
-          Reset
-        </button>
-      </div>
-
-      {/* Step Breakdown Timeline */}
-      <div style={{ marginTop: 40, borderTop: '1px solid #222', paddingTop: 24 }}>
-        <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', marginBottom: 12, letterSpacing: '0.08em' }}>
-          Pour Schedule & Water Targets
-        </div>
-        <div style={{ display: 'grid', gap: '8px' }}>
-          {method.steps.map((st, i) => {
-            const stepWater = Math.round(totalWater * st.waterPct);
-            const isCurrent = i === activeStepIdx;
-            const isDone = sec >= st.endSec;
-            return (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  background: isCurrent ? 'rgba(201, 147, 85, 0.1)' : '#181817',
-                  border: isCurrent ? '1px solid var(--cx-accent, #c99355)' : '1px solid transparent',
-                  opacity: isDone ? 0.6 : 1,
-                  fontSize: '13px',
-                }}
-              >
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <span style={{ fontFamily: 'var(--font-space-mono)', color: isCurrent ? 'var(--cx-accent, #c99355)' : '#888' }}>
-                    {formatMinSec(st.startSec)} – {formatMinSec(st.endSec)}
-                  </span>
-                  <span style={{ fontWeight: isCurrent ? 700 : 500, color: '#f5ede3' }}>{st.name}</span>
-                </div>
-                <div style={{ fontFamily: 'var(--font-space-mono)', fontWeight: 600, color: 'var(--cx-accent, #c99355)' }}>
-                  {stepWater}g total
-                </div>
+          <div className="bt-recipe">
+            <div className="bt-dose">
+              <span className="bt-k">Coffee</span>
+              <div className="bt-stepper">
+                <button type="button" onClick={() => setDose(dose - 1)} disabled={running || dose <= 5} aria-label="One gram less">
+                  −
+                </button>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={5}
+                  max={60}
+                  value={doseText}
+                  aria-label="Coffee dose in grams"
+                  onChange={(e) => setDoseText(e.target.value.replace(/[^\d]/g, '').slice(0, 2))}
+                  onBlur={() => setDoseText(String(dose))}
+                  disabled={running}
+                />
+                <span className="bt-unit">g</span>
+                <button type="button" onClick={() => setDose(dose + 1)} disabled={running || dose >= 60} aria-label="One gram more">
+                  +
+                </button>
               </div>
+            </div>
+            <dl className="bt-specs">
+              <div>
+                <dt>Water</dt>
+                <dd className="gold">{totalWater} g</dd>
+              </div>
+              <div>
+                <dt>Ratio</dt>
+                <dd>1:{method.ratio}</dd>
+              </div>
+              <div>
+                <dt>Grind</dt>
+                <dd>{method.grind}</dd>
+              </div>
+              <div>
+                <dt>Water temp</dt>
+                <dd>{method.temp}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <div className="bt-schedule">
+        <p className="bt-k">Pour schedule</p>
+        <ol>
+          {method.steps.map((st, i) => {
+            const state = done || i < stepIdx ? 'past' : i === stepIdx && (running || sec > 0) ? 'now' : '';
+            return (
+              <li key={i} className={state}>
+                <span className="bt-dot" aria-hidden="true">
+                  {state === 'past' ? '✓' : i + 1}
+                </span>
+                <span className="bt-sch-name">{st.name}</span>
+                <span className="bt-sch-time">
+                  {formatMinSec(st.startSec)}–{formatMinSec(st.endSec)}
+                </span>
+                <span className="bt-sch-g">{Math.round(totalWater * st.waterPct)} g</span>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </div>
     </div>
   );
