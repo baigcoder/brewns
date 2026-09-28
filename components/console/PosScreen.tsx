@@ -39,6 +39,7 @@ export function PosScreen({ startLoc, startTable }: { startLoc?: number; startTa
   const [area, setArea] = useState(0);
   const [who, setWho] = useState({ name: '', phone: '', address: '', note: '' });
   const [pay, setPay] = useState(0);
+  const [cashGiven, setCashGiven] = useState(0);
   const [sending, setSending] = useState(false);
 
   const soldOut = new Set(data?.soldOut || []);
@@ -218,6 +219,48 @@ export function PosScreen({ startLoc, startTable }: { startLoc?: number; startTa
               ))}
             </select>
           </label>
+          {pay === 0 && bill.total > 0 && (
+            <div style={{ padding: '8px 12px', background: 'var(--cx-panel-2)', borderRadius: 6, border: '1px solid var(--cx-line)', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span className="cx-eyebrow" style={{ fontSize: 10 }}>Cash Tendered</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[bill.total, Math.ceil(bill.total / 500) * 500, Math.ceil(bill.total / 1000) * 1000, 5000]
+                    .filter((v, i, a) => v >= bill.total && a.indexOf(v) === i)
+                    .slice(0, 3)
+                    .map((val) => (
+                      <button
+                        type="button"
+                        key={val}
+                        className="cx-btn sm"
+                        onClick={() => setCashGiven(val)}
+                        style={{ fontSize: 10, padding: '2px 6px', height: 22 }}
+                      >
+                        Rs {val}
+                      </button>
+                    ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="number"
+                  value={cashGiven || ''}
+                  placeholder={`e.g. ${bill.total}`}
+                  onChange={(e) => setCashGiven(+e.target.value)}
+                  style={{ flex: 1, height: 28, fontSize: 13 }}
+                  aria-label="Cash received from customer"
+                />
+                {cashGiven >= bill.total ? (
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--cx-ready)', whiteSpace: 'nowrap' }}>
+                    Change: Rs {cashGiven - bill.total}
+                  </div>
+                ) : cashGiven > 0 ? (
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-late)', whiteSpace: 'nowrap' }}>
+                    Short: Rs {bill.total - cashGiven}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
           <div className="cx-sums cx-num">
             <div>
               <span className="cx-muted">Subtotal</span>

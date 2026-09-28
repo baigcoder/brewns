@@ -4,7 +4,8 @@ export const maxDuration = 30;
 
 /** POST /api/voice/transcribe: transcribe spoken voice audio using Groq Whisper. */
 export const POST = route(async (req) => {
-  await rateLimit(`transcribe:${clientIp(req)}`, 120, 3600, 'Audio transcription limit reached. Please try typing.');
+  const ip = clientIp(req);
+  await rateLimit(`transcribe:${ip}`, 3000, 3600, 'Audio transcription limit reached. Please try typing.');
 
   const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
   const contentLength = Number(req.headers.get('content-length') || 0);
@@ -22,6 +23,11 @@ export const POST = route(async (req) => {
     return json({ error: 'Missing form data' }, 400);
   }
 
+  const callId = formData.get('callId');
+  if (typeof callId === 'string' && /^[a-zA-Z0-9-]{8,48}$/.test(callId)) {
+    await rateLimit(`transcribe-call:${callId}`, 120, 3600, 'This call has reached its voice limit. Please start a new call.');
+  }
+
   const file = formData.get('file');
   if (!file || typeof file === 'string') {
     return json({ error: 'Missing audio file' }, 400);
@@ -34,6 +40,8 @@ export const POST = route(async (req) => {
   groqForm.append('model', 'whisper-large-v3-turbo');
   groqForm.append('temperature', '0.0');
   groqForm.append('response_format', 'json');
+  const language = formData.get('language');
+  if (language === 'en' || language === 'ur') groqForm.append('language', language);
 
   try {
     const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {

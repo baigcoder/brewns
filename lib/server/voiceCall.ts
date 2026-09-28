@@ -107,7 +107,7 @@ export function detectLang(text: string): VoiceLang {
   if (/[\u0600-\u06FF]/.test(text)) return 'ur';
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   const hits = (text.match(ROMAN_URDU) || []).length;
-  return hits >= 2 || (hits === 1 && words <= 3 && !/^(ji|han|haan|salam)$/i.test(text.trim())) ? 'ur' : 'en';
+  return hits >= 2 || (hits >= 1 && words <= 3) ? 'ur' : 'en';
 }
 
 /* Once a caller is speaking Urdu, a line of names and numbers ("terrace, Hamad
@@ -130,14 +130,15 @@ export function forSpeech(text: string, lang: VoiceLang = 'en') {
     .replace(/(\d)\s*×\s*/g, '$1 ');
 }
 
-export const ttsEnabled = () => Boolean(ELEVENLABS_API_KEY);
+const voiceSigningSecret = () => process.env.SESSION_SECRET || ELEVENLABS_API_KEY || process.env.GEMINI_API_KEY || '';
+export const ttsEnabled = () => Boolean(ELEVENLABS_API_KEY || process.env.GEMINI_API_KEY);
 
 /* The browser fetches the voice from /api/voice/tts, so it can start playing
    the first words while ElevenLabs is still speaking the rest. The URL carries
    the reply signed by this server, so the endpoint only ever speaks our own
    lines and can't be used to spend the café's characters on anything else. */
 
-const ttsSecret = () => createHmac('sha256', 'brewns-voice-tts').update(process.env.SESSION_SECRET || ELEVENLABS_API_KEY).digest();
+const ttsSecret = () => createHmac('sha256', 'brewns-voice-tts').update(voiceSigningSecret()).digest();
 const TTS_TTL_MS = 10 * 60_000;
 
 export function ttsUrl(text: string, gender: VoiceGender, lang: VoiceLang = 'en') {
@@ -147,7 +148,7 @@ export function ttsUrl(text: string, gender: VoiceGender, lang: VoiceLang = 'en'
 }
 
 export function readTtsToken(payload: string, sig: string): { text: string; gender: VoiceGender; lang: VoiceLang } | null {
-  if (!payload || !sig || !ELEVENLABS_API_KEY) return null;
+  if (!payload || !sig || !voiceSigningSecret()) return null;
   const want = createHmac('sha256', ttsSecret()).update(payload).digest();
   const got = Buffer.from(sig, 'base64url');
   if (got.length !== want.length || !timingSafeEqual(got, want)) return null;
@@ -163,11 +164,10 @@ export function readTtsToken(payload: string, sig: string): { text: string; gend
 /** Stream `text` from ElevenLabs as MP3. Conversational settings: a little less
     stable and a little more style than narration, so it sounds like someone
     talking, not reading. Null when it fails; the browser then uses its own voice. */
-/* English uses Flash v2.5, the fastest model. Urdu isn't one of Flash's
-   languages, so Urdu lines go to Eleven v3, which speaks it natively (override
-   with ELEVENLABS_URDU_MODEL_ID). v3 takes only a few stability steps. */
+/* Use expressive v3 voices for natural dialogue in both languages. Flash v2.5
+   is faster, but doesn't support Urdu and sounds flatter for a concierge call. */
 const TTS_MODEL: Record<VoiceLang, string> = {
-  en: process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5',
+  en: process.env.ELEVENLABS_MODEL_ID || 'eleven_v3',
   ur: process.env.ELEVENLABS_URDU_MODEL_ID || 'eleven_v3',
 };
 const voiceSettings = (model: string) =>
@@ -193,6 +193,43 @@ export async function streamElevenLabsVoice(text: string, gender: VoiceGender, l
     return res.body;
   } catch (err) {
     console.error('[ElevenLabs TTS]', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/** Gemini's conversational TTS is a server-side Urdu-capable fallback when the
+    selected ElevenLabs voice or account cannot produce the requested language. */
+export async function generateGeminiVoice(text: string, gender: VoiceGender, lang: VoiceLang): Promise<Uint8Array | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !text) return null;
+  try {
+    const speaker = gender === 'female' ? 'Kore' : 'Puck';
+    const style = lang === 'ur'
+      ? 'Warm, relaxed, friendly Pakistani Urdu, like a helpful Lahore café concierge speaking naturally on a phone call.'
+      : 'Warm, relaxed, friendly natural English, like a helpful café concierge speaking on a phone call.';
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+      method: 'POST',
+      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-lite-tts',
+        input: [{
+          type: 'user_input',
+          content: [{ type: 'text', text: forSpeech(text, lang).slice(0, 900), annotations: [{ type: 'speech_metadata', style }] }],
+        }],
+        response_format: { type: 'audio' },
+        generation_config: { speech_config: [{ voice: speaker }] },
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      console.warn('[Gemini TTS]', response.status, (await response.text().catch(() => '')).slice(0, 300));
+      return null;
+    }
+    const data = await response.json();
+    const audio = data.output_audio?.data || data.steps?.flatMap((step: any) => step.content || []).filter((part: any) => part.type === 'audio').at(-1)?.data;
+    return typeof audio === 'string' ? new Uint8Array(Buffer.from(audio, 'base64')) : null;
+  } catch (err) {
+    console.error('[Gemini TTS]', err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -872,7 +909,16 @@ function replyAfterToolFailure(actions: VoiceAction[], outputs: ToolOut[], lang:
     ? lang === 'ur' ? `کنفرمیشن ${email.data.email} پر بھیج دی ہے۔ کیا میں مزید مدد کروں؟` : `I've sent the confirmation details to ${email.data.email}. Is there anything else I can help with?`
     : lang === 'ur' ? `آپ کا ای میل بکنگ کے ساتھ محفوظ ہے، لیکن کنفرمیشن ای میل نہیں بھیجی جا سکی۔` : `I've saved ${email.data.email} to your booking, but the confirmation email could not be delivered. Anything else?`;
   const failure = outputs.find((output) => output.isError);
-  if (failure) return lang === 'ur' ? 'معذرت، میں یہ ابھی مکمل نہیں کر سکی۔ کیا آپ تفصیل دوبارہ بتائیں گے؟' : `I couldn't complete that just now. ${failure.content} Could you tell me what you'd like to do next?`;
+  if (failure) {
+    if (/did not clearly confirm|read all booking details back/i.test(failure.content)) {
+      return lang === 'ur'
+        ? 'بس، بک کرنے سے پہلے ایک بار تصدیق کر لوں—کیا میں یہی تفصیل کنفرم کر دوں، یا آپ کچھ بدلنا چاہیں گے؟'
+        : 'I want to make sure I have that right before I book it. Shall I confirm those details, or would you like to change anything?';
+    }
+    return lang === 'ur'
+      ? 'معذرت، ابھی یہ مکمل نہیں ہو سکا۔ ایک بار پھر بتائیے، میں آپ کے ساتھ ہوں۔'
+      : 'Sorry, that didn’t go through just now. Tell me once more and I’ll sort it out with you.';
+  }
   return lang === 'ur' ? 'معذرت، لائن میں مسئلہ آ گیا۔ کیا آپ ایک بار پھر کہیں گے؟' : 'Sorry, the line cut out for a moment. Could you say that again?';
 }
 
@@ -1003,7 +1049,7 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
 
   for (let hop = 0; hop < 4; hop++) {
     const res = await geminiAny({
-      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.\nThe caller's latest line is in ${lang === 'ur' ? 'Urdu: reply in Urdu script' : 'English: reply in English'}.` }] },
+      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.\n${lang === 'ur' ? 'For this turn, reply only in natural Urdu written in Urdu script. Do not answer in English, including for short confirmations such as haan, ji, or theek.' : 'For this turn, reply in natural English unless the caller clearly switches to Urdu.'}` }] },
       contents,
       tools: TOOLS,
       generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
@@ -1020,12 +1066,16 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
     // Send the model's turn back as it came (thought signatures included), then the results.
     contents.push({ role: 'model', parts: res.parts });
     const responses: GeminiPart[] = [];
+    const toolOutputs: ToolOut[] = [];
     for (const c of calls) {
       const { name, args } = c.functionCall!;
       const previousAssistant = [...history].reverse().find((turn) => turn.role === 'assistant')?.content || '';
       const out = await runTool(name, args || {}, prompt, actions, previousAssistant);
+      toolOutputs.push(out);
       responses.push({ functionResponse: { name, response: out.isError ? { error: out.content } : { result: out.content } } });
     }
+    // Never let private tool instructions become the spoken reply.
+    if (toolOutputs.some((out) => out.isError)) return { reply: replyAfterToolFailure(actions, toolOutputs, lang), actions };
     contents.push({ role: 'user', parts: responses });
     // Hanging up needs no further words once the goodbye is said.
     if (calls.every((c) => c.functionCall!.name === 'end_call') && spoken.length) break;
@@ -1033,7 +1083,9 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
 
   // The caller said goodbye and so did the model, but it forgot to hang up.
   if (!actions.some((a) => a.type === 'END_CALL') && BYE.test(prompt) && /\b(bye|take care|khuda hafiz|allah hafiz|have a (lovely|great|good))\b/i.test(spoken.join(' '))) actions.push({ type: 'END_CALL' });
-  const reply = speakable(spoken.join(' ')) || (actions.some((a) => a.type === 'END_CALL') ? 'Thanks for calling brewns. Take care!' : 'Sorry, could you say that again?');
+  const reply = speakable(spoken.join(' ')) || (actions.some((a) => a.type === 'END_CALL')
+    ? lang === 'ur' ? 'برونز کو کال کرنے کا شکریہ۔ اللہ حافظ!' : 'Thanks for calling brewns. Take care!'
+    : lang === 'ur' ? 'معذرت، میں ٹھیک سے سن نہیں سکی۔ ایک بار پھر کہیں گے؟' : 'Sorry, could you say that again?');
   return { reply, actions };
 }
 
@@ -1062,7 +1114,7 @@ async function groqTurn(
 
   const now = lahoreNow();
   const languageInstruction = lang === 'ur'
-    ? 'The caller is speaking Urdu. Reply in natural conversational Urdu written in Urdu script; preserve menu names, email addresses, and booking codes clearly.'
+    ? 'Reply only in natural conversational Urdu written in Urdu script. This applies even when the latest caller reply is a single Roman Urdu word such as haan, ji, or theek. Preserve menu names, email addresses, and booking codes clearly.'
     : 'Reply in natural conversational English. If the caller switches to Urdu, follow their language.';
   const systemPrompt =
     persona(gender) +
@@ -1126,6 +1178,12 @@ async function groqTurn(
           });
         }
 
+        // Keep internal validation notes out of the dialogue and avoid a slow
+        // second model round trip when the next action is simply asking again.
+        if (toolOutputs.some((out) => out.isError)) {
+          return { reply: replyAfterToolFailure(actions, toolOutputs, lang), actions };
+        }
+
         // Send tool results back to Groq for spoken confirmation sentence
         try {
           const secondRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -1180,6 +1238,16 @@ const QUESTIONS: Record<string, (flow: 'table' | 'party') => string> = {
   name: () => 'What name should I put it under?',
   phone: () => "And a mobile number, in case we need to reach you?",
 };
+const URDU_QUESTIONS: Record<string, (flow: 'table' | 'party') => string> = {
+  occasion: () => 'یہ کس موقع کے لیے ہے؟ سالگرہ، کام کی تقریب، یا کوئی اور خاص موقع؟',
+  loc: () => 'آپ گلبرگ، ڈی ایچ اے فیز فائیو، یا جوہر ٹاؤن میں سے کس برانچ کو پسند کریں گے؟',
+  date: () => 'آپ کس دن آنا چاہیں گے؟',
+  time: () => 'کس وقت آنا مناسب رہے گا؟ ہم صبح سات سے رات آٹھ بجے تک بٹھاتے ہیں۔',
+  guests: (f) => f === 'party' ? 'تقریباً کتنے مہمان ہوں گے؟' : 'کتنے لوگ آئیں گے؟',
+  area: () => 'آپ اندر بیٹھنا پسند کریں گے، ٹیرس پر، یا بار کے پاس؟',
+  name: () => 'بکنگ کس نام پر لکھوں؟',
+  phone: () => 'اور رابطے کے لیے آپ کا موبائل نمبر؟',
+};
 
 const ORDER: Record<'table' | 'party', string[]> = {
   table: ['loc', 'date', 'time', 'guests', 'area', 'name', 'phone'],
@@ -1219,16 +1287,19 @@ function fillSlots(p: string, raw: string, st: ScriptState, asked?: string) {
   if (sl.name) sl.name = sl.name.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function readBack(st: ScriptState) {
+function readBack(st: ScriptState, lang: VoiceLang = 'en') {
   const sl = st.slots || {};
   const where = LOC_TITLES[Number(sl.loc)];
   const when = `${spokenDate(sl.date!)} at ${spokenTime(sl.time!)}`;
+  if (lang === 'ur') return st.flow === 'party'
+    ? `تصدیق کر لوں: ${where} میں ${spokenDate(sl.date!)} کو ${spokenTime(sl.time!)}, ${sl.guests} مہمانوں کے لیے ${sl.occasion || 'تقریب'}، نام ${sl.name}، نمبر ${forSpeech(sl.phone || '', 'ur')}۔ کیا میں بکنگ کنفرم کر دوں؟`
+    : `تصدیق کر لوں: ${where} میں ${spokenDate(sl.date!)} کو ${spokenTime(sl.time!)}، ${sl.guests} افراد کے لیے ${sl.area === 'terrace' ? 'ٹیرس' : sl.area === 'bar' ? 'بار کے پاس' : 'اندر'} کی ٹیبل، نام ${sl.name}، نمبر ${forSpeech(sl.phone || '', 'ur')}۔ کیا میں بک کر دوں؟`;
   return st.flow === 'party'
     ? `So that's a ${sl.occasion?.toLowerCase()} for ${sl.guests} guests at ${where}, ${when}, under ${sl.name}, number ${sl.phone}. Shall I book it?`
     : `Let me read that back: a table for ${sl.guests} at ${where}, ${when}, ${sl.area} seating, under ${sl.name}, on ${sl.phone}. Shall I confirm it?`;
 }
 
-async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = false): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
+async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = false, lang: VoiceLang = 'en'): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
   const flow = st.flow || 'table';
   const actions: VoiceAction[] = [];
 
@@ -1239,10 +1310,10 @@ async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = fa
     if (email) {
       const result = await attachEmailToBooking(email, code, kind);
       if (!result.ok) {
-        return { reply: 'I could not find that booking code. Could you repeat the code so I can attach your email to the right reservation?', actions, state: st };
+        return { reply: lang === 'ur' ? 'مجھے یہ بکنگ کوڈ نہیں ملا۔ کیا آپ کوڈ دوبارہ بتا سکتے ہیں تاکہ میں درست بکنگ کے ساتھ ای میل شامل کر سکوں؟' : 'I could not find that booking code. Could you repeat the code so I can attach your email to the right reservation?', actions, state: st };
       }
       actions.push({ type: 'SAVED_EMAIL', data: { email, code: result.code, sent: Boolean(result.sent) } });
-      const isUrduLang = /[\u0600-\u06FF]/.test(raw) || /^(ji|shukriya|meherbani)\b/i.test(p);
+      const isUrduLang = lang === 'ur' || /[\u0600-\u06FF]/.test(raw) || /^(ji|shukriya|meherbani)\b/i.test(p);
       const reply = result.sent
         ? isUrduLang
           ? `بہت شکریہ! ہم نے کنفرمیشن ${email} پر بھیج دی ہے۔ کیا میں مزید کچھ مدد کر سکتی ہوں؟`
@@ -1253,7 +1324,7 @@ async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = fa
       return { reply, actions, state: {} };
     }
     if (/\b(no|nope|skip|don'?t have|not now|nahi|nah|none|never mind|that'?s all|leave it|ok|okay)\b/i.test(p) || BYE.test(p)) {
-      const isUrduLang = /[\u0600-\u06FF]/.test(raw) || /^(nahi|nahin|theek)\b/i.test(p);
+      const isUrduLang = lang === 'ur' || /[\u0600-\u06FF]/.test(raw) || /^(nahi|nahin|theek)\b/i.test(p);
       const reply = isUrduLang
         ? `کوئی مسئلہ نہیں! آپ پہنچ کر کوڈ ${spokenCode(code)} دکھا سکتے ہیں۔ کیا میں مزید کچھ مدد کر سکتی ہوں؟`
         : `No problem at all! You can simply give your name or code ${spokenCode(code)} when you arrive. Anything else I can help with?`;
@@ -1268,7 +1339,7 @@ async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = fa
       const sl = st.slots || {};
       const input = { name: sl.name, phone: sl.phone, email: sl.email, shop: Number(sl.loc), date: sl.date, time: sl.time, guests: Number(sl.guests), area: sl.area, occasion: sl.occasion, notes: '' };
       const r = flow === 'party' ? await saveParty(input) : await saveReservation(input, raw);
-      if (!r.ok) return { reply: `Hmm, I couldn't book that: ${r.error} Could you give me a different one?`, actions, state: { flow, slots: sl } };
+      if (!r.ok) return { reply: lang === 'ur' ? `معذرت، بکنگ مکمل نہیں ہو سکی۔ ${r.error} کیا آپ کوئی دوسرا وقت یا دن بتا سکتے ہیں؟` : `Hmm, I couldn't book that: ${r.error} Could you give me a different one?`, actions, state: { flow, slots: sl } };
       actions.push(flow === 'party' ? { type: 'BOOK_PARTY', data: r.value as PartyBooking } : { type: 'RESERVE_TABLE', data: r.value as Reservation });
       const waUrl = getWhatsappDirectLink(sl.phone || '', buildBookingWhatsappMessage({
         code: r.value.code,
@@ -1283,7 +1354,7 @@ async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = fa
       }));
       actions.push({ type: 'WHATSAPP_VOUCHER', data: { phone: sl.phone || '', code: r.value.code, whatsappUrl: r.value.whatsappUrl || waUrl, sent: Boolean(r.value.whatsappSent) } });
       const code = r.value.code;
-      const isUrduLang = /[\u0600-\u06FF]/.test(raw) || /^(haan|han|ji|jee|theek|bilkul)\b/i.test(p);
+      const isUrduLang = lang === 'ur' || /[\u0600-\u06FF]/.test(raw) || /^(haan|han|ji|jee|theek|bilkul)\b/i.test(p);
       const voucherNotice = r.value.whatsappSent
         ? isUrduLang ? 'ہم نے بکنگ واؤچر واٹس ایپ پر بھیج دیا ہے۔' : `I've sent the voucher to your WhatsApp on ${forSpeech(sl.phone || '')}.`
         : isUrduLang ? 'واٹس ایپ پر واؤچر خودکار طور پر نہیں بھیجا جا سکا، مگر شیئر کرنے کے لیے تیار ہے۔' : 'WhatsApp did not send automatically, but your voucher is ready to share from the button.';
@@ -1299,8 +1370,8 @@ async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = fa
     if (/\b(no|nope|wrong|change|not right|nahi|actually|make it)\b/.test(p)) {
       const was = JSON.stringify(st.slots || {});
       fillSlots(p, raw, st);
-      if (JSON.stringify(st.slots) !== was) return { reply: `Sure, changed. ${readBack(st)}`, actions, state: { ...st, confirming: true } };
-      return { reply: 'No problem, what should I change?', actions, state: { ...st, confirming: false } };
+      if (JSON.stringify(st.slots) !== was) return { reply: lang === 'ur' ? `جی، تبدیلی کر دی۔ ${readBack(st, lang)}` : `Sure, changed. ${readBack(st)}`, actions, state: { ...st, confirming: true } };
+      return { reply: lang === 'ur' ? 'جی ضرور، آپ کیا تبدیل کرنا چاہیں گے؟' : 'No problem, what should I change?', actions, state: { ...st, confirming: false } };
     }
   }
 
@@ -1316,15 +1387,17 @@ async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = fa
     const m = Number(sl.time.slice(0, 2)) * 60 + Number(sl.time.slice(3));
     if (m < OPEN_MIN || m > CLOSE_MIN - 60) {
       delete sl.time;
-      return { reply: `Ah, we only seat between 7 AM and 8 PM, as we close at 9. What time in that window works?`, actions, state: st };
+      return { reply: lang === 'ur' ? 'ہم صبح سات سے رات آٹھ بجے تک بٹھاتے ہیں، اور نو بجے بند ہو جاتے ہیں۔ اس دوران کون سا وقت مناسب ہے؟' : `Ah, we only seat between 7 AM and 8 PM, as we close at 9. What time in that window works?`, actions, state: st };
     }
   }
 
   const next = ORDER[flow].find((k) => !sl[k as keyof typeof sl]);
-  if (!next) return { reply: readBack(st), actions, state: { ...st, confirming: true } };
+  if (!next) return { reply: readBack(st, lang), actions, state: { ...st, confirming: true } };
   const progressed = JSON.stringify(sl) !== before;
-  const ack = fresh ? '' : progressed ? ['Okay. ', 'Got it. ', 'Great. ', 'Lovely. '][Object.keys(sl).length % 4] : lastAsked === next && p ? "Sorry, I didn't quite catch that. " : '';
-  return { reply: ack + QUESTIONS[next](flow), actions, state: st };
+  const ack = fresh ? '' : progressed
+    ? lang === 'ur' ? ['جی۔ ', 'اچھا۔ ', 'بالکل۔ ', 'ٹھیک ہے۔ '][Object.keys(sl).length % 4] : ['Okay. ', 'Got it. ', 'Great. ', 'Lovely. '][Object.keys(sl).length % 4]
+    : lastAsked === next && p ? lang === 'ur' ? 'معاف کیجیے، بات واضح نہیں ہوئی۔ ' : "Sorry, I didn't quite catch that. " : '';
+  return { reply: ack + (lang === 'ur' ? URDU_QUESTIONS[next](flow) : QUESTIONS[next](flow)), actions, state: st };
 }
 
 /* [pattern, menu id, generic]: a generic word ("burger") only counts when no
@@ -1399,22 +1472,23 @@ function stateFromHistory(history: VoiceTurn[]): ScriptState {
   return st;
 }
 
-async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptState, history: VoiceTurn[] = []): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
+async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptState, history: VoiceTurn[] = [], lang: VoiceLang = 'en'): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
   if (!state.flow && !state.waitingForEmail && history.length) state = stateFromHistory(history);
-  const r = await scriptAnswer(prompt, gender, state);
+  const r = await scriptAnswer(prompt, gender, state, lang);
   // Answer a salam in kind, whatever else was asked in the same breath.
-  if (/\b(a?s+alam|salaam|aoa)\b/i.test(prompt) && !/alaikum assalam/i.test(r.reply)) r.reply = `Wa alaikum assalam! ${r.reply.replace(/^(Hi there!|Sure!|Happy to!)\s*/, '')}`;
+  if (lang === 'ur' && /\b(a?s+alam|salaam|aoa)\b/i.test(prompt) && !/[\u0600-\u06FF]/.test(r.reply)) r.reply = `وعلیکم السلام! ${r.reply}`;
+  else if (/\b(a?s+alam|salaam|aoa)\b/i.test(prompt) && !/alaikum assalam/i.test(r.reply)) r.reply = `Wa alaikum assalam! ${r.reply.replace(/^(Hi there!|Sure!|Happy to!)\s*/, '')}`;
   return r;
 }
 
-async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptState): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
+async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptState, lang: VoiceLang = 'en'): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
   const raw = prompt.trim();
   const p = raw.toLowerCase();
   const name = agentName(gender);
 
   if (state.flow || state.waitingForEmail) {
-    if (/\b(cancel|never ?mind|forget it|stop|start over)\b/.test(p)) return { reply: 'No worries, I\'ve dropped that. What else can I do for you?', actions: [], state: {} };
-    return scriptBooking(p, raw, state);
+    if (/\b(cancel|never ?mind|forget it|stop|start over|cancel kar do|rehne dein)\b/.test(p)) return { reply: lang === 'ur' ? 'کوئی بات نہیں، میں نے یہ بکنگ روک دی ہے۔ اب آپ کے لیے کیا کر سکتی ہوں؟' : 'No worries, I\'ve dropped that. What else can I do for you?', actions: [], state: {} };
+    return scriptBooking(p, raw, state, false, lang);
   }
 
   if (BYE.test(p))
@@ -1423,13 +1497,13 @@ async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptSt
   if (/party|event|birthday|celebrat|gathering|corporate|salgirah/.test(p)) {
     const st: ScriptState = { flow: 'party', slots: {} };
     fillSlots(p, raw, st);
-    const r = await scriptBooking(p, raw, st, true);
-    return { ...r, reply: `Oh, how exciting! ${r.reply}` };
+    const r = await scriptBooking(p, raw, st, true, lang);
+    return { ...r, reply: lang === 'ur' ? `واہ، بہت اچھا! ${r.reply}` : `Oh, how exciting! ${r.reply}` };
   }
   if (/\b(table|reserve|reservation|book|seat|jagah)\b/.test(p)) {
     const st: ScriptState = { flow: 'table', slots: {} };
     fillSlots(p, raw, st);
-    const r = await scriptBooking(p, raw, st, true);
+    const r = await scriptBooking(p, raw, st, true, lang);
     return { ...r, reply: `Sure, I can help with that. ${r.reply}` };
   }
 
@@ -1610,7 +1684,7 @@ export async function processVoiceCallPrompt(
   state: ScriptState = {},
   hint: VoiceLang = 'en',
 ): Promise<VoiceCallResponse> {
-  const special = prompt === 'call_init' || prompt === 'voice_switch';
+  const special = prompt === 'call_init' || prompt === 'voice_switch' || prompt === 'language_switch';
   const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !clearlyEnglish(prompt) ? 'ur' : 'en';
   let brain: VoiceCallResponse['brain'] = 'script';
   let turn: { reply: string; actions: VoiceAction[]; state?: ScriptState };
@@ -1622,6 +1696,14 @@ export async function processVoiceCallPrompt(
       ? [`جی، میں ${agentName(gender)} ہوں۔ اب میں آپ کی کال سنبھالتی ہوں، ہم کہاں تک پہنچے تھے؟`, `السلام علیکم، ${agentName(gender)} حاضر ہے۔ بتائیے میں کیا مدد کروں؟`]
       : [`Hi, ${agentName(gender)} here, I'll take it from here. Where were we?`, `Hey there! ${agentName(gender)} stepping in. How can I help?`, `Hello, ${agentName(gender)} on the line now. What were you thinking?`];
     turn = { reply: sw[Math.floor(Math.random() * sw.length)], actions: [], state };
+  } else if (prompt === 'language_switch') {
+    turn = {
+      reply: lang === 'ur'
+        ? 'جی، اب ہم اردو میں بات کریں گے۔ فرمائیے، میں آپ کی کیا مدد کروں؟'
+        : 'Sure, I’ll speak English. What can I help you with?',
+      actions: [],
+      state,
+    };
   } else if (groqEnabled()) {
     try {
       turn = await groqTurn(prompt, history, gender, lang);
@@ -1633,11 +1715,11 @@ export async function processVoiceCallPrompt(
           turn = await geminiTurn(prompt, history, gender, lang);
           brain = 'gemini';
         } catch {
-          turn = await scriptTurn(prompt, gender, state, history);
+          turn = await scriptTurn(prompt, gender, state, history, lang);
           brain = 'script';
         }
       } else {
-        turn = await scriptTurn(prompt, gender, state, history);
+        turn = await scriptTurn(prompt, gender, state, history, lang);
         brain = 'script';
       }
     }
@@ -1647,11 +1729,11 @@ export async function processVoiceCallPrompt(
       brain = 'gemini';
     } catch (err) {
       console.error('[Voice Gemini]', err instanceof Error ? err.message : err);
-      turn = await scriptTurn(prompt, gender, state, history);
+      turn = await scriptTurn(prompt, gender, state, history, lang);
       brain = 'script';
     }
   } else {
-    turn = await scriptTurn(prompt, gender, state);
+    turn = await scriptTurn(prompt, gender, state, history, lang);
   }
 
   const emailInPrompt = parseEmail(prompt);

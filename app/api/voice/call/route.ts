@@ -8,10 +8,14 @@ export const maxDuration = 30;
 /** POST /api/voice/call: one turn of the AI voice call, logged for the owner's dashboard. */
 export const POST = route(async (req) => {
   // A call is a few dozen turns; this stops a script from booking the café full.
-  await rateLimit(`voice:${clientIp(req)}`, 120, 3600, 'The line is busy. Please try again in a little while.');
+  const ip = clientIp(req);
+  // A venue's Wi-Fi shares one IP across callers, so keep its aggregate ceiling
+  // high and apply the conversational quota to each independent call as well.
+  await rateLimit(`voice:${ip}`, 3000, 3600, 'The line is busy. Please try again in a little while.');
 
   const b = await readBody(req);
   const callId = validCallId(b.callId) ? b.callId : '';
+  if (callId) await rateLimit(`voice-call:${callId}`, 120, 3600, 'This call has reached its voice limit. Please start a new call.');
   const prompt = str(b.prompt ?? b.message, 600);
 
   // The caller hung up.
@@ -33,7 +37,7 @@ export const POST = route(async (req) => {
   const result = await processVoiceCallPrompt(message, history, gender, state, lang);
 
   if (callId) {
-    const caller = message === 'call_init' ? undefined : message === 'voice_switch' ? `(switched to ${agentName(gender)})` : message;
+    const caller = message === 'call_init' || message === 'language_switch' ? undefined : message === 'voice_switch' ? `(switched to ${agentName(gender)})` : message;
     // Dashboard logging should not hold the caller's spoken reply behind storage.
     after(() => logVoiceTurn(callId, { caller, agent: result.reply, gender, agentName: agentName(gender), lang: result.lang, brain: result.brain, actions: result.actions }).catch((err) =>
       console.error('[Voice log]', err instanceof Error ? err.message : err),

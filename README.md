@@ -97,10 +97,12 @@ Copy `.env.example` to `.env.local` for local use; on Vercel, add them under **S
 | `NEXT_PUBLIC_SITE_URL` | The site's public address, for canonical links, the sitemap and share previews. | `https://brewns.coffee` |
 | `GEMINI_API_KEY` | Optional second conversational model if Groq is unavailable. It can answer questions and use the same booking and bag tools. | none |
 | `GEMINI_MODEL` | The first Gemini model the voice call tries; busy or used-up models hand over to the next Flash model. | `gemini-3.5-flash-lite` |
+| `GEMINI_TTS_MODEL` | Urdu-capable conversational voice fallback when ElevenLabs is unavailable or rejects a voice. | `gemini-3.8-flash-lite-tts` |
 | `GROQ_API_KEY` | Powers the live conversational agent and Whisper microphone transcription on desktop and mobile. Server-side only; never commit it. | none: the call falls back to a guided script and voice transcription is unavailable |
 | `GROQ_MODEL` | Preferred Groq conversation model. The server falls back to supported tool-using models if it is unavailable. | `openai/gpt-oss-120b` |
 | `ELEVENLABS_API_KEY` | A natural ElevenLabs voice for the call, streamed so it starts speaking within a moment. Server-side only; never commit it. | none: the browser's own voice speaks the replies |
-| `ELEVENLABS_VOICE_ID_FEMALE` / `ELEVENLABS_VOICE_ID_MALE` / `ELEVENLABS_MODEL_ID` | Which ElevenLabs voices and model Sarah and Hamza use. For a Lahore café, pick South Asian voices in the Voice Library, add them to your voices and paste their IDs. | ElevenLabs' Sarah and George voices, `eleven_flash_v2_5` |
+| `ELEVENLABS_VOICE_ID_FEMALE` / `ELEVENLABS_VOICE_ID_MALE` / `ELEVENLABS_MODEL_ID` / `ELEVENLABS_URDU_MODEL_ID` | Which ElevenLabs voices and expressive speech models Sarah and Hamza use. Choose voices with Urdu support in the Voice Library for the most natural Urdu accent. | ElevenLabs' Sarah and George voices, `eleven_v3` |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) | Shared Upstash Redis for cross-instance call limits, call logs and booking writes. Add these to Vercel before serving callers from multiple instances. | none: local file storage is used; Vercel storage is ephemeral without Redis |
 | `RESEND_API_KEY` or `BREVO_API_KEY` / `SENDINBLUE_API_KEY` | Sends real reservation confirmation emails. Without working credentials, email addresses are saved to bookings but no email is sent. | none |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_NUMBER` | Sends booking vouchers automatically through a configured Twilio WhatsApp sender. Without working credentials, the caller gets a ready-to-share WhatsApp link. | none |
 

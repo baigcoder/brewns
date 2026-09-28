@@ -16,7 +16,7 @@ export class HttpError extends Error {
 export const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 
-export const fail = (status: number, message: string) => {
+export const fail = (status: number, message: string): never => {
   throw new HttpError(status, message);
 };
 

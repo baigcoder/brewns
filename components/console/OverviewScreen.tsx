@@ -121,6 +121,20 @@ export function OverviewScreen() {
     load();
   };
 
+  const seedDemo = async () => {
+    setBusy(true);
+    await run(() => api('/api/staff/demo', { action: 'seed' }), 'Realistic café day populated! All screens updated.');
+    setBusy(false);
+    load();
+  };
+
+  const unpauseAll = async () => {
+    setBusy(true);
+    await run(() => api('/api/staff/demo', { action: 'unpause_all' }), 'All shops resumed and open for orders.');
+    setBusy(false);
+    load();
+  };
+
   const now = useNow(30000);
   const hour = Number(pkTime(now).slice(0, 2));
   const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -238,24 +252,70 @@ export function OverviewScreen() {
           ))}
         </div>
         {live?.shops.some((s) => s.paused) && (
-          <Link href="/dashboard/shops" className="cx-pill cancelled">
-            {live.shops.filter((s) => s.paused).length} shop paused
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Link href="/dashboard/shops" className="cx-pill cancelled" title="Click to view shop settings">
+              ● {live.shops.filter((s) => s.paused).length} shop paused
+            </Link>
+            <button
+              type="button"
+              className="cx-btn sm"
+              disabled={busy}
+              onClick={unpauseAll}
+              style={{ fontSize: 11, padding: '3px 10px', background: 'var(--cx-panel-2)', color: 'var(--cx-ready)', borderColor: 'var(--cx-ready)' }}
+              title="Resume orders for all 3 shops immediately"
+            >
+              Resume all
+            </button>
+          </div>
         )}
       </section>
 
       {r && !k?.orders && (
-        <p className="cx-empty" style={{ marginBottom: 14 }}>
-          No orders {range === 'today' ? 'yet today' : 'in this period'}. Everything here is live: new orders, calls and bookings appear as they happen.
-        </p>
+        <div className="cx-card" style={{ padding: '20px 24px', background: 'linear-gradient(135deg, rgba(201,147,85,0.08), rgba(20,18,15,0.95))', border: '1px solid rgba(201,147,85,0.25)', marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 16 }}>☕</span>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, textTransform: 'uppercase', color: '#fff' }}>Café Register Open · 0 Orders Today</h3>
+                <span className="cx-live-tag">● LIVE SYSTEM READY</span>
+              </div>
+              <p className="cx-small cx-muted" style={{ margin: 0, maxWidth: 520 }}>
+                Live orders appear automatically. You can ring up walk-ins via <strong>New Order (POS)</strong>, or populate a <strong>Realistic Café Day</strong> to test live kitchen tickets, delivery riders, table seatings, and financial analytics with real-world business logic.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="cx-btn primary"
+                disabled={busy}
+                onClick={seedDemo}
+                style={{ fontWeight: 600, padding: '8px 16px' }}
+              >
+                ⚡ Populate Realistic Café Day
+              </button>
+              <Link href="/dashboard/new" className="cx-btn sm" style={{ padding: '8px 12px' }}>
+                + New Order (POS)
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
-      {r?.demo && me.role === 'owner' && (
-        <p className="cx-banner cx-row between">
-          <span>Sample orders from an older version are still mixed into these numbers (numbers from 900001). Clear them to see only real sales.</span>
-          <button type="button" className="cx-btn sm" disabled={busy} onClick={() => window.confirm('Remove every sample order? Real orders are not touched.') && clearSamples()}>
-            Clear sample data
+
+      {r?.demo && (
+        <div className="cx-banner cx-row between" style={{ marginBottom: 14, background: 'rgba(201,147,85,0.08)', borderColor: 'rgba(201,147,85,0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: 'var(--cx-accent)', fontWeight: 700 }}>⚡</span>
+            <span>Realistic café day simulation active: showing kitchen tickets, seated tables, rider dispatches, and sales curve.</span>
+          </div>
+          <button
+            type="button"
+            className="cx-btn sm danger"
+            disabled={busy}
+            onClick={() => window.confirm('Reset all demo orders back to 0?') && clearSamples()}
+          >
+            Clear Sample Data
           </button>
-        </p>
+        </div>
       )}
 
       {!r || !k || !p ? (

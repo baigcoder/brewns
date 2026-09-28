@@ -81,6 +81,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let gender: 'female' | 'male' = 'female';
   /** The language the line listens in; follows the caller, or the EN / اردو switch. */
   let lang: 'en' | 'ur' = 'en';
+  let manualLangRevision = 0;
   const langBtn = $('vc-lang-toggle');
   let history: Turn[] = [];
   let scriptState: unknown = {};
@@ -469,6 +470,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         const formData = new FormData();
         const extension = audioType.includes('mp4') ? 'mp4' : audioType.includes('ogg') ? 'ogg' : 'webm';
         formData.append('file', blob, `voice.${extension}`);
+        formData.append('language', lang);
+        formData.append('callId', callId);
         const res = await fetch('/api/voice/transcribe', { method: 'POST', body: formData });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `Transcription unavailable (${res.status})`);
@@ -756,6 +759,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const said = text.trim();
     if (!said || !callActive) return;
     const id = ++turnId;
+    const languageRevisionAtStart = manualLangRevision;
     stopSpeaking();
     stopListening();
     hangUpAfterSpeech = false;
@@ -768,7 +772,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       const data = await post({ message: said });
       if (id !== turnId || !callActive) return;
       history.push({ role: 'user', content: said }, { role: 'assistant', content: data.reply });
-      if (data.lang === 'ur' || data.lang === 'en') setLang(data.lang);
+      if ((data.lang === 'ur' || data.lang === 'en') && languageRevisionAtStart === manualLangRevision) setLang(data.lang);
       scriptState = data.state || {};
       caption(data.reply);
       // When Sarah asks for email / Gmail address, slide keypad open with clear placeholder
@@ -828,9 +832,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     }
   }
 
-  function setLang(next: 'en' | 'ur') {
+  function setLang(next: 'en' | 'ur', manual = false) {
     if (next === lang) return;
     lang = next;
+    if (manual) manualLangRevision++;
     if (langBtn) {
       langBtn.dataset.lang = next;
       langBtn.setAttribute('aria-label', next === 'ur' ? 'Speaking Urdu. Switch to English' : 'Speaking English. Switch to Urdu');
@@ -1143,10 +1148,27 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   on(langBtn, 'click', (e: Event) => {
     e.preventDefault();
-    setLang(lang === 'en' ? 'ur' : 'en');
+    setLang(lang === 'en' ? 'ur' : 'en', true);
     playSoftClick?.();
-    // Reopen the mic in the new language straight away.
+    // Restart capture in the selected language. If the concierge is speaking,
+    // acknowledge the switch in the new voice immediately rather than finishing
+    // an entire sentence in the old language.
     if (callActive && phase === 'listening') listen();
+    else if (callActive && phase === 'speaking') {
+      const id = ++turnId;
+      stopSpeaking();
+      stopListening();
+      setPhase('thinking');
+      post({ message: 'language_switch' }).then((data) => {
+        if (id !== turnId || !callActive) return;
+        const line = data?.reply || (lang === 'ur' ? 'جی، اب ہم اردو میں بات کریں گے۔ فرمائیے، میں آپ کی کیا مدد کروں؟' : 'Sure, I’ll speak English. What can I help you with?');
+        history.push({ role: 'assistant', content: line });
+        caption(line);
+        speak(line, data?.audioUrl, id);
+      }).catch(() => {
+        if (id === turnId && callActive) speak(lang === 'ur' ? 'جی، اب ہم اردو میں بات کریں گے۔ فرمائیے؟' : 'Sure, I’ll speak English. What can I help you with?', undefined, id);
+      });
+    }
   });
 
   const sendTyped = () => {
