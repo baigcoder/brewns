@@ -1,0 +1,100 @@
+.bt { --gold: #c99355; --gold-hi: #e0a868; --ink: #f5ede3; --mute: rgb(245 237 227 / 0.6); --faint: rgb(245 237 227 / 0.38); --line: rgb(255 255 255 / 0.08); --card: #141311; --card-2: #1a1816;
+  background: linear-gradient(180deg, #161412, #11100e); border: 1px solid var(--line); border-radius: 24px; padding: clamp(20px, 4vw, 40px); box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); color: var(--ink); }
+.bt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 28px; }
+.bt-eyebrow { font-family: var(--font-space-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin: 0 0 8px; }
+.bt-title { font-family: var(--font-geist); font-size: clamp(28px, 4vw, 40px); font-weight: 700; letter-spacing: -0.02em; line-height: 1; margin: 0; }
+.bt-sub { margin: 10px 0 0; color: var(--mute); font-size: 14px; line-height: 1.5; max-width: 34rem; }
+.bt-sound { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; height: 36px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--line); background: transparent; color: var(--mute); font-size: 12px; cursor: pointer; transition: all 150ms ease; }
+.bt-sound.on { color: var(--gold); border-color: rgb(201 147 85 / 0.4); background: rgb(201 147 85 / 0.08); }
+.bt-sound:hover { color: var(--ink); }
+
+.bt-methods { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 6px; border-radius: 16px; background: rgb(0 0 0 / 0.25); border: 1px solid var(--line); margin-bottom: 28px; }
+.bt-method { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 11px; border: 1px solid transparent; background: transparent; color: var(--mute); text-align: left; cursor: pointer; transition: all 180ms ease; }
+.bt-method:hover { color: var(--ink); background: rgb(255 255 255 / 0.03); }
+.bt-method.on { background: var(--card-2); border-color: rgb(201 147 85 / 0.45); color: var(--ink); box-shadow: 0 6px 20px rgb(0 0 0 / 0.3); }
+.bt-method-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: rgb(255 255 255 / 0.04); flex-shrink: 0; }
+.bt-method.on .bt-method-icon { background: rgb(201 147 85 / 0.14); color: var(--gold); }
+.bt-method-text { display: grid; gap: 2px; min-width: 0; }
+.bt-method-text b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-method-text small { font-family: var(--font-space-mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--faint); white-space: nowrap; }
+
+.bt-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 32px; align-items: start; }
+.bt-clock { display: grid; justify-items: center; gap: 22px; padding: 8px 0; }
+.bt-ring { position: relative; width: min(100%, 300px); aspect-ratio: 1; }
+.bt-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.bt-arc { fill: none; stroke: rgb(255 255 255 / 0.09); stroke-width: 10; stroke-linecap: round; transition: stroke 300ms ease; }
+.bt-arc.past { stroke: rgb(201 147 85 / 0.35); }
+.bt-arc.now { stroke: rgb(201 147 85 / 0.22); }
+.bt-progress { fill: none; stroke: var(--gold); stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 0 6px rgb(201 147 85 / 0.6)); transition: stroke-dasharray 250ms linear; }
+.bt-ring-in { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 4px; text-align: center; }
+.bt-ring-step { font-family: var(--font-space-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+.bt-time { font-family: var(--font-space-mono); font-size: clamp(52px, 8vw, 68px); font-weight: 700; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.bt-time.done { color: var(--gold); }
+.bt-ring-of { font-size: 13px; color: var(--faint); }
+.bt-controls { display: flex; align-items: center; gap: 12px; }
+.bt-play { display: inline-flex; align-items: center; gap: 10px; height: 54px; padding: 0 28px 0 22px; border-radius: 9999px; border: 0; background: var(--gold); color: #120c06; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 12px 30px rgb(201 147 85 / 0.3), inset 0 1px 0 rgb(255 255 255 / 0.25); transition: background-color 150ms ease, transform 150ms ease; }
+.bt-play:hover { background: var(--gold-hi); transform: translateY(-1px); }
+.bt-reset { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; border: 1px solid var(--line); background: var(--card-2); color: var(--ink); cursor: pointer; transition: all 150ms ease; }
+.bt-reset:hover:not(:disabled) { border-color: rgb(255 255 255 / 0.25); }
+.bt-reset:disabled { opacity: 0.35; cursor: default; }
+.bt-hint { margin: 0; font-size: 12px; color: var(--faint); }
+.bt-hint kbd { font-family: var(--font-space-mono); font-size: 10.5px; padding: 2px 7px; border-radius: 5px; border: 1px solid var(--line); background: rgb(255 255 255 / 0.04); color: var(--mute); }
+
+.bt-side { display: grid; gap: 14px; }
+.bt-now { padding: 22px 22px 18px; border-radius: 18px; background: radial-gradient(120% 140% at 100% 0%, rgb(201 147 85 / 0.14), transparent 55%), var(--card-2); border: 1px solid rgb(201 147 85 / 0.28); }
+.bt-now.done { border-color: rgb(62 207 142 / 0.35); background: radial-gradient(120% 140% at 100% 0%, rgb(62 207 142 / 0.12), transparent 55%), var(--card-2); }
+.bt-now-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.bt-now-label { font-family: var(--font-space-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+.bt-now.done .bt-now-label { color: #3ecf8e; }
+.bt-now-left { font-family: var(--font-space-mono); font-size: 11px; color: var(--mute); padding: 3px 9px; border-radius: 9999px; background: rgb(255 255 255 / 0.05); font-variant-numeric: tabular-nums; }
+.bt-now-name { margin: 10px 0 6px; font-family: var(--font-geist); font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.bt-now-text { margin: 0; font-size: 15px; line-height: 1.55; color: rgb(245 237 227 / 0.82); min-height: 3.1em; }
+.bt-pour { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed rgb(255 255 255 / 0.1); }
+.bt-pour span { font-size: 13px; color: var(--mute); }
+.bt-pour b { font-family: var(--font-space-mono); font-size: 34px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.bt-pour small { font-size: 16px; color: var(--mute); }
+.bt-next { margin: 12px 0 0; font-size: 12.5px; color: var(--faint); }
+.bt-next b { color: var(--mute); font-weight: 600; }
+
+.bt-recipe { padding: 18px 20px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); display: grid; gap: 16px; }
+.bt-k { font-family: var(--font-space-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); margin: 0; }
+.bt-dose { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bt-stepper { display: inline-flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--line); background: rgb(0 0 0 / 0.3); }
+.bt-stepper button { width: 34px; height: 34px; border-radius: 8px; border: 0; background: rgb(255 255 255 / 0.05); color: var(--ink); font-size: 18px; cursor: pointer; transition: background-color 120ms ease; }
+.bt-stepper button:hover:not(:disabled) { background: rgb(201 147 85 / 0.2); }
+.bt-stepper button:disabled { opacity: 0.3; cursor: default; }
+.bt-stepper input { width: 44px; border: 0; background: transparent; color: var(--ink); text-align: right; font-family: var(--font-space-mono); font-size: 20px; font-weight: 700; -moz-appearance: textfield; appearance: textfield; }
+.bt-stepper input::-webkit-outer-spin-button, .bt-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bt-unit { font-family: var(--font-space-mono); font-size: 14px; color: var(--mute); margin-right: 6px; }
+.bt-specs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; margin: 0; padding-top: 14px; border-top: 1px solid var(--line); }
+.bt-specs div { min-width: 0; }
+.bt-specs dt { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+.bt-specs dd { margin: 0; font-size: 14px; line-height: 1.4; }
+.bt-specs dd.gold { font-family: var(--font-space-mono); font-size: 18px; font-weight: 700; color: var(--gold); }
+
+.bt-schedule { margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--line); }
+.bt-schedule ol { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.bt-schedule li { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "dot name g" "dot time time"; gap: 2px 10px; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); transition: all 200ms ease; }
+.bt-schedule li.now { border-color: var(--gold); background: rgb(201 147 85 / 0.08); }
+.bt-schedule li.past { opacity: 0.55; }
+.bt-dot { grid-area: dot; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); font-family: var(--font-space-mono); font-size: 11px; color: var(--mute); }
+.bt-schedule li.now .bt-dot { background: var(--gold); border-color: var(--gold); color: #120c06; font-weight: 700; }
+.bt-schedule li.past .bt-dot { color: var(--gold); border-color: rgb(201 147 85 / 0.5); }
+.bt-sch-name { grid-area: name; font-size: 14px; font-weight: 600; }
+.bt-sch-time { grid-area: time; font-family: var(--font-space-mono); font-size: 11px; color: var(--faint); }
+.bt-sch-g { grid-area: g; font-family: var(--font-space-mono); font-size: 13px; color: var(--gold); }
+
+@media (max-width: 860px) {
+  .bt-main { grid-template-columns: 1fr; gap: 24px; }
+  .bt-methods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .bt-head { flex-direction: column; }
+  .bt-method { padding: 10px; gap: 10px; }
+  .bt-method-icon { width: 32px; height: 32px; }
+  .bt-method-text small, .bt-method-text b { white-space: normal; }
+  .bt-specs { grid-template-columns: 1fr 1fr; }
+  .bt-pour b { font-size: 28px; }
+}
+@media (hover: none) { .bt-hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { .bt-progress, .bt-arc, .bt-method, .bt-play { transition: none; } }

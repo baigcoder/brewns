@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function BrewTimerPage() {
   return (
-    <SitePage current="brew-timer" width={820}>
+    <SitePage current="brew-timer" width={1040}>
       <BrewTimer />
     </SitePage>
   );
