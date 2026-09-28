@@ -377,3 +377,30 @@
 .cx-outcome { padding: 7px 10px; border-radius: 8px; background: rgb(224 162 79 / 0.1); border: 1px dashed rgb(224 162 79 / 0.45); color: var(--cx-text); }
 .cx-listening { align-self: flex-start; animation: cxBlink 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .cx-aicall.live .cx-pill.ready::before, .cx-listening { animation: none; } }
+
+/* ── dynamic realtime RBAC indicators ── */
+.cx-live-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgb(47 179 122 / 0.12);
+  border: 1px solid rgb(47 179 122 / 0.35);
+  color: var(--cx-ready);
+  font-family: var(--font-space-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.cx-live-tag::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--cx-ready);
+  box-shadow: 0 0 6px var(--cx-ready);
+  animation: cxBlink 1.4s ease-in-out infinite;
+}
+

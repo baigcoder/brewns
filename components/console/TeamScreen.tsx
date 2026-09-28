@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { LOC_TITLES } from '@/lib/catalog';
 import { outranks, ROLE_INFO, ROLES, type Role } from '@/lib/rbac';
 import { ago, api, initials, useNow } from './api';
+import { useLive } from './Live';
 import { useMe } from './Shell';
 import { useRun, useToast } from './Toasts';
 
@@ -28,15 +29,18 @@ const shopsLabel = (s: number[]) => (s.length ? s.map((i) => LOC_TITLES[i].split
 
 export function TeamScreen() {
   const { me, can } = useMe();
+  const { data } = useLive();
   const run = useRun();
   const [team, setTeam] = useState<Member[] | null>(null);
   const [edit, setEdit] = useState<Member | 'new' | null>(null);
   const [link, setLink] = useState<{ name: string; url: string; reset: boolean } | null>(null);
   const [filter, setFilter] = useState<Role | 'all'>('all');
   const load = () => run(() => api<{ team: Member[] }>('/api/staff/users')).then((r) => r && setTeam(r.team));
+
+  // Initial fetch and auto-reload on realtime server version bumps
   useEffect(() => {
     load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data?.v]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const manage = can('staff.manage');
   const canEdit = (m: Member) => manage && (m.id === me.id || outranks(me.role, m.role));
@@ -47,9 +51,14 @@ export function TeamScreen() {
     <>
       <div className="cx-pagehead">
         <div>
-          <p className="cx-eyebrow">
-            <b>{'//'}</b> {team ? `${team.filter((m) => m.active && !m.invited).length} active · ${team.filter((m) => m.invited).length} invited` : 'Loading…'}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <p className="cx-eyebrow" style={{ margin: 0 }}>
+              <b>{'//'}</b> {team ? `${team.filter((m) => m.active && !m.invited).length} active · ${team.filter((m) => m.invited).length} invited` : 'Loading…'}
+            </p>
+            <span className="cx-live-tag" title="Team members and roles sync live in real-time">
+              ● REALTIME SYNC
+            </span>
+          </div>
           <h1 className="cx-h1">Team</h1>
         </div>
         {manage && (
@@ -270,6 +279,10 @@ function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClo
               </option>
             ))}
           </select>
+          <div className="cx-small cx-muted" style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: 'var(--cx-accent)', fontWeight: 700 }}>● RBAC:</span>
+            <span>{ROLE_INFO[f.role].blurb} (Updates take effect dynamically in real time)</span>
+          </div>
         </label>
         <fieldset className="cx-stack" style={{ gap: 8 }} disabled={self && me.role !== 'owner'}>
           <legend className="cx-eyebrow" style={{ marginBottom: 8 }}>

@@ -11,6 +11,7 @@ import { SHOP_COUNT, LOC_TITLES } from '@/lib/catalog';
 import { audit } from './audit';
 import { allUsers, findByEmail, getUser, newUser, publicUser, randomToken, saveUser, sha256, type StaffContext, type User } from './auth';
 import { fail, isEmail, normEmail, str } from './http';
+import { bumpLive } from './orders';
 import { kv, withLock } from './store';
 
 const INVITE_DAYS = 7;
@@ -53,6 +54,7 @@ export async function invite(ctx: StaffContext, b: Record<string, unknown>) {
     const { token, invite } = inviteFor();
     const user = newUser({ kind: 'staff', role, name, email, phone: str(b.phone, 20), plate: str(b.plate, 20).toUpperCase(), shops, invite, invitedBy: ctx.user.name });
     await saveUser(user);
+    await bumpLive();
     await audit(actorOf(ctx), `Invited ${name} as ${ROLE_INFO[role].label.toLowerCase()}`, shops.length ? shops.map((s) => LOC_TITLES[s]).join(', ') : 'All shops');
     return { user: publicUser(user), token };
   });
@@ -75,6 +77,7 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
       if (target.passHash) fail(409, 'They have already joined. Switch the account off instead, so their history stays.');
       await kv.hdel('users', target.id);
       await kv.hdel('idx:staff-email', target.email);
+      await bumpLive();
       await audit(actorOf(ctx), `Withdrew the invite for ${target.name}`);
       return { user: null, token: '' };
     }
@@ -83,7 +86,7 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
       const role = cleanRole(ctx, b.role);
       if (target.role === 'owner' && (await activeOwners()).length < 2) fail(409, 'The café needs at least one owner. Make someone else an owner first.');
       next.role = role;
-      next.v += 1; // their screens reload with the new role
+      // Do not bump session version here: active session stays logged in, and live polling upgrades their role seamlessly in real time!
       done.push(`role → ${ROLE_INFO[role].label.toLowerCase()}`);
     }
     if (b.shops !== undefined) {
@@ -117,6 +120,7 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
       done.push(target.passHash ? 'new password link' : 'new invite link');
     }
     await saveUser(next, target);
+    await bumpLive();
     if (done.length) await audit(actorOf(ctx), `${target.name}: ${done.join(', ')}`);
     return { user: publicUser(next), token };
   });

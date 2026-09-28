@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { createContext, Suspense, useContext, useState, type ReactNode } from 'react';
+import { createContext, Suspense, useContext, useEffect, useState, type ReactNode } from 'react';
 import { canOpen, ROLE_INFO, SECTIONS, type Permission, type Role } from '@/lib/rbac';
 import { api, initials } from './api';
 import { LiveProvider, useLive } from './Live';
-import { ToastProvider } from './Toasts';
+import { ToastProvider, useToast } from './Toasts';
 
 export type Me = { id: string; name: string; email: string; role: Role; shops: number[] };
 
@@ -57,60 +57,115 @@ function Nav({ perms, onGo }: { perms: Permission[]; onGo: () => void }) {
   );
 }
 
-export function Shell({ me, perms, store, notice, children }: { me: Me; perms: Permission[]; store: { ephemeral: boolean; kind: string }; notice?: string; children: ReactNode }) {
+function ShellContent({
+  initialMe,
+  initialPerms,
+  store,
+  notice,
+  children,
+}: {
+  initialMe: Me;
+  initialPerms: Permission[];
+  store: { ephemeral: boolean; kind: string };
+  notice?: string;
+  children: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
+  const { data } = useLive();
+  const toast = useToast();
+
+  // Dynamic Realtime RBAC Sync: updates role and permissions on the fly without page reload
+  const me = data?.me ? { ...initialMe, ...data.me } : initialMe;
+  const perms = data?.perms || initialPerms;
+
+  useEffect(() => {
+    const handleRoleChange = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (detail?.newRole) {
+        const label = ROLE_INFO[detail.newRole as Role]?.label || detail.newRole;
+        toast(`Role updated in real-time: You are now ${label}. Navigation permissions updated.`, 'plain');
+      }
+    };
+    window.addEventListener('brewns:role-changed', handleRoleChange);
+    return () => window.removeEventListener('brewns:role-changed', handleRoleChange);
+  }, [toast]);
+
   const signOut = async () => {
     const r = await api<{ next: string }>('/api/auth/signout', { kind: 'staff' }).catch(() => ({ next: '/staff/signin' }));
     window.location.assign(r.next);
   };
+
   return (
     <MeCtx.Provider value={{ me, perms }}>
-    <ToastProvider>
-      <LiveProvider>
-        <div className={`cx${open ? ' nav-open' : ''}`}>
-          <div className="cx-top">
-            <button type="button" className="cx-btn sm" onClick={() => setOpen(true)} aria-label="Open the menu">
-              ☰ Menu
-            </button>
+      <div className={`cx${open ? ' nav-open' : ''}`}>
+        <div className="cx-top">
+          <button type="button" className="cx-btn sm" onClick={() => setOpen(true)} aria-label="Open the menu">
+            ☰ Menu
+          </button>
+          <Link href="/" aria-label="brewns, the site" className="wordmark mask" />
+          <span className="cx-avatar" title={me.name}>
+            {initials(me.name)}
+          </span>
+        </div>
+        <aside className="cx-side" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
+          <div className="cx-brand">
             <Link href="/" aria-label="brewns, the site" className="wordmark mask" />
-            <span className="cx-avatar" title={me.name}>
-              {initials(me.name)}
-            </span>
+            <span>CONSOLE</span>
           </div>
-          <aside className="cx-side" onClick={(e) => e.target === e.currentTarget && setOpen(false)}>
-            <div className="cx-brand">
-              <Link href="/" aria-label="brewns, the site" className="wordmark mask" />
-              <span>CONSOLE</span>
-            </div>
-            <Nav perms={perms} onGo={() => setOpen(false)} />
-            <div className="cx-me">
-              <div className="cx-me-row">
-                <span className="cx-avatar">{initials(me.name)}</span>
-                <div style={{ minWidth: 0 }}>
-                  <p className="cx-me-name">{me.name}</p>
-                  <p className="cx-eyebrow">{ROLE_INFO[me.role].label}</p>
+          <Nav perms={perms} onGo={() => setOpen(false)} />
+          <div className="cx-me">
+            <div className="cx-me-row">
+              <span className="cx-avatar">{initials(me.name)}</span>
+              <div style={{ minWidth: 0 }}>
+                <p className="cx-me-name">{me.name}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <p className="cx-eyebrow" style={{ margin: 0 }}>{ROLE_INFO[me.role].label}</p>
+                  <span className="cx-live-tag" title="Realtime role & permission sync active">LIVE</span>
                 </div>
               </div>
-              <button type="button" className="cx-btn sm block" onClick={signOut}>
-                Sign out
-              </button>
             </div>
-          </aside>
-          <main className="cx-main">
-            {store.ephemeral && (
-              <p className="cx-banner cx-noprint">
-                Data is being kept in temporary storage and will be lost when the server restarts. Connect Upstash Redis in Vercel (Storage → Upstash → Redis) and redeploy to keep it.
-              </p>
-            )}
-            {notice && <p className="cx-banner cx-noprint">{notice}</p>}
-            <Suspense fallback={null}>
-              <Denied />
-            </Suspense>
-            {children}
-          </main>
-        </div>
+            <button type="button" className="cx-btn sm block" onClick={signOut}>
+              Sign out
+            </button>
+          </div>
+        </aside>
+        <main className="cx-main">
+          {store.ephemeral && (
+            <p className="cx-banner cx-noprint">
+              Data is being kept in temporary storage and will be lost when the server restarts. Connect Upstash Redis in Vercel (Storage → Upstash → Redis) and redeploy to keep it.
+            </p>
+          )}
+          {notice && <p className="cx-banner cx-noprint">{notice}</p>}
+          <Suspense fallback={null}>
+            <Denied />
+          </Suspense>
+          {children}
+        </main>
+      </div>
+    </MeCtx.Provider>
+  );
+}
+
+export function Shell({
+  me,
+  perms,
+  store,
+  notice,
+  children,
+}: {
+  me: Me;
+  perms: Permission[];
+  store: { ephemeral: boolean; kind: string };
+  notice?: string;
+  children: ReactNode;
+}) {
+  return (
+    <ToastProvider>
+      <LiveProvider>
+        <ShellContent initialMe={me} initialPerms={perms} store={store} notice={notice}>
+          {children}
+        </ShellContent>
       </LiveProvider>
     </ToastProvider>
-    </MeCtx.Provider>
   );
 }

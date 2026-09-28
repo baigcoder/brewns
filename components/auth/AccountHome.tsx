@@ -22,11 +22,29 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
   const [pw, setPw] = useState({ password: '', newPassword: '' });
 
   useEffect(() => {
-    api<{ orders: Order[] }>('/api/account/orders').then((r) => setOrders(r.orders), () => setOrders([]));
+    let cancelled = false;
+    const fetchOrders = () => {
+      api<{ orders: Order[] }>('/api/account/orders').then(
+        (r) => { if (!cancelled) setOrders(r.orders); },
+        () => { if (!cancelled) setOrders((prev) => prev || []); }
+      );
+    };
+    fetchOrders();
+
+    // Poll live order and club status dynamically every 5 seconds
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchOrders();
+    }, 5000);
+
     // Keep the site's copy of the card in step, so the checkout offers the right free drinks.
     try {
       localStorage.setItem('brewns-club', JSON.stringify(first));
     } catch {}
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [first]);
 
   const say = (text: string, bad = false) => setMsg({ text, bad });
@@ -131,8 +149,9 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
         )}
 
         <section className="cx-card">
-          <div className="cx-card-h">
-            <p className="cx-h2">Your orders</p>
+          <div className="cx-card-h" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <p className="cx-h2" style={{ margin: 0 }}>Your orders</p>
+            <span className="cx-live-tag">● REALTIME TRACKING</span>
           </div>
           {!orders ? (
             <p className="cx-muted">Loading…</p>

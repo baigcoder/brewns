@@ -12,7 +12,15 @@ import { isLive, recentVoiceCalls } from '@/lib/server/voiceLog';
 export const GET = route(async (req) => {
   const ctx = await requireStaff();
   const v = await liveVersion();
-  if (new URL(req.url).searchParams.get('v') === String(v)) return json({ v, same: true });
+  const url = new URL(req.url);
+  const clientV = url.searchParams.get('v');
+  const clientRole = url.searchParams.get('r');
+
+  // If live version matches and role hasn't changed, return 304-equivalent same payload
+  if (clientV === String(v) && (!clientRole || clientRole === ctx.role)) {
+    return json({ v, same: true });
+  }
+
   const p = ctx.perms;
   const [orders, calls, voice] = await Promise.all([activeOrders(), openCalls(), canAny(p, 'reports.view') ? recentVoiceCalls() : Promise.resolve([])]);
   const riders = canAny(p, 'delivery.assign')
@@ -30,5 +38,16 @@ export const GET = route(async (req) => {
     aiLive: voice.filter((c) => isLive(c)).length,
     soldOut: ctx.settings.soldOut,
     shops: ctx.settings.shops,
+    // Dynamic realtime RBAC details
+    me: {
+      id: ctx.user.id,
+      name: ctx.user.name,
+      email: ctx.user.email,
+      role: ctx.role,
+      shops: ctx.user.shops,
+      active: ctx.user.active,
+    },
+    perms: ctx.perms,
+    rolePerms: ctx.settings.rolePerms,
   });
 });

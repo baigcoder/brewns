@@ -2,13 +2,26 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ServerOrder } from '@/lib/orderFlow';
+import type { Permission, Role, RolePerms } from '@/lib/rbac';
 import type { ShopSettings } from '@/lib/server/settings';
 import { api } from './api';
 
 export type StaffOrder = Omit<ServerOrder, 'key'>;
 export type Call = { id: string; loc: number; table: number; kind: 'waiter' | 'bill'; t: number };
 export type Rider = { id: string; name: string; plate: string; shops: number[]; online: boolean };
-export type LiveData = { v: number; now: number; orders: StaffOrder[]; calls: Call[]; riders: Rider[]; aiLive?: number; soldOut: string[]; shops: ShopSettings[] };
+export type LiveData = {
+  v: number;
+  now: number;
+  orders: StaffOrder[];
+  calls: Call[];
+  riders: Rider[];
+  aiLive?: number;
+  soldOut: string[];
+  shops: ShopSettings[];
+  me?: { id: string; name: string; email: string; role: Role; shops: number[]; active?: boolean };
+  perms?: Permission[];
+  rolePerms?: RolePerms;
+};
 
 type Live = {
   data: LiveData | null;
@@ -30,14 +43,25 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState('');
   const [fresh, setFresh] = useState<Set<number>>(new Set());
   const v = useRef<number | null>(null);
+  const roleRef = useRef<string | null>(null);
   const known = useRef<Set<number> | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const r = await api<LiveData & { same?: boolean }>(`/api/staff/live${v.current !== null ? `?v=${v.current}` : ''}`);
+      const q = new URLSearchParams();
+      if (v.current !== null) q.set('v', String(v.current));
+      if (roleRef.current) q.set('r', roleRef.current);
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      const r = await api<LiveData & { same?: boolean }>(`/api/staff/live${queryStr}`);
       setError('');
       if (r.same) return;
       v.current = r.v;
+      if (r.me?.role) {
+        if (roleRef.current && roleRef.current !== r.me.role) {
+          window.dispatchEvent(new CustomEvent('brewns:role-changed', { detail: { oldRole: roleRef.current, newRole: r.me.role } }));
+        }
+        roleRef.current = r.me.role;
+      }
       if (known.current) {
         const arrived = r.orders.filter((o) => !known.current!.has(o.number)).map((o) => o.number);
         if (arrived.length) {
@@ -47,7 +71,11 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       }
       known.current = new Set(r.orders.map((o) => o.number));
       setData(r);
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.status === 401 || e?.message?.includes('Sign in again')) {
+        window.location.assign('/staff/signin?denied=' + encodeURIComponent('Session ended or account deactivated.'));
+        return;
+      }
       setError((e as Error).message);
     }
   }, []);
