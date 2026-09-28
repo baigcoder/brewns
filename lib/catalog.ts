@@ -123,14 +123,14 @@ export const PRODUCTS_BASE: Product[] = [
   {
     id: "slow-roast", name: "SLOW ROAST", cat: "beans", tag: "BESTSELLER", price: 3800, photo: "menu/bag-slow-roast.webp", cutout: true, model: "bag", feature: true,
     alt: "A brewns Slow Roast bag in charcoal and sage green",
-    meta: "250 G · WHOLE BEAN · COPENHAGEN", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
+    meta: "250 G · WHOLE BEAN · ROASTED IN LAHORE", notes: ["CARAMEL", "BROWN SUGAR", "ROASTED ALMOND"],
     desc: "Our house roast, taken slow and a shade past medium so the sugars caramelise without tipping into bitter. Sweet in milk, round and clean on its own.",
     options: [
       { key: "size", label: "SIZE", choices: [["250 G", 0], ["500 G", 3000], ["1 KG", 8700]] },
       { key: "grind", label: "GRIND", wrap: true, choices: [["WHOLE BEAN", 0], ["ESPRESSO", 0], ["FILTER", 0], ["FRENCH PRESS", 0]] },
       { key: "plan", label: "PURCHASE", choices: [["ONE-TIME", 0], ["EVERY 2 WK", 0, "SAVE 10%"], ["EVERY 4 WK", 0, "SAVE 10%"]] },
     ],
-    details: [["ORIGIN", "COLOMBIA · ETHIOPIA"], ["PROCESS", "WASHED"], ["ROAST", "MEDIUM"], ["ROASTED IN", "COPENHAGEN"]],
+    details: [["ORIGIN", "COLOMBIA · ETHIOPIA"], ["PROCESS", "WASHED"], ["ROAST", "MEDIUM"], ["ROASTED IN", "LAHORE"]],
     care: "Roasted weekly in small batches and packed in a valved bag. Best within four weeks of the roast date printed on the back. Keep sealed, away from light and heat.",
   },
   {

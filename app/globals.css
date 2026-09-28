@@ -4036,3 +4036,95 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
 @media (min-width: 640px) { .pre-foot { bottom: 2.5rem; } }
 /* Nothing floats over the loader: the call button waits until the page is in. */
 body:has(#pre) .voice-call-floating { display: none !important; }
+
+/* ═══════════ hero: actions, live line, finish ═══════════ */
+.hero-lede { gap: 1.75rem; }
+@media (min-width: 1024px) { .hero-lede { gap: 2rem; } }
+.hero .t-lede { font-weight: 500; color: rgb(244 242 236 / 0.74); line-height: 1.55; letter-spacing: 0.01em; }
+
+.hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; width: max-content; max-width: calc(100vw - 2.5rem); }
+.hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 3rem;
+  padding: 0 1.4rem;
+  border-radius: 9999px;
+  font-family: var(--font-space-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 250ms ease, border-color 250ms ease, color 250ms ease, box-shadow 250ms ease, transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hero-btn svg { flex-shrink: 0; transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1); }
+.hero-btn-gold { background: var(--accent, #c99355); color: #0d0b09; box-shadow: 0 10px 30px rgb(201 147 85 / 0.3), inset 0 1px 0 rgb(255 255 255 / 0.25); }
+.hero-btn-gold:hover { background: #e0a868; box-shadow: 0 14px 38px rgb(201 147 85 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.3); transform: translateY(-1px); }
+.hero-btn-gold:hover svg { transform: translateX(3px); }
+.hero-btn-line { border: 1px solid rgb(255 255 255 / 0.26); background: rgb(255 255 255 / 0.04); color: var(--foreground); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.hero-btn-line:hover { border-color: var(--accent, #c99355); color: var(--accent, #c99355); transform: translateY(-1px); }
+.hero-btn:focus-visible { outline: 2px solid var(--accent, #c99355); outline-offset: 3px; }
+
+.hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; width: max-content; max-width: calc(100vw - 2.5rem); font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgb(244 242 236 / 0.72); }
+.hero-live { display: inline-flex; align-items: center; gap: 0.5rem; }
+.hero-live i { position: relative; width: 7px; height: 7px; border-radius: 50%; background: #3ecf8e; }
+.hero-live i::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid currentColor; color: #3ecf8e; animation: heroLivePulse 2s ease-out infinite; }
+.hero-live[data-state="soon"] i, .hero-live[data-state="soon"] i::after { background: #e0a868; color: #e0a868; }
+.hero-live[data-state="soon"] i::after { background: none; }
+.hero-live[data-state="closed"] i { background: #8e8a82; }
+.hero-live[data-state="closed"] i::after { display: none; }
+@keyframes heroLivePulse { from { transform: scale(0.6); opacity: 0.9; } to { transform: scale(1.8); opacity: 0; } }
+.hero-rating { display: inline-flex; align-items: center; gap: 0.35rem; padding-left: 1rem; border-left: 1px solid rgb(255 255 255 / 0.18); color: inherit; transition: color 200ms ease; }
+.hero-rating > span:first-child { color: var(--accent, #c99355); }
+.hero-rating b { color: var(--foreground); font-weight: 700; }
+.hero-rating:hover { color: var(--foreground); }
+
+/* the address on one line per part, socials that read as links */
+@media (min-width: 1024px) { .hero-addr, .hero-social { width: max-content; } }
+.hero-social-arrow { display: inline-block; margin-left: 0.15rem; opacity: 0.55; transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), opacity 250ms ease; }
+.hero-social a:hover .hero-social-arrow { opacity: 1; transform: translate(2px, -2px); }
+
+/* scroll cue */
+.hero-scroll { display: none; }
+@media (min-width: 1024px) {
+  .hero-scroll { position: absolute; z-index: 11; left: 50%; bottom: 2.25rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.6rem; font-family: var(--font-space-mono); font-size: 0.625rem; letter-spacing: 0.3em; color: rgb(244 242 236 / 0.55); transition: color 200ms ease; }
+  .hero-scroll:hover { color: var(--foreground); }
+  .hero-scroll i { position: relative; width: 1px; height: 2.5rem; overflow: hidden; background: rgb(255 255 255 / 0.16); }
+  .hero-scroll i::after { content: ""; position: absolute; left: 0; top: -40%; width: 1px; height: 40%; background: var(--accent, #c99355); animation: heroScroll 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+}
+@keyframes heroScroll { to { top: 100%; } }
+
+/* a fine film grain over the warm light, under the copy */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* header over the hero: the hero carries Order online, so the bar keeps to
+   sound, account and bag until you scroll; sound is its icon on desktop */
+@media (min-width: 1024px) {
+  .hdr .hdr-order { max-width: 14rem; overflow: hidden; transition: max-width 450ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease, padding 450ms cubic-bezier(0.16, 1, 0.3, 1), margin 450ms cubic-bezier(0.16, 1, 0.3, 1), background-color 250ms ease, box-shadow 250ms ease, transform 250ms ease; }
+  .hdr:not(.scrolled) .hdr-order { max-width: 0; padding-inline: 0; margin-left: -0.625rem; opacity: 0; pointer-events: none; box-shadow: none; }
+  .hdr-sound { width: 2.5rem; padding: 0 !important; justify-content: center; }
+  .hdr-sound #sound-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-live i::after, .hero-scroll i::after { animation: none; }
+  .hero-btn, .hero-btn svg, .hdr .hdr-order { transition: none; }
+}
+/* phones: both buttons on one row, the live line alone, less air */
+@media (max-width: 639.98px) {
+  .hero-lede { width: 100%; gap: 1.1rem; }
+  .hero-actions { flex-wrap: nowrap; gap: 0.5rem; }
+  .hero-btn { height: 2.75rem; padding: 0 1rem; font-size: 0.6875rem; letter-spacing: 0.06em; gap: 0.45rem; }
+  .hero-meta { font-size: 0.625rem; }
+  .hero-rating { display: none; }
+}

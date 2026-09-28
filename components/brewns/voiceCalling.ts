@@ -599,6 +599,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     startCall();
   };
   on($('hdr-voice-btn'), 'click', openCall);
+  on($('hero-call-btn'), 'click', openCall);
   on($('voice-call-float'), 'click', openCall);
   on($('menu-voice-call-link'), 'click', openCall);
   for (const id of ['voice-call-close', 'voice-hangup-btn', 'voice-call-backdrop'])

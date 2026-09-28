@@ -933,7 +933,11 @@ const renderScore = (avg: any, total: any) => {
   if (countEl) {
     const p = countEl.querySelector("p:last-child");
     if (p) p.innerHTML = `<span class="blk"><span data-dr data-d="520">${total.toLocaleString()}</span> reviews</span><span class="blk">across three shops</span>`;
-  }
+  }  // The hero quotes the same score.
+  const heroN = $("#hero-rating-n");
+  if (heroN) heroN.textContent = String(avg);
+  const heroC = $("#hero-rating-c");
+  if (heroC) heroC.textContent = `${total.toLocaleString()} reviews`;
 };
 
 /* ── initial render with static data ── */
@@ -2260,7 +2264,7 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
 
 /* ═══════════ hero card ═══════════ */
 const HERO_CARDS = {
-  bag: { eyebrow: "in the bag", name: "SLOW ROAST", price: "Rs 3,800", meta: ["250 G", "WHOLE BEAN", "COPENHAGEN"] },
+  bag: { eyebrow: "in the bag", name: "SLOW ROAST", price: "Rs 3,800", meta: ["250 G", "WHOLE BEAN", "ROASTED IN LAHORE"] },
   cup: { eyebrow: "in the cup", name: "HOUSE LATTE", price: "Rs 950", meta: ["250 ML", "BREWED DAILY", "TO GO"] },
 };
 const heroCard = $("#hero-card");
@@ -5359,6 +5363,27 @@ let coCleanups = [];
 const nowMin = () => Math.floor(((Date.now() / 60000) + 300) % 1440);
 const hhmm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const isOpenNow = () => nowMin() >= OPEN_MIN && nowMin() + PREP_MIN <= CLOSE_MIN;
+
+/* The hero's live line: open now, closing soon, or when it opens (Lahore time). */
+{
+  const live = $("#hero-live");
+  const liveText = $("#hero-live-text");
+  const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const paint = () => {
+    const m = nowMin();
+    const [state, text] =
+      m < OPEN_MIN ? ["closed", `OPENS AT ${hm(OPEN_MIN)}`]
+      : m >= CLOSE_MIN ? ["closed", `CLOSED · OPENS ${hm(OPEN_MIN)} TOMORROW`]
+      : m >= CLOSE_MIN - 30 ? ["soon", `CLOSING SOON · ${hm(CLOSE_MIN)}`]
+      : ["open", `OPEN NOW · UNTIL ${hm(CLOSE_MIN)}`];
+    live.dataset.state = state;
+    liveText.textContent = text;
+  };
+  if (live && liveText) {
+    paint();
+    setInterval(paint, 30000);
+  }
+}
 const slotList = () => {
   const m = nowMin();
   let start = Math.max(OPEN_MIN + 15, Math.ceil((m + PREP_MIN + 5) / 15) * 15);
