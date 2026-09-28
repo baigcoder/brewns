@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef } from 'react';
 import { BREWNS_MARKUP } from './brewnsMarkup';
-import { initBrewns } from './initBrewns';
 
 /**
  * On a local server only (localhost): if the later sections' styles are
@@ -55,15 +54,25 @@ export function BrewnsApp({ kitchenPhotos, cafeRecording, build }: { kitchenPhot
 
     let cleanup: (() => void) | undefined;
     let initError: unknown = null;
-    // Slight delay to ensure DOM is fully mounted and fonts ready
+    let mounted = true;
+
+    // Load interactive 3D and audio engine asynchronously to prioritize instant First Contentful Paint
     const timer = setTimeout(() => {
-      try {
-        cleanup = initBrewns(document.body, { kitchenPhotos, cafeRecording });
-      } catch (err) {
-        initError = err;
-        console.error('Failed to init Brewns engine:', err);
-      }
-    }, 50);
+      import('./initBrewns')
+        .then(({ initBrewns }) => {
+          if (!mounted) return;
+          try {
+            cleanup = initBrewns(document.body, { kitchenPhotos, cafeRecording });
+          } catch (err) {
+            initError = err;
+            console.error('Failed to init Brewns engine:', err);
+          }
+        })
+        .catch((err) => {
+          initError = err;
+          console.error('Failed to load Brewns engine chunk:', err);
+        });
+    }, 40);
     const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
     const check = local ? setTimeout(() => devHealthCheck(initError, build), 4000) : 0;
     if (local) console.info(`brewns: server commit ${build || 'unknown'}`);

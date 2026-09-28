@@ -382,8 +382,12 @@ let liveLocationsTimer = 0;
 /* ═══════════ smooth scroll ═══════════ */
 if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
-// Eased wheel scrolling; people who ask for less motion get the browser's own.
-const lenis = new Lenis({ smoothWheel: !REDUCED, lerp: 0.1 });
+const lenis = new Lenis({
+  smoothWheel: !REDUCED,
+  lerp: 0.12,
+  wheelMultiplier: 1.0,
+  touchMultiplier: 1.5,
+});
 window.lenis = lenis;
 const root = document.documentElement;
 const stopScroll = () => {
@@ -670,20 +674,19 @@ const scrub = (el, trigger, start, end, from, to, reducedProgress = 1) => {
     last = p;
     apply(interpolate(from, to, p));
   };
-  let off = null;
+  let isIntersecting = false;
   const io = new IntersectionObserver(
     ([entry]) => {
-      update();
-      if (entry.isIntersecting) off ||= loop(update, 10);
-      else if (off) {
-        off();
-        off = null;
-      }
+      isIntersecting = entry.isIntersecting;
+      if (isIntersecting) update();
     },
     { rootMargin: "10% 0px" },
   );
   io.observe(trigger);
   update();
+  lenis.on("scroll", () => {
+    if (isIntersecting) update();
+  });
 };
 
 /* ═══════════ TextEngine ═══════════ */
@@ -1822,16 +1825,20 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   /* ── the photos drift inside their frames as you scroll ── */
   let onScreen = false;
   new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
-  if (!REDUCED)
-    loop(() => {
+  if (!REDUCED) {
+    const updatePhotoDrift = () => {
       if (!onScreen) return;
       const vh = innerHeight;
-      for (const t of tiles) {
-        const r = t.getBoundingClientRect();
+      const rects = tiles.map((t) => t.getBoundingClientRect());
+      tiles.forEach((t, i) => {
+        const r = rects[i];
         const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
-        $("img", t).style.translate = `0 ${(-p * 3).toFixed(2)}%`;
-      }
-    });
+        const img = $("img", t);
+        if (img) img.style.translate = `0 ${(-p * 3).toFixed(2)}%`;
+      });
+    };
+    lenis.on("scroll", updatePhotoDrift);
+  }
 
   /* ── desktop: a VIEW badge follows the cursor over the photos ── */
   if (matchMedia("(hover: hover) and (pointer: fine)").matches && grid) {
@@ -1936,9 +1943,9 @@ const themed = $$("[data-header-theme]");
 const footer = $("#ftr");
 const PROBE_OFFSET = 35;
 let lastThemeY = -1;
-loop(() => {
+const checkHeaderTheme = () => {
   const y = window.scrollY;
-  if (y === lastThemeY) return;
+  if (Math.abs(y - lastThemeY) < 15) return;
   lastThemeY = y;
   for (const s of themed) {
     const b = s.getBoundingClientRect();
@@ -1948,7 +1955,9 @@ loop(() => {
     }
   }
   header.classList.toggle("over-footer", footer.getBoundingClientRect().top <= PROBE_OFFSET);
-}, 100);
+};
+lenis.on("scroll", checkHeaderTheme);
+checkHeaderTheme();
 
 /* The bar itself: see-through over the hero, a frosted capsule once the page
    moves, out of the way while reading down and back the moment you scroll up.
@@ -1957,9 +1966,9 @@ loop(() => {
   const links = $$(".hdr-nav a[href^='#']");
   const targetPairs = links.map((a) => [a, document.getElementById(a.getAttribute("href").slice(1))]);
   let lastY = -1, travelled = 0;
-  loop(() => {
+  const checkHeaderNav = () => {
     const y = window.scrollY;
-    if (y === lastY) return;
+    if (Math.abs(y - lastY) < 6) return;
     const dy = y - (lastY === -1 ? y : lastY);
     lastY = y;
     header.classList.toggle("scrolled", y > 24);
@@ -1976,7 +1985,9 @@ loop(() => {
       if (b.top <= probe && b.bottom > probe) current = a;
     }
     for (const a of links) a.classList.toggle("is-active", a === current);
-  }, 100);
+  };
+  lenis.on("scroll", checkHeaderNav);
+  checkHeaderNav();
 })();
 
 const toggle = $("#menu-toggle");
@@ -2553,7 +2564,14 @@ const orderPrinter = { reprint: () => {} };
       });
     }, 350);
   };
+  let inView = false;
+  new IntersectionObserver(([e]) => {
+    inView = e.isIntersecting;
+    if (inView) measure();
+  }, { rootMargin: "25% 0px" }).observe(section);
+
   const measure = () => {
+    if (!inView) return;
     const scrolled = -section.getBoundingClientRect().top;
     const from = START_VH * window.innerHeight;
     const to = END_VH * window.innerHeight;
@@ -2595,7 +2613,9 @@ const orderPrinter = { reprint: () => {} };
     section.style.height = "100lvh";
     write(1);
     sweep.set({ v: 1 });
-  } else loop(measure);
+  } else {
+    lenis.on("scroll", measure);
+  }
 })();
 
 /* ═══════════ Opalesce ═══════════ */
@@ -2604,7 +2624,7 @@ const CONFIG = {
   scale: 0.5, speed: 0.12, flow: 0.16, warp: 1.45, warpScale: 0.75, roughness: 0.45, lacunarity: 2,
   thickness: 1.2, iridescence: 0.22, spread: 0.28, sheen: 0.05, contrast: 1.35, midpoint: 0.54,
   glow: 0.08, sink: 0.35, grain: 0.045, grainAnim: 1, dither: 1.55, vignette: 0.26, cursor: 1,
-  pointerRadius: 0.3, pointerStrength: 1.2, parallax: 0.01, maxDpr: 1,
+  pointerRadius: 0.3, pointerStrength: 1.2, parallax: 0.01, maxDpr: 1.0,
 };
 
 const VERT = `#version 300 es
@@ -3230,8 +3250,8 @@ function heroModel(T, mount, handle, onPiece) {
       const sy = window.scrollY || window.pageYOffset || 0;
       if (sy !== lastHeroScrollY) {
         lastHeroScrollY = sy;
-        const box = hero.getBoundingClientRect();
-        cachedHeroAway = Math.min(1, Math.max(0, -box.top / (box.height || 1)));
+        const heroHeight = hero.offsetHeight || window.innerHeight;
+        cachedHeroAway = Math.min(1, Math.max(0, sy / heroHeight));
       }
       const gap = -cachedHeroAway * SCROLL_DROP * productHeight - drift.position.y;
       if (Math.abs(gap) > productHeight * 1e-4) {
@@ -3901,8 +3921,10 @@ function philosophyScene(T, mount) {
       lean.pitch += (-aim.y * aimed * CUP.lean.pitch - lean.pitch) * follow;
       rise *= Math.exp(-CUP.riseRate * dt);
 
-      const box = section.getBoundingClientRect();
-      const travel = Math.min(1, Math.max(0, (window.innerHeight - box.top) / (window.innerHeight + box.height)));
+      const sy = window.scrollY || 0;
+      const boxTop = section.offsetTop - sy;
+      const boxHeight = section.offsetHeight || 800;
+      const travel = Math.min(1, Math.max(0, (window.innerHeight - boxTop) / (window.innerHeight + boxHeight)));
       turned += ((travel - 0.5) * CUP.spin - turned) * (1 - Math.exp(-CUP.spinFollow * dt));
       spin.rotation.y = turned;
       poseCup();
