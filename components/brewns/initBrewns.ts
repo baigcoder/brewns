@@ -1114,7 +1114,10 @@ const refreshReviews = () => {
 
 // Initial fetch and 15s real-time poll
 refreshReviews();
-setInterval(refreshReviews, 15000);
+setInterval(() => { if (!document.hidden) refreshReviews(); }, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshReviews();
+});
 
 /* ── live upvote via API ── */
 document.addEventListener("click", (e) => {
@@ -1316,7 +1319,7 @@ const renderMomentCard = (m: any) => {
     <div class="moments-card" data-moment-id="${m.id}">
       <div class="moments-photo-wrap" data-lightbox-photo="${esc(m.imageUrl)}" data-media-type="${isVideo ? 'video' : 'image'}" data-author="${esc(m.author)}" data-caption="${esc(m.caption)}" data-place="${esc(m.location)}">
         ${isVideo ? `
-          <video src="${esc(m.imageUrl)}" muted loop playsinline autoplay preload="metadata" style="pointer-events:none;"></video>
+          <video src="${esc(m.imageUrl)}" muted loop playsinline preload="none" style="pointer-events:none;"></video>
           <span class="moments-video-badge"><i>▶</i> VIDEO</span>
         ` : `
           <img src="${esc(m.imageUrl)}" alt="${esc(m.caption)}" loading="lazy" decoding="async" />
@@ -1341,6 +1344,24 @@ const renderMomentCard = (m: any) => {
 };
 
 let lastMomentsStamp = "";
+const momentsVideoObserver = "IntersectionObserver" in window
+  ? new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const video = entry.target as HTMLVideoElement;
+        if (entry.isIntersecting && !document.hidden && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
+      });
+    }, { rootMargin: "120px" })
+  : null;
+const syncMomentVideo = (video: HTMLVideoElement) => {
+  const rect = video.getBoundingClientRect();
+  const visible = !document.hidden && rect.bottom > -120 && rect.top < innerHeight + 120;
+  if (visible && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) video.play().catch(() => {});
+  else video.pause();
+};
 const refreshCommunityMoments = () => {
   if (!momentsGrid) return;
   fetch("/api/public/moments")
@@ -1351,17 +1372,26 @@ const refreshCommunityMoments = () => {
       const stamp = JSON.stringify(data.moments);
       if (stamp === lastMomentsStamp) return;
       lastMomentsStamp = stamp;
+      momentsGrid.querySelectorAll("video").forEach((v) => momentsVideoObserver?.unobserve(v));
       momentsGrid.innerHTML = data.moments.map(renderMomentCard).join("");
       momentsGrid.querySelectorAll("video").forEach((v) => {
         v.muted = true;
-        v.play().catch(() => {});
+        if (momentsVideoObserver) momentsVideoObserver.observe(v);
+        else syncMomentVideo(v);
       });
     })
     .catch(() => {});
 };
 
 refreshCommunityMoments();
-setInterval(refreshCommunityMoments, 20000);
+setInterval(() => { if (!document.hidden) refreshCommunityMoments(); }, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) momentsGrid?.querySelectorAll("video").forEach((v) => v.pause());
+  else {
+    refreshCommunityMoments();
+    momentsGrid?.querySelectorAll("video").forEach(syncMomentVideo);
+  }
+});
 
 // Modal open & close
 const openMomentsModal = () => {

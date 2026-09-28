@@ -1,6 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { Geist, Onest, Space_Mono, Allura } from 'next/font/google';
 import './globals.css';
 import { SITE_URL } from '@/lib/site';
@@ -34,23 +32,10 @@ const allura = Allura({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  alternates: { canonical: '/' },
   title: 'brewns — Specialty Coffee House in Lahore',
   description: 'Specialty coffee house in Lahore. Carefully sourced beans, thoughtfully brewed. Order ahead and skip the line at MM Alam Road, DHA Phase 5 and Johar Town, open daily 07:00–21:00.',
   keywords: ['Specialty Coffee', 'Lahore Coffee', 'Coffee Roaster', 'Single Origin', 'Espresso Bar', 'MM Alam Road', 'DHA Lahore', 'Johar Town'],
   authors: [{ name: 'brewns coffee house' }],
-  openGraph: {
-    title: 'brewns — Specialty Coffee House in Lahore',
-    description: 'Specialty coffee house in Lahore. Carefully sourced beans, thoughtfully brewed.',
-    type: 'website',
-    locale: 'en_PK',
-    siteName: 'brewns',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'brewns — Specialty Coffee House',
-    description: 'Specialty coffee house in Lahore. Carefully sourced beans, thoughtfully brewed.',
-  },
 };
 
 export const viewport: Viewport = {
@@ -59,21 +44,6 @@ export const viewport: Viewport = {
   maximumScale: 5,
   themeColor: '#070707',
 };
-
-/* The later sections' styles (checkout, tracking, reviews, Inside brewns, sound,
-   the founder, the bill, the map) go straight into the page, after the main
-   stylesheet, instead of through the CSS build — so they always arrive, even if
-   a local build serves a stale or partial stylesheet. */
-let cachedSectionsCss: string | null = null;
-function sectionsCss() {
-  if (cachedSectionsCss !== null) return cachedSectionsCss;
-  try {
-    cachedSectionsCss = readFileSync(path.join(process.cwd(), 'app/sections.css'), 'utf8');
-    return cachedSectionsCss;
-  } catch {
-    return '';
-  }
-}
 
 export default function RootLayout({
   children,
@@ -94,7 +64,6 @@ export default function RootLayout({
     parentOrganization: { '@id': `${SITE_URL}/#brewns` },
     url: SITE_URL,
     image: `${SITE_URL}/opengraph-image.jpg`,
-    telephone: '+92-42-1234-5678',
     address: { '@type': 'PostalAddress', streetAddress, addressLocality: 'Lahore', addressRegion: 'Punjab', addressCountry: 'PK' },
     openingHoursSpecification: [hours],
     servesCuisine: ['Specialty coffee', 'Bakery', 'Burgers', 'Pizza', 'Pasta'],
@@ -132,7 +101,6 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <style id="brewns-sections" dangerouslySetInnerHTML={{ __html: sectionsCss() }} />
         {children}
       </body>
     </html>

@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import { LegalPage } from '@/components/legal/LegalPage';
+import { publicPageMetadata } from '@/lib/siteMetadata';
 import '../legal.css';
 
-export const metadata: Metadata = {
-  title: 'Terms of use — brewns',
-  description: 'Ordering, delivery, payment, gift cards, subscriptions and brewns Club: the terms for buying from brewns coffee house in Lahore.',
-  alternates: { canonical: '/terms' },
-};
+export const metadata: Metadata = publicPageMetadata(
+  'Terms of use — brewns',
+  'Ordering, delivery, payment, gift cards, subscriptions and brewns Club: the terms for buying from brewns coffee house in Lahore.',
+  '/terms',
+);
 
 /* The numbers here (tax, delivery, club) restate the site's data in
    initBrewns.ts and components/brewns/club.ts: change both together. */
