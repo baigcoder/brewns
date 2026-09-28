@@ -313,6 +313,15 @@ export const TAX = 0.16,
   PREP_MIN = 12,
   OPEN_MIN = 7 * 60,
   CLOSE_MIN = 21 * 60;
+
+/* Table bookings: seatings through the day, the last an hour before closing. */
+export const RESERVE_SLOTS = ['08:00 AM', '09:30 AM', '11:00 AM', '12:30 PM', '02:00 PM', '03:30 PM', '05:00 PM', '06:30 PM', '08:00 PM'];
+/** "05:00 PM" as minutes past midnight, or null if it isn't a time. */
+export const slotMinutes = (slot: string) => {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(slot.trim());
+  if (!m) return null;
+  return ((Number(m[1]) % 12) + (m[3].toUpperCase() === 'PM' ? 12 : 0)) * 60 + Number(m[2]);
+};
 /* Punjab taxes restaurant bills at 16%, and at 5% when they are paid by card or
    a mobile wallet; the checkout shows whichever applies to the method chosen. */
 export const TAX_CARD = 0.05;

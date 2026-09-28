@@ -1,13 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { playKitchenChime, playSuccessChime } from '@/lib/audio-alerts';
 
 type BrewMethod = {
   id: string;
   name: string;
-  icon: string;
   ratio: number; // water:coffee
   defaultDose: number; // grams
   grind: string;
@@ -20,7 +18,6 @@ const BREW_METHODS: BrewMethod[] = [
   {
     id: 'v60',
     name: 'Hario V60',
-    icon: '⏳',
     ratio: 16,
     defaultDose: 15,
     grind: 'Medium-Fine (like kosher salt)',
@@ -36,7 +33,6 @@ const BREW_METHODS: BrewMethod[] = [
   {
     id: 'chemex',
     name: 'Chemex',
-    icon: '⚗️',
     ratio: 16,
     defaultDose: 25,
     grind: 'Medium-Coarse',
@@ -52,7 +48,6 @@ const BREW_METHODS: BrewMethod[] = [
   {
     id: 'aeropress',
     name: 'AeroPress (Inverted)',
-    icon: '💉',
     ratio: 13,
     defaultDose: 16,
     grind: 'Fine (finer than pour-over)',
@@ -67,7 +62,6 @@ const BREW_METHODS: BrewMethod[] = [
   {
     id: 'frenchpress',
     name: 'French Press',
-    icon: '🫖',
     ratio: 15,
     defaultDose: 20,
     grind: 'Coarse (sea salt consistency)',
@@ -82,47 +76,98 @@ const BREW_METHODS: BrewMethod[] = [
   },
 ];
 
+/** A line drawing of each brewer, in the text colour. */
+function MethodIcon({ id }: { id: string }) {
+  const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
+  if (id === 'v60')
+    return (
+      <svg {...common}>
+        <path d="M4 5h16l-6 9h-4z" />
+        <path d="M9 14h6v2H9z" />
+        <path d="M6 20h12" />
+        <path d="M12 16v4" />
+      </svg>
+    );
+  if (id === 'chemex')
+    return (
+      <svg {...common}>
+        <path d="M7 3h10l-4 8 4 10H7l4-10z" />
+        <path d="M9.5 11h5" />
+      </svg>
+    );
+  if (id === 'aeropress')
+    return (
+      <svg {...common}>
+        <rect x="8" y="6" width="8" height="14" rx="1" />
+        <path d="M6 20h12" />
+        <path d="M12 2v4" />
+        <path d="M9 3h6" />
+      </svg>
+    );
+  return (
+    <svg {...common}>
+      <path d="M6 7h10v12a1 1 0 01-1 1H7a1 1 0 01-1-1z" />
+      <path d="M16 10h2a1 1 0 011 1v4a1 1 0 01-1 1h-2" />
+      <path d="M11 3v4" />
+      <path d="M8 3h6" />
+    </svg>
+  );
+}
+
 export function BrewTimer() {
   const [method, setMethod] = useState<BrewMethod>(BREW_METHODS[0]);
-  const [dose, setDose] = useState(method.defaultDose);
+  const [doseText, setDoseText] = useState(String(method.defaultDose));
   const [running, setRunning] = useState(false);
   const [sec, setSec] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(true);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // The clock runs on real time, so a slow tab or a pause never drifts it.
+  const startedAt = useRef(0);
+  const banked = useRef(0);
+  const discard = useRef(false);
+  const sound = useRef(audioEnabled);
+  useEffect(() => {
+    sound.current = audioEnabled;
+  }, [audioEnabled]);
   const lastStepIndex = useRef<number>(0);
 
+  const dose = Math.min(60, Math.max(5, Number(doseText) || method.defaultDose));
   const totalWater = Math.round(dose * method.ratio);
+  const done = sec >= method.totalTimeSec;
+
+  const reset = () => {
+    setRunning(false);
+    setSec(0);
+    banked.current = 0;
+    discard.current = true; // a running clock's cleanup banks nothing
+    lastStepIndex.current = 0;
+  };
 
   // Switch method
   const handleSelectMethod = (m: BrewMethod) => {
     setMethod(m);
-    setDose(m.defaultDose);
-    setRunning(false);
-    setSec(0);
-    lastStepIndex.current = 0;
+    setDoseText(String(m.defaultDose));
+    reset();
   };
 
-  // Timer loop
+  // Timer loop: it stops itself and rings once at the end of the brew.
   useEffect(() => {
-    if (running) {
-      timerRef.current = setInterval(() => {
-        setSec((s) => {
-          if (s >= method.totalTimeSec) {
-            setRunning(false);
-            if (audioEnabled) playSuccessChime();
-            return method.totalTimeSec;
-          }
-          return s + 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    if (!running) return;
+    startedAt.current = Date.now();
+    discard.current = false;
+    const t = setInterval(() => {
+      const s = Math.floor((banked.current + Date.now() - startedAt.current) / 1000);
+      setSec(Math.min(method.totalTimeSec, s));
+      if (s >= method.totalTimeSec) {
+        setRunning(false);
+        if (sound.current) playSuccessChime();
+      }
+    }, 200);
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      clearInterval(t);
+      if (!discard.current) banked.current += Date.now() - startedAt.current;
     };
-  }, [running, method.totalTimeSec, audioEnabled]);
+  }, [running, method.totalTimeSec]);
 
   // Current active step
   const activeStepIdx = method.steps.findIndex(
@@ -138,12 +183,23 @@ export function BrewTimer() {
     }
   }, [activeStepIdx, running, audioEnabled]);
 
-  const togglePlay = () => setRunning((r) => !r);
-  const handleReset = () => {
-    setRunning(false);
-    setSec(0);
-    lastStepIndex.current = 0;
+  const togglePlay = () => {
+    if (done) reset();
+    setRunning((r) => !r);
   };
+  const handleReset = reset;
+
+  // Space starts and pauses, unless you're typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (e.code !== 'Space' || /INPUT|TEXTAREA|SELECT|BUTTON/.test(el.tagName)) return;
+      e.preventDefault();
+      togglePlay();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const formatMinSec = (s: number) => {
     const mins = Math.floor(s / 60);
@@ -172,10 +228,10 @@ export function BrewTimer() {
             <b>{'//'}</b> Brew Companion
           </p>
           <h1 style={{ fontSize: '28px', color: '#f5ede3', fontWeight: 600, margin: 0 }}>
-            Precision Pour-Over Timer
+            Brew timer
           </h1>
           <p style={{ color: 'var(--cx-muted, #8e8d88)', fontSize: '14px', marginTop: 4 }}>
-            Dial in grind, exact water ratio, and time each pour with interactive audio cues.
+            Pick a brewer, set your dose, and follow each pour. A chime marks every step. Press space to start or pause.
           </p>
         </div>
         <button
@@ -188,10 +244,12 @@ export function BrewTimer() {
             borderRadius: '8px',
             padding: '8px 12px',
             fontSize: '12px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
             cursor: 'pointer',
           }}
         >
-          {audioEnabled ? '🔔 Sound On' : '🔕 Sound Muted'}
+          {audioEnabled ? 'Sound on' : 'Sound off'}
         </button>
       </div>
 
@@ -219,7 +277,7 @@ export function BrewTimer() {
                 transition: 'all 0.15s ease',
               }}
             >
-              <span style={{ fontSize: '18px' }}>{m.icon}</span>
+              <span style={{ display: 'grid', color: active ? 'var(--cx-accent, #c99355)' : 'inherit' }}><MethodIcon id={m.id} /></span>
               <span style={{ fontSize: '13px' }}>{m.name}</span>
             </button>
           );
@@ -244,13 +302,16 @@ export function BrewTimer() {
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
             <input
               type="number"
-              min={10}
+              inputMode="numeric"
+              min={5}
               max={60}
-              value={dose}
-              onChange={(e) => setDose(Math.max(1, Number(e.target.value)))}
+              value={doseText}
+              aria-label="Coffee dose in grams"
+              onChange={(e) => setDoseText(e.target.value.replace(/[^\d]/g, '').slice(0, 2))}
+              onBlur={() => setDoseText(String(dose))}
               disabled={running}
               style={{
-                width: '60px',
+                width: '64px',
                 padding: '4px 8px',
                 background: '#0d0d0c',
                 border: '1px solid #333',
@@ -278,10 +339,14 @@ export function BrewTimer() {
           </div>
         </div>
 
-        <div>
-          <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', letterSpacing: '0.08em' }}>Grind & Temp</span>
-          <div style={{ fontSize: '12px', color: '#f5ede3', marginTop: 4, lineHeight: 1.4 }}>
-            {method.grind} · {method.temp}
+        <div style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: '8px 28px', paddingTop: 14, borderTop: '1px solid #282826' }}>
+          <div>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', letterSpacing: '0.08em' }}>Grind</span>
+            <div style={{ fontSize: '14px', color: '#f5ede3', marginTop: 4 }}>{method.grind}</div>
+          </div>
+          <div>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--cx-muted, #8e8d88)', letterSpacing: '0.08em' }}>Water temperature</span>
+            <div style={{ fontSize: '14px', color: '#f5ede3', marginTop: 4 }}>{method.temp}</div>
           </div>
         </div>
       </div>
@@ -330,14 +395,14 @@ export function BrewTimer() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--cx-accent, #c99355)' }}>
-            Phase {activeStepIdx + 1} of {method.steps.length}: {currentStep.name}
+            {done ? 'Brew complete' : `Step ${activeStepIdx + 1} of ${method.steps.length}: ${currentStep.name}`}
           </span>
           <span style={{ fontSize: '13px', fontWeight: 700, color: '#f5ede3', fontFamily: 'var(--font-space-mono)' }}>
-            Target: {Math.round(totalWater * currentStep.waterPct)}g
+            {done ? `${totalWater}g poured` : `Scale at ${Math.round(totalWater * currentStep.waterPct)}g`}
           </span>
         </div>
         <div style={{ fontSize: '15px', color: '#f5ede3', lineHeight: 1.5 }}>
-          {currentStep.instructions}
+          {done ? 'Pour, let it cool a minute, and taste. Too sour next time? Grind a little finer. Too bitter? A little coarser.' : currentStep.instructions}
         </div>
       </div>
 
@@ -349,7 +414,7 @@ export function BrewTimer() {
           className="cx-btn primary big"
           style={{ minWidth: '150px', fontSize: '16px' }}
         >
-          {running ? '⏸ Pause' : sec === 0 ? '▶ Start Brew' : '▶ Resume'}
+          {running ? 'Pause' : done ? 'Brew again' : sec === 0 ? 'Start brew' : 'Resume'}
         </button>
         <button
           type="button"
@@ -357,7 +422,7 @@ export function BrewTimer() {
           className="cx-btn big"
           style={{ background: '#222', minWidth: '110px' }}
         >
-          ↺ Reset
+          Reset
         </button>
       </div>
 

@@ -34,7 +34,7 @@ import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
 import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
 import { addStamps, birthdayTreat, CLUB, emptyClub, isDrink, memberNumber, normaliseClub, reverseOrder, rewardValue, spendReward, stampsFor } from './club';
-import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TITLES, LOCS, money, OPEN_MIN, PAY, pkMobile, PREP_MIN, PRODUCTS_BASE, selLabel, SHOP_CODES, TAX, TAX_CARD, unitPrice } from "@/lib/catalog";
+import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TITLES, LOCS, money, OPEN_MIN, PAY, pkMobile, PREP_MIN, PRODUCTS_BASE, selLabel, SHOP_CODES, TAX, TAX_CARD, unitPrice, validSel } from "@/lib/catalog";
 import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 import { initVoiceCalling } from './voiceCalling';
@@ -3909,7 +3909,21 @@ const cart = (() => {
   const KEY = "brewns-bag";
   let items = [];
   try {
-    items = JSON.parse(localStorage.getItem(KEY) || "[]").filter((i) => productById(i.id) && i.qty > 0);
+    // Lines written elsewhere (an older flavor matcher, another tab) are made
+    // whole: every option set, a key, and one line per key.
+    const seen = new Map();
+    for (const i of JSON.parse(localStorage.getItem(KEY) || "[]")) {
+      const p = productById(i?.id);
+      if (!p || !(i.qty > 0)) continue;
+      const merged = { ...defaultSel(p), ...(i.sel || {}) };
+      const sel = validSel(p, merged) ? merged : defaultSel(p);
+      const message = typeof i.message === "string" ? i.message : "";
+      const key = `${i.id}|${JSON.stringify(sel)}|${message}`;
+      const hit = seen.get(key);
+      if (hit) hit.qty = Math.min(20, hit.qty + i.qty);
+      else seen.set(key, { ...i, key, sel, message, qty: Math.min(20, i.qty) });
+    }
+    items = [...seen.values()];
   } catch {}
   const listeners = new Set();
   const commit = () => {
@@ -5006,6 +5020,17 @@ function openBag() {
   veilSpring.start({ opacity: 1 }, { config: C(170, 26), immediate: REDUCED });
   bagSpring.start({ x: 0 }, { config: C(210, 28), immediate: REDUCED });
   $(".x-btn", bagEl).focus({ preventScroll: true });
+}
+
+/* "/?bag=open" (from the tool pages): open the bag once the loading screen has gone. */
+if (new URLSearchParams(location.search).get("bag") === "open") {
+  history.replaceState(history.state, "", location.pathname + location.hash);
+  const started = Date.now();
+  const wait = setInterval(() => {
+    if (document.getElementById("pre") && Date.now() - started < 9000) return;
+    clearInterval(wait);
+    openBag();
+  }, 150);
 }
 
 function closeBag() {
