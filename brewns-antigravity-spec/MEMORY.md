@@ -98,6 +98,7 @@ The live page exposes rendered DOM/text and public asset URLs. The original sour
 - [x] Dev Server live on http://localhost:3000
 - [x] Locations section refinements: clearer branch rows and directions links; wide-screen clock/details balance with compact responsive layout.
 - [x] Console access refresh: versioned activity polling, owner-only role matrix payload, immediate redirect on revoked screen access, and serialized settings updates. Typecheck and targeted ESLint passed; authenticated console screenshot review remains unavailable in this session.
+- [x] Brew ritual refinement: explicit ready/running/paused/complete timer states, a live next-pour countdown, non-truncating step cards, stronger status contrast, and a sticky mobile timer action. Reviewed at desktop and 390px mobile widths; the running/paused flow updated correctly in-browser.
 
 ## Known engineering lessons to preserve
 

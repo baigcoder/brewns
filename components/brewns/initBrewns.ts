@@ -7032,6 +7032,13 @@ coEl.addEventListener("submit", (e) => {
     const done = brew.t >= m.total;
     return `<p class="brew-now-l mono-fine">${done ? "DONE" : `STEP ${i + 1} OF ${m.steps.length}`} · ${m.steps[i].title}</p><p>${fillStep(m.steps[i].text, a)}</p>`;
   };
+  const brewNextHTML = (m) => {
+    if (brew.t >= m.total) return `<span class="brew-next-label mono-fine">BREW COMPLETE</span><b>Time to enjoy your cup.</b><span class="brew-next-time">${mmss(m.total)}</span>`;
+    if (brew.t === 0) return `<span class="brew-next-label mono-fine">FIRST STEP</span><b>${m.steps[0].title}</b><span class="brew-next-time">Ready when you are</span>`;
+    const next = m.steps.find((step) => step.at > brew.t);
+    if (!next) return `<span class="brew-next-label mono-fine">BREW COMPLETE</span><b>Time to enjoy your cup.</b><span class="brew-next-time">${mmss(m.total)}</span>`;
+    return `<span class="brew-next-label mono-fine">${brew.running ? "UP NEXT" : "PAUSED · UP NEXT"}</span><b>${next.title}</b><span class="brew-next-time">in ${mmss(Math.ceil(next.at - brew.t))}</span>`;
+  };
   const renderBrew = () => {
     const m = methodById(brew.id);
     const a = brewAmounts(m, brew.cups, brew.strength);
@@ -7060,11 +7067,13 @@ coEl.addEventListener("submit", (e) => {
         <dl class="brew-spec mono-fine"><div><dt>GRIND</dt><dd>${m.grind}</dd></div><div><dt>WATER</dt><dd>${m.temp}</dd></div><div><dt>YOU NEED</dt><dd>${m.kit}</dd></div></dl>
         <button type="button" class="brew-beans" data-brew-beans><span><small class="mono-fine">THE BEANS FOR THIS</small><b>${bean.name}</b><small class="mono-fine">GROUND FOR ${m.short} · FROM ${money(bean.price)}</small></span>${ARROW_SVG}</button>
       </div>
-      <div class="brew-timer">
+      <div class="brew-timer" data-brew-state="${brew.t >= m.total ? "complete" : brew.running ? "running" : brew.t > 0 ? "paused" : "ready"}">
+        <div class="brew-timer-head"><span class="brew-timer-kicker mono-fine">BREW TIMER</span><span class="brew-timer-status"><i aria-hidden="true"></i>${brew.t >= m.total ? "COMPLETE" : brew.running ? "IN PROGRESS" : brew.t > 0 ? "PAUSED" : "READY"}</span></div>
         <div class="brew-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="brew-bar" cx="50" cy="50" r="46" stroke-dasharray="${BREW_RING}" stroke-dashoffset="${BREW_RING * (1 - Math.min(1, brew.t / m.total))}"/></svg>
-          <p class="brew-clock" role="timer" aria-label="Brew timer"><span id="brew-clock">${mmss(brew.t)}</span><small class="mono-fine">OF ${mmss(m.total)}</small></p></div>
+          <p class="brew-clock" role="timer" aria-label="Brew timer"><span id="brew-clock">${mmss(brew.t)}</span><small class="mono-fine"><span id="brew-clock-state">${brew.t >= m.total ? "COMPLETE" : brew.running ? "ELAPSED" : brew.t > 0 ? "PAUSED" : "TOTAL"}</span> · <span id="brew-total-time">${mmss(m.total)}</span></small></p></div>
         <div class="brew-now" id="brew-now" aria-live="polite">${brewNowHTML(m, a)}</div>
-        <ol class="brew-steps">${m.steps.map((st, i) => `<li class="${started && i < step ? "done" : ""}${started && i === step ? " now" : ""}"><time class="mono-fine">${mmss(st.at)}</time><b>${st.title}</b></li>`).join("")}</ol>
+        <div class="brew-next" id="brew-next">${brewNextHTML(m)}</div>
+        <ol class="brew-steps">${m.steps.map((st, i) => `<li class="${started && i < step ? "done" : ""}${started && i === step ? " now" : ""}"${started && i === step ? ' aria-current="step"' : ""}><time class="mono-fine">${mmss(st.at)}</time><b>${st.title}</b></li>`).join("")}</ol>
         <div class="brew-btns"><button type="button" class="btn btn-dark" data-brew-go>${brew.running ? "PAUSE" : brew.t >= m.total ? "BREW AGAIN" : brew.t > 0 ? "RESUME" : "START THE TIMER"}${ARROW_SVG}</button><button type="button" class="btn brew-reset" data-brew-reset ${brew.t === 0 ? "disabled" : ""}>RESET</button></div>
       </div>`;
   };
@@ -7087,6 +7096,10 @@ coEl.addEventListener("submit", (e) => {
     } else {
       $("#brew-clock", brewCard).textContent = mmss(brew.t);
       $("#brew-bar", brewCard).setAttribute("stroke-dashoffset", String(BREW_RING * (1 - brew.t / m.total)));
+      const clockState = $("#brew-clock-state", brewCard);
+      if (clockState) clockState.textContent = brew.running ? "ELAPSED" : "PAUSED";
+      const next = $("#brew-next", brewCard);
+      if (next) next.innerHTML = brewNextHTML(m);
     }
     brew.raf = requestAnimationFrame(brewFrame);
   };

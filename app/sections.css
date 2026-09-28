@@ -525,7 +525,7 @@
 .brew-ring .track { stroke: rgba(255, 255, 255, 0.07); stroke-width: 4; }
 .brew-ring .bar { stroke: #e5b378; stroke-width: 4.5; stroke-linecap: round; filter: drop-shadow(0 0 8px rgba(229, 179, 120, 0.65)); transition: stroke-dashoffset 150ms linear; }
 .brew-clock { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; }
-.brew-clock span { font-family: var(--font-space-mono), monospace; font-weight: 700; font-size: clamp(3.2rem, 10vw, 3.85rem); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #f5ede3; text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8); }
+.brew-clock > span { font-family: var(--font-space-mono), monospace; font-weight: 700; font-size: clamp(3.2rem, 10vw, 3.85rem); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #f5ede3; text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8); }
 .brew-clock small { font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.16em; color: rgba(216, 183, 119, 0.75); margin-top: 0.25rem; }
 
 .brew-now { min-height: 5.5rem; padding: 1.1rem 1.25rem; border-radius: 12px; border: 1px solid rgba(216, 183, 119, 0.22); border-left: 3.5px solid #d8b777; background: linear-gradient(135deg, rgba(216, 183, 119, 0.12) 0%, rgba(20, 16, 13, 0.7) 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
@@ -556,6 +556,42 @@
 .brew-reset { flex: 0 0 auto; padding: 0 1.25rem; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.05); color: rgba(245, 237, 227, 0.85); }
 .brew-reset:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.1); color: #fff; }
 .brew-reset:disabled { opacity: 0.35; cursor: default; }
+
+/* The timer reads like a small brew station: state first, next action second. */
+.brew-timer { gap: 1.1rem; border-radius: 1.35rem; }
+.brew-timer-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.brew-timer-kicker, .brew-timer-status, .brew-next-label { font-family: var(--font-space-mono), monospace; font-size: 0.66rem; letter-spacing: 0.14em; }
+.brew-timer-kicker { color: rgb(245 237 227 / 0.54); }
+.brew-timer-status { display: inline-flex; align-items: center; gap: 0.5rem; color: rgb(245 237 227 / 0.7); }
+.brew-timer-status i { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: #d8b777; box-shadow: 0 0 0 0.22rem rgb(216 183 119 / 0.12); }
+.brew-timer[data-brew-state="running"] .brew-timer-status i { background: #55ce98; box-shadow: 0 0 0 0.22rem rgb(85 206 152 / 0.12); animation: brew-live 1.8s ease-out infinite; }
+.brew-timer[data-brew-state="paused"] .brew-timer-status i { background: #e5b378; }
+.brew-timer[data-brew-state="complete"] .brew-timer-status i { background: #55ce98; }
+.brew-next { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.22rem 0.8rem; min-height: 3.8rem; padding: 0.75rem 1rem; border: 1px solid rgb(216 183 119 / 0.18); border-radius: 0.8rem; background: rgb(255 255 255 / 0.035); }
+.brew-next-label { grid-column: 1 / -1; color: rgb(229 179 120 / 0.82); }
+.brew-next b { min-width: 0; color: #f5ede3; font-size: 0.9rem; letter-spacing: 0.015em; }
+.brew-next-time { color: rgb(245 237 227 / 0.62); font-family: var(--font-space-mono), monospace; font-size: 0.72rem; font-variant-numeric: tabular-nums; text-align: right; }
+.brew-steps li { min-width: 0; min-height: 3.9rem; justify-content: center; padding: 0.65rem 0.7rem; }
+.brew-steps li b { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.2; font-size: 0.75rem; }
+.brew-steps li.now { border-color: rgb(229 179 120 / 0.9); background: linear-gradient(145deg, rgb(216 183 119 / 0.2), rgb(255 255 255 / 0.045)); }
+.brew-steps li:focus-visible, .brew-timer button:focus-visible { outline: 2px solid #e5b378; outline-offset: 3px; }
+.brew-tabs:focus-visible { outline: 2px solid #a8763a; outline-offset: 4px; }
+@keyframes brew-live { 70% { box-shadow: 0 0 0 0.42rem rgb(85 206 152 / 0); } 100% { box-shadow: 0 0 0 0.22rem rgb(85 206 152 / 0); } }
+@media (max-width: 639.98px) {
+  .brew-in { gap: 1.5rem; }
+  .brew-timer { gap: 0.9rem; }
+  .brew-ring { width: min(100%, 13rem); }
+  .brew-clock > span { font-size: clamp(2.9rem, 15vw, 3.5rem); }
+  .brew-now { padding: 0.95rem 1rem; }
+  .brew-steps { gap: 0.4rem; }
+  .brew-steps li { padding: 0.6rem; }
+  .brew-steps li b { font-size: 0.72rem; }
+  .brew-btns { position: sticky; bottom: 0.5rem; z-index: 1; padding: 0.45rem; margin-inline: -0.45rem; border: 1px solid rgb(255 255 255 / 0.08); border-radius: 999px; background: rgb(15 12 10 / 0.92); backdrop-filter: blur(12px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brew-timer[data-brew-state="running"] .brew-timer-status i { animation: none; }
+  .brew-steps li, .brew-ring .bar, .brew-btns .btn { transition-duration: 0.01ms; }
+}
 
 /* ── brewns Club: the stamp card ── */
 .club { position: relative; overflow: hidden; background: #0b0806; color: #fff; }
