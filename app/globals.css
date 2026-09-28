@@ -3644,6 +3644,18 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
 .voice-unblock-btn[hidden] {
   display: none !important;
 }
+.voice-unblock-hint {
+  width: 100%;
+  margin: 0.5rem 0 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: rgba(244, 242, 236, 0.7);
+  font-family: inherit;
+}
+.voice-unblock-hint strong {
+  color: #c99355;
+  font-weight: 600;
+}
 
 /* Quick Prompt Suggestion Chips with Edge Fade */
 .voice-chips-container {

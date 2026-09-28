@@ -474,19 +474,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         muted = true;
         stopListening();
-        setPhase('muted', 'MIC BLOCKED IN BROWSER');
-        if (typeof window !== 'undefined' && !window.isSecureContext) {
-          caption('Microphone requires HTTPS or localhost. Interactive Voice Chat is active — you can type or tap below, and Sarah will speak her answers aloud!', 'agent');
-        } else {
-          caption(
-            IS_MOBILE
-              ? 'Microphone blocked in browser settings. Tap 🔒 in your address bar (top) → Site permissions → Allow Microphone → Tap "CONNECT MIC NOW".'
-              : 'Microphone blocked in browser settings. Click the 🔒 icon in your address bar (top left) → Site settings → Set Microphone to "Allow" → Click "CONNECT MIC NOW".'
-          );
-        }
+        setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
         unblockActions?.removeAttribute('hidden');
-        captionBox?.classList.add('mic-alert');
-        setTimeout(() => captionBox?.classList.remove('mic-alert'), 600);
         inputRow?.classList.add('open');
         textInput?.focus();
       } else if (event.error === 'no-speech') {
@@ -496,7 +485,6 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         muted = true;
         stopListening();
         setPhase('muted', event.error === 'network' ? 'VOICE INPUT OFFLINE' : 'NO MICROPHONE FOUND');
-        caption("I can't hear you right now, but you can type your reply below. Sarah will answer in live voice!");
         unblockActions?.removeAttribute('hidden');
         inputRow?.classList.add('open');
         textInput?.focus();
@@ -840,6 +828,14 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         micStream = stream;
       } catch (err: any) {
         console.warn('[brewns-mic] Microphone permission request in toggleMic:', err?.name, err?.message);
+        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+          toast('CLICK 🎛️ IN ADDRESS BAR → ALLOW MIC', 'GOT IT');
+          setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
+          unblockActions?.removeAttribute('hidden');
+          inputRow?.classList.add('open');
+          textInput?.focus();
+          return;
+        }
       }
     }
 
