@@ -46,11 +46,11 @@ export async function POST(req: NextRequest) {
 
     for (const { localDir, folder } of foldersToSync) {
       try {
-        const files = await readdir(localDir);
+        const files = await readdir(/*turbopackIgnore: true*/ localDir);
         for (const file of files) {
           if (!/\.(webp|jpg|jpeg|png)$/i.test(file)) continue;
-          const fullPath = path.join(localDir, file);
-          const buffer = await readFile(fullPath);
+          const fullPath = path.join(/*turbopackIgnore: true*/ localDir, file);
+          const buffer = await readFile(/*turbopackIgnore: true*/ fullPath);
           const baseName = path.parse(file).name;
 
           const uploadRes = await uploadMediaToCloudinary(buffer, {

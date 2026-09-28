@@ -30,7 +30,7 @@ if (existsSync(envLocalPath)) {
 
 const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
 const apiKey = process.env.CLOUDINARY_API_KEY;
-const apiSecret = process.env.CLOUDINARY_API_SECRET || 'piGVMqflZ6EcPwF6nqgp-77NyZs';
+const apiSecret = process.env.CLOUDINARY_API_SECRET || '';
 
 if (process.env.CLOUDINARY_URL) {
   cloudinary.config({ cloudinary_url: process.env.CLOUDINARY_URL, secure: true });

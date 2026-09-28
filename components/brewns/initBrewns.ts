@@ -32,7 +32,7 @@ import {
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
-import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
+import { autoReply, canCancel, currentStage, fastForward, finalStage, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
 import { addStamps, birthdayTreat, CLUB, emptyClub, isDrink, memberNumber, normaliseClub, reverseOrder, rewardValue, spendReward, stampsFor } from './club';
 import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TITLES, LOCS, money, OPEN_MIN, PAY, pkMobile, PREP_MIN, PRODUCTS_BASE, selLabel, SHOP_CODES, TAX, TAX_CARD, unitPrice, validSel } from "@/lib/catalog";
 import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
@@ -74,6 +74,107 @@ const banner = (message) => {
   p.textContent = message;
   $("#banner").append(p);
 };
+
+/* ═══════════ Table QR Session & Waiter Calling ═══════════ */
+let activeTableSession = null;
+try {
+  const tableParam = new URLSearchParams(window.location.search).get("table");
+  if (tableParam) {
+    const trimmed = tableParam.trim();
+    const match = trimmed.match(/^(MMA|DHA|JTN|GUL|JOH)-?(\d+)$/i) || trimmed.match(/^(\d+)$/);
+    if (match) {
+      let locIndex = 0;
+      let tableNum = 1;
+      if (match[2]) {
+        const code = match[1].toUpperCase();
+        locIndex = code === "DHA" ? 1 : code === "JTN" || code === "JOH" ? 2 : 0;
+        tableNum = parseInt(match[2], 10) || 1;
+      } else {
+        tableNum = parseInt(match[1], 10) || 1;
+      }
+      activeTableSession = {
+        loc: locIndex,
+        table: tableNum,
+        label: `Table ${tableNum} · ${LOC_TITLES[locIndex]}`,
+      };
+
+      const tb = document.createElement("aside");
+      tb.id = "table-session-bar";
+      tb.className = "table-session-bar";
+      tb.setAttribute("aria-label", "Dining Table Service");
+      tb.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;background:rgba(18,18,18,0.96);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.12);color:#fff;font-family:var(--font-space-mono);font-size:0.75rem;position:sticky;top:0;z-index:99999;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#22c55e;">●</span>
+            <span><b>TABLE ${tableNum}</b> · ${LOC_TITLES[locIndex]}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button type="button" id="btn-call-waiter" style="background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:4px;padding:4px 10px;font-family:inherit;font-size:0.6875rem;cursor:pointer;text-transform:uppercase;">Call Waiter</button>
+            <button type="button" id="btn-request-bill" style="background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:4px;padding:4px 10px;font-family:inherit;font-size:0.6875rem;cursor:pointer;text-transform:uppercase;">Request Bill</button>
+          </div>
+        </div>
+      `;
+      document.body.prepend(tb);
+
+      const showTableNotice = (msg: string) => {
+        const existing = document.getElementById("table-notice-pill");
+        if (existing) existing.remove();
+        const pill = document.createElement("div");
+        pill.id = "table-notice-pill";
+        pill.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#18181b;color:#fff;padding:10px 18px;border-radius:999px;font-family:var(--font-space-mono);font-size:0.75rem;border:1px solid rgba(255,255,255,0.18);box-shadow:0 12px 36px rgba(0,0,0,0.6);z-index:999999;pointer-events:none;transition:opacity 0.3s ease;letter-spacing:0.02em;";
+        pill.textContent = msg;
+        document.body.appendChild(pill);
+        setTimeout(() => {
+          pill.style.opacity = "0";
+          setTimeout(() => pill.remove(), 350);
+        }, 3600);
+      };
+
+      const btnWaiter = tb.querySelector<HTMLButtonElement>("#btn-call-waiter");
+      const btnBill = tb.querySelector<HTMLButtonElement>("#btn-request-bill");
+
+      const notifyTable = async (kind: "waiter" | "bill", btn: HTMLButtonElement | null, defaultMsg: string) => {
+        if (!btn || btn.disabled) return;
+        const prevText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = kind === "waiter" ? "CALLING…" : "REQUESTING…";
+        try {
+          const res = await fetch("/api/tables/call", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ loc: locIndex, table: tableNum, kind }),
+          });
+          const data = await res.json().catch(() => null);
+          if (res.ok && data?.ok) {
+            btn.textContent = kind === "waiter" ? "CALLED ✓" : "REQUESTED ✓";
+            showTableNotice(defaultMsg);
+            try { playChime(); } catch {}
+          } else {
+            btn.textContent = prevText;
+            showTableNotice(data?.error || "Could not reach server. Please wave to a waiter.");
+          }
+        } catch {
+          btn.textContent = prevText;
+          showTableNotice(defaultMsg);
+        } finally {
+          setTimeout(() => {
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = prevText;
+            }
+          }, 10000);
+        }
+      };
+
+      btnWaiter?.addEventListener("click", () => {
+        notifyTable("waiter", btnWaiter, `Waiter called for Table ${tableNum}. A team member will be with you shortly.`);
+      });
+      btnBill?.addEventListener("click", () => {
+        notifyTable("bill", btnBill, `Bill requested for Table ${tableNum}. We are preparing your check.`);
+      });
+    }
+  }
+} catch {}
 
 /* ═══════════ root font-size above the board ═══════════ */
 const FONT_BASE = 16, BASE_WIDTH = 1440, COEF = 0.6666;
@@ -2080,11 +2181,24 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   const badges = [0, 1, 2].map((i) => $(`#loc-status-${i}`));
   const BASE_WAIT = [4, 3, 5];
   const shopState = [{}, {}, {}];
+  let soldOutIds = new Set();
   fetch("/api/public/status", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((s) => {
-      if (!s?.shops) return;
-      s.shops.forEach((x, i) => shopState[i] && Object.assign(shopState[i], x));
+      if (!s) return;
+      if (s.shops) s.shops.forEach((x, i) => shopState[i] && Object.assign(shopState[i], x));
+      if (Array.isArray(s.soldOut)) {
+        soldOutIds = new Set(s.soldOut);
+        soldOutIds.forEach((id) => {
+          $$(`[data-card-add="${id}"], [data-add="${id}"]`).forEach((btn) => {
+            btn.setAttribute("disabled", "true");
+            btn.textContent = "SOLD OUT";
+            btn.style.opacity = "0.4";
+            btn.style.pointerEvents = "none";
+          });
+          $$(`[data-product="${id}"]`).forEach((el) => el.classList.add("is-sold-out"));
+        });
+      }
       paint();
     })
     .catch(() => {});
@@ -5460,6 +5574,11 @@ function openCheckout() {
   if (hasLayer("bag")) closeBag();
   const saved = readStore("brewns-details", {});
   co = { useReward: false, step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
+  if (activeTableSession) {
+    co.mode = "dinein";
+    co.loc = activeTableSession.loc;
+    co.table = activeTableSession.table;
+  }
   if (co.when === "later") co.slot = slotList()[0];
   renderCheckout();
   if (hasLayer("checkout")) return;
@@ -5518,14 +5637,24 @@ function renderCheckout({ animate = true } = {}) {
   const steps = ["ORDER", "DETAILS", "CONFIRMED"].map((s, i) => `<li class="${co.step >= i + 1 ? "on" : ""}">0${i + 1} ${s}</li>`).join("");
   const open = isOpenNow();
   const delivery = isDelivery();
+  const dineIn = co.mode === "dinein";
   const short = delivery && totals.sub - totals.discount < DELIVERY.min;
   const radio = (name, i, checked, title, meta) =>
     `<label class="pick"><input type="radio" name="${name}" value="${i}" ${checked ? "checked" : ""}><span class="pick-check" aria-hidden="true"></span><span class="pick-name">${title}</span><span class="pick-meta mono-fine">${meta}</span></label>`;
 
   const main =
     co.step === 1
-      ? `<h2 class="co-h">${delivery ? "WHERE TO?" : "WHERE &amp; WHEN."}</h2>
-        <div class="co-block">
+      ? `<h2 class="co-h">${dineIn ? "DINE-IN ORDER" : delivery ? "WHERE TO?" : "WHERE &amp; WHEN."}</h2>
+        ${
+          dineIn
+            ? `<div class="co-block">
+          <p class="co-label mono-fine"><span>SERVICE TYPE</span><span>TABLE SERVICE</span></p>
+          <div style="padding:1rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;">
+            <p class="mono-fine" style="margin:0;font-size:0.8125rem;color:var(--accent,#c99355);">TABLE ${co.table} · ${LOC_TITLES[co.loc]}</p>
+            <p class="mono-fine" style="margin:4px 0 0;font-size:0.6875rem;color:rgba(255,255,255,0.7);">Drinks and food will be served directly to your table.</p>
+          </div>
+        </div>`
+            : `<div class="co-block">
           <p class="co-label mono-fine"><span>HOW DO YOU WANT IT</span><span>OPEN DAILY 07:00 – 21:00</span></p>
           <div class="seg" role="radiogroup" aria-label="Order type">
             <button type="button" role="radio" data-mode="pickup" aria-checked="${!delivery}">PICKUP<small>READY IN ~${PREP_MIN} MIN · FREE</small></button>
@@ -5547,15 +5676,16 @@ function renderCheckout({ animate = true } = {}) {
             radio("co-loc", i, co.loc === i, `${a}<br>${b}`, `<span class="dot"></span>${open ? "OPEN NOW" : "OPENS 07:00"} · ~${PREP_MIN} MIN`),
           ).join("")}</div>
         </div>`
+        }`
         }
         <div class="co-block">
-          <p class="co-label mono-fine"><span>${delivery ? "DELIVERY TIME" : "PICKUP TIME"}</span><span>${pickupLabel()}</span></p>
+          <p class="co-label mono-fine"><span>${delivery ? "DELIVERY TIME" : dineIn ? "ORDER TIMING" : "PICKUP TIME"}</span><span>${pickupLabel()}</span></p>
           <div class="seg" role="radiogroup" aria-label="${delivery ? "Delivery" : "Pickup"} time">
             <button type="button" role="radio" data-when="asap" aria-checked="${co.when === "asap"}" ${open ? "" : "disabled"}>AS SOON AS POSSIBLE<small>${open ? `~${leadMin()} MIN` : "WE'RE CLOSED"}</small></button>
-            <button type="button" role="radio" data-when="later" aria-checked="${co.when === "later"}">SCHEDULE<small>PICK A TIME</small></button>
+            ${dineIn ? "" : `<button type="button" role="radio" data-when="later" aria-checked="${co.when === "later"}">SCHEDULE<small>PICK A TIME</small></button>`}
           </div>
           ${
-            co.when === "later"
+            co.when === "later" && !dineIn
               ? `<div class="slots" role="radiogroup" aria-label="Time slot">${slotList()
                   .map((s) => `<button type="button" role="radio" data-slot="${s.t}|${s.tomorrow ? 1 : 0}" aria-checked="${co.slot?.t === s.t}">${s.tomorrow ? "TMRW " : ""}${hhmm(s.t)}</button>`)
                   .join("")}</div>`
@@ -5563,16 +5693,16 @@ function renderCheckout({ animate = true } = {}) {
           }
         </div>
         <div class="co-actions"><button type="button" class="btn btn-dark" data-co="next" ${short ? "disabled" : ""}>CONTINUE TO DETAILS ${ARROW_SVG}</button></div>`
-      : `<h2 class="co-h">${delivery ? "WHERE'S IT GOING?" : "WHO'S COLLECTING?"}</h2>
+      : `<h2 class="co-h">${dineIn ? `TABLE ${co.table} · DETAILS` : delivery ? "WHERE'S IT GOING?" : "WHO'S COLLECTING?"}</h2>
         <div class="co-block"><div class="fields">
-          ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', delivery ? "Who the rider asks for" : "Who we call out")}
+          ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', dineIn ? "Name for table service" : delivery ? "Who the rider asks for" : "Who we call out")}
           ${field("phone", "MOBILE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="16"', "0300 1234567")}
           ${delivery ? `<label class="field wide${co.errors.address ? " bad" : ""}"><span class="mono-fine">ADDRESS · ${DELIVERY.areas[co.area][0]}</span><textarea data-field="address" rows="2" maxlength="160" autocomplete="street-address" placeholder="House / flat, street, block, nearest landmark">${esc(co.address)}</textarea><span class="err mono-fine">${co.errors.address || ""}</span></label>` : ""}
           ${field("email", "EMAIL · OPTIONAL", "email", 'autocomplete="email" maxlength="80"', "For the receipt")}
-          <label class="field wide"><span class="mono-fine">NOTE FOR THE ${delivery ? "RIDER" : "BARISTA"} · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="${delivery ? "Gate code, call on arrival…" : "Extra hot, less ice…"}">${esc(co.note)}</textarea></label>
+          <label class="field wide"><span class="mono-fine">NOTE FOR THE ${dineIn ? "SERVER" : delivery ? "RIDER" : "BARISTA"} · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="${dineIn ? "Water first, extra napkins…" : delivery ? "Gate code, call on arrival…" : "Extra hot, less ice…"}">${esc(co.note)}</textarea></label>
         </div></div>
         <div class="co-block">
-          <p class="co-label mono-fine"><span>PAYMENT</span><span>PAID ${delivery ? "ON DELIVERY" : "AT PICKUP"} · NOTHING IS CHARGED ONLINE</span></p>
+          <p class="co-label mono-fine"><span>PAYMENT</span><span>${dineIn ? "PAY AT TABLE / COUNTER · CASH, CARD OR WALLET" : `PAID ${delivery ? "ON DELIVERY" : "AT PICKUP"} · NOTHING IS CHARGED ONLINE`}</span></p>
           <div class="loc-cards" role="radiogroup" aria-label="Payment">${PAY.map(([label, atShop, atDoor], i) => radio("co-pay", i, co.pay === i, label, delivery ? atDoor : atShop)).join("")}</div>
           ${co.pay === 2 ? `
             <div style="margin-top:12px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:11px;">
@@ -5616,7 +5746,7 @@ function renderCheckout({ animate = true } = {}) {
         <p class="co-side-title"><span>YOUR ORDER</span><span class="mono-fine">${n} ITEM${n === 1 ? "" : "S"}</span></p>
         <div class="co-lines">${lines}</div>
         <form class="co-promo" data-promo><input name="promo" placeholder="PROMO CODE" value="${esc(co.promo)}" aria-label="Promo code" autocomplete="off"><button type="submit" class="mono-fine">APPLY</button></form>
-        <p class="co-promo-msg mono-fine" id="co-promo-msg">${co.discount ? "BREWNS10 — 10% OFF APPLIED" : co.promo ? "THAT CODE ISN'T VALID" : "TRY BREWNS10"}</p>
+        <p class="co-promo-msg mono-fine" id="co-promo-msg">${co.discount ? `${co.promo} — ${Math.round(co.discount * 100)}% OFF APPLIED` : co.promo ? "THAT CODE ISN'T VALID" : "TRY BREWNS10"}</p>
         ${clubCheckoutHTML()}
         <div class="co-sums mono-fine">
           <div class="sum-row"><span>SUBTOTAL</span><span>${money(totals.sub)}</span></div>
@@ -5656,7 +5786,7 @@ const saveOrder = (o) => writeStore("brewns-orders", readStore("brewns-orders", 
 /* An order the café's server has: take its word for number, times, totals and status. */
 function applyServer(o, so, key = o.server?.key) {
   Object.assign(o, {
-    number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc,
+    number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc, table: so.table ?? o.table ?? null,
     cancelled: so.cancelled ? so.cancelled.t : undefined, collected: so.times?.collected,
   });
   o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
@@ -5698,7 +5828,7 @@ const orderWhen = (o) => `${o.pickupAt.tomorrow ? "tomorrow " : ""}${hhmm(o.pick
 const isActive = (o) => {
   if (o.cancelled || o.collected) return false;
   const st = timeline(o, LOC_TITLES[o.loc]);
-  return st[currentStage(o, st)].key !== (o.mode === "delivery" ? "delivered" : "collected");
+  return st[currentStage(o, st)].key !== finalStage(o);
 };
 
 // The same bars as orderBars(), as SVG so they survive print and download.
@@ -5718,7 +5848,7 @@ const barRects = (seed) => {
 function receiptDoc(o) {
   const st = timeline(o, LOC_TITLES[o.loc]);
   const now = currentStage(o, st);
-  const done = st[now].key === "delivered" || st[now].key === "collected" || o.collected;
+  const done = st[now].key === finalStage(o) || o.collected;
   const d = new Date(o.placed);
   const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${stageTime(o.placed)}`;
   const lines = orderLines(o);
@@ -5779,6 +5909,7 @@ function renderDone() {
   const o = co.done;
   const loc = LOCS[o.loc];
   const delivered = o.mode === "delivery";
+  const dine = o.mode === "dinein";
   const when = `${o.pickupAt.tomorrow ? "TOMORROW " : ""}${hhmm(o.pickupAt.t)}`;
   const d = new Date(o.placed);
   const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -5801,7 +5932,7 @@ function renderDone() {
           <div class="receipt-body bill">
             <p class="bill-brand">BREWNS COFFEE HOUSE</p>
             <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
-            <p class="bill-h">${delivered ? "DELIVERY" : "PICKUP"} · SALES TAX INVOICE</p>
+            <p class="bill-h">${delivered ? "DELIVERY" : dine ? `TABLE ${o.table}` : "PICKUP"} · SALES TAX INVOICE</p>
             <div class="bill-rows">
               <div><span>INVOICE</span><span>${invoiceNo(o, SHOP_CODES[o.loc])}</span></div>
               <div><span>ORDER</span><span>${num}</span></div>
@@ -5814,7 +5945,7 @@ function renderDone() {
               <div><span>MOBILE</span><span>${esc(o.phone)}</span></div>
               ${o.email ? `<div><span>EMAIL</span><span>${esc(o.email.toUpperCase())}</span></div>` : ""}
             </div>
-            <p class="bill-addr">${delivered ? `DELIVER TO<br><b>${esc(o.address.toUpperCase())}</b><br>${DELIVERY.areas[o.area][0]}, LAHORE · ~${DELIVERY.areas[o.area][4].toFixed(1)} KM<br>RIDER FROM ${LOCS[o.loc][0]}` : `COLLECT FROM<br><b>${LOCS[o.loc][0]}</b><br>${LOCS[o.loc][1]} · PICKUP COUNTER`}</p>
+            <p class="bill-addr">${delivered ? `DELIVER TO<br><b>${esc(o.address.toUpperCase())}</b><br>${DELIVERY.areas[o.area][0]}, LAHORE · ~${DELIVERY.areas[o.area][4].toFixed(1)} KM<br>RIDER FROM ${LOCS[o.loc][0]}` : dine ? `SERVED AT<br><b>TABLE ${o.table}</b><br>${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}` : `COLLECT FROM<br><b>${LOCS[o.loc][0]}</b><br>${LOCS[o.loc][1]} · PICKUP COUNTER`}</p>
             <div class="rc-rule"></div>
             <div class="bill-items">${o.items
               .map((it) => {
@@ -5835,7 +5966,7 @@ function renderDone() {
             <div class="rc-total"><span>TOTAL</span><span>${money(o.totals.total)}</span></div>
             <div class="bill-rows">
               <div><span>PAYMENT</span><span>${PAY[o.pay][0]}</span></div>
-              <div><span>STATUS</span><span>DUE ${delivered ? "ON DELIVERY" : "AT PICKUP"}</span></div>
+              <div><span>STATUS</span><span>DUE ${delivered ? "ON DELIVERY" : dine ? "AT THE TABLE" : "AT PICKUP"}</span></div>
             </div>
             ${o.note ? `<p class="bill-addr">NOTE: ${esc(o.note.toUpperCase())}</p>` : ""}
             <div class="rc-rule"></div>
@@ -5848,7 +5979,7 @@ function renderDone() {
       </div></div>
       <div class="done-body">
         <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · <span id="trk-status">CONFIRMED</span></p>
-        <h2 class="done-h" id="trk-h">${delivered ? `AT YOUR DOOR BY ${when}.` : `SEE YOU AT ${when}.`}</h2>
+        <h2 class="done-h" id="trk-h">${delivered ? `AT YOUR DOOR BY ${when}.` : dine ? `AT TABLE ${o.table} SOON.` : `SEE YOU AT ${when}.`}</h2>
         <p class="pdp-desc" id="trk-sub"></p>
         <div class="done-eta">
           <div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="ring-bar" cx="50" cy="50" r="46" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="ring-num" aria-live="polite"><span><span id="ring-num">--</span><small id="ring-unit">MIN</small></span></div></div>
@@ -5886,7 +6017,7 @@ function renderDone() {
         <div class="done-actions trk-small">
           <a class="btn btn-line" id="trk-wa" target="_blank" rel="noopener">WHATSAPP</a>
           <a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
-          ${delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS</a>`}
+          ${delivered || dine ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS</a>`}
           <button type="button" class="btn btn-line" data-co="collected" hidden>I'VE COLLECTED IT</button>
           <button type="button" class="btn btn-line trk-rate" data-co="rate" hidden>★ RATE YOUR ORDER</button>
           <button type="button" class="btn btn-line trk-cancel" data-co="cancel" hidden>CANCEL ORDER</button>
@@ -5934,6 +6065,8 @@ function renderDone() {
 
   const HEAD = delivered
     ? { received: `AT YOUR DOOR BY ${when}.`, accepted: `AT YOUR DOOR BY ${when}.`, preparing: "BEING MADE FRESH.", rider: `${r.first.toUpperCase()} IS COLLECTING IT.`, onway: "ON ITS WAY.", arriving: "ALMOST THERE.", delivered: "DELIVERED. ENJOY." }
+    : dine
+    ? { received: `AT TABLE ${o.table} SOON.`, accepted: `AT TABLE ${o.table} SOON.`, preparing: "BEING MADE FRESH.", ready: "ON ITS WAY TO YOU.", served: "ENJOY IT." }
     : { received: `SEE YOU AT ${when}.`, accepted: `SEE YOU AT ${when}.`, preparing: "BARISTA ON IT.", ready: "READY AT THE COUNTER.", collected: "ENJOY IT." };
   const first = esc(titleCase(o.name.split(" ")[0]));
   const SUB = delivered
@@ -5948,6 +6081,14 @@ function renderDone() {
         get delivered() {
           return `Delivered at ${stageTime(o.server?.times?.delivered || o.target)}. Thanks for ordering from brewns.`;
         },
+      }
+    : dine
+    ? {
+        received: `We’ve got it, ${first}. Sit back: it comes to table ${o.table}.`,
+        accepted: `${shop} has your order. Pay ${money(o.totals.total)} at the table when you’re done.`,
+        preparing: `It’s being made now and comes straight to table ${o.table}.`,
+        ready: `It’s ready and on its way to table ${o.table}.`,
+        served: `Served. Enjoy, and tap Message if you need anything.`,
       }
     : {
         received: `We’ve got it, ${first}. Head to ${shop}. Your order will wait at the pickup counter under ${num}.`,
@@ -6084,7 +6225,7 @@ function renderDone() {
     const cancel = $("[data-co='cancel']", coEl), got = $("[data-co='collected']", coEl);
     cancel.hidden = !canCancel(o, stages, now);
     if (got) got.hidden = delivered || o.cancelled || key !== "ready";
-    const finished = key === "delivered" || key === "collected" || !!o.collected;
+    const finished = key === finalStage(o) || !!o.collected;
     $("[data-co='rate']", coEl).hidden = !finished || !!o.reviewed || !!o.cancelled;
     if (delivered) {
       const riderStage = stages.findIndex((s) => s.key === "rider");
@@ -6192,16 +6333,17 @@ function placeOrder() {
   const order = {
     number, placed, target, items: cart.items.map((it) => ({ ...it })), totals: orderTotals(), pickupAt, name: co.name.trim(), phone: co.phone, note: co.note.trim(), pay: co.pay,
     mode: co.mode, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "", loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
+    table: co.mode === "dinein" ? co.table : null,
   };
-  // Send it: to the café (and a copy to the customer) when an order service is
-  // set up, otherwise a short hand-off so the button visibly does something.
+  // Send it: to the café API so it lands on the kitchen & delivery screens,
+  // plus email backup when an order service is configured.
   co.placing = true;
   renderCheckout({ animate: false });
   const email = co.email.trim();
   const started = Date.now();
   const payload = {
     items: cart.items.map(({ id, qty, sel }) => ({ id, qty, sel })),
-    mode: co.mode, loc: co.loc, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "",
+    mode: co.mode, loc: co.loc, area: delivery ? co.area : null, table: co.mode === "dinein" ? co.table : null, address: delivery ? co.address.trim() : "",
     when: co.when === "asap" ? "asap" : co.slot, name: co.name.trim(), phone: co.phone, email, note: co.note.trim(),
     pay: co.pay, promo: co.discount ? co.promo : "", useReward: !!co.useReward, guestReward: !!co.useReward,
   };

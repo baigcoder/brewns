@@ -17,7 +17,9 @@ export type Order = {
   number: number;
   placed: number;
   target: number;
-  mode: 'pickup' | 'delivery';
+  mode: 'pickup' | 'delivery' | 'dinein';
+  /** The table a dine-in order goes to (from the table's QR code). */
+  table?: number | null;
   loc: number;
   area: number | null;
   address: string;
@@ -49,6 +51,9 @@ export type ServerView = {
 };
 
 export type Stage = { key: string; label: string; detail: string; at: number };
+
+/** The stage that ends an order: delivered, collected, or served at the table. */
+export const finalStage = (o: Pick<Order, 'mode'>) => (o.mode === 'delivery' ? 'delivered' : o.mode === 'dinein' ? 'served' : 'collected');
 
 export const PREP_MS = 12 * 60000;
 
@@ -110,6 +115,14 @@ function clockTimeline(o: Order, shopName: string): Stage[] {
     ];
   }
   const prep = Math.min(PREP_MS, lead);
+  if (o.mode === 'dinein')
+    return [
+      { key: 'received', label: 'ORDER RECEIVED', detail: `Table ${o.table ?? ''}`.trim(), at: o.placed },
+      { key: 'accepted', label: 'ACCEPTED', detail: `${shopName} has it`, at: accepted },
+      { key: 'preparing', label: 'BEING MADE', detail: 'Made fresh for your table', at: Math.max(accepted + 1, o.target - prep * 0.85) },
+      { key: 'ready', label: 'ON ITS WAY', detail: 'Coming to your table', at: o.target },
+      { key: 'served', label: 'SERVED', detail: 'Enjoy', at: o.target + 2 * 60000 },
+    ];
   return [
     { key: 'received', label: 'ORDER RECEIVED', detail: 'Sent to the café', at: o.placed },
     { key: 'accepted', label: 'ACCEPTED', detail: `${shopName} has it`, at: accepted },
@@ -173,7 +186,8 @@ export function stageMessage(o: Order, key: string, shopName: string): Message |
   const says: Record<string, [Message['from'], string]> = {
     accepted: ['cafe', `Hi ${first}! ${shopName} here. We've got order #${String(o.number).padStart(5, '0')} and we're on it.`],
     preparing: ['cafe', 'Your order is being made now.'],
-    ready: ['cafe', `It's ready at the pickup counter. Show #${String(o.number).padStart(5, '0')} and it's yours.`],
+    ready: o.mode === 'dinein' ? ['cafe', `It's ready and on its way to table ${o.table ?? ''}.`] : ['cafe', `It's ready at the pickup counter. Show #${String(o.number).padStart(5, '0')} and it's yours.`],
+    served: ['cafe', 'Enjoy! Message us here if you need anything at the table.'],
     rider: ['rider', `Assalam o alaikum, this is ${r.first}. I'll be collecting your order from ${shopName}.`],
     onway: ['rider', `Picked up and on my way. Bike ${r.plate}.`],
     arriving: ['rider', `About 3 minutes away. I'll call ${o.phone} when I'm outside.`],
@@ -210,6 +224,7 @@ export function autoReply(o: Order, text: string, stages: Stage[], shopName: str
 export const QUICK_REPLIES = {
   pickup: ['Where is my order?', 'Less sugar please', 'Extra napkins', 'Can I cancel?'],
   delivery: ['Where is my order?', 'Call me when outside', 'Extra napkins', 'Leave at the gate'],
+  dinein: ['Where is my order?', 'Extra napkins', 'Less sugar please', 'Can we get water?'],
 };
 
 /* ── receipt ── */
