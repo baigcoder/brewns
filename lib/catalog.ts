@@ -114,6 +114,21 @@ export const KITCHEN_BASE: KitchenDish[] = [
     desc: "Fresh lime over soda, sweet, salted or half-and-half, the way it's done across Lahore.",
     options: [{ key: "style", label: "STYLE", choices: [["SWEET", 0], ["SALTED", 0], ["MIXED", 0]] }],
     details: [["LIME", "FRESH-SQUEEZED"], ["SODA", "CHILLED"], ["STYLE", "YOUR CALL"]] },
+  { id: "truffle-fries", name: "PARMESAN TRUFFLE FRIES", menuCat: "sides", art: ["burger", "smash"], tag: "HOUSE SPECIAL", price: 850,
+    meta: "TRUFFLE OIL · PARMESANO · GARLIC AIOLI", notes: ["CRISPY", "AROMATIC"],
+    desc: "Crispy skin-on shoestring fries tossed in white truffle oil, fresh rosemary and aged Parmigiano-Reggiano, with garlic aioli.",
+    options: [{ key: "dip", label: "DIP", choices: [["TRUFFLE AIOLI", 0], ["SPICY MAYO", 0], ["EXTRA TRUFFLE AIOLI", 120]] }],
+    details: [["CUT", "SHOESTRING"], ["OIL", "WHITE TRUFFLE"], ["CHEESE", "AGED PARMIGIANO"]] },
+  { id: "chicken-tenders", name: "CRISPY BUTTERMILK TENDERS", menuCat: "sides", art: ["roll", "crispy"], tag: "FAVOURITE", price: 950,
+    meta: "4 PIECES · HERB BUTTERMILK · DUAL DIP", notes: ["CRUNCHY", "JUICY"],
+    desc: "Four tender chicken strips brined in herb buttermilk, double dredged and fried golden, served with house honey mustard and smoky dip.",
+    options: [SPICE, { key: "dip", label: "SAUCE", choices: [["HONEY MUSTARD & BBQ", 0], ["SMOKY RANCH & CHILLI", 0]] }],
+    details: [["PIECES", "4 STRIPS"], ["BRINE", "HERBED BUTTERMILK"], ["SERVED", "WITH DUAL DIPS"]] },
+  { id: "garlic-bread", name: "CHEESY GARLIC BREAD", menuCat: "sides", art: ["pizza", "margherita"], price: 650,
+    meta: "WOOD-FIRED BAGUETTE · MOZZARELLA · HERB BUTTER", notes: ["BUBBLY", "GARLICKY"],
+    desc: "Artisan sourdough baguette brushed with roasted garlic confit butter, fresh parsley and bubbly melted mozzarella.",
+    options: [{ key: "cheese", label: "CHEESE", choices: [["STANDARD MOZZARELLA", 0], ["EXTRA CHEESE", 150]] }],
+    details: [["BREAD", "SOURDOUGH BAGUETTE"], ["BUTTER", "ROASTED GARLIC CONFIT"], ["CHEESE", "FIOR DI LATTE"]] },
 ];
 
 /* ── coffee, beans, bakery, merch, gifts ── */
@@ -147,7 +162,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Roasted weekly in small batches. Best within five weeks of roast date. Brew with 93°C water for optimal clarity.",
   },
   {
-    id: "latte", name: "LATTE", cat: "drinks", price: 950, photo: "menu/cup-latte.webp", model: "cup", alt: "A brewns latte in a clear cup with a navy brewns sleeve",
+    id: "latte", name: "LATTE", cat: "drinks", price: 950, photo: "menu/cup-latte.webp", cutout: true, model: "cup", alt: "A brewns latte in a clear cup with a navy brewns sleeve",
     meta: "12 OZ · BREWED DAILY · TO GO", notes: ["SMOOTH", "BALANCED"],
     desc: "A double shot of Slow Roast under steamed milk, with a heart poured on top before the lid goes on. The one most of the city starts its morning with.",
     options: [
@@ -159,7 +174,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Poured to order when you arrive, so it is never sitting on the counter. Lids are plant-based and the sleeve is recycled paper.",
   },
   {
-    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 650, photo: "menu/cup-espresso.webp", model: "cup", alt: "A brewns espresso in a black and orange brewns cup",
+    id: "espresso", name: "ESPRESSO", cat: "drinks", price: 650, photo: "menu/cup-espresso.webp", cutout: true, model: "cup", alt: "A brewns espresso in a black and orange brewns cup",
     meta: "SINGLE SHOT · SHORT · STRONG", notes: ["DARK CHOCOLATE", "CARAMEL"],
     desc: "Short, strong and on demand. Eighteen grams in, a little under forty out, in about twenty-eight seconds.",
     options: [
@@ -170,7 +185,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Pulled on a dialled-in grinder every morning, so the first shot of the day tastes like the last.",
   },
   {
-    id: "cortado", name: "CORTADO", cat: "drinks", tag: "BARISTA PICK", price: 850, photo: "menu/menu-cortado.webp", model: "glass", alt: "A brewns cortado in a faceted glass with steamed microfoam",
+    id: "cortado", name: "CORTADO", cat: "drinks", tag: "BARISTA PICK", price: 850, photo: "menu/menu-cortado.webp", cutout: true, model: "glass", alt: "A brewns cortado in a faceted glass with steamed microfoam",
     meta: "4.5 OZ · EQUAL PARTS ESPRESSO & MILK", notes: ["VELVETY", "HAZELNUT"],
     desc: "Equal parts Slow Roast espresso and warm textured milk in a heavy Gibraltar glass. Cuts the intensity while preserving the deep caramel sweetness of the beans.",
     options: [
@@ -182,7 +197,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Poured immediately upon arrival so the microfoam remains dense and velvety.",
   },
   {
-    id: "nitro-cold-brew", name: "NITRO COLD BREW", cat: "drinks", tag: "ON TAP", price: 1100, photo: "menu/menu-cold-brew.webp", model: "glass", alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head",
+    id: "nitro-cold-brew", name: "NITRO COLD BREW", cat: "drinks", tag: "ON TAP", price: 1100, photo: "menu/menu-cold-brew.webp", cutout: true, model: "glass", alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head",
     meta: "STEEPED 20 HRS · NITROGEN INFUSED", notes: ["STOUT-LIKE", "CREAMY CACAO"],
     desc: "Slow steeped for twenty hours and charged with pure food-grade nitrogen on draft. Pours with a thick cascading head like a fine dry stout, naturally sweet with zero added sugar.",
     options: [
@@ -193,7 +208,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Served cold on draft without ice to maintain the smooth cascading nitrogen head.",
   },
   {
-    id: "iced-matcha", name: "ICED MATCHA", cat: "drinks", tag: "NEW", price: 1150, photo: "menu/cup-iced-matcha.webp", model: "glass", alt: "A brewns iced matcha in a clear cup with a green leaf label and a black straw",
+    id: "iced-matcha", name: "ICED MATCHA", cat: "drinks", tag: "NEW", price: 1150, photo: "menu/cup-iced-matcha.webp", cutout: true, model: "glass", alt: "A brewns iced matcha in a clear cup with a green leaf label and a black straw",
     meta: "CEREMONIAL GRADE · OVER ICE", notes: ["GRASSY", "CREAMY"],
     desc: "Ceremonial-grade matcha whisked to order and poured over cold milk and ice, marbled on the way down.",
     options: [
@@ -205,7 +220,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Whisked by hand, never from a powder mix. Give it a stir with the straw before the first sip.",
   },
   {
-    id: "iced-latte", name: "ICED LATTE", cat: "drinks", price: 1050, photo: "menu/cup-iced-latte.webp", model: "glass", alt: "A brewns iced latte in a clear cup with a caramel leaf label and a black straw",
+    id: "iced-latte", name: "ICED LATTE", cat: "drinks", price: 1050, photo: "menu/cup-iced-latte.webp", cutout: true, model: "glass", alt: "A brewns iced latte in a clear cup with a caramel leaf label and a black straw",
     meta: "DOUBLE SHOT · COLD MILK", notes: ["BOLD", "SMOOTH"],
     desc: "Two shots over ice, topped with cold milk and left to swirl. Smooth, bold and made for the walk between blocks.",
     options: [{ key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] }, MILK, { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 200]] }],
@@ -213,7 +228,66 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Shots are pulled when you arrive and chilled over ice straight away, so it never waters down on the counter.",
   },
   {
-    id: "cardamom-bun", name: "CARDAMOM BUN", cat: "bakery", tag: "NORDIC RITUAL", price: 750, photo: "menu/menu-cardamom.webp", model: "bakery", alt: "A freshly baked Swedish cardamom bun with pearl sugar",
+    id: "cappuccino", name: "CAPPUCCINO", cat: "drinks", tag: "FAVORITE", price: 850, photo: "menu/cup-cappuccino.webp", cutout: true, model: "cup", alt: "A brewns cappuccino in a ceramic cup dusted with cocoa",
+    meta: "8 OZ · EQUAL PARTS ESPRESSO & FOAM", notes: ["CREAMY", "CACAO DUSTED"],
+    desc: "Equal parts double Slow Roast espresso, steamed whole milk, and dense velvety microfoam, dusted with organic cacao powder.",
+    options: [
+      { key: "size", label: "SIZE", choices: [["8 OZ", 0], ["12 OZ", 150]] },
+      MILK,
+      { key: "temp", label: "TEMPERATURE", choices: [["HOT", 0], ["ICED", 100]] },
+    ],
+    details: [["ESPRESSO", "DOUBLE · SLOW ROAST"], ["FOAM", "DENSE MICROFOAM"], ["DUSTING", "ORGANIC CACAO"]],
+    care: "Poured to order. Best enjoyed immediately while the foam is thick and silky.",
+  },
+  {
+    id: "spanish-latte", name: "SPANISH LATTE", cat: "drinks", tag: "BESTSELLER", price: 1150, photo: "menu/cup-spanish-latte.webp", cutout: true, model: "glass", alt: "An iced Spanish latte with distinct caramel-coffee layers",
+    meta: "CONDENSED MILK · SLOW ROAST · CINNAMON", notes: ["SWEET", "SILKY"],
+    desc: "Slow Roast espresso poured over sweet condensed milk and cold textured milk, finished with a subtle dusting of cinnamon.",
+    options: [
+      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] },
+      { key: "temp", label: "TEMPERATURE", choices: [["ICED", 0], ["HOT", 0]], def: 0 },
+      { key: "sweet", label: "SWEETNESS", choices: [["LIGHT", 0], ["REGULAR", 0], ["EXTRA", 0]], def: 1 },
+    ],
+    details: [["BASE", "CONDENSED & FRESH MILK"], ["ESPRESSO", "DOUBLE SHOT"], ["SPICE", "CEYLON CINNAMON"]],
+    care: "Give it a slow swirl before sipping so the sweet condensed milk blends into the espresso.",
+  },
+  {
+    id: "americano", name: "CAFFÈ AMERICANO", cat: "drinks", price: 700, photo: "menu/cup-americano.webp", cutout: true, model: "cup", alt: "A hot caffè americano with golden crema",
+    meta: "DOUBLE ESPRESSO · 93°C FILTERED WATER", notes: ["BOLD", "CLEAN CREMA"],
+    desc: "A double shot of Slow Roast pulled directly over hot filtered water to preserve the delicate crema. Clean, bold, and pure.",
+    options: [
+      { key: "size", label: "SIZE", choices: [["8 OZ", 0], ["12 OZ", 100], ["16 OZ", 200]], def: 1 },
+      { key: "temp", label: "TEMPERATURE", choices: [["HOT", 0], ["ICED", 50]] },
+      { key: "shots", label: "SHOTS", choices: [["DOUBLE", 0], ["TRIPLE", 150]] },
+    ],
+    details: [["EXTRACTION", "DOUBLE ESPRESSO"], ["WATER", "93°C MINERAL BALANCED"], ["CALORIES", "2 KCAL"]],
+    care: "Freshly pulled on demand. No sugar added.",
+  },
+  {
+    id: "flat-white", name: "FLAT WHITE", cat: "drinks", tag: "SPECIALTY", price: 900, photo: "menu/cup-flat-white.webp", cutout: true, model: "cup", alt: "A flat white with delicate swan latte art",
+    meta: "6 OZ · DOUBLE RISTRETTO · WET MICROFOAM", notes: ["INTENSE", "VELVETY"],
+    desc: "Double ristretto of Slow Roast blend under glossy, wet microfoam in an artisanal ceramic cup. Stronger and silkier than a latte.",
+    options: [
+      MILK,
+      { key: "temp", label: "TEMPERATURE", choices: [["HOT (62°C)", 0]] },
+    ],
+    details: [["SHOT", "DOUBLE RISTRETTO"], ["RATIO", "1:2 COFFEE TO MILK"], ["CUP", "CERAMIC TULIP"]],
+    care: "Served at the barista standard 62°C to maximize natural milk sweetness.",
+  },
+  {
+    id: "mocha", name: "BELGIAN MOCHA", cat: "drinks", price: 1050, photo: "menu/cup-mocha.webp", cutout: true, model: "cup", alt: "A rich Belgian chocolate mocha with chocolate curls",
+    meta: "70% CALLEBAUT · ESPRESSO · STEAMED MILK", notes: ["DARK CHOCOLATE", "RICH"],
+    desc: "Melted Belgian dark chocolate folded into a double shot of Slow Roast espresso and velvety steamed milk, topped with dark chocolate curls.",
+    options: [
+      { key: "size", label: "SIZE", choices: [["12 OZ", 0], ["16 OZ", 200]] },
+      MILK,
+      { key: "temp", label: "TEMPERATURE", choices: [["HOT", 0], ["ICED", 100]] },
+    ],
+    details: [["CHOCOLATE", "BELGIAN 70% CALLEBAUT"], ["ESPRESSO", "DOUBLE SHOT"], ["TOPPING", "DARK CHOCOLATE CURLS"]],
+    care: "Stir gently to enjoy the luscious melted chocolate base.",
+  },
+  {
+    id: "cardamom-bun", name: "CARDAMOM BUN", cat: "bakery", tag: "NORDIC RITUAL", price: 750, photo: "menu/menu-cardamom.webp", cutout: true, model: "bakery", alt: "A freshly baked Swedish cardamom bun with pearl sugar",
     meta: "STONEGROUND CARDAMOM · BROWN SUGAR", notes: ["AROMATIC", "BUTTERY"],
     desc: "Traditional twisted bun enriched with fresh stoneground green cardamom, brown sugar syrup and crunchy Swedish pearl sugar. Baked fresh every morning.",
     options: [
@@ -223,7 +297,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Baked fresh daily. Delicious straight or lightly warmed at the counter.",
   },
   {
-    id: "cinnamon-roll", name: "CINNAMON ROLL", cat: "bakery", price: 700, photo: "menu/menu-cinnamon.webp", model: "bakery", alt: "A glazed cinnamon roll on a ceramic plate",
+    id: "cinnamon-roll", name: "CINNAMON ROLL", cat: "bakery", price: 700, photo: "menu/menu-cinnamon.webp", cutout: true, model: "bakery", alt: "A glazed cinnamon roll on a ceramic plate",
     meta: "BAKED EVERY MORNING", notes: ["BROWN BUTTER", "CARDAMOM"],
     desc: "Laminated dough rolled with brown butter, cinnamon and a little cardamom, finished with a vanilla glaze while it is still warm.",
     options: [
@@ -234,7 +308,7 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Baked in the morning and gone by the afternoon. Order ahead to hold one.",
   },
   {
-    id: "matcha-financier", name: "MATCHA FINANCIER", cat: "bakery", tag: "GLUTEN-FREE", price: 650, photo: "menu/menu-financier.webp", model: "bakery", alt: "A golden-green matcha financier cake with dusted icing sugar",
+    id: "matcha-financier", name: "MATCHA FINANCIER", cat: "bakery", tag: "GLUTEN-FREE", price: 650, photo: "menu/menu-financier.webp", cutout: true, model: "bakery", alt: "A golden-green matcha financier cake with dusted icing sugar",
     meta: "ALMOND FLOUR · UJI MATCHA", notes: ["NUTTY", "EARTHY SWEET"],
     desc: "Dense French almond cake infused with ceremonial Uji matcha and browned noisette butter. Crispy edges and a soft, melt-in-the-mouth center.",
     options: [
@@ -244,7 +318,57 @@ export const PRODUCTS_BASE: Product[] = [
     care: "Naturally gluten-free with California almond meal.",
   },
   {
-    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 6500, photo: "menu/tumbler-black.webp", model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
+    id: "butter-croissant", name: "FRENCH BUTTER CROISSANT", cat: "bakery", tag: "FRESH BAKED", price: 650, photo: "menu/menu-croissant.webp", cutout: true, model: "bakery", alt: "A golden French butter croissant with flaky layers",
+    meta: "100% NORMANDY BUTTER · 27 LAYERS", notes: ["FLAKY", "BUTTERY"],
+    desc: "Handcrafted laminated Viennoiserie with 100% Normandy butter, baked to a deep golden honeycomb crunch with an airy, tender crumb.",
+    options: [
+      { key: "serve", label: "SERVE", choices: [["AS IT IS", 0], ["WARMED", 0]] },
+    ],
+    details: [["BAKED", "DAILY AT 06:30"], ["BUTTER", "FRENCH NORMANDY 84%"], ["WEIGHT", "95 G"]],
+    care: "Baked fresh every morning. Delightful on its own or dipped in a cappuccino.",
+  },
+  {
+    id: "almond-croissant", name: "ALMOND CROISSANT", cat: "bakery", price: 850, photo: "menu/menu-almond-croissant.webp", cutout: true, model: "bakery", alt: "A twice-baked almond croissant dusted with icing sugar",
+    meta: "FRANGIPANE · TOASTED ALMONDS · TWICE-BAKED", notes: ["NUTTY", "CRUNCHY"],
+    desc: "Twice-baked butter croissant generously filled with almond frangipane cream, topped with toasted California sliced almonds and powdered sugar.",
+    options: [
+      { key: "serve", label: "SERVE", choices: [["WARMED", 0], ["ROOM TEMP", 0]] },
+    ],
+    details: [["FILLING", "ALMOND FRANGIPANE"], ["TOPPING", "SLICED CALIFORNIA ALMONDS"], ["WEIGHT", "145 G"]],
+    care: "Rich and nutty. Warmed for 2 minutes to melt the frangipane center.",
+  },
+  {
+    id: "san-sebastian", name: "SAN SEBASTIAN CHEESECAKE", cat: "bakery", tag: "HOUSE SPECIAL", price: 1150, photo: "menu/menu-cheesecake.webp", cutout: true, model: "bakery", alt: "A slice of Basque burnt cheesecake with Belgian chocolate sauce",
+    meta: "BURNT BASQUE · MOLTEN CENTER · BELGIAN CHOCOLATE", notes: ["MOLTEN", "CARAMELIZED"],
+    desc: "Authentic Basque burnt cheesecake with a deeply caramelized exterior and an ultra-creamy molten center, served with warm Belgian milk chocolate sauce.",
+    options: [
+      { key: "serve", label: "CHOCOLATE SAUCE", choices: [["WITH WARM BELGIAN CHOCOLATE", 0], ["ON THE SIDE", 0], ["NO CHOCOLATE", 0]] },
+    ],
+    details: [["ORIGIN", "SAN SEBASTIAN RECIPE"], ["CHEESE", "PHILADELPHIA CREAM CHEESE"], ["SERVED", "SLIGHTLY WARM"]],
+    care: "Served slightly warm for maximum center creaminess.",
+  },
+  {
+    id: "fudge-brownie", name: "WARM FUDGE BROWNIE", cat: "bakery", price: 750, photo: "menu/menu-brownie.webp", cutout: true, model: "bakery", alt: "A warm dark chocolate fudge brownie with vanilla gelato",
+    meta: "BELGIAN DARK CHOCOLATE · SEA SALT · GELATO", notes: ["FUDGY", "RICH DESSERT"],
+    desc: "Thick, fudgy brownie baked with melted Belgian dark chocolate, finished with Maldon sea salt flakes and a scoop of Madagascar vanilla bean gelato.",
+    options: [
+      { key: "serve", label: "SERVE", choices: [["WARMED + VANILLA GELATO", 150], ["WARMED ONLY", 0], ["ROOM TEMP", 0]], def: 0 },
+    ],
+    details: [["CHOCOLATE", "70% BELGIAN DARK"], ["FINISH", "MALDON SEA SALT"], ["GELATO", "MADAGASCAR VANILLA"]],
+    care: "Heated for 30 seconds so the center stays intensely gooey.",
+  },
+  {
+    id: "tiramisu", name: "CLASSIC ESPRESSO TIRAMISU", cat: "bakery", tag: "ITALIAN CLASSIC", price: 950, photo: "menu/menu-tiramisu.webp", cutout: true, model: "bakery", alt: "A slice of espresso tiramisu layered with mascarpone",
+    meta: "BREWNS ESPRESSO · MASCARPONE · SAVOIARDI", notes: ["COFFEE NOTES", "VELVETY"],
+    desc: "Artisanal Italian savoiardi ladyfingers steeped in fresh Brewns Slow Roast espresso, layered with whipped mascarpone cream and dusted with dark cocoa.",
+    options: [
+      { key: "portion", label: "PORTION", choices: [["SINGLE SLICE", 0], ["SHARING BOX", 850]] },
+    ],
+    details: [["COFFEE", "SLOW ROAST ESPRESSO"], ["CREAM", "ITALIAN MASCARPONE"], ["ALCOHOL", "100% ALCOHOL-FREE"]],
+    care: "Chilled to perfection. Keep refrigerated until ready to serve.",
+  },
+  {
+    id: "ceramic-tumbler", name: "CERAMIC TRAVEL TUMBLER", cat: "merch", tag: "ESSENTIAL", price: 6500, photo: "menu/tumbler-black.webp", cutout: true, model: "cup", alt: "A matte ceramic travel tumbler with spill-resistant lid",
     meta: "12 OZ · CERAMIC LINED · DOUBLE WALL", notes: ["TRUE TASTE", "6 HR HEAT RETENTION"],
     desc: "Double-wall vacuum-insulated stainless steel tumbler with an internal ceramic coating so your coffee tastes true to the cup. Fits standard car cup holders and keeps drinks hot for 6 hours.",
     options: [

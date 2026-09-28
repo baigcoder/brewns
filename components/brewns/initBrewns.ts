@@ -948,29 +948,46 @@ document.addEventListener(
   true,
 );
 const CLOUDINARY_CLOUD = "e4j256t4";
+const ASSET_CACHE_VERSION = "cutout_v5";
 const cldProductUrl = (path: string) => {
   if (!path || path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) return path;
   const clean = path.replace(/^\/?assets\//, "").replace(/^\//, "");
-  return `${ASSET_BASE_URL}${clean}`;
+  const base = `${ASSET_BASE_URL}${clean}`;
+  return `${base}${base.includes("?") ? "&" : "?"}v=${ASSET_CACHE_VERSION}`;
 };
 
 // Photos are asset paths; drawn dishes arrive as data URIs.
-const photoSrc = (photo: string) => (photo.startsWith("data:") ? photo : cldProductUrl(photo));
+const photoSrc = (photo: string) => {
+  if (!photo) return "";
+  if (photo.startsWith("data:")) return photo;
+  const base = cldProductUrl(photo);
+  return base.includes("?v=") ? base : `${base}${base.includes("?") ? "&" : "?"}v=${ASSET_CACHE_VERSION}`;
+};
 
 /* ═══════════ generated markup: menu cards, footer columns ═══════════ */
 const ALL_MENU_CARDS = [
-  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "Rs 650", file: "cup-espresso.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns espresso in a black and orange brewns cup" },
-  { id: "latte", cat: "coffee", name: "LATTE", price: "Rs 950", file: "cup-latte.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns latte in a clear cup with a navy brewns sleeve" },
-  { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "Rs 1,150", file: "cup-iced-matcha.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns iced matcha in a clear cup with a green leaf label" },
-  { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "Rs 750", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
-  { id: "cortado", cat: "coffee", name: "CORTADO", price: "Rs 850", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
-  { id: "nitro-cold-brew", cat: "specialty", name: "NITRO COLD BREW", price: "Rs 1,100", file: "menu-cold-brew.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head" },
-  { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "Rs 700", file: "menu-cinnamon.webp", size: [1000, 1000], frame: [230, 230, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
-  { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "Rs 650", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
-  { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "Rs 1,050", file: "cup-iced-latte.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "A brewns iced latte in a clear cup with a caramel leaf label" },
+  { id: "espresso", cat: "coffee", name: "ESPRESSO", price: "Rs 650", file: "cup-espresso.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns espresso in a black and orange brewns cup" },
+  { id: "latte", cat: "coffee", name: "LATTE", price: "Rs 950", file: "cup-latte.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns latte in a clear cup with a navy brewns sleeve" },
+  { id: "iced-matcha", cat: "specialty", name: "ICED MATCHA", price: "Rs 1,150", file: "cup-iced-matcha.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns iced matcha in a clear cup with a green leaf label" },
+  { id: "cardamom-bun", cat: "bakery", name: "CARDAMOM BUN", price: "Rs 750", file: "menu-cardamom.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A freshly baked Swedish cardamom bun with pearl sugar" },
+  { id: "cortado", cat: "coffee", name: "CORTADO", price: "Rs 850", file: "menu-cortado.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns cortado in a faceted glass with steamed microfoam" },
+  { id: "nitro-cold-brew", cat: "specialty", name: "NITRO COLD BREW", price: "Rs 1,100", file: "menu-cold-brew.webp", size: [1024, 1024], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A nitro cold brew coffee in a chilled glass with creamy cascading head" },
+  { id: "cinnamon-roll", cat: "bakery", name: "CINNAMON ROLL", price: "Rs 700", file: "menu-cinnamon.webp", size: [1000, 1000], frame: [230, 230, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A glazed cinnamon roll on a ceramic plate" },
+  { id: "matcha-financier", cat: "bakery", name: "MATCHA FINANCIER", price: "Rs 650", file: "menu-financier.webp", size: [1024, 1024], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A golden-green matcha financier cake with dusted icing sugar" },
+  { id: "iced-latte", cat: "coffee", name: "ICED LATTE", price: "Rs 1,050", file: "cup-iced-latte.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns iced latte in a clear cup with a caramel leaf label" },
   { id: "slow-roast", cat: "beans", name: "SLOW ROAST", price: "Rs 3,800", file: "bag-slow-roast.webp", size: [611, 1040], frame: [112, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns Slow Roast bag in charcoal and sage green" },
   { id: "single-origin", cat: "beans", name: "ETHIOPIA YIRGACHEFFE", price: "Rs 4,800", file: "bag-yirgacheffe.webp", size: [654, 1040], frame: [119, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns Ethiopia single origin bag with an orange mountain landscape" },
-  { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "tumbler-black.webp", size: [1000, 1000], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: true, clip: true, alt: "Matte ceramic travel tumbler" },
+  { id: "ceramic-tumbler", cat: "beans", name: "CERAMIC TUMBLER", price: "Rs 6,500", file: "tumbler-black.webp", size: [1000, 1000], frame: [190, 190, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "Matte ceramic travel tumbler" },
+  { id: "cappuccino", cat: "coffee", name: "CAPPUCCINO", price: "Rs 850", file: "cup-cappuccino.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A brewns cappuccino in a ceramic cup dusted with cocoa" },
+  { id: "spanish-latte", cat: "coffee", name: "SPANISH LATTE", price: "Rs 1,150", file: "cup-spanish-latte.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "An iced Spanish latte with distinct caramel-coffee layers" },
+  { id: "americano", cat: "coffee", name: "AMERICANO", price: "Rs 700", file: "cup-americano.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A hot caffè americano with golden crema" },
+  { id: "flat-white", cat: "coffee", name: "FLAT WHITE", price: "Rs 900", file: "cup-flat-white.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A flat white with delicate swan latte art" },
+  { id: "mocha", cat: "coffee", name: "BELGIAN MOCHA", price: "Rs 1,050", file: "cup-mocha.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A rich Belgian chocolate mocha with chocolate curls" },
+  { id: "butter-croissant", cat: "bakery", name: "BUTTER CROISSANT", price: "Rs 650", file: "menu-croissant.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A golden French butter croissant with flaky layers" },
+  { id: "almond-croissant", cat: "bakery", name: "ALMOND CROISSANT", price: "Rs 850", file: "menu-almond-croissant.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A twice-baked almond croissant dusted with icing sugar" },
+  { id: "san-sebastian", cat: "bakery", name: "SAN SEBASTIAN", price: "Rs 1,150", file: "menu-cheesecake.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A slice of Basque burnt cheesecake with Belgian chocolate sauce" },
+  { id: "fudge-brownie", cat: "bakery", name: "FUDGE BROWNIE", price: "Rs 750", file: "menu-brownie.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A warm dark chocolate fudge brownie with vanilla gelato" },
+  { id: "tiramisu", cat: "bakery", name: "TIRAMISU", price: "Rs 950", file: "menu-tiramisu.webp", size: [1000, 1000], frame: [200, 200, 0, 0], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: "A slice of espresso tiramisu layered with mascarpone" },
   ...KITCHEN.map((k) => ({ shot: true, id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: cldProductUrl(k.photo), size: [1000, 1000], frame: [225, 225, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
 ];
 
@@ -982,7 +999,7 @@ const cardHTML = (c, o) => {
     <p class="card-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
     <div class="card-media${c.clip ? " clip" : ""}${c.shot ? " shot" : ""}"><span><span class="card-par">
       <div class="still" style="width: calc(${w / 16}rem * var(--size-menu-still-scale)); max-width: var(--size-menu-still-max); aspect-ratio: ${w} / ${h}; bottom: calc(${bottom / 16}rem + var(--size-menu-still-lift)); margin-left: ${offsetX / 16}rem">
-        <img loading="lazy" decoding="async" ${c.snap ? `data-snap="${c.snap}" data-snap-product="${c.id}"` : `src="${c.art || `${ASSET_BASE_URL}menu/${c.file}`}"`} alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
+        <img loading="lazy" decoding="async" ${c.snap ? `data-snap="${c.snap}" data-snap-product="${c.id}"` : `src="${c.art || `${ASSET_BASE_URL}menu/${c.file}?v=${ASSET_CACHE_VERSION}`}"`} alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
       </div>
     </span></span></div>
     <div class="card-foot">
@@ -5270,6 +5287,7 @@ const FULL_MENU_SECTIONS = [
     cat: "bakery",
     items: PRODUCTS.filter((p) => p.cat === "bakery"),
   },
+  { title: "🍟 STARTERS & SIDES", cat: "sides", items: KITCHEN.filter((k) => k.menuCat === "sides") },
   { title: "🍔 BURGERS", cat: "burgers", items: KITCHEN.filter((k) => k.menuCat === "burgers") },
   { title: "🍕 WOOD-FIRED PIZZA", cat: "pizza", items: KITCHEN.filter((k) => k.menuCat === "pizza") },
   { title: "🍝 PASTA", cat: "pasta", items: KITCHEN.filter((k) => k.menuCat === "pasta") },
@@ -5287,7 +5305,7 @@ const FULL_MENU_SECTIONS = [
   },
 ];
 
-const FULL_MENU_PILLS = { coffee: "COFFEE", specialty: "COLD BAR", bakery: "BAKERY", burgers: "BURGERS", pizza: "PIZZA", pasta: "PASTA", rolls: "ROLLS", drinks: "COOLERS", beans: "ROASTS", merch: "GEAR &amp; GIFTS" };
+const FULL_MENU_PILLS = { coffee: "COFFEE", specialty: "COLD BAR", bakery: "BAKERY", sides: "SIDES", burgers: "BURGERS", pizza: "PIZZA", pasta: "PASTA", rolls: "ROLLS", drinks: "COOLERS", beans: "ROASTS", merch: "GEAR &amp; GIFTS" };
 
 function renderFullMenu() {
   if (!fullMenuEl) return;

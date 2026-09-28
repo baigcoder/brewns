@@ -16,8 +16,10 @@ const DEFAULT_KITCHEN_PHOTOS: Record<string, string> = {
   'arrabbiata-pasta': 'arrabbiata-pasta.webp',
   'bbq-burger': 'bbq-burger.webp',
   'behari-roll': 'behari-roll.webp',
+  'chicken-tenders': 'chicken-tenders.webp',
   'crispy-wrap': 'crispy-wrap.webp',
   'fajita-pizza': 'fajita-pizza.webp',
+  'garlic-bread': 'garlic-bread.webp',
   'lime-soda': 'lime-soda.webp',
   'mango-smoothie': 'mango-smoothie.webp',
   'margherita-pizza': 'margherita-pizza.webp',
@@ -27,6 +29,7 @@ const DEFAULT_KITCHEN_PHOTOS: Record<string, string> = {
   'pesto-pasta': 'pesto-pasta.webp',
   'smash-burger': 'smash-burger.webp',
   'tikka-roll': 'tikka-roll.webp',
+  'truffle-fries': 'truffle-fries.webp',
   'zinger-burger': 'zinger-burger.webp',
 };
 

@@ -1433,6 +1433,9 @@ const WORDS: [RegExp, string, boolean?][] = [
   [/margherita/, 'margherita-pizza'], [/fajita/, 'fajita-pizza'], [/pepperoni/, 'pepperoni-pizza'], [/pizza/, 'pepperoni-pizza', true],
   [/mint margarita|margarita/, 'mint-margarita'], [/peach|iced tea/, 'peach-iced-tea'], [/mango|smoothie/, 'mango-smoothie'], [/lime|soda/, 'lime-soda'],
   [/iced latte/, 'iced-latte'], [/matcha latte|iced matcha|matcha(?! financier)/, 'iced-matcha'], [/latte/, 'latte', true], [/espresso/, 'espresso'], [/cortado/, 'cortado'], [/cold brew|nitro/, 'nitro-cold-brew'],
+  [/cappuccino/, 'cappuccino'], [/spanish latte/, 'spanish-latte'], [/americano|long black/, 'americano'], [/flat white/, 'flat-white'], [/mocha|hot chocolate/, 'mocha'],
+  [/truffle fries|parmesan fries/, 'truffle-fries'], [/fries/, 'truffle-fries', true], [/tenders|chicken tenders/, 'chicken-tenders'], [/garlic bread/, 'garlic-bread'],
+  [/butter croissant|croissant(?! almond)/, 'butter-croissant'], [/almond croissant/, 'almond-croissant'], [/san sebastian|basque cheesecake|cheesecake/, 'san-sebastian'], [/fudge brownie|brownie/, 'fudge-brownie'], [/tiramisu/, 'tiramisu'],
   [/cardamom|bun/, 'cardamom-bun'], [/cinnamon/, 'cinnamon-roll'], [/financier/, 'matcha-financier'],
   [/slow roast|beans|house blend/, 'slow-roast'], [/single origin/, 'single-origin'], [/tumbler/, 'ceramic-tumbler'],
 ];
