@@ -7,9 +7,9 @@ import { chime } from './Live';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
 
-type Reservation = { id: string; code: string; name: string; phone: string; loc: number; date: string; time: string; guests: number; area: string; notes: string; status: string; createdAt: number };
-type Party = { id: string; code: string; type: string; name?: string; phone?: string; loc?: number; location: string; date?: string; time?: string; guests: number; status: string; notes: string; source?: string; createdAt: number };
-type Outcome = { kind: 'table' | 'party' | 'bag'; code?: string; summary: string; total?: number };
+type Reservation = { id: string; code: string; name: string; phone: string; email?: string; emailSent?: boolean; loc: number; date: string; time: string; guests: number; area: string; notes: string; status: string; createdAt: number };
+type Party = { id: string; code: string; type: string; name?: string; phone?: string; email?: string; loc?: number; location: string; date?: string; time?: string; guests: number; status: string; notes: string; source?: string; createdAt: number };
+type Outcome = { kind: 'table' | 'party' | 'bag' | 'email'; code?: string; summary: string; total?: number; email?: string };
 type CallLog = { id: string; startedAt: number; lastAt: number; endedAt?: number; agent: string; langs: ('en' | 'ur')[]; brain: string; turns: { who: 'caller' | 'agent'; text: string; t: number }[]; outcomes: Outcome[]; live: boolean };
 type Data = { v: number; now: number; reservations: Reservation[]; parties: Party[]; calls: CallLog[]; canSeeCalls: boolean };
 
@@ -52,8 +52,8 @@ function CallCard({ c, now, open, onToggle }: { c: CallLog; now: number; open: b
         </span>
         <span className="cx-row" style={{ gap: 6, flexWrap: 'wrap' }}>
           {c.outcomes.map((o, i) => (
-            <span key={i} className={`cx-pill ${o.kind === 'bag' ? 'preparing' : 'received'}`}>
-              {o.kind === 'table' ? `Table ${o.code}` : o.kind === 'party' ? `Party ${o.code}` : `Bag ${o.total ? rs(o.total) : ''}`}
+            <span key={i} className={`cx-pill ${o.kind === 'bag' ? 'preparing' : o.kind === 'email' ? 'ready' : 'received'}`}>
+              {o.kind === 'table' ? `Table ${o.code}` : o.kind === 'party' ? `Party ${o.code}` : o.kind === 'email' ? `✉️ ${o.email || o.summary.replace(/^Confirmation email sent to /, '')}` : `Bag ${o.total ? rs(o.total) : ''}`}
             </span>
           ))}
           {!c.outcomes.length && !c.live && <span className="cx-small cx-faint">No booking</span>}
@@ -63,7 +63,7 @@ function CallCard({ c, now, open, onToggle }: { c: CallLog; now: number; open: b
         <div className="cx-transcript" ref={tail}>
           {c.outcomes.map((o, i) => (
             <p key={`o${i}`} className="cx-small cx-outcome">
-              {o.kind === 'bag' ? 'Put in bag: ' : 'Booked: '}
+              {o.kind === 'bag' ? 'Put in bag: ' : o.kind === 'email' ? 'Email: ' : 'Booked: '}
               {o.summary}
               {o.total ? ` · ${rs(o.total)}` : ''}
             </p>
@@ -242,11 +242,23 @@ export function BookingsScreen() {
                           <b>{dayLabel(r.date, today)}</b> {spokenTime(r.time)}
                         </td>
                         <td>
-                          {r.name}
+                          <b>{r.name}</b>
                           <br />
                           <a className="cx-link cx-small" href={`tel:${r.phone.replace(/\s/g, '')}`}>
                             {r.phone}
                           </a>
+                          {r.email && (
+                            <div style={{ marginTop: 2 }}>
+                              <a className="cx-link cx-small" href={`mailto:${r.email}`} style={{ color: '#c99355' }}>
+                                ✉️ {r.email}
+                              </a>
+                              {r.emailSent && (
+                                <span className="cx-pill ready" style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px' }}>
+                                  Email sent
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td>
                           {r.guests} · {r.area}
@@ -295,12 +307,20 @@ export function BookingsScreen() {
                     </p>
                     {p.name && (
                       <p className="cx-small">
-                        {p.name}
+                        <b>{p.name}</b>
                         {p.phone && (
                           <>
                             {' · '}
                             <a className="cx-link" href={`tel:${p.phone.replace(/\s/g, '')}`}>
                               {p.phone}
+                            </a>
+                          </>
+                        )}
+                        {p.email && (
+                          <>
+                            {' · '}
+                            <a className="cx-link" href={`mailto:${p.email}`} style={{ color: '#c99355' }}>
+                              ✉️ {p.email}
                             </a>
                           </>
                         )}

@@ -16,6 +16,8 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { kv, withLock } from './store';
 import { CATALOG, CLOSE_MIN, DELIVERY, LOC_TITLES, OPEN_MIN, SHOP_COUNT, catalogItem, defaultSel, money, pkMobile, unitPrice, validSel, type Product, type Sel } from '@/lib/catalog';
 import type { Reservation } from '@/app/api/reservations/route';
+import { sendBookingConfirmationEmail } from './email';
+import { bumpLive } from './orders';
 
 export type VoiceGender = 'female' | 'male';
 
@@ -35,6 +37,7 @@ export type VoiceAction =
   | { type: 'ADD_TO_BAG'; data: { items: BagLine[]; total: number } }
   | { type: 'RESERVE_TABLE'; data: Reservation }
   | { type: 'BOOK_PARTY'; data: PartyBooking }
+  | { type: 'SAVED_EMAIL'; data: { email: string; code?: string } }
   | { type: 'END_CALL' };
 
 export interface PartyBooking {
@@ -43,6 +46,7 @@ export interface PartyBooking {
   type: string;
   name: string;
   phone: string;
+  email?: string;
   location: string;
   loc: number;
   date: string;
@@ -57,8 +61,11 @@ export interface PartyBooking {
 /** Where the fallback script is in a booking; the browser echoes it back. */
 export interface ScriptState {
   flow?: 'table' | 'party';
-  slots?: Partial<Record<'name' | 'phone' | 'loc' | 'date' | 'time' | 'guests' | 'area' | 'occasion', string>>;
+  slots?: Partial<Record<'name' | 'phone' | 'email' | 'loc' | 'date' | 'time' | 'guests' | 'area' | 'occasion', string>>;
   confirming?: boolean;
+  waitingForEmail?: boolean;
+  confirmedCode?: string;
+  confirmedKind?: 'table' | 'party';
 }
 
 export interface VoiceCallResponse {
@@ -293,11 +300,154 @@ export function parseShop(text: string): number {
 
 /* ═══════════ bookings: the checks and the writes ═══════════ */
 
+/** Parse and normalize email addresses from spoken voice transcripts or typed text.
+ *  Handles "alex at gmail dot com", "hassan.baig at gmail.com", "name @ domain . com", etc. */
+export function parseEmail(text: string): string {
+  if (!text) return '';
+  const raw = text.trim();
+  // 1. Direct standard email match
+  const directMatch = raw.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (directMatch) return directMatch[0].toLowerCase();
+
+  // 2. Normalize spoken speech recognition artifacts
+  let norm = raw
+    .toLowerCase()
+    .replace(/[\u0600-\u06FF]/g, ' ') // strip Urdu script if mixed
+    .replace(/\s+(at|@)\s+/gi, '@')
+    .replace(/\s+(dot|\.)\s+/gi, '.')
+    .replace(/\s+(underscore|_)\s+/gi, '_')
+    .replace(/\s+(dash|-)\s+/gi, '-');
+
+  // Collapse spaces only between single spaced letters: "a l e x @ g m a i l . c o m" -> "alex@gmail.com"
+  for (let i = 0; i < 6; i++) {
+    norm = norm.replace(/(?<=\b[a-z0-9])\s+(?=[a-z0-9]\b)/gi, '');
+  }
+
+  const m = norm.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (m) return m[0].toLowerCase();
+
+  // Also catch spoken "alex@gmail" without the .com
+  const noTld = norm.match(/([a-zA-Z0-9._%+-]+)@(gmail|yahoo|hotmail|outlook|icloud)\b/);
+  if (noTld) return `${noTld[1]}@${noTld[2]}.com`.toLowerCase();
+
+  return '';
+}
+
+export async function attachEmailToBooking(
+  email: string,
+  codeOrPhone?: string,
+  kind?: 'table' | 'party',
+): Promise<{ ok: boolean; code?: string; details?: any }> {
+  const clean = parseEmail(email);
+  if (!clean) return { ok: false };
+
+  let foundBooking: {
+    code: string;
+    name: string;
+    phone: string;
+    loc: number;
+    date: string;
+    time: string;
+    guests: number;
+    area?: string;
+    occasion?: string;
+    kind: 'table' | 'party';
+  } | null = null;
+
+  const phoneMatch = codeOrPhone ? pkMobile(codeOrPhone) : '';
+  const searchCode = (codeOrPhone || '').toUpperCase().trim();
+
+  // 1. Search in reservations
+  if (kind !== 'party') {
+    foundBooking = await withLock('reservations', async () => {
+      const all = (await kv.hall<Reservation>('reservations')) || {};
+      const list = Object.values(all).sort((a, b) => b.createdAt - a.createdAt);
+      const target = list.find((r) => {
+        if (searchCode && (r.code === searchCode || r.code.replace(/-/g, '') === searchCode.replace(/-/g, ''))) return true;
+        if (phoneMatch && r.phone === phoneMatch) return true;
+        return false;
+      }) || (list.length > 0 && !searchCode ? list[0] : null);
+
+      if (target) {
+        target.email = clean;
+        await kv.hset('reservations', target.id, target);
+        return {
+          code: target.code,
+          name: target.name,
+          phone: target.phone,
+          loc: target.loc,
+          date: target.date,
+          time: target.time,
+          guests: target.guests,
+          area: target.area,
+          kind: 'table' as const,
+        };
+      }
+      return null;
+    });
+  }
+
+  // 2. Search in party bookings
+  if (!foundBooking && kind !== 'table') {
+    foundBooking = await withLock('party_bookings', async () => {
+      const all = (await kv.hall<PartyBooking>('party_bookings')) || {};
+      const list = Object.values(all).sort((a, b) => b.createdAt - a.createdAt);
+      const target = list.find((p) => {
+        if (searchCode && (p.code === searchCode || p.code.replace(/-/g, '') === searchCode.replace(/-/g, ''))) return true;
+        if (phoneMatch && p.phone === phoneMatch) return true;
+        return false;
+      }) || (list.length > 0 && !searchCode ? list[0] : null);
+
+      if (target) {
+        target.email = clean;
+        await kv.hset('party_bookings', target.id, target);
+        return {
+          code: target.code,
+          name: target.name,
+          phone: target.phone,
+          loc: target.loc ?? 0,
+          date: target.date,
+          time: target.time,
+          guests: target.guests,
+          occasion: target.type,
+          kind: 'party' as const,
+        };
+      }
+      return null;
+    });
+  }
+
+  if (foundBooking) {
+    // Notify live dashboard immediately so owner/staff sees it
+    await bumpLive();
+
+    // Send confirmation email asynchronously
+    sendBookingConfirmationEmail({
+      code: foundBooking.code,
+      name: foundBooking.name,
+      email: clean,
+      phone: foundBooking.phone,
+      loc: foundBooking.loc,
+      date: foundBooking.date,
+      time: foundBooking.time,
+      guests: foundBooking.guests,
+      area: foundBooking.area,
+      occasion: foundBooking.occasion,
+      kind: foundBooking.kind,
+    }).catch((err) => console.error('[Voice Email Send Error]', err));
+
+    return { ok: true, code: foundBooking.code, details: foundBooking };
+  }
+
+  return { ok: false };
+}
+
 type Check<T> = { ok: true; value: T } | { ok: false; error: string };
 
 interface BookingInput {
   name?: unknown;
   phone?: unknown;
+  email?: unknown;
   shop?: unknown;
   date?: unknown;
   time?: unknown;
@@ -340,25 +490,48 @@ async function saveReservation(b: BookingInput, transcript: string): Promise<Che
   if (!c.ok) return c;
   const areaRaw = s(b.area).toLowerCase();
   const area: Reservation['area'] = areaRaw === 'terrace' || areaRaw === 'bar' ? areaRaw : 'indoor';
+  const email = parseEmail(s(b.email));
   const item = await withLock('reservations', async () => {
     // The same guest, shop and slot again (a repeated "yes", a retried turn): that's the booking already made.
     const same = Object.values((await kv.hall<Reservation>('reservations')) || {}).find(
       (x) => x.status !== 'cancelled' && x.phone === c.value.phone && x.loc === c.value.loc && x.date === c.value.date && x.time === c.value.time,
     );
-    if (same) return same;
+    if (same) {
+      if (email && !same.email) {
+        same.email = email;
+        await kv.hset('reservations', same.id, same);
+        await bumpLive();
+      }
+      return same;
+    }
     const r: Reservation = {
       id: `res_${Date.now()}_${randomBytes(3).toString('hex')}`,
       code: makeCode('RES'),
       ...c.value,
-      email: '',
+      email,
       area,
       notes: [s(b.notes, 200), 'Booked on the AI voice call.'].filter(Boolean).join(' · ').slice(0, 250) || transcript.slice(0, 250),
       status: 'confirmed',
       createdAt: Date.now(),
     };
     await kv.hset('reservations', r.id, r);
+    await bumpLive();
     return r;
   });
+  if (email && item.email === email) {
+    sendBookingConfirmationEmail({
+      code: item.code,
+      name: item.name,
+      email,
+      phone: item.phone,
+      loc: item.loc,
+      date: item.date,
+      time: item.time,
+      guests: item.guests,
+      area: item.area,
+      kind: 'table',
+    }).catch((err) => console.error('[Email Send Error]', err));
+  }
   return { ok: true, value: item };
 }
 
@@ -366,16 +539,25 @@ async function saveParty(b: BookingInput): Promise<Check<PartyBooking>> {
   const c = checkBooking(b, 'party');
   if (!c.ok) return c;
   const occasion = s(b.occasion, 40) || 'Private party';
+  const email = parseEmail(s(b.email));
   const item = await withLock('party_bookings', async () => {
     const same = Object.values((await kv.hall<PartyBooking>('party_bookings')) || {}).find(
       (x) => x.status !== 'cancelled' && x.phone === c.value.phone && x.loc === c.value.loc && x.date === c.value.date && x.time === c.value.time,
     );
-    if (same) return same;
+    if (same) {
+      if (email && !same.email) {
+        same.email = email;
+        await kv.hset('party_bookings', same.id, same);
+        await bumpLive();
+      }
+      return same;
+    }
     const p: PartyBooking = {
       id: randomBytes(6).toString('hex'),
       code: makeCode('PTY'),
       type: occasion.replace(/\b\w/g, (ch) => ch.toUpperCase()),
       ...c.value,
+      email,
       location: LOC_TITLES[c.value.loc],
       status: 'confirmed',
       notes: [s(b.notes, 200), 'Booked on the AI voice call; the events team calls back to plan the menu.'].filter(Boolean).join(' · '),
@@ -383,8 +565,23 @@ async function saveParty(b: BookingInput): Promise<Check<PartyBooking>> {
       createdAt: Date.now(),
     };
     await kv.hset('party_bookings', p.id, p);
+    await bumpLive();
     return p;
   });
+  if (email && item.email === email) {
+    sendBookingConfirmationEmail({
+      code: item.code,
+      name: item.name,
+      email,
+      phone: item.phone,
+      loc: item.loc,
+      date: item.date,
+      time: item.time,
+      guests: item.guests,
+      occasion: item.type,
+      kind: 'party',
+    }).catch((err) => console.error('[Email Send Error]', err));
+  }
   return { ok: true, value: item };
 }
 
@@ -469,7 +666,14 @@ What you can do:
 Booking rules:
 - Ask for only what's missing, one or two details per turn. Ask for the mobile number near the end.
 - Before calling a booking tool, read the key details back in one sentence and get a clear yes. Then call the tool.
-- After a booking succeeds, give the confirmation code slowly (the tool result has a spoken form) and ask if there's anything else.
+- Immediately after a table or party booking succeeds:
+  1. Give the confirmation code slowly (e.g. "Done, your table's confirmed! Your code is RES-2320.")
+  2. Ask for their email or Gmail address: "What is your email or Gmail address so I can send the confirmation details?" (In Urdu: "برائے مہربانی اپنا ای میل یا جی میل ایڈریس بتائیں تاکہ ہم کنفرمیشن بھیج سکیں؟")
+- When the caller provides their email (e.g. "alex at gmail dot com", "my email is ..."):
+  Call save_booking_email with their email and the code.
+  Then confirm warmly: "Lovely, I've sent the confirmation details to your email. See you then! Is there anything else I can help with?" (In Urdu: "بہت شکریہ! ہم نے کنفرمیشن آپ کے ای میل پر بھیج دی ہے۔ کیا میں مزید کچھ مدد کر سکتی ہوں؟")
+- If the caller declines or has no email (says "no", "skip", "nah", "it's fine", "nahi"):
+  Say "No problem at all! You can simply give your code or name when you arrive. Anything else I can help with?"
 - If a tool returns an error, explain it simply and ask for what's needed. Never invent a code or say something is booked unless the tool succeeded.
 - Never invent menu items, prices, origins, roast days or tasting notes; describe things only from the menu below, and pass the exact ids to add_to_bag. If they ask for something we don't make (a flat white, a Spanish latte), say so kindly and suggest the closest thing we do.
 - Only add to the bag when the caller asks for it ("I'll have", "add", "order", "get me"). A question like "tell me about your coffee" is not an order: answer it, then ask if they'd like one.
@@ -490,6 +694,7 @@ ${MENU_TEXT}`;
 const bookingProps = {
   name: { type: 'string', description: "Guest's name" },
   phone: { type: 'string', description: 'Pakistani mobile number, e.g. 03001234567' },
+  email: { type: 'string', description: "Guest's email or Gmail address if already given; empty if none" },
   shop: { type: 'integer', description: '0 MM Alam Road, 1 DHA Phase 5, 2 Johar Town' },
   date: { type: 'string', description: 'YYYY-MM-DD, resolved from today in Lahore' },
   time: { type: 'string', description: 'HH:MM, 24-hour' },
@@ -516,6 +721,18 @@ const TOOLS = [
           type: 'object',
           properties: { ...bookingProps, occasion: { type: 'string', description: 'e.g. Birthday party, Corporate gathering, Private evening' } },
           required: ['name', 'phone', 'shop', 'date', 'time', 'guests', 'occasion'],
+        },
+      },
+      {
+        name: 'save_booking_email',
+        description: "Save the caller's email or Gmail address after a booking is confirmed to send confirmation details and store in their customer profile.",
+        parameters: {
+          type: 'object',
+          properties: {
+            email: { type: 'string', description: "The caller's email or Gmail address (e.g. alex@gmail.com)" },
+            code: { type: 'string', description: 'The booking code (e.g. RES-2320 or PTY-1234), or empty if current booking' },
+          },
+          required: ['email'],
         },
       },
       {
@@ -576,6 +793,18 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
     if (!r.ok) return { content: r.error, isError: true };
     actions.push({ type: 'BOOK_PARTY', data: r.value });
     return { content: JSON.stringify({ booked: true, code: r.value.code, say_code_as: spokenCode(r.value.code), counter: r.value.location, date: spokenDate(r.value.date), time: spokenTime(r.value.time), guests: r.value.guests }) };
+  }
+  if (name === 'save_booking_email') {
+    const emailStr = String(input.email || '');
+    const codeStr = String(input.code || '');
+    const clean = parseEmail(emailStr);
+    const r = await attachEmailToBooking(clean || emailStr, codeStr);
+    if (r.ok) {
+      actions.push({ type: 'SAVED_EMAIL', data: { email: clean || emailStr, code: r.code } });
+      return { content: JSON.stringify({ saved: true, email: clean || emailStr, code: r.code, note: 'Confirmation email queued and linked to customer profile.' }) };
+    }
+    actions.push({ type: 'SAVED_EMAIL', data: { email: clean || emailStr, code: codeStr } });
+    return { content: JSON.stringify({ saved: true, email: clean || emailStr, note: 'Email recorded.' }) };
   }
   if (name === 'add_to_bag') {
     const r = checkBag(input.items);
@@ -755,22 +984,50 @@ function readBack(st: ScriptState) {
 }
 
 async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = false): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
-  const flow = st.flow!;
+  const flow = st.flow || 'table';
   const actions: VoiceAction[] = [];
 
+  if (st.waitingForEmail) {
+    const code = st.confirmedCode || '';
+    const kind = st.confirmedKind || flow;
+    const email = parseEmail(raw);
+    if (email) {
+      await attachEmailToBooking(email, code, kind);
+      actions.push({ type: 'SAVED_EMAIL', data: { email, code } });
+      const isUrduLang = /[\u0600-\u06FF]/.test(raw) || /^(ji|shukriya|meherbani)\b/i.test(p);
+      const reply = isUrduLang
+        ? `بہت شکریہ! ہم نے کنفرمیشن ${email} پر بھیج دی ہے۔ کیا میں مزید کچھ مدد کر سکتی ہوں؟`
+        : `Lovely, I've sent the confirmation details to ${email}. See you then! Anything else I can help with?`;
+      return { reply, actions, state: {} };
+    }
+    if (/\b(no|nope|skip|don'?t have|not now|nahi|nah|none|never mind|that'?s all|leave it|ok|okay)\b/i.test(p) || BYE.test(p)) {
+      const isUrduLang = /[\u0600-\u06FF]/.test(raw) || /^(nahi|nahin|theek)\b/i.test(p);
+      const reply = isUrduLang
+        ? `کوئی مسئلہ نہیں! آپ پہنچ کر کوڈ ${spokenCode(code)} دکھا سکتے ہیں۔ کیا میں مزید کچھ مدد کر سکتی ہوں؟`
+        : `No problem at all! You can simply give your name or code ${spokenCode(code)} when you arrive. Anything else I can help with?`;
+      return { reply, actions, state: {} };
+    }
+    // If they ask for something else, clear waitingForEmail and fall through to rest of turn
+    delete st.waitingForEmail;
+  }
+
   if (st.confirming) {
-    if (/\b(yes|yeah|yep|sure|confirm|correct|right|ok|okay|go ahead|book it|haan|ji|theek)\b/.test(p)) {
+    if (CONFIRM.test(raw)) {
       const sl = st.slots || {};
-      const input = { name: sl.name, phone: sl.phone, shop: Number(sl.loc), date: sl.date, time: sl.time, guests: Number(sl.guests), area: sl.area, occasion: sl.occasion, notes: '' };
+      const input = { name: sl.name, phone: sl.phone, email: sl.email, shop: Number(sl.loc), date: sl.date, time: sl.time, guests: Number(sl.guests), area: sl.area, occasion: sl.occasion, notes: '' };
       const r = flow === 'party' ? await saveParty(input) : await saveReservation(input, raw);
       if (!r.ok) return { reply: `Hmm, I couldn't book that: ${r.error} Could you give me a different one?`, actions, state: { flow, slots: sl } };
       actions.push(flow === 'party' ? { type: 'BOOK_PARTY', data: r.value as PartyBooking } : { type: 'RESERVE_TABLE', data: r.value as Reservation });
       const code = r.value.code;
-      const reply =
-        flow === 'party'
-          ? `You're all booked! Your code is ${spokenCode(code)}. Our events team will call you to plan the food and setup. Anything else I can help with?`
-          : `Done, your table's confirmed! Your code is ${spokenCode(code)}. See you then. Anything else?`;
-      return { reply, actions, state: {} };
+      const isUrduLang = /[\u0600-\u06FF]/.test(raw) || /^(haan|han|ji|jee|theek|bilkul)\b/i.test(p);
+      const reply = isUrduLang
+        ? (flow === 'party'
+            ? `آپ کا ایونٹ بک ہو گیا ہے! آپ کا کوڈ ${spokenCode(code)} ہے۔ کیا آپ اپنا ای میل یا جی میل بتا سکتے ہیں تاکہ ہم کنفرمیشن بھیج سکیں؟`
+            : `آپ کی ٹیبل بک ہو گئی ہے! آپ کا کوڈ ${spokenCode(code)} ہے۔ کیا آپ اپنا ای میل یا جی میل بتا سکتے ہیں تاکہ ہم کنفرمیشن بھیج سکیں؟`)
+        : (flow === 'party'
+            ? `You're all booked! Your code is ${spokenCode(code)}. Our events team will call you to plan the setup. What's your email or Gmail address so I can send the confirmation details?`
+            : `Done, your table's confirmed! Your code is ${spokenCode(code)}. What's your email or Gmail address so I can send the confirmation details?`);
+      return { reply, actions, state: { flow, waitingForEmail: true, confirmedCode: code, confirmedKind: flow } };
     }
     if (/\b(no|nope|wrong|change|not right|nahi|actually|make it)\b/.test(p)) {
       const was = JSON.stringify(st.slots || {});
@@ -845,11 +1102,25 @@ function stateFromHistory(history: VoiceTurn[]): ScriptState {
   let st: ScriptState = {};
   for (const t of history) {
     if (t.role === 'assistant') {
+      if (/email|gmail/i.test(t.content) && (/\b(RES|PTY)\b|R E S|P T Y|code is/i.test(t.content))) {
+        const codeMatch = t.content.match(/\b(RES|PTY)[- ]?(\d{4})\b/i) || t.content.match(/\b(R\s*E\s*S|P\s*T\s*Y)[,\s]+(\d(?:\s+\d){3})/i);
+        const normCode = codeMatch ? codeMatch[0].replace(/\s+/g, '').replace(/,/g, '').toUpperCase() : '';
+        const kind = /party|ایونٹ/i.test(t.content) ? 'party' : 'table';
+        st = { flow: kind, waitingForEmail: true, confirmedCode: normCode, confirmedKind: kind };
+        continue;
+      }
       // A code read out means that booking is done; anything after is a new request.
       if (/\b(RES|PTY)\b|R E S|P T Y|code is/i.test(t.content)) st = {};
       continue;
     }
     const p = t.content.toLowerCase();
+    if (st.waitingForEmail) {
+      const email = parseEmail(t.content);
+      if (email || /\b(no|nope|skip|nahi|nah)\b/i.test(p)) {
+        st = {};
+        continue;
+      }
+    }
     if (!st.flow) {
       if (/party|event|birthday|celebrat|gathering|corporate|salgirah/.test(p)) st = { flow: 'party', slots: {} };
       else if (/\b(table|reserve|reservation|book|seat|jagah)\b/.test(p)) st = { flow: 'table', slots: {} };
@@ -863,7 +1134,7 @@ function stateFromHistory(history: VoiceTurn[]): ScriptState {
 }
 
 async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptState, history: VoiceTurn[] = []): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
-  if (!state.flow && history.length) state = stateFromHistory(history);
+  if (!state.flow && !state.waitingForEmail && history.length) state = stateFromHistory(history);
   const r = await scriptAnswer(prompt, gender, state);
   // Answer a salam in kind, whatever else was asked in the same breath.
   if (/\b(a?s+alam|salaam|aoa)\b/i.test(prompt) && !/alaikum assalam/i.test(r.reply)) r.reply = `Wa alaikum assalam! ${r.reply.replace(/^(Hi there!|Sure!|Happy to!)\s*/, '')}`;
@@ -875,7 +1146,7 @@ async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptSt
   const p = raw.toLowerCase();
   const name = agentName(gender);
 
-  if (state.flow) {
+  if (state.flow || state.waitingForEmail) {
     if (/\b(cancel|never ?mind|forget it|stop|start over)\b/.test(p)) return { reply: 'No worries, I\'ve dropped that. What else can I do for you?', actions: [], state: {} };
     return scriptBooking(p, raw, state);
   }

@@ -377,8 +377,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         muted = true;
         stopListening();
         setPhase('muted', 'MIC BLOCKED');
-        caption('I need microphone access to hear you. Allow it in the address bar, or just type below.');
+        caption('Microphone is blocked. Tap the 🔒 lock icon in your browser address bar to allow Microphone, or type below.');
         inputRow?.classList.add('open');
+        textInput?.focus();
       } else if (event.error === 'audio-capture' || event.error === 'network') {
         // No mic, or the browser's speech service is unreachable: reopening would just spin.
         muted = true;
@@ -442,6 +443,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       if (data.lang === 'ur' || data.lang === 'en') setLang(data.lang);
       scriptState = data.state || {};
       caption(data.reply);
+      // When Sarah asks for email / Gmail address, slide keypad open with clear placeholder
+      if (/email|gmail|ای میل|جی میل/i.test(data.reply)) {
+        inputRow?.classList.add('open');
+        if (textInput) textInput.placeholder = 'Type your email or speak with mic…';
+      }
       for (const a of (data.actions || []) as Action[]) handleAction(a);
       speak(data.reply, data.audioUrl, id);
     } catch (err) {
@@ -581,6 +587,22 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       textInput?.focus();
       return;
     }
+    // If mic was blocked or rejected, attempt re-requesting permission
+    if (captionStatus?.textContent === 'MIC BLOCKED' || captionStatus?.textContent === 'NO MICROPHONE FOUND') {
+      navigator.mediaDevices?.getUserMedia({ audio: true }).then((stream) => {
+        micStream = stream;
+        muted = false;
+        listen();
+      }).catch(() => {
+        muted = true;
+        setPhase('muted', 'MIC BLOCKED');
+        caption('Microphone is blocked. Tap the 🔒 lock icon in your browser address bar to allow Microphone, or type below.');
+        inputRow?.classList.add('open');
+        textInput?.focus();
+      });
+      return;
+    }
+
     muted = !muted;
     playSoftClick?.();
     if (muted) {
@@ -590,7 +612,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     } else if (phase === 'speaking') {
       interrupt();
     } else if (phase !== 'thinking') {
-      ensureMic().finally(listen);
+      ensureMic().then(listen).catch(() => {
+        muted = true;
+        setPhase('muted', 'MIC BLOCKED');
+        caption('Microphone is blocked. Tap the 🔒 lock icon in your address bar to allow Microphone, or type below.');
+        inputRow?.classList.add('open');
+        textInput?.focus();
+      });
     } else updateMicUI();
   }
 

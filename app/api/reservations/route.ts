@@ -4,6 +4,7 @@ import { kv, withLock } from '@/lib/server/store';
 import { CLOSE_MIN, OPEN_MIN, pkMobile, SHOP_COUNT, slotMinutes } from '@/lib/catalog';
 import { pkDay, pkMinutes } from '@/lib/orderFlow';
 import { bumpLive } from '@/lib/server/orders';
+import { sendBookingConfirmationEmail } from '@/lib/server/email';
 
 export type Reservation = {
   id: string;
@@ -19,6 +20,8 @@ export type Reservation = {
   notes: string;
   status: 'pending' | 'confirmed' | 'seated' | 'cancelled';
   createdAt: number;
+  emailSent?: boolean;
+  emailSentAt?: number;
 };
 
 const makeCode = () => `RES-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -94,6 +97,23 @@ export const POST = route(async (req) => {
     await kv.hset('reservations', id, item);
     return item;
   });
+
+  // Send confirmation email asynchronously without blocking the response
+  if (res.email) {
+    sendBookingConfirmationEmail({
+      code: res.code,
+      name: res.name,
+      email: res.email,
+      phone: res.phone,
+      loc: res.loc,
+      date: res.date,
+      time: res.time,
+      guests: res.guests,
+      area: res.area,
+      notes: res.notes,
+      kind: 'table',
+    }).catch((err) => console.error('[Reservation email send error]', err));
+  }
 
   await bumpLive();
   return json({ ok: true, reservation: res }, 201);

@@ -6,7 +6,7 @@ import { kv } from './store';
 import { bumpLive } from './orders';
 import type { VoiceAction, VoiceGender, VoiceLang } from './voiceCall';
 
-export type VoiceOutcome = { kind: 'table' | 'party' | 'bag'; code?: string; summary: string; total?: number };
+export type VoiceOutcome = { kind: 'table' | 'party' | 'bag' | 'email'; code?: string; summary: string; total?: number; email?: string };
 
 export interface VoiceCallLog {
   id: string;
@@ -31,9 +31,10 @@ export const isLive = (c: VoiceCallLog, now = Date.now()) => !c.endedAt && now -
 
 function outcomesOf(actions: VoiceAction[]): VoiceOutcome[] {
   return actions.flatMap((a): VoiceOutcome[] => {
-    if (a.type === 'RESERVE_TABLE') return [{ kind: 'table', code: a.data.code, summary: `Table for ${a.data.guests} · ${a.data.date} ${a.data.time} · ${a.data.name}` }];
-    if (a.type === 'BOOK_PARTY') return [{ kind: 'party', code: a.data.code, summary: `${a.data.type} for ${a.data.guests} · ${a.data.date} ${a.data.time} · ${a.data.name}` }];
+    if (a.type === 'RESERVE_TABLE') return [{ kind: 'table', code: a.data.code, summary: `Table for ${a.data.guests} · ${a.data.date} ${a.data.time} · ${a.data.name}${a.data.email ? ` · ✉️ ${a.data.email}` : ''}`, email: a.data.email }];
+    if (a.type === 'BOOK_PARTY') return [{ kind: 'party', code: a.data.code, summary: `${a.data.type} for ${a.data.guests} · ${a.data.date} ${a.data.time} · ${a.data.name}${a.data.email ? ` · ✉️ ${a.data.email}` : ''}`, email: a.data.email }];
     if (a.type === 'ADD_TO_BAG') return [{ kind: 'bag', summary: a.data.items.map((l) => `${l.qty} × ${l.name}`).join(', '), total: a.data.total }];
+    if (a.type === 'SAVED_EMAIL') return [{ kind: 'email', code: a.data.code, summary: `Confirmation email sent to ${a.data.email}${a.data.code ? ` (${a.data.code})` : ''}`, email: a.data.email }];
     return [];
   });
 }
@@ -52,6 +53,19 @@ export async function logVoiceTurn(
   if (!call.langs.includes(t.lang)) call.langs.push(t.lang);
   call.agent = t.agentName;
   call.brain = t.brain;
+  for (const a of t.actions) {
+    if (a.type === 'SAVED_EMAIL') {
+      const email = a.data.email;
+      for (const o of call.outcomes) {
+        if ((o.kind === 'table' || o.kind === 'party') && (!a.data.code || o.code === a.data.code)) {
+          if (!o.email) {
+            o.email = email;
+            o.summary += ` · ✉️ ${email}`;
+          }
+        }
+      }
+    }
+  }
   call.outcomes.push(...outcomesOf(t.actions));
   if (t.actions.some((a) => a.type === 'END_CALL')) call.endedAt = now;
   call.lastAt = now;
