@@ -103,7 +103,7 @@ function clockTimeline(o: Order, shopName: string): Stage[] {
       { key: 'received', label: 'ORDER RECEIVED', detail: 'Sent to the café', at: o.placed },
       { key: 'accepted', label: 'ACCEPTED', detail: `${shopName} has it`, at: accepted },
       { key: 'preparing', label: 'PREPARING', detail: 'Being made fresh', at: at(0.1) },
-      { key: 'rider', label: 'RIDER ASSIGNED', detail: `${r.first} · ${r.plate}`, at: at(0.35) },
+      { key: 'rider', label: 'RIDER ASSIGNED', detail: r.plate ? `${r.first} · ${r.plate}` : 'Picked just before it’s ready', at: at(0.35) },
       { key: 'onway', label: 'OUT FOR DELIVERY', detail: 'Picked up, on the road', at: at(0.5) },
       { key: 'arriving', label: 'ARRIVING', detail: 'Nearly at your door', at: at(0.9) },
       { key: 'delivered', label: 'DELIVERED', detail: 'Enjoy', at: o.target },

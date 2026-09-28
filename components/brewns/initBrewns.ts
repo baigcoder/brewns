@@ -5590,10 +5590,10 @@ async function syncOrder(o) {
     const res = await fetch(`/api/orders/${o.number}?k=${encodeURIComponent(o.server.key)}`, { cache: "no-store" });
     if (!res.ok) return false;
     const { order: so } = await res.json();
-    const before = JSON.stringify([o.server.stage, o.server.rider, o.server.messages.length, o.server.times]);
+    const before = JSON.stringify([o.server.stage, o.server.status, o.server.cancelled, o.target, o.server.rider, o.server.messages.length, o.server.times]);
     applyServer(o, so);
     saveOrder(o);
-    return JSON.stringify([o.server.stage, o.server.rider, o.server.messages.length, o.server.times]) !== before;
+    return JSON.stringify([o.server.stage, o.server.status, o.server.cancelled, o.target, o.server.rider, o.server.messages.length, o.server.times]) !== before;
   } catch {
     return false;
   } finally {
@@ -5863,7 +5863,10 @@ function renderDone() {
         rider: `${r.name} (bike ${r.plate}) is heading to ${shop} to collect it.`,
         onway: `${r.first} has your order and is on the way. Follow the map below.`,
         arriving: `${r.first} is about 3 minutes away and will call ${esc(o.phone)} when outside.`,
-        delivered: `Delivered at ${stageTime(o.target)}. Thanks for ordering from brewns.`,
+        // Read when shown: the real delivery time only arrives with that stage.
+        get delivered() {
+          return `Delivered at ${stageTime(o.server?.times?.delivered || o.target)}. Thanks for ordering from brewns.`;
+        },
       }
     : {
         received: `We’ve got it, ${first}. Head to ${shop}. Your order will wait at the pickup counter under ${num}.`,
@@ -5994,7 +5997,9 @@ function renderDone() {
     $("#trk-steps", coEl).classList.toggle("cancelled", !!o.cancelled);
     $("#trk-status", coEl).textContent = o.cancelled ? "CANCELLED" : stages[i].label;
     $("#trk-h", coEl).textContent = o.cancelled ? "ORDER CANCELLED." : HEAD[key];
-    $("#trk-sub", coEl).innerHTML = o.cancelled ? `Cancelled at ${stageTime(o.cancelled)}. Nothing was charged.` : SUB[key];
+    $("#trk-sub", coEl).innerHTML = o.cancelled
+      ? `Cancelled at ${stageTime(o.cancelled)}${o.server?.cancelled?.reason && o.server.cancelled.reason !== "Cancelled by the customer" ? `: ${esc(o.server.cancelled.reason)}` : ""}. Nothing was charged.`
+      : SUB[key];
     const cancel = $("[data-co='cancel']", coEl), got = $("[data-co='collected']", coEl);
     cancel.hidden = !canCancel(o, stages, now);
     if (got) got.hidden = delivered || o.cancelled || key !== "ready";
