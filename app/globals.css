@@ -3503,6 +3503,34 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
   letter-spacing: 0.06em;
   margin-bottom: 1.25rem;
 }
+.voice-hours-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.55rem;
+  margin: -0.75rem 0 1rem;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid rgba(201, 147, 85, 0.24);
+  border-radius: 999px;
+  background: rgba(201, 147, 85, 0.07);
+  color: #c9b497;
+  font-family: var(--font-space-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.055em;
+  line-height: 1.2;
+}
+.voice-hours-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+}
+.voice-hours-status[data-state="closed"] .voice-hours-dot { background: #e4a34f; box-shadow: 0 0 8px rgba(228, 163, 79, 0.65); }
+.voice-hours-status[data-state="late"] .voice-hours-dot { background: #e4a34f; box-shadow: 0 0 8px rgba(228, 163, 79, 0.65); }
+.voice-hours-status[data-state="closed"] { color: #e4b976; }
+.voice-hours-status[dir="rtl"] { font-family: var(--font-geist); letter-spacing: 0; }
 
 /* Sound Wave Bars - Dynamic 13-band Equalizer */
 .voice-soundwave {
@@ -4127,6 +4155,12 @@ section[id] {
   .voice-concierge-role {
     font-size: 0.6875rem !important;
     margin-bottom: 0.65rem !important;
+  }
+  .voice-hours-status {
+    min-height: 1.4rem;
+    margin: -0.5rem 0 0.55rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.58rem;
   }
   .voice-soundwave {
     height: 26px !important;
