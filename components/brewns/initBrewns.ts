@@ -1422,7 +1422,7 @@ const handleFileSelected = (file: File) => {
     }
     if (momentsPreviewImg) {
       momentsPreviewImg.style.display = "none";
-      momentsPreviewImg.src = "";
+      momentsPreviewImg.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
     }
     if (momentsPreviewEmpty) momentsPreviewEmpty.style.display = "none";
     if (momentsPreviewFilled) momentsPreviewFilled.style.display = "block";
@@ -1431,7 +1431,7 @@ const handleFileSelected = (file: File) => {
     if (momentsPreviewVideo) {
       momentsPreviewVideo.pause();
       momentsPreviewVideo.style.display = "none";
-      momentsPreviewVideo.src = "";
+      momentsPreviewVideo.removeAttribute("src");
     }
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1568,11 +1568,11 @@ momentsForm?.addEventListener("submit", async (e) => {
       if (momentsPreviewEmpty) momentsPreviewEmpty.style.display = "block";
       if (momentsPreviewVideo) {
         momentsPreviewVideo.pause();
-        momentsPreviewVideo.src = "";
+        momentsPreviewVideo.removeAttribute("src");
         momentsPreviewVideo.style.display = "none";
       }
       if (momentsPreviewImg) {
-        momentsPreviewImg.src = "";
+        momentsPreviewImg.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
         momentsPreviewImg.style.display = "none";
       }
     }, 2200);

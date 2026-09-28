@@ -7,7 +7,7 @@ const LINKS = [
   { href: '/#menu', label: 'Menu', key: 'menu' },
   { href: '/reserve', label: 'Reserve', key: 'reserve' },
   { href: '/brew-timer', label: 'Brew Timer', key: 'brew-timer' },
-  { href: '/flavor-wheel', label: 'Flavor Matcher', key: 'flavor-wheel' },
+  { href: '/flavor-wheel', label: 'Flavors', key: 'flavor-wheel' },
 ] as const;
 
 /**

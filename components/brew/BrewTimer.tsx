@@ -190,17 +190,20 @@ export function BrewTimer() {
   };
   const handleReset = reset;
 
+  const togglePlayRef = useRef(togglePlay);
+  togglePlayRef.current = togglePlay;
+
   // Space starts and pauses, unless you're typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (e.code !== 'Space' || /INPUT|TEXTAREA|SELECT|BUTTON/.test(el.tagName)) return;
       e.preventDefault();
-      togglePlay();
+      togglePlayRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, []);
 
   const formatMinSec = (s: number) => {
     const mins = Math.floor(s / 60);

@@ -102,5 +102,5 @@
 @media (max-width: 380px) {
   .bt-methods { grid-template-columns: 1fr; }
 }
-@media (hover: none) { .bt-hint { display: none; } }
+@media (hover: none), (pointer: coarse), (max-width: 640px) { .bt-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .bt-progress, .bt-arc, .bt-method, .bt-play { transition: none; } }
