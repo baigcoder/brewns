@@ -467,10 +467,10 @@
 .brew-tab[aria-selected="true"] { background: #070707; border-color: #070707; color: #f1f1ef; }
 .brew-card { display: grid; gap: 1.5rem; }
 @media (min-width: 1024px) { .brew-card { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 1.5rem; } }
-.brew-recipe, .brew-timer { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.5rem; border-radius: 6px; }
+.brew-recipe, .brew-timer { display: flex; flex-direction: column; gap: 1.35rem; padding: clamp(1.25rem, 3.5vw, 2.25rem); border-radius: 18px; position: relative; overflow: hidden; }
 @media (min-width: 640px) { .brew-recipe, .brew-timer { padding: 2.25rem; } }
-.brew-recipe { background: #fff; box-shadow: 0 1.5rem 3rem -2rem rgb(0 0 0 / 0.35); }
-.brew-timer { background: #0b0806; color: #fff; }
+.brew-recipe { background: #fff; border: 1px solid rgba(7, 7, 7, 0.08); box-shadow: 0 1.5rem 3.5rem -2rem rgba(0, 0, 0, 0.25); }
+.brew-timer { background: linear-gradient(165deg, #171310 0%, #0d0a08 100%); border: 1px solid rgba(216, 183, 119, 0.22); box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06); color: #fff; }
 .brew-kicker { color: #a8763a; }
 .brew-name { font-family: var(--font-geist); font-weight: 800; font-size: clamp(2rem, 3.4vw, 3rem); line-height: 0.95; letter-spacing: -0.03em; }
 .brew-blurb { max-width: 32rem; line-height: 1.55; color: rgb(7 7 7 / 0.7); }
@@ -495,36 +495,52 @@
 .brew-spec { display: grid; gap: 0.5rem; }
 .brew-spec div { display: grid; grid-template-columns: 6.5rem 1fr; gap: 0.75rem; }
 .brew-spec dt { color: rgb(7 7 7 / 0.45); }
-.brew-beans { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: auto; padding: 1rem 1.1rem; border: 1px solid rgb(168 118 58 / 0.45); border-radius: 6px; background: rgb(216 183 119 / 0.12); text-align: left; transition: background-color 200ms, border-color 200ms; }
+.brew-beans { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: auto; padding: 1rem 1.1rem; border: 1px solid rgb(168 118 58 / 0.45); border-radius: 10px; background: rgb(216 183 119 / 0.12); text-align: left; transition: background-color 200ms, border-color 200ms; }
 .brew-beans span { display: flex; flex-direction: column; gap: 0.2rem; }
 .brew-beans small { color: #7a5424; }
 .brew-beans b { font-family: var(--font-geist); font-weight: 700; font-size: 1.1rem; }
 .brew-beans svg { flex: none; width: 0.8rem; height: 0.8rem; transform: rotate(-45deg); transition: transform 300ms var(--ease-entrance); }
 .brew-beans:hover { background: rgb(216 183 119 / 0.28); border-color: #a8763a; }
 .brew-beans:hover svg { transform: none; }
-.brew-ring { position: relative; width: min(100%, 15rem); aspect-ratio: 1; margin-inline: auto; }
+
+/* Luxury Brew Timer Stage */
+.brew-ring { position: relative; width: min(100%, 15.5rem); aspect-ratio: 1; margin-inline: auto; background: radial-gradient(circle, rgba(216, 183, 119, 0.08) 0%, transparent 68%); border-radius: 50%; }
 .brew-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.brew-ring circle { fill: none; stroke-width: 3; }
-.brew-ring .track { stroke: rgb(255 255 255 / 0.1); }
-.brew-ring .bar { stroke: #d8b777; stroke-linecap: round; }
-.brew-clock { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.25rem; }
-.brew-clock span { font-family: var(--font-geist); font-weight: 800; font-size: 3.5rem; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-.brew-clock small { color: rgb(255 255 255 / 0.45); }
-.brew-now { min-height: 6.5rem; padding: 1rem 1.1rem; border-left: 2px solid #d8b777; background: rgb(216 183 119 / 0.07); }
-.brew-now-l { color: #d8b777; }
-.brew-now p + p { margin-top: 0.35rem; line-height: 1.55; color: rgb(255 255 255 / 0.85); }
-.brew-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); gap: 0.4rem; list-style: none; }
-.brew-steps li { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.55rem 0.65rem; border: 1px solid rgb(255 255 255 / 0.12); border-radius: 4px; color: rgb(255 255 255 / 0.45); transition: border-color 300ms, color 300ms, background-color 300ms; }
-.brew-steps li b { font-family: var(--font-space-mono); font-weight: 400; font-size: var(--font-size-fine); letter-spacing: 0.1em; }
-.brew-steps li.done { color: rgb(255 255 255 / 0.75); }
-.brew-steps li.done time::after { content: " ✓"; color: #7ddc8a; }
-.brew-steps li.now { border-color: #d8b777; background: rgb(216 183 119 / 0.12); color: #fff; }
-.brew-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.brew-btns .btn { flex: 1 1 10rem; }
-.brew-timer .btn-dark { background: #d8b777; color: #0b0806; }
-.brew-timer .btn-dark:hover { background: #fff; }
-.brew-reset { border: 1px solid rgb(255 255 255 / 0.3); color: #fff; justify-content: center; }
-.brew-reset:hover { border-color: #fff; }
+.brew-ring circle { fill: none; }
+.brew-ring .track { stroke: rgba(255, 255, 255, 0.07); stroke-width: 4; }
+.brew-ring .bar { stroke: #e5b378; stroke-width: 4.5; stroke-linecap: round; filter: drop-shadow(0 0 8px rgba(229, 179, 120, 0.65)); transition: stroke-dashoffset 150ms linear; }
+.brew-clock { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; }
+.brew-clock span { font-family: var(--font-space-mono), monospace; font-weight: 700; font-size: clamp(3.2rem, 10vw, 3.85rem); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #f5ede3; text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8); }
+.brew-clock small { font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.16em; color: rgba(216, 183, 119, 0.75); margin-top: 0.25rem; }
+
+.brew-now { min-height: 5.5rem; padding: 1.1rem 1.25rem; border-radius: 12px; border: 1px solid rgba(216, 183, 119, 0.22); border-left: 3.5px solid #d8b777; background: linear-gradient(135deg, rgba(216, 183, 119, 0.12) 0%, rgba(20, 16, 13, 0.7) 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+.brew-now-l { display: flex; align-items: center; gap: 0.45rem; color: #e5b378; font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.14em; }
+.brew-now-l::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #d8b777; box-shadow: 0 0 6px rgba(216, 183, 119, 0.8); }
+.brew-now p + p { margin-top: 0.45rem; line-height: 1.6; font-size: 0.9375rem; color: rgba(245, 237, 227, 0.92); }
+
+.brew-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; list-style: none; margin: 0; padding: 0; }
+@media (min-width: 480px) { .brew-steps { grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); } }
+.brew-steps li { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.7rem 0.8rem; border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 10px; background: rgba(255, 255, 255, 0.03); color: rgba(245, 237, 227, 0.65); transition: all 250ms cubic-bezier(0.16, 1, 0.3, 1); }
+.brew-steps li time { font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.06em; color: rgba(216, 183, 119, 0.8); font-variant-numeric: tabular-nums; }
+.brew-steps li b { font-family: var(--font-geist); font-weight: 600; font-size: 0.8125rem; letter-spacing: 0.02em; color: #f5ede3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 479.98px) {
+  .brew-steps li:last-child:nth-child(odd) { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
+}
+.brew-steps li.done { border-color: rgba(62, 207, 142, 0.35); background: rgba(62, 207, 142, 0.07); color: #f5ede3; }
+.brew-steps li.done time { color: #3ecf8e; }
+.brew-steps li.done time::after { content: " ✓"; color: #3ecf8e; font-weight: 700; }
+.brew-steps li.now { border-color: #d8b777; background: linear-gradient(135deg, rgba(216, 183, 119, 0.22) 0%, rgba(216, 183, 119, 0.06) 100%); color: #fff; box-shadow: 0 6px 18px rgba(216, 183, 119, 0.22), inset 0 0 0 1px rgba(216, 183, 119, 0.4); transform: translateY(-1px); }
+.brew-steps li.now time { color: #e5b378; font-weight: 700; }
+.brew-steps li.now b { color: #fff; font-weight: 700; }
+
+.brew-btns { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.25rem; }
+.brew-btns .btn { height: 3.25rem; border-radius: 9999px; font-family: var(--font-geist); font-weight: 700; font-size: 0.8125rem; letter-spacing: 0.06em; transition: all 180ms ease; display: inline-flex; align-items: center; justify-content: center; }
+.brew-timer [data-brew-go] { flex: 1 1 auto; background: linear-gradient(135deg, #e5b378 0%, #c99355 100%); color: #120c06; border: 0; box-shadow: 0 10px 28px rgba(201, 147, 85, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35); gap: 0.5rem; }
+.brew-timer [data-brew-go]:hover { background: linear-gradient(135deg, #eed09d 0%, #d89f60 100%); transform: translateY(-1px); box-shadow: 0 14px 34px rgba(201, 147, 85, 0.45); }
+.brew-timer [data-brew-go] svg { width: 14px; height: 14px; }
+.brew-reset { flex: 0 0 auto; padding: 0 1.25rem; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.05); color: rgba(245, 237, 227, 0.85); }
+.brew-reset:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.1); color: #fff; }
+.brew-reset:disabled { opacity: 0.35; cursor: default; }
 
 /* ── brewns Club: the stamp card ── */
 .club { position: relative; overflow: hidden; background: #0b0806; color: #fff; }

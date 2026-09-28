@@ -201,7 +201,7 @@ export function ReservationForm() {
       </div>
 
       {/* Date & Time */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '16px' }}>
         <label className="cx-field">
           <span>Date</span>
           <input
@@ -300,7 +300,7 @@ export function ReservationForm() {
       </div>
 
       {/* Contact Details */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '16px' }}>
         <label className="cx-field">
           <span>Your Name</span>
           <input

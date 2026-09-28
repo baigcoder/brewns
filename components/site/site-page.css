@@ -13,7 +13,7 @@
   color-scheme: dark;
 }
 .sp .cx-btn.primary:hover { background: #e0a868; }
-.sp { min-height: 100vh; background: radial-gradient(1200px 600px at 80% -10%, rgb(201 147 85 / 0.1), transparent 60%), #0a0a09; color: #f5ede3; padding: 28px 16px 48px; }
+.sp { min-height: 100vh; background: radial-gradient(1200px 600px at 80% -10%, rgb(201 147 85 / 0.1), transparent 60%), #0a0a09; color: #f5ede3; padding: max(env(safe-area-inset-top, 0px), 20px) 14px max(env(safe-area-inset-bottom, 0px), 40px); }
 .sp-hdr { margin: 0 auto 36px; display: flex; align-items: center; gap: 24px; padding: 10px 10px 10px 20px; border: 1px solid rgb(255 255 255 / 0.08); border-radius: 9999px; background: rgb(20 17 14 / 0.7); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .sp-mark { display: block; flex-shrink: 0; color: #f5ede3; }
 .sp-mark .wordmark { display: block; width: 104px; height: 24px; -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
@@ -29,10 +29,13 @@
 .sp a:focus-visible, .sp button:focus-visible, .sp input:focus-visible { outline: 2px solid var(--cx-accent, #c99355); outline-offset: 2px; }
 
 @media (max-width: 720px) {
-  .sp-hdr { flex-wrap: wrap; border-radius: 18px; gap: 10px; padding: 12px; }
-  .sp-mark { margin-right: auto; padding-left: 6px; }
-  .sp-nav { order: 3; width: 100%; margin-left: 0; flex-wrap: wrap; overflow: visible; }
-  .sp-main > div:not(.fm) { padding: 22px 18px !important; border-radius: 16px !important; }
+  .sp-hdr { flex-wrap: wrap; border-radius: 20px; gap: 10px 8px; padding: 10px 12px; margin-bottom: 24px; }
+  .sp-mark { margin-right: auto; padding-left: 4px; }
+  .sp-mark .wordmark { width: 90px; height: 21px; }
+  .sp-bag { padding: 6px 12px; font-size: 11px; }
+  .sp-nav { order: 3; width: 100%; margin-left: 0; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: 6px; padding-bottom: 2px; }
+  .sp-nav a { padding: 6px 11px; font-size: 11px; }
+  .sp-main > div:not(.fm) { padding: 20px 16px !important; border-radius: 16px !important; }
   .sp-main > div > div > div > div { min-width: 0; }
   .sp-main * { overflow-wrap: anywhere; }
 }

@@ -1471,7 +1471,7 @@ address { font-style: normal; }
 .bag-picks { display: grid; gap: 0.5rem; }
 .bag-pick { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr) auto; align-items: center; gap: 0.875rem; border: 1px solid rgb(255 255 255 / 0.12); padding: 0.5rem; }
 .bag-pick .thumb { width: 3.5rem; height: 3.5rem; }
-.bag-foot { display: flex; flex-direction: column; gap: 0.875rem; padding: 1.25rem 1.5rem 1.5rem; border-top: 1px solid rgb(255 255 255 / 0.12); }
+.bag-foot { display: flex; flex-direction: column; gap: 0.875rem; padding: 1.25rem 1.5rem max(calc(env(safe-area-inset-bottom, 0px) + 1.25rem), 1.5rem); border-top: 1px solid rgb(255 255 255 / 0.12); }
 .sum-row { display: flex; justify-content: space-between; gap: 1rem; }
 .sum-row.total { font-family: var(--font-geist); font-weight: 700; font-size: 1.375rem; text-transform: uppercase; }
 .sum-row.total span:last-child { font-family: var(--font-space-mono); font-weight: 400; }
@@ -1486,10 +1486,10 @@ address { font-style: normal; }
 .co { position: fixed; inset: 0; z-index: 80; overflow-y: auto; overscroll-behavior: contain; background: var(--surface-inverse); color: #070707; clip-path: inset(0 0 100% 0); }
 .co-grid { display: grid; min-height: 100%; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1024px) { .co-grid { grid-template-columns: minmax(0, 1fr) 30rem; } }
-.co-main { padding: 5.5rem 1.25rem 3rem; }
+.co-main { padding: calc(env(safe-area-inset-top, 0px) + 5.5rem) 1.25rem calc(env(safe-area-inset-bottom, 0px) + 3rem); }
 @media (min-width: 640px) { .co-main { padding: 6.5rem 2.5rem 4rem; } }
 @media (min-width: 1280px) { .co-main { padding-inline: 2.5rem 6rem; } }
-.co-top { position: fixed; left: 0; right: 0; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem; background: linear-gradient(#f1f1ef 60%, rgb(241 241 239 / 0)); }
+.co-top { position: fixed; left: 0; right: 0; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: max(calc(env(safe-area-inset-top, 0px) + 0.75rem), 1.25rem) 1.25rem 1.25rem; background: linear-gradient(#f1f1ef 60%, rgb(241 241 239 / 0)); }
 @media (min-width: 640px) { .co-top { padding: 1.5rem 2.5rem; } }
 @media (min-width: 1024px) { .co-top { right: 30rem; } }
 .co-top .co-mark { width: var(--size-logo-width); height: var(--size-logo-height); color: #070707; }
@@ -4203,12 +4203,18 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
 
 @media (max-width: 639.98px) {
   .voice-call-floating {
-    bottom: 4.75rem !important;
-    right: 1.15rem !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem) !important;
+    right: 1rem !important;
     transform-origin: bottom right;
+    opacity: 0.85;
+    transition: opacity 200ms ease, transform 200ms ease;
   }
-  .voice-call-float-btn { width: 2.75rem; height: 2.75rem; }
-  .voice-call-float-btn svg { width: 15px; height: 15px; }
+  .voice-call-floating:hover, .voice-call-floating:focus-visible, .voice-call-floating:active {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  .voice-call-float-btn { width: 2.65rem; height: 2.65rem; }
+  .voice-call-float-btn svg { width: 14px; height: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

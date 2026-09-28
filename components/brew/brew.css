@@ -94,7 +94,13 @@
   .bt-method-icon { width: 32px; height: 32px; }
   .bt-method-text small, .bt-method-text b { white-space: normal; }
   .bt-specs { grid-template-columns: 1fr 1fr; }
+  .bt-pour { flex-wrap: wrap; }
   .bt-pour b { font-size: 28px; }
+  .bt-ring { width: min(100%, 270px); }
+  .bt-stepper button { width: 36px; height: 36px; }
+}
+@media (max-width: 380px) {
+  .bt-methods { grid-template-columns: 1fr; }
 }
 @media (hover: none) { .bt-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .bt-progress, .bt-arc, .bt-method, .bt-play { transition: none; } }
