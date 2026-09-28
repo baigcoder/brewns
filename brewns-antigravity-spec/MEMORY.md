@@ -96,6 +96,7 @@ The live page exposes rendered DOM/text and public asset URLs. The original sour
 - [x] QA & Verification (Zero console errors, verified via Puppeteer on Edge across all interactive states)
 
 - [x] Dev Server live on http://localhost:3000
+- [x] Locations section refinements: clearer branch rows and directions links; wide-screen clock/details balance with compact responsive layout.
 
 ## Known engineering lessons to preserve
 
@@ -105,4 +106,3 @@ The live page exposes rendered DOM/text and public asset URLs. The original sour
 - Keep high-frequency interaction data outside React render state.
 - In animation loops, declare animation frame IDs (`let tickRaf = 0;`) in the outer scope before `requestAnimationFrame(tick)` to avoid Temporal Dead Zone `ReferenceError` during recursion.
 - When generating markup files with TypeScript exports (`export const BREWNS_MARKUP = ...`), mutate the raw HTML and serialize with `JSON.stringify()` rather than naive string replacement in TS files to guarantee proper quote escaping.
-
