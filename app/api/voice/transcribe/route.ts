@@ -6,6 +6,12 @@ export const maxDuration = 30;
 export const POST = route(async (req) => {
   await rateLimit(`transcribe:${clientIp(req)}`, 120, 3600, 'Audio transcription limit reached. Please try typing.');
 
+  const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
+  const contentLength = Number(req.headers.get('content-length') || 0);
+  if (contentLength > MAX_AUDIO_BYTES + 64 * 1024) {
+    return json({ error: 'Audio clip is too large. Please try a shorter message.' }, 413);
+  }
+
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return json({ error: 'Groq API key not configured' }, 500);
@@ -20,6 +26,8 @@ export const POST = route(async (req) => {
   if (!file || typeof file === 'string') {
     return json({ error: 'Missing audio file' }, 400);
   }
+  if (file.size === 0) return json({ error: 'The microphone did not capture any audio.' }, 400);
+  if (file.size > MAX_AUDIO_BYTES) return json({ error: 'Audio clip is too large. Please try a shorter message.' }, 413);
 
   const groqForm = new FormData();
   groqForm.append('file', file);

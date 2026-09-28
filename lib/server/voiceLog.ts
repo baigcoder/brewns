@@ -6,7 +6,7 @@ import { kv } from './store';
 import { bumpLive } from './orders';
 import type { VoiceAction, VoiceGender, VoiceLang } from './voiceCall';
 
-export type VoiceOutcome = { kind: 'table' | 'party' | 'bag' | 'email' | 'whatsapp'; code?: string; summary: string; total?: number; email?: string; whatsappUrl?: string };
+export type VoiceOutcome = { kind: 'table' | 'party' | 'bag' | 'email' | 'whatsapp'; code?: string; summary: string; total?: number; email?: string; whatsappUrl?: string; sent?: boolean };
 
 export interface VoiceCallLog {
   id: string;
@@ -34,8 +34,8 @@ function outcomesOf(actions: VoiceAction[]): VoiceOutcome[] {
     if (a.type === 'RESERVE_TABLE') return [{ kind: 'table', code: a.data.code, summary: `Table for ${a.data.guests} · ${a.data.date} ${a.data.time} · ${a.data.name}${a.data.email ? ` · ✉️ ${a.data.email}` : ''}`, email: a.data.email, whatsappUrl: (a.data as any).whatsappUrl }];
     if (a.type === 'BOOK_PARTY') return [{ kind: 'party', code: a.data.code, summary: `${a.data.type} for ${a.data.guests} · ${a.data.date} ${a.data.time} · ${a.data.name}${a.data.email ? ` · ✉️ ${a.data.email}` : ''}`, email: a.data.email, whatsappUrl: (a.data as any).whatsappUrl }];
     if (a.type === 'ADD_TO_BAG') return [{ kind: 'bag', summary: a.data.items.map((l) => `${l.qty} × ${l.name}`).join(', '), total: a.data.total }];
-    if (a.type === 'SAVED_EMAIL') return [{ kind: 'email', code: a.data.code, summary: `Confirmation email sent to ${a.data.email}${a.data.code ? ` (${a.data.code})` : ''}`, email: a.data.email }];
-    if (a.type === 'WHATSAPP_VOUCHER_SENT') return [{ kind: 'whatsapp', code: a.data.code, summary: `WhatsApp voucher sent to ${a.data.phone}`, whatsappUrl: a.data.whatsappUrl }];
+    if (a.type === 'SAVED_EMAIL') return [{ kind: 'email', code: a.data.code, summary: a.data.sent ? `Confirmation email sent to ${a.data.email}${a.data.code ? ` (${a.data.code})` : ''}` : `Email saved to booking; delivery not confirmed (${a.data.email})`, email: a.data.email, sent: a.data.sent }];
+    if (a.type === 'WHATSAPP_VOUCHER') return [{ kind: 'whatsapp', code: a.data.code, summary: a.data.sent ? `WhatsApp voucher sent to ${a.data.phone}` : `WhatsApp voucher ready to share with ${a.data.phone}`, whatsappUrl: a.data.whatsappUrl, sent: a.data.sent }];
     return [];
   });
 }
@@ -66,7 +66,7 @@ export async function logVoiceTurn(
         }
       }
     }
-    if (a.type === 'WHATSAPP_VOUCHER_SENT') {
+    if (a.type === 'WHATSAPP_VOUCHER') {
       for (const o of call.outcomes) {
         if ((o.kind === 'table' || o.kind === 'party') && (!a.data.code || o.code === a.data.code)) {
           o.whatsappUrl = a.data.whatsappUrl;
