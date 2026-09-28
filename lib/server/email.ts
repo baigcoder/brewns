@@ -188,7 +188,8 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
   const resendKey = process.env.RESEND_API_KEY;
   if (resendKey) {
     try {
-      const fromAddr = process.env.EMAIL_FROM || 'brewns <orders@brewns.coffee>';
+      // Use onboarding@resend.dev unless a custom domain is explicitly configured
+      const fromAddr = process.env.EMAIL_FROM || 'brewns Concierge <onboarding@resend.dev>';
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -211,6 +212,34 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
       }
     } catch (e: any) {
       console.warn('[Email Resend Catch]', e.message);
+    }
+  }
+
+  // 2. Try Brevo if BREVO_API_KEY is available and Resend didn't send
+  const brevoKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  if (sentVia === 'local_record' && brevoKey) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': brevoKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'brewns Concierge', email: process.env.EMAIL_FROM || 'orders@brewns.coffee' },
+          to: [{ email: cleanEmail }],
+          subject,
+          htmlContent: html,
+          textContent: text,
+        }),
+      });
+      if (res.ok) {
+        sentVia = 'brevo';
+      } else {
+        console.warn('[Email Brevo Error]', await res.text().catch(() => ''));
+      }
+    } catch (e: any) {
+      console.warn('[Email Brevo Catch]', e.message);
     }
   }
 

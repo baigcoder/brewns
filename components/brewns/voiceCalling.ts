@@ -149,11 +149,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   function updateMicUI() {
     const live = phase === 'listening';
+    const canCaptureAudio = typeof navigator.mediaDevices?.getUserMedia === 'function' && typeof MediaRecorder !== 'undefined';
+    const canListen = Boolean(SpeechRec || canCaptureAudio);
     micToggleBtn?.classList.toggle('active', live);
-    micToggleBtn?.classList.toggle('muted', muted || !SpeechRec);
+    micToggleBtn?.classList.toggle('muted', muted || !canListen);
     micToggleBtn?.setAttribute('aria-pressed', String(!muted));
     if (micLabel) {
-      micLabel.textContent = !SpeechRec
+      micLabel.textContent = !canListen
         ? 'USE KEYPAD'
         : phase === 'listening'
         ? 'LISTENING…'
@@ -479,8 +481,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         return;
       }
 
-      const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
-      if (blob.size < 3000) {
+      const audioType = chunks.find((chunk) => chunk.type)?.type || mediaRecorder?.mimeType || 'audio/webm';
+      const blob = new Blob(chunks, { type: audioType });
+      if (blob.size < 1200) {
         if (callActive && phase === 'listening' && !muted) {
           setTimeout(() => phase === 'listening' && listenWithRecorder(), 150);
         }
@@ -492,9 +495,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
       try {
         const formData = new FormData();
-        formData.append('file', blob, 'audio.webm');
+        const extension = audioType.includes('mp4') ? 'mp4' : audioType.includes('ogg') ? 'ogg' : 'webm';
+        formData.append('file', blob, `voice.${extension}`);
         const res = await fetch('/api/voice/transcribe', { method: 'POST', body: formData });
         const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Transcription unavailable (${res.status})`);
         const text = (data.text || '').trim();
         if (text && text.length > 1 && !/^(thank you|subtitles|transcription|you|bye)\.?$/i.test(text)) {
           caption(text, 'you');
@@ -502,13 +507,19 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         } else {
           if (callActive && !muted) {
             setPhase('listening');
-            caption('Listening… Speak now', 'agent');
+            caption('I didn’t catch that. Please speak again, or type your message below.', 'agent');
             listenWithRecorder();
           }
         }
       } catch (err) {
         console.warn('[brewns-transcribe] Error:', err);
-        if (callActive && !muted) listenWithRecorder();
+        if (callActive && !muted) {
+          setPhase('muted', 'VOICE TRANSCRIPTION UNAVAILABLE');
+          caption('Voice transcription is unavailable right now. Type your message below and Sarah will reply.', 'agent');
+          unblockActions?.removeAttribute('hidden');
+          inputRow?.classList.add('open');
+          textInput?.focus();
+        }
       }
     };
 
@@ -521,7 +532,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         src.connect(an);
         const data = new Float32Array(an.fftSize);
         let silenceStart = 0;
-        const speechLevel = 0.012; // Sensitive for AUX / headset mic
+        const speechLevel = 0.008; // Accommodate quieter laptop, phone and headset microphones.
 
         const vadLoop = () => {
           if (!callActive || phase !== 'listening' || !vadActive || mediaRecorder?.state !== 'recording') {
@@ -540,7 +551,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
             caption('Listening to you…', 'you');
           } else if (vadSpeechDetected) {
             if (!silenceStart) silenceStart = now;
-            else if (now - silenceStart > 850) {
+            else if (now - silenceStart > 1100) {
               try { mediaRecorder?.stop(); } catch {}
               try { src.disconnect(); } catch {}
               return;
@@ -569,9 +580,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (!callActive) return;
     if (muted) return setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
 
-    // On mobile devices (iOS / Android AUX headsets), MediaRecorder + Groq Whisper
-    // is 100% reliable and doesn't get blocked by the Android Speech subsystem!
-    if (IS_MOBILE) {
+    // Prefer the same capture + transcription path on every device. Browser speech
+    // recognition is inconsistent across desktop, iOS and Android and often stops
+    // without a useful error; MediaRecorder gives us predictable audio instead.
+    if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
       return listenWithRecorder();
     }
 
@@ -864,7 +876,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   async function startCall() {
     if (callActive) return;
     callActive = true;
-    muted = !SpeechRec;
+    muted = !(SpeechRec || (typeof navigator.mediaDevices?.getUserMedia === 'function' && typeof MediaRecorder !== 'undefined'));
     history = [];
     scriptState = {};
     callId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -880,7 +892,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     playChime?.();
     triggerHaptic?.(50);
     caption(`Connecting to ${agent()} at brewns…`);
-    if (!SpeechRec) inputRow?.classList.add('open');
+    if (!SpeechRec && !(typeof navigator.mediaDevices?.getUserMedia === 'function' && typeof MediaRecorder !== 'undefined')) inputRow?.classList.add('open');
     setPhase('connecting');
     // Voices load lazily in some browsers; ask early so the first reply has one.
     try {
@@ -900,7 +912,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     // Request microphone access synchronously during this user click gesture!
     // This provides the essential user gesture token required by modern browsers to prompt for mic permission.
     if (navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
+      navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      })
         .then((stream) => {
           micStream = stream;
           muted = false;
@@ -1019,14 +1033,26 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       } catch (err: any) {
         console.warn('[brewns-mic] Microphone permission request in toggleMic:', err?.name, err?.message);
         if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-          toast('CLICK 🎛️ IN ADDRESS BAR → ALLOW MIC', 'GOT IT');
-          setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
-          unblockActions?.removeAttribute('hidden');
-          inputRow?.classList.add('open');
-          textInput?.focus();
-          return;
+          caption('Microphone access is blocked for this site. Allow it in your browser’s site settings, then tap Connect & test mic.', 'agent');
+          toast('ALLOW MICROPHONE IN SITE SETTINGS', 'GOT IT');
         }
+        muted = true;
+        setPhase('muted', err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError' ? 'MIC BLOCKED · KEYPAD ACTIVE' : 'MIC UNAVAILABLE · KEYPAD ACTIVE');
+        if (err?.name !== 'NotAllowedError' && err?.name !== 'PermissionDeniedError') {
+          caption('We couldn’t start your microphone. Check that it is connected and not being used by another app, then try again or type below.', 'agent');
+        }
+        unblockActions?.removeAttribute('hidden');
+        inputRow?.classList.add('open');
+        textInput?.focus();
+        return;
       }
+    } else {
+      muted = true;
+      setPhase('muted', 'MIC UNAVAILABLE · KEYPAD ACTIVE');
+      caption('This browser cannot access a microphone. Type your message below and Sarah will reply.', 'agent');
+      unblockActions?.removeAttribute('hidden');
+      inputRow?.classList.add('open');
+      return;
     }
 
     muted = false;
@@ -1040,8 +1066,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     caption('Listening… Speak now', 'agent');
     setTimeout(() => {
       if (callActive && !muted) {
-        if (IS_MOBILE) listenWithRecorder();
-        else listen();
+        listen();
       }
     }, IS_MOBILE ? 200 : 80);
   }

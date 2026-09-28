@@ -966,6 +966,15 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
 export const groqEnabled = () => Boolean(process.env.GROQ_API_KEY);
 const GROQ_MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b'];
 
+const GROQ_TOOLS = TOOLS[0].functionDeclarations.map((fn) => ({
+  type: 'function',
+  function: {
+    name: fn.name,
+    description: fn.description,
+    parameters: fn.parameters,
+  },
+}));
+
 async function groqTurn(
   prompt: string,
   history: VoiceTurn[],
@@ -978,13 +987,25 @@ async function groqTurn(
   const now = lahoreNow();
   const systemPrompt =
     persona(gender) +
-    `\nCurrent time in Lahore: ${now.clock}, date: ${now.date}.\nMenu items:\n${MENU_TEXT}\nIMPORTANT: Keep answers short (1 to 2 spoken sentences, usually under 35 words). Never use markdown, bullet points, headings, or emojis.`;
+    `\nCurrent time in Lahore: ${now.clock}, date: ${now.date}.\nMenu items:\n${MENU_TEXT}\nIMPORTANT: Keep answers short (1 to 2 spoken sentences, usually under 35 words). Never use markdown, bullet points, headings, or emojis. Call tools when reserving a table, party, saving email, or ordering.`;
 
-  const messages = [
+  const messages: any[] = [
     { role: 'system', content: systemPrompt },
     ...history.slice(-8).map((t) => ({ role: t.role, content: t.content })),
     { role: 'user', content: prompt },
   ];
+
+  const actions: VoiceAction[] = [];
+
+  // Deterministic email capture: if the user prompt mentions an email, attach it immediately!
+  const detectedEmail = parseEmail(prompt);
+  if (detectedEmail) {
+    const codeFromHistory = history.map((h) => h.content).join(' ').match(/\b(RES|PTY)-[A-Z0-9]{4,6}\b/i)?.[0];
+    const r = await attachEmailToBooking(detectedEmail, codeFromHistory);
+    if (r.ok) {
+      actions.push({ type: 'SAVED_EMAIL', data: { email: detectedEmail, code: r.code } });
+    }
+  }
 
   for (const model of GROQ_MODELS) {
     try {
@@ -997,10 +1018,12 @@ async function groqTurn(
         body: JSON.stringify({
           model,
           messages,
-          max_tokens: 280,
+          tools: GROQ_TOOLS,
+          tool_choice: 'auto',
+          max_tokens: 350,
           temperature: 0.7,
         }),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(9000),
       });
 
       if (!res.ok) {
@@ -1009,10 +1032,65 @@ async function groqTurn(
       }
 
       const data = await res.json();
-      const content = data.choices?.[0]?.message?.content?.trim();
+      const choice = data.choices?.[0];
+      const message = choice?.message;
+      if (!message) continue;
+
+      // Handle function tool calls
+      if (message.tool_calls && message.tool_calls.length > 0) {
+        messages.push(message);
+        for (const toolCall of message.tool_calls) {
+          const fnName = toolCall.function.name;
+          let fnArgs: Record<string, unknown> = {};
+          try {
+            fnArgs = JSON.parse(toolCall.function.arguments || '{}');
+          } catch {}
+
+          const toolOut = await runTool(fnName, fnArgs, prompt, actions);
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: toolOut.content,
+          });
+        }
+
+        // Send tool results back to Groq for spoken confirmation sentence
+        const secondRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            max_tokens: 220,
+            temperature: 0.7,
+          }),
+          signal: AbortSignal.timeout(7000),
+        });
+
+        if (secondRes.ok) {
+          const secondData = await secondRes.json();
+          const secondContent = secondData.choices?.[0]?.message?.content?.trim();
+          if (secondContent) {
+            const reply = speakable(secondContent);
+            if (BYE.test(prompt) && /\b(bye|take care|khuda hafiz|allah hafiz)\b/i.test(reply)) {
+              actions.push({ type: 'END_CALL' });
+            }
+            return { reply, actions };
+          }
+        }
+      }
+
+      const content = message.content?.trim();
       if (content) {
-        const reply = speakable(content);
-        const actions: VoiceAction[] = [];
+        let reply = speakable(content);
+        if (detectedEmail && !/email|gmail|ای میل/i.test(reply)) {
+          reply = lang === 'ur'
+            ? `بہت شکریہ! کنفرمیشن ای میل ${detectedEmail} پر بھیج دی گئی ہے۔`
+            : `Lovely! I've sent the confirmation details to ${detectedEmail}. See you then!`;
+        }
         if (BYE.test(prompt) && /\b(bye|take care|khuda hafiz|allah hafiz|have a (lovely|great|good))\b/i.test(reply)) {
           actions.push({ type: 'END_CALL' });
         }
@@ -1499,6 +1577,15 @@ export async function processVoiceCallPrompt(
     }
   } else {
     turn = await scriptTurn(prompt, gender, state);
+  }
+
+  const emailInPrompt = parseEmail(prompt);
+  if (emailInPrompt && !turn.actions.some((a) => a.type === 'SAVED_EMAIL')) {
+    const codeFromHistory = history.map((h) => h.content).join(' ').match(/\b(RES|PTY)-[A-Z0-9]{4,6}\b/i)?.[0];
+    const r = await attachEmailToBooking(emailInPrompt, codeFromHistory);
+    if (r.ok) {
+      turn.actions.push({ type: 'SAVED_EMAIL', data: { email: emailInPrompt, code: r.code } });
+    }
   }
 
   const audioUrl = ttsEnabled() ? ttsUrl(turn.reply, gender, replyLang(turn.reply)) : undefined;

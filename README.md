@@ -97,6 +97,7 @@ Copy `.env.example` to `.env.local` for local use; on Vercel, add them under **S
 | `NEXT_PUBLIC_SITE_URL` | The site's public address, for canonical links, the sitemap and share previews. | `https://brewns.coffee` |
 | `GEMINI_API_KEY` | Gives the AI voice call a real conversation: Gemini listens, asks one thing at a time, reads bookings back and books tables, parties and bag items through the same store as the website. | none: the call runs a built-in script that still collects every detail and books for real |
 | `GEMINI_MODEL` | The first Gemini model the voice call tries; busy or used-up models hand over to the next Flash model. | `gemini-3.5-flash-lite` |
+| `GROQ_API_KEY` | Transcribes microphone audio for the AI voice call on desktop and mobile using Whisper. Server-side only; never commit it. | none: microphone transcription is unavailable; callers can still type |
 | `ELEVENLABS_API_KEY` | A natural ElevenLabs voice for the call, streamed so it starts speaking within a moment. Server-side only; never commit it. | none: the browser's own voice speaks the replies |
 | `ELEVENLABS_VOICE_ID_FEMALE` / `ELEVENLABS_VOICE_ID_MALE` / `ELEVENLABS_MODEL_ID` | Which ElevenLabs voices and model Sarah and Hamza use. For a Lahore café, pick South Asian voices in the Voice Library, add them to your voices and paste their IDs. | ElevenLabs' Sarah and George voices, `eleven_flash_v2_5` |
 
@@ -125,7 +126,7 @@ bunx vercel --prod     # deploy to production
 
 - Installs with `bun install --frozen-lockfile`, so Vercel builds exactly the versions in `bun.lock`.
 - Runs any server code in Mumbai (`bom1`), the closest region to Lahore. The site itself is static and served from Vercel's global CDN.
-- Adds security headers (`nosniff`, `SAMEORIGIN` framing, a strict referrer policy, and no camera, microphone, location or payment access).
+- Adds security headers (`nosniff`, `SAMEORIGIN` framing, a strict referrer policy, and denies camera, location and payment access while allowing the same-origin voice call to request the microphone).
 - Caches images and models for a day and revalidates in the background, so replaced photos show up; caches the Draco decoder for a year.
 
 `.vercelignore` keeps the photo originals, tools and QA scripts out of CLI uploads. Every push is also checked by [GitHub Actions](.github/workflows/ci.yml) (lint, typecheck and build), so a broken commit shows a red cross before it reaches Vercel.
