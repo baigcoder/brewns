@@ -963,21 +963,62 @@ const midiOf = (n: string) => {
   const m = /^([A-G])(s?)(\d)$/.exec(n)!;
   return 12 * (+m[3] + 1) + { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1] as 'C'] + (m[2] ? 1 : 0);
 };
-let piano: { midi: number; buf: AudioBuffer }[] | null = null;
+type PianoSample = { midi: number; buf: AudioBuffer };
+let piano: PianoSample[] = [];
 let pianoLoading: Promise<void> | null = null;
+let pianoReady = false;
+let musicStatus: 'idle' | 'loading' | 'ready' | 'unavailable' = 'idle';
+let musicProgress = { loaded: 0, total: 7 };
+const musicListeners = new Set<(status: typeof musicStatus, progress: typeof musicProgress) => void>();
+const publishMusicStatus = (status: typeof musicStatus) => {
+  musicStatus = status;
+  musicListeners.forEach((listener) => listener(status, { ...musicProgress }));
+};
+export const getMusicStatus = () => ({ status: musicStatus, ...musicProgress });
+export const onMusicStatusChange = (listener: (status: typeof musicStatus, progress: typeof musicProgress) => void) => {
+  musicListeners.add(listener);
+  return () => musicListeners.delete(listener);
+};
+
+// Seven evenly spaced notes make a usable instrument quickly on mobile. The
+// remaining samples add fidelity after the first notes are already playing.
+const CORE_PIANO = [0, 3, 6, 9, 12, 14, 16].map((index) => PIANO[index]);
+async function fetchPianoSample(name: string): Promise<PianoSample> {
+  const response = await fetch(`/assets/sound/piano/${name}.mp3`);
+  if (!response.ok) throw new Error(`Piano sample ${name} returned ${response.status}`);
+  return { midi: midiOf(name), buf: await ctx!.decodeAudioData(await response.arrayBuffer()) };
+}
 function loadPiano() {
-  return (pianoLoading ||= Promise.all(
-    PIANO.map(async (n) => {
-      const r = await fetch(`/assets/sound/piano/${n}.mp3`);
-      return { midi: midiOf(n), buf: await ctx!.decodeAudioData(await r.arrayBuffer()) };
-    }),
-  )
-    .then((notes) => {
-      piano = notes;
-    })
-    .catch(() => {
-      pianoLoading = null;
+  if (pianoLoading) return pianoLoading;
+  pianoLoading = (async () => {
+    musicProgress = { loaded: 0, total: CORE_PIANO.length };
+    publishMusicStatus('loading');
+    await Promise.allSettled(CORE_PIANO.map(async (name) => {
+      const sample = await fetchPianoSample(name);
+      piano.push(sample);
+      musicProgress = { ...musicProgress, loaded: musicProgress.loaded + 1 };
+      musicListeners.forEach((listener) => listener(musicStatus, { ...musicProgress }));
+      return sample;
     }));
+    piano.sort((a, b) => a.midi - b.midi);
+    pianoReady = piano.length > 0;
+    publishMusicStatus(pianoReady ? 'ready' : 'unavailable');
+    if (!pianoReady) return;
+
+    const extras = PIANO.filter((name) => !CORE_PIANO.includes(name));
+    const loadExtras = async () => {
+      await Promise.allSettled(extras.map(async (name) => {
+        const sample = await fetchPianoSample(name);
+        piano.push(sample);
+        piano.sort((a, b) => a.midi - b.midi);
+      }));
+    };
+    if ('requestIdleCallback' in window) window.requestIdleCallback(() => { void loadExtras(); }, { timeout: 4000 });
+    else globalThis.setTimeout(() => { void loadExtras(); }, 1500);
+  })().finally(() => {
+    pianoLoading = null;
+  });
+  return pianoLoading;
 }
 
 function startMusic() {
@@ -1010,7 +1051,7 @@ function startMusic() {
   noise('pink', c.currentTime, Infinity, filter('bandpass', 4000, 0.4)).connect(gainNode(0.004)).connect(musicBus!);
 
   const key = (m: number, t: number, dur: number, vel: number) => {
-    if (!piano) return;
+    if (!piano.length) return;
     let s = piano[0];
     for (const p of piano) if (Math.abs(p.midi - m) < Math.abs(s.midi - m)) s = p;
     const src = c.createBufferSource();
@@ -1063,9 +1104,14 @@ function startMusic() {
   let melody = 4;
   const schedule = () => {
     if (!live() || !settings.music) return later(schedule, 600);
-    if (!piano) {
-      loadPiano();
-      return later(schedule, 400);
+    if (!pianoReady) {
+      if (musicStatus !== 'unavailable') {
+        void loadPiano();
+        return later(schedule, 400);
+      }
+      // Retry a failed network fetch slowly while the rest of the café stays live.
+      pianoLoading = null;
+      return later(schedule, 8000);
     }
     if (next < c.currentTime) next = c.currentTime + 0.1;
     while (next < c.currentTime + 3.5) {

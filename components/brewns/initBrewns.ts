@@ -24,6 +24,8 @@ import {
   setCafeRecording,
   setSound,
   getSoundSettings,
+  getMusicStatus,
+  onMusicStatusChange,
   onSoundChange,
   setSoundScene,
   triggerHaptic,
@@ -226,11 +228,19 @@ const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsin
 let sceneName = "hero";
 const renderSoundPanel = () => {
   const st = getSoundSettings();
+  const music = getMusicStatus();
+  const musicDescription = music.status === "loading"
+    ? `Warming up the piano · ${music.loaded} of ${music.total} samples ready`
+    : music.status === "unavailable"
+      ? "Piano is reconnecting · café ambience stays on"
+      : music.status === "ready"
+        ? "Live grand piano, soft brushes and an easy swing"
+        : "Slow lo-fi jazz on a real grand piano";
   soundPanel.innerHTML = `
-    <div class="sp-head"><div><p class="sp-title">CAFÉ SOUND</p><p class="sp-now mono-fine"><span class="sp-eq"><i></i><i></i><i></i></span>${st.on ? `NOW · ${SCENE_NAMES[sceneName] || "Brewns"}`.toUpperCase() : "OFF"}</p></div>
+    <div class="sp-head"><div><p class="sp-title">CAFÉ SOUND</p><p class="sp-now mono-fine"><span class="sp-eq"><i></i><i></i><i></i></span>${st.on ? (st.music && music.status === "loading" ? `STARTING JAZZ · ${music.loaded}/${music.total}` : st.music && music.status === "unavailable" ? "AMBIENCE ON · MUSIC RETRYING" : `NOW · ${SCENE_NAMES[sceneName] || "Brewns"}`).toUpperCase() : "OFF"}</p></div>
       <button type="button" class="sp-switch" role="switch" aria-checked="${st.on}" data-sp="on" aria-label="Sound"><i></i></button></div>
     <label class="sp-vol"><span class="mono-fine">VOLUME</span><input type="range" min="0" max="100" value="${Math.round(st.volume * 100)}" data-sp="volume" aria-label="Volume"></label>
-    ${[["ambience", "Café ambience", "Tables talking, every drink made at the bar, the door onto the road"], ["music", "Music", "Slow lo-fi jazz on a real grand piano"], ["ui", "Touch sounds", "Clicks, pours, the printer"]]
+    ${[["ambience", "Café ambience", "Tables talking, every drink made at the bar, the door onto the road"], ["music", "Music", musicDescription], ["ui", "Touch sounds", "Clicks, pours, the printer"]]
       .map(([k, t, d]) => `<button type="button" class="sp-row" role="switch" aria-checked="${st[k]}" data-sp="${k}" ${st.on ? "" : "disabled"}><span><b>${t}</b><small>${d}</small></span><span class="sp-switch sm"><i></i></span></button>`)
       .join("")}
     <p class="sp-moment" aria-live="polite"><span class="sp-moment-dot"></span><span id="sp-moment-t">${st.on ? lastMoment || "The room is filling up" : "Switch on to hear the café"}</span></p>
@@ -267,6 +277,9 @@ const placeSoundPanel = () => {
 };
 onSoundChange(updateSoundUI);
 updateSoundUI();
+onMusicStatusChange(() => {
+  if (!soundPanel.hidden) renderSoundPanel();
+});
 soundBtn?.addEventListener("click", (e) => {
   e.stopPropagation();
   if (!getIsAudioEnabled()) {
