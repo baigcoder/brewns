@@ -1994,7 +1994,10 @@ const toggle = $("#menu-toggle");
 const panel = $("#site-menu");
 const setOpen = (open) => {
   panel.hidden = !open;
+  if (open) panel.scrollTop = 0;
   header.classList.toggle("open", open);
+  document.body.classList.toggle("menu-open", open);
+  document.body.classList.toggle("modal-open", open);
   toggle.setAttribute("aria-expanded", String(open));
   toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
   open ? stopScroll() : startScroll();
