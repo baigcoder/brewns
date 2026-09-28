@@ -5,6 +5,7 @@ import { CLOSE_MIN, OPEN_MIN, pkMobile, SHOP_COUNT, slotMinutes } from '@/lib/ca
 import { pkDay, pkMinutes } from '@/lib/orderFlow';
 import { bumpLive } from '@/lib/server/orders';
 import { sendBookingConfirmationEmail } from '@/lib/server/email';
+import { sendBookingWhatsappNotification } from '@/lib/server/smsWhatsapp';
 
 export type Reservation = {
   id: string;
@@ -22,6 +23,9 @@ export type Reservation = {
   createdAt: number;
   emailSent?: boolean;
   emailSentAt?: number;
+  whatsappSent?: boolean;
+  whatsappSentAt?: number;
+  whatsappUrl?: string;
 };
 
 const makeCode = () => `RES-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -114,6 +118,20 @@ export const POST = route(async (req) => {
       kind: 'table',
     }).catch((err) => console.error('[Reservation email send error]', err));
   }
+
+  // Send WhatsApp voucher with Google Maps link asynchronously
+  sendBookingWhatsappNotification({
+    code: res.code,
+    name: res.name,
+    phone: res.phone,
+    email: res.email,
+    loc: res.loc,
+    date: res.date,
+    time: res.time,
+    guests: res.guests,
+    area: res.area,
+    kind: 'table',
+  }).catch((err) => console.error('[Reservation WhatsApp send error]', err));
 
   await bumpLive();
   return json({ ok: true, reservation: res }, 201);

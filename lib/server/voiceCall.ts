@@ -17,6 +17,7 @@ import { kv, withLock } from './store';
 import { CATALOG, CLOSE_MIN, DELIVERY, LOC_TITLES, OPEN_MIN, SHOP_COUNT, catalogItem, defaultSel, money, pkMobile, unitPrice, validSel, type Product, type Sel } from '@/lib/catalog';
 import type { Reservation } from '@/app/api/reservations/route';
 import { sendBookingConfirmationEmail } from './email';
+import { sendBookingWhatsappNotification, buildBookingWhatsappMessage, getWhatsappDirectLink } from './smsWhatsapp';
 import { bumpLive } from './orders';
 
 export type VoiceGender = 'female' | 'male';
@@ -38,6 +39,7 @@ export type VoiceAction =
   | { type: 'RESERVE_TABLE'; data: Reservation }
   | { type: 'BOOK_PARTY'; data: PartyBooking }
   | { type: 'SAVED_EMAIL'; data: { email: string; code?: string } }
+  | { type: 'WHATSAPP_VOUCHER_SENT'; data: { phone: string; code: string; whatsappUrl: string } }
   | { type: 'END_CALL' };
 
 export interface PartyBooking {
@@ -47,6 +49,9 @@ export interface PartyBooking {
   name: string;
   phone: string;
   email?: string;
+  whatsappSent?: boolean;
+  whatsappSentAt?: number;
+  whatsappUrl?: string;
   location: string;
   loc: number;
   date: string;
@@ -532,6 +537,20 @@ async function saveReservation(b: BookingInput, transcript: string): Promise<Che
       kind: 'table',
     }).catch((err) => console.error('[Email Send Error]', err));
   }
+  // Send WhatsApp voucher notification with live directions asynchronously
+  sendBookingWhatsappNotification({
+    code: item.code,
+    name: item.name,
+    phone: item.phone,
+    email: item.email,
+    loc: item.loc,
+    date: item.date,
+    time: item.time,
+    guests: item.guests,
+    area: item.area,
+    kind: 'table',
+  }).catch((err) => console.error('[WhatsApp Voucher Send Error]', err));
+
   return { ok: true, value: item };
 }
 
@@ -582,6 +601,20 @@ async function saveParty(b: BookingInput): Promise<Check<PartyBooking>> {
       kind: 'party',
     }).catch((err) => console.error('[Email Send Error]', err));
   }
+  // Send WhatsApp voucher notification with live directions asynchronously
+  sendBookingWhatsappNotification({
+    code: item.code,
+    name: item.name,
+    phone: item.phone,
+    email: item.email,
+    loc: item.loc,
+    date: item.date,
+    time: item.time,
+    guests: item.guests,
+    occasion: item.type,
+    kind: 'party',
+  }).catch((err) => console.error('[WhatsApp Voucher Send Error]', err));
+
   return { ok: true, value: item };
 }
 
@@ -668,7 +701,8 @@ Booking rules:
 - Before calling a booking tool, read the key details back in one sentence and get a clear yes. Then call the tool.
 - Immediately after a table or party booking succeeds:
   1. Give the confirmation code slowly (e.g. "Done, your table's confirmed! Your code is RES-2320.")
-  2. Ask for their email or Gmail address: "What is your email or Gmail address so I can send the confirmation details?" (In Urdu: "برائے مہربانی اپنا ای میل یا جی میل ایڈریس بتائیں تاکہ ہم کنفرمیشن بھیج سکیں؟")
+  2. Tell them: "I've sent your booking voucher and Google Maps directions to your WhatsApp on your mobile number."
+  3. Ask for their email or Gmail address: "What is your email or Gmail address so I can send the confirmation details?" (In Urdu: "ہم نے آپ کے واٹس ایپ پر لوکیشن اور بکنگ واؤچر بھیج دیا ہے! کیا آپ اپنا ای میل یا جی میل ایڈریس بتا سکتے ہیں تاکہ رسید بھیج سکیں؟")
 - When the caller provides their email (e.g. "alex at gmail dot com", "my email is ..."):
   Call save_booking_email with their email and the code.
   Then confirm warmly: "Lovely, I've sent the confirmation details to your email. See you then! Is there anything else I can help with?" (In Urdu: "بہت شکریہ! ہم نے کنفرمیشن آپ کے ای میل پر بھیج دی ہے۔ کیا میں مزید کچھ مدد کر سکتی ہوں؟")
@@ -786,13 +820,17 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
     const r = await saveReservation(input, transcript);
     if (!r.ok) return { content: r.error, isError: true };
     actions.push({ type: 'RESERVE_TABLE', data: r.value });
-    return { content: JSON.stringify({ booked: true, code: r.value.code, say_code_as: spokenCode(r.value.code), counter: LOC_TITLES[r.value.loc], date: spokenDate(r.value.date), time: spokenTime(r.value.time), guests: r.value.guests }) };
+    const waUrl = getWhatsappDirectLink(r.value.phone, buildBookingWhatsappMessage(r.value));
+    actions.push({ type: 'WHATSAPP_VOUCHER_SENT', data: { phone: r.value.phone, code: r.value.code, whatsappUrl: waUrl } });
+    return { content: JSON.stringify({ booked: true, code: r.value.code, say_code_as: spokenCode(r.value.code), counter: LOC_TITLES[r.value.loc], date: spokenDate(r.value.date), time: spokenTime(r.value.time), guests: r.value.guests, whatsapp_sent_to: r.value.phone, note: 'WhatsApp voucher with Google Maps directions sent.' }) };
   }
   if (name === 'book_party') {
     const r = await saveParty(input);
     if (!r.ok) return { content: r.error, isError: true };
     actions.push({ type: 'BOOK_PARTY', data: r.value });
-    return { content: JSON.stringify({ booked: true, code: r.value.code, say_code_as: spokenCode(r.value.code), counter: r.value.location, date: spokenDate(r.value.date), time: spokenTime(r.value.time), guests: r.value.guests }) };
+    const waUrl = getWhatsappDirectLink(r.value.phone, buildBookingWhatsappMessage({ ...r.value, kind: 'party' }));
+    actions.push({ type: 'WHATSAPP_VOUCHER_SENT', data: { phone: r.value.phone, code: r.value.code, whatsappUrl: waUrl } });
+    return { content: JSON.stringify({ booked: true, code: r.value.code, say_code_as: spokenCode(r.value.code), counter: r.value.location, date: spokenDate(r.value.date), time: spokenTime(r.value.time), guests: r.value.guests, whatsapp_sent_to: r.value.phone, note: 'WhatsApp voucher with Google Maps directions sent.' }) };
   }
   if (name === 'save_booking_email') {
     const emailStr = String(input.email || '');
@@ -1018,15 +1056,27 @@ async function scriptBooking(p: string, raw: string, st: ScriptState, fresh = fa
       const r = flow === 'party' ? await saveParty(input) : await saveReservation(input, raw);
       if (!r.ok) return { reply: `Hmm, I couldn't book that: ${r.error} Could you give me a different one?`, actions, state: { flow, slots: sl } };
       actions.push(flow === 'party' ? { type: 'BOOK_PARTY', data: r.value as PartyBooking } : { type: 'RESERVE_TABLE', data: r.value as Reservation });
+      const waUrl = getWhatsappDirectLink(sl.phone || '', buildBookingWhatsappMessage({
+        code: r.value.code,
+        name: sl.name || '',
+        phone: sl.phone || '',
+        loc: Number(sl.loc || 0),
+        date: sl.date || '',
+        time: sl.time || '',
+        guests: Number(sl.guests || 2),
+        area: sl.area,
+        kind: flow,
+      }));
+      actions.push({ type: 'WHATSAPP_VOUCHER_SENT', data: { phone: sl.phone || '', code: r.value.code, whatsappUrl: waUrl } });
       const code = r.value.code;
       const isUrduLang = /[\u0600-\u06FF]/.test(raw) || /^(haan|han|ji|jee|theek|bilkul)\b/i.test(p);
       const reply = isUrduLang
         ? (flow === 'party'
-            ? `آپ کا ایونٹ بک ہو گیا ہے! آپ کا کوڈ ${spokenCode(code)} ہے۔ کیا آپ اپنا ای میل یا جی میل بتا سکتے ہیں تاکہ ہم کنفرمیشن بھیج سکیں؟`
-            : `آپ کی ٹیبل بک ہو گئی ہے! آپ کا کوڈ ${spokenCode(code)} ہے۔ کیا آپ اپنا ای میل یا جی میل بتا سکتے ہیں تاکہ ہم کنفرمیشن بھیج سکیں؟`)
+            ? `آپ کا ایونٹ بک ہو گیا ہے! آپ کا کوڈ ${spokenCode(code)} ہے۔ ہم نے آپ کے واٹس ایپ پر لوکیشن اور بکنگ واؤچر بھی بھیج دیا ہے۔ کیا آپ اپنا ای میل یا جی میل بتا سکتے ہیں تاکہ رسید بھی بھیج سکیں؟`
+            : `آپ کی ٹیبل بک ہو گئی ہے! آپ کا کوڈ ${spokenCode(code)} ہے۔ ہم نے آپ کے واٹس ایپ پر لوکیشن اور بکنگ واؤچر بھی بھیج دیا ہے۔ کیا آپ اپنا ای میل یا جی میل بتا سکتے ہیں تاکہ رسید بھی بھیج سکیں؟`)
         : (flow === 'party'
-            ? `You're all booked! Your code is ${spokenCode(code)}. Our events team will call you to plan the setup. What's your email or Gmail address so I can send the confirmation details?`
-            : `Done, your table's confirmed! Your code is ${spokenCode(code)}. What's your email or Gmail address so I can send the confirmation details?`);
+            ? `You're all booked! Your code is ${spokenCode(code)}. I've sent your booking voucher and map directions to your WhatsApp on ${forSpeech(sl.phone || '')}. What's your email or Gmail address so I can send the confirmation details?`
+            : `Done, your table's confirmed! Your code is ${spokenCode(code)}. I've sent your booking voucher and map directions to your WhatsApp on ${forSpeech(sl.phone || '')}. What's your email or Gmail address so I can send the confirmation details?`);
       return { reply, actions, state: { flow, waitingForEmail: true, confirmedCode: code, confirmedKind: flow } };
     }
     if (/\b(no|nope|wrong|change|not right|nahi|actually|make it)\b/.test(p)) {

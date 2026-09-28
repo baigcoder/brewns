@@ -7,9 +7,9 @@ import { chime } from './Live';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
 
-type Reservation = { id: string; code: string; name: string; phone: string; email?: string; emailSent?: boolean; loc: number; date: string; time: string; guests: number; area: string; notes: string; status: string; createdAt: number };
-type Party = { id: string; code: string; type: string; name?: string; phone?: string; email?: string; loc?: number; location: string; date?: string; time?: string; guests: number; status: string; notes: string; source?: string; createdAt: number };
-type Outcome = { kind: 'table' | 'party' | 'bag' | 'email'; code?: string; summary: string; total?: number; email?: string };
+type Reservation = { id: string; code: string; name: string; phone: string; email?: string; emailSent?: boolean; whatsappSent?: boolean; whatsappUrl?: string; loc: number; date: string; time: string; guests: number; area: string; notes: string; status: string; createdAt: number };
+type Party = { id: string; code: string; type: string; name?: string; phone?: string; email?: string; whatsappSent?: boolean; whatsappUrl?: string; loc?: number; location: string; date?: string; time?: string; guests: number; status: string; notes: string; source?: string; createdAt: number };
+type Outcome = { kind: 'table' | 'party' | 'bag' | 'email' | 'whatsapp'; code?: string; summary: string; total?: number; email?: string; whatsappUrl?: string };
 type CallLog = { id: string; startedAt: number; lastAt: number; endedAt?: number; agent: string; langs: ('en' | 'ur')[]; brain: string; turns: { who: 'caller' | 'agent'; text: string; t: number }[]; outcomes: Outcome[]; live: boolean };
 type Data = { v: number; now: number; reservations: Reservation[]; parties: Party[]; calls: CallLog[]; canSeeCalls: boolean };
 
@@ -52,8 +52,8 @@ function CallCard({ c, now, open, onToggle }: { c: CallLog; now: number; open: b
         </span>
         <span className="cx-row" style={{ gap: 6, flexWrap: 'wrap' }}>
           {c.outcomes.map((o, i) => (
-            <span key={i} className={`cx-pill ${o.kind === 'bag' ? 'preparing' : o.kind === 'email' ? 'ready' : 'received'}`}>
-              {o.kind === 'table' ? `Table ${o.code}` : o.kind === 'party' ? `Party ${o.code}` : o.kind === 'email' ? `✉️ ${o.email || o.summary.replace(/^Confirmation email sent to /, '')}` : `Bag ${o.total ? rs(o.total) : ''}`}
+            <span key={i} className={`cx-pill ${o.kind === 'bag' ? 'preparing' : o.kind === 'email' || o.kind === 'whatsapp' ? 'ready' : 'received'}`}>
+              {o.kind === 'table' ? `Table ${o.code}` : o.kind === 'party' ? `Party ${o.code}` : o.kind === 'email' ? `✉️ ${o.email || o.summary.replace(/^Confirmation email sent to /, '')}` : o.kind === 'whatsapp' ? `💬 WhatsApp` : `Bag ${o.total ? rs(o.total) : ''}`}
             </span>
           ))}
           {!c.outcomes.length && !c.live && <span className="cx-small cx-faint">No booking</span>}
@@ -63,8 +63,13 @@ function CallCard({ c, now, open, onToggle }: { c: CallLog; now: number; open: b
         <div className="cx-transcript" ref={tail}>
           {c.outcomes.map((o, i) => (
             <p key={`o${i}`} className="cx-small cx-outcome">
-              {o.kind === 'bag' ? 'Put in bag: ' : o.kind === 'email' ? 'Email: ' : 'Booked: '}
+              {o.kind === 'bag' ? 'Put in bag: ' : o.kind === 'email' ? 'Email: ' : o.kind === 'whatsapp' ? 'WhatsApp: ' : 'Booked: '}
               {o.summary}
+              {o.whatsappUrl && (
+                <a href={o.whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#25D366', marginLeft: 8, textDecoration: 'underline' }}>
+                  Open Chat
+                </a>
+              )}
               {o.total ? ` · ${rs(o.total)}` : ''}
             </p>
           ))}
@@ -247,6 +252,18 @@ export function BookingsScreen() {
                           <a className="cx-link cx-small" href={`tel:${r.phone.replace(/\s/g, '')}`}>
                             {r.phone}
                           </a>
+                          {r.whatsappUrl && (
+                            <a
+                              className="cx-link cx-small"
+                              href={r.whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#25D366', marginLeft: 8 }}
+                              title="Open WhatsApp booking voucher"
+                            >
+                              💬 WhatsApp
+                            </a>
+                          )}
                           {r.email && (
                             <div style={{ marginTop: 2 }}>
                               <a className="cx-link cx-small" href={`mailto:${r.email}`} style={{ color: '#c99355' }}>
@@ -314,6 +331,18 @@ export function BookingsScreen() {
                             <a className="cx-link" href={`tel:${p.phone.replace(/\s/g, '')}`}>
                               {p.phone}
                             </a>
+                            {p.whatsappUrl && (
+                              <a
+                                className="cx-link"
+                                href={p.whatsappUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: '#25D366', marginLeft: 6 }}
+                                title="Open WhatsApp booking voucher"
+                              >
+                                💬 WhatsApp
+                              </a>
+                            )}
                           </>
                         )}
                         {p.email && (

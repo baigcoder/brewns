@@ -488,6 +488,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       playChime?.();
       triggerHaptic?.(50);
       toast(`PARTY BOOKED · ${action.data?.code || 'CONFIRMED'} · WE'LL CALL YOU`);
+    } else if (action.type === 'WHATSAPP_VOUCHER_SENT') {
+      triggerHaptic?.(40);
+      toast(`WHATSAPP VOUCHER SENT · ${action.data?.code || ''}`, 'OPEN WHATSAPP', () => {
+        if (action.data?.whatsappUrl) {
+          window.open(action.data.whatsappUrl, '_blank', 'noopener,noreferrer');
+        }
+      });
     } else if (action.type === 'END_CALL') {
       hangUpAfterSpeech = true;
     }
