@@ -110,6 +110,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let meterCtx: AudioContext | null = null;
   let meterRaf = 0;
 
+  let mediaRecorder: MediaRecorder | null = null;
+  let audioChunks: Blob[] = [];
+  let vadSilenceTimer: ReturnType<typeof setTimeout> | undefined;
+  let vadSpeechDetected = false;
+  let vadMeterRaf = 0;
+  let vadActive = false;
+
   const agent = () => (gender === 'female' ? 'Sarah' : 'Hamza');
 
   /* ── what the screen says ── */
@@ -311,9 +318,15 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       });
       muted = false;
       return micStream;
-    } catch (err: any) {
-      console.warn('[brewns-mic] getUserMedia failed:', err?.name, err?.message);
-      return null;
+    } catch {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        muted = false;
+        return micStream;
+      } catch (err: any) {
+        console.warn('[brewns-mic] getUserMedia failed:', err?.name, err?.message);
+        return null;
+      }
     }
   }
 
@@ -386,6 +399,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   function stopListening() {
     clearTimeout(silenceTimer);
+    clearTimeout(vadSilenceTimer);
+    cancelAnimationFrame(vadMeterRaf);
+    vadActive = false;
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      try { mediaRecorder.stop(); } catch {}
+    }
+    mediaRecorder = null;
     const r = recognition;
     recognition = null;
     if (r) {
@@ -396,9 +416,171 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     }
   }
 
+  async function listenWithRecorder() {
+    if (!callActive) return;
+    stopListening();
+    vadActive = true;
+    audioChunks = [];
+    vadSpeechDetected = false;
+
+    const stream = await ensureMic();
+    if (!stream) {
+      muted = true;
+      setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
+      unblockActions?.removeAttribute('hidden');
+      inputRow?.classList.add('open');
+      textInput?.focus();
+      return;
+    }
+
+    muted = false;
+    setPhase('listening');
+    caption('Listening… speak into mic / headset', 'agent');
+    unblockActions?.setAttribute('hidden', '');
+
+    let mimeType = '';
+    for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) {
+        mimeType = t;
+        break;
+      }
+    }
+
+    try {
+      mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    } catch {
+      try {
+        mediaRecorder = new MediaRecorder(stream);
+      } catch (e) {
+        console.warn('[brewns-recorder] MediaRecorder initialization error:', e);
+        setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
+        return;
+      }
+    }
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      cancelAnimationFrame(vadMeterRaf);
+      clearTimeout(vadSilenceTimer);
+      if (!callActive || !vadActive) return;
+
+      const chunks = audioChunks;
+      audioChunks = [];
+      const hadSpeech = vadSpeechDetected;
+      vadSpeechDetected = false;
+
+      if (!hadSpeech || chunks.length === 0) {
+        if (callActive && phase === 'listening' && !muted) {
+          setTimeout(() => phase === 'listening' && listenWithRecorder(), 150);
+        }
+        return;
+      }
+
+      const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+      if (blob.size < 3000) {
+        if (callActive && phase === 'listening' && !muted) {
+          setTimeout(() => phase === 'listening' && listenWithRecorder(), 150);
+        }
+        return;
+      }
+
+      setPhase('thinking', `${agent().toUpperCase()} IS THINKING…`);
+      caption('Processing voice…', 'you');
+
+      try {
+        const formData = new FormData();
+        formData.append('file', blob, 'audio.webm');
+        const res = await fetch('/api/voice/transcribe', { method: 'POST', body: formData });
+        const data = await res.json().catch(() => ({}));
+        const text = (data.text || '').trim();
+        if (text && text.length > 1 && !/^(thank you|subtitles|transcription|you|bye)\.?$/i.test(text)) {
+          caption(text, 'you');
+          sendPrompt(text);
+        } else {
+          if (callActive && !muted) {
+            setPhase('listening');
+            caption('Listening… Speak now', 'agent');
+            listenWithRecorder();
+          }
+        }
+      } catch (err) {
+        console.warn('[brewns-transcribe] Error:', err);
+        if (callActive && !muted) listenWithRecorder();
+      }
+    };
+
+    try {
+      await resumeAudioCtx();
+      if (meterCtx) {
+        const src = meterCtx.createMediaStreamSource(stream);
+        const an = meterCtx.createAnalyser();
+        an.fftSize = 512;
+        src.connect(an);
+        const data = new Float32Array(an.fftSize);
+        let silenceStart = 0;
+        const speechLevel = 0.012; // Sensitive for AUX / headset mic
+
+        const vadLoop = () => {
+          if (!callActive || phase !== 'listening' || !vadActive || mediaRecorder?.state !== 'recording') {
+            try { src.disconnect(); } catch {}
+            return;
+          }
+          an.getFloatTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+          const rms = Math.sqrt(sum / data.length);
+          const now = performance.now();
+
+          if (rms > speechLevel) {
+            vadSpeechDetected = true;
+            silenceStart = 0;
+            caption('Listening to you…', 'you');
+          } else if (vadSpeechDetected) {
+            if (!silenceStart) silenceStart = now;
+            else if (now - silenceStart > 850) {
+              try { mediaRecorder?.stop(); } catch {}
+              try { src.disconnect(); } catch {}
+              return;
+            }
+          }
+          vadMeterRaf = requestAnimationFrame(vadLoop);
+        };
+
+        mediaRecorder.start(200);
+        vadMeterRaf = requestAnimationFrame(vadLoop);
+        return;
+      }
+    } catch {}
+
+    // Fallback if AudioContext analyser is unavailable: record in 3.5s slices
+    mediaRecorder.start();
+    vadSilenceTimer = setTimeout(() => {
+      if (mediaRecorder?.state === 'recording') {
+        vadSpeechDetected = true;
+        try { mediaRecorder.stop(); } catch {}
+      }
+    }, 3500);
+  }
+
   async function listen() {
     if (!callActive) return;
-    if (!SpeechRec || muted) return setPhase(SpeechRec ? 'muted' : 'idle', SpeechRec ? undefined : 'TYPE YOUR REPLY BELOW');
+    if (muted) return setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
+
+    // On mobile devices (iOS / Android AUX headsets), MediaRecorder + Groq Whisper
+    // is 100% reliable and doesn't get blocked by the Android Speech subsystem!
+    if (IS_MOBILE) {
+      return listenWithRecorder();
+    }
+
+    if (!SpeechRec) {
+      if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
+        return listenWithRecorder();
+      }
+      return setPhase('idle', 'TYPE YOUR REPLY BELOW');
+    }
     stopListening();
     heard = '';
 
@@ -471,7 +653,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
     r.onerror = (event: any) => {
       console.warn('[brewns-mic] Speech recognition error:', event.error);
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
+        if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
+          console.log('[brewns-mic] Switching to MediaRecorder engine');
+          listenWithRecorder();
+          return;
+        }
         muted = true;
         stopListening();
         setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
@@ -480,11 +667,14 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         textInput?.focus();
       } else if (event.error === 'no-speech') {
         // Normal pause; onend will automatically cycle listening cleanly
-      } else if (event.error === 'audio-capture' || event.error === 'network') {
-        // No mic, or the browser's speech service is unreachable
+      } else if (event.error === 'network') {
+        if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
+          listenWithRecorder();
+          return;
+        }
         muted = true;
         stopListening();
-        setPhase('muted', event.error === 'network' ? 'VOICE INPUT OFFLINE' : 'NO MICROPHONE FOUND');
+        setPhase('muted', 'VOICE INPUT OFFLINE');
         unblockActions?.removeAttribute('hidden');
         inputRow?.classList.add('open');
         textInput?.focus();
@@ -849,7 +1039,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     setPhase('listening');
     caption('Listening… Speak now', 'agent');
     setTimeout(() => {
-      if (callActive && !muted) listen();
+      if (callActive && !muted) {
+        if (IS_MOBILE) listenWithRecorder();
+        else listen();
+      }
     }, IS_MOBILE ? 200 : 80);
   }
 
