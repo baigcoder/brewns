@@ -518,6 +518,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     setLang(/^ur/i.test(navigator.language) ? 'ur' : 'en');
     hangUpAfterSpeech = false;
     modal!.hidden = false;
+    document.body.classList.add('modal-open');
     document.body.style.overflow = 'hidden';
     seconds = -1;
     tick();
@@ -567,6 +568,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     meterCtx?.close().catch(() => {});
     meterCtx = null;
     modal!.hidden = true;
+    document.body.classList.remove('modal-open');
     document.body.style.removeProperty('overflow');
     setPhase('idle');
     playHangupTone();

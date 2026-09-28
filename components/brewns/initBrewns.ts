@@ -4148,7 +4148,10 @@ bagOpenBtn.addEventListener("click", () => openBag());
 const layers = [];
 const hasLayer = (name) => layers.some((l) => l.name === name);
 const pushLayer = (name, close, el) => {
-  if (!layers.length) stopScroll();
+  if (!layers.length) {
+    stopScroll();
+    document.body.classList.add("modal-open");
+  }
   playWhoosh(true);
   layers.push({ name, close, el, focus: document.activeElement });
 };
@@ -4158,7 +4161,10 @@ const popLayer = (name) => {
   const wasTop = i === layers.length - 1;
   const [layer] = layers.splice(i, 1);
   playWhoosh(false);
-  if (!layers.length) startScroll();
+  if (!layers.length) {
+    startScroll();
+    document.body.classList.remove("modal-open");
+  }
   if (wasTop && layer.focus?.isConnected) layer.focus.focus({ preventScroll: true });
 };
 window.addEventListener("keydown", (e) => {
@@ -7440,6 +7446,7 @@ coEl.addEventListener("submit", (e) => {
 
   return () => {
     try {
+      document.body.classList.remove("modal-open");
       cleanupVoiceCalling?.();
       lenis?.destroy();
       clearInterval(footerClock);

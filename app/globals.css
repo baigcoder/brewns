@@ -3140,27 +3140,16 @@ nextjs-portal,
 
 /* Floating Hotline Widget (Bottom Right) */
 .voice-call-floating {
-  position: fixed !important;
-  bottom: 2rem !important;
-  right: 2rem !important;
-  z-index: 99999 !important;
-  display: flex !important;
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 55;
+  display: flex;
   align-items: center;
-  gap: 0.95rem;
-  background: rgba(18, 14, 11, 0.94) !important;
-  border: 1.5px solid #c99355 !important;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  padding: 0.65rem 0.85rem 0.65rem 1.25rem;
-  border-radius: 9999px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85), 0 0 32px rgba(201, 147, 85, 0.35);
+  gap: 0;
   cursor: pointer;
-  transition: all 280ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.voice-call-floating:hover {
-  transform: translateY(-3px) scale(1.03);
-  border-color: #f59e0b !important;
-  box-shadow: 0 22px 64px rgba(0, 0, 0, 0.9), 0 0 44px rgba(201, 147, 85, 0.6);
+  opacity: 0.72;
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.16, 1, 0.3, 1), visibility 280ms ease;
 }
 .voice-call-float-text {
   display: flex;
@@ -3169,9 +3158,9 @@ nextjs-portal,
 }
 .voice-call-float-title {
   font-family: var(--font-space-mono);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: #c99355;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -3183,31 +3172,20 @@ nextjs-portal,
   color: rgba(244, 242, 236, 0.6);
 }
 .voice-call-float-btn {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.9rem;
+  height: 2.9rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, #e5b378 0%, #c99355 100%);
-  color: #0d0b09;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(201, 147, 85, 0.5);
+  background: rgba(22, 17, 13, 0.8);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(201, 147, 85, 0.28);
+  color: rgba(235, 222, 206, 0.75);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   position: relative;
-}
-.voice-call-float-btn::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(201, 147, 85, 0.6);
-  animation: floatRingPing 2.5s infinite cubic-bezier(0, 0, 0.2, 1);
-}
-@keyframes floatRingPing {
-  0% { transform: scale(1); opacity: 0.8; }
-  100% { transform: scale(1.55); opacity: 0; }
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), background-color 250ms ease, border-color 250ms ease, color 250ms ease, box-shadow 250ms ease;
 }
 
 /* Full Luxury Voice Call Modal */
@@ -3937,9 +3915,12 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
   .hdr-sound, .hdr .hdr-voice, .hdr-bag { transition: none !important; }
 }
 
-/* ═══════════ floating call button: small and out of the way ═══════════
-   Just the gold phone button with a live dot; the "Call concierge" label
-   slides out beside it on hover or keyboard focus. */
+/* ═══════════ floating call button: refined, dimmed & non-intrusive ═══════════
+   Smoked espresso glass, muted warm-bone handset and subtle emerald dot.
+   Gently dimmed while reading/scrolling so it never distracts from the photography.
+   Wakes up and brightens on hover/focus with the "Call concierge" tooltip.
+   Crucially hides whenever ANY modal, sheet, or overlay is active so it never
+   collides with interactive buttons (such as the ORDER button on product cards). */
 .voice-call-floating {
   bottom: 1.5rem !important;
   right: 1.5rem !important;
@@ -3950,55 +3931,119 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
   box-shadow: none !important;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+  opacity: 0.72;
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.16, 1, 0.3, 1), visibility 280ms ease;
 }
-.voice-call-floating:hover { transform: none; box-shadow: none; }
-.voice-call-floating:focus-visible { outline: none; }
+.voice-call-floating:hover,
+.voice-call-floating:focus-visible {
+  opacity: 1;
+  outline: none;
+  transform: none;
+  box-shadow: none;
+}
 .voice-call-float-btn {
-  width: 3.25rem;
-  height: 3.25rem;
-  box-shadow: 0 10px 28px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(201 147 85 / 0.55);
-  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms ease;
+  width: 2.9rem;
+  height: 2.9rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 17, 13, 0.8) !important;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(201, 147, 85, 0.28) !important;
+  color: rgba(235, 222, 206, 0.74) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  position: relative;
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), background-color 250ms ease, border-color 250ms ease, color 250ms ease, box-shadow 250ms ease;
 }
-.voice-call-float-btn svg { width: 18px; height: 18px; }
+.voice-call-float-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
 .voice-call-float-btn::before {
   content: "";
   position: absolute;
   top: 3px;
   right: 3px;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #10b981;
-  box-shadow: 0 0 0 2px #1a140f;
+  opacity: 0.75;
+  box-shadow: 0 0 0 2px rgba(22, 17, 13, 0.95);
+  transition: opacity 200ms ease, box-shadow 200ms ease;
 }
+.voice-call-float-btn::after {
+  display: none !important;
+}
+
+/* Hover & Focus states */
 .voice-call-floating:hover .voice-call-float-btn,
-.voice-call-floating:focus-visible .voice-call-float-btn { transform: scale(1.07); box-shadow: 0 14px 34px rgb(0 0 0 / 0.5), 0 0 0 2px rgb(201 147 85 / 0.8); }
+.voice-call-floating:focus-visible .voice-call-float-btn {
+  transform: scale(1.08);
+  background: rgba(36, 27, 20, 0.96) !important;
+  border-color: rgba(201, 147, 85, 0.75) !important;
+  color: #f0caa0 !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 22px rgba(201, 147, 85, 0.28) !important;
+}
+.voice-call-floating:hover .voice-call-float-btn svg,
+.voice-call-floating:focus-visible .voice-call-float-btn svg {
+  transform: scale(1.06);
+}
+.voice-call-floating:hover .voice-call-float-btn::before,
+.voice-call-floating:focus-visible .voice-call-float-btn::before {
+  opacity: 1;
+  box-shadow: 0 0 8px #10b981, 0 0 0 2px #16110d;
+}
+.voice-call-floating:active .voice-call-float-btn {
+  transform: scale(0.95);
+}
+
 .voice-call-float-text {
   position: absolute;
-  right: calc(100% + 0.6rem);
+  right: calc(100% + 0.65rem);
   top: 50%;
-  padding: 0.45rem 0.85rem;
+  padding: 0.42rem 0.85rem;
   border-radius: 9999px;
-  background: rgb(18 14 11 / 0.94);
-  border: 1px solid rgb(201 147 85 / 0.5);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  background: rgba(18, 14, 11, 0.94);
+  border: 1px solid rgba(201, 147, 85, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
   transform: translate(8px, -50%);
   transition: opacity 200ms ease, transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+.voice-call-float-title {
+  font-family: var(--font-space-mono);
+  font-size: 0.6875rem;
+  color: #c99355;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 .voice-call-float-text .hdr-voice-dot,
 .voice-call-float-sub { display: none; }
 .voice-call-floating:hover .voice-call-float-text,
-.voice-call-floating:focus-visible .voice-call-float-text { opacity: 1; transform: translate(0, -50%); }
-@media (max-width: 639.98px) {
-  .voice-call-floating { bottom: 1rem !important; right: 1rem !important; }
-  .voice-call-float-btn { width: 2.9rem; height: 2.9rem; }
+.voice-call-floating:focus-visible .voice-call-float-text {
+  opacity: 1;
+  transform: translate(0, -50%);
 }
+
+@media (max-width: 639.98px) {
+  .voice-call-floating { bottom: 1.15rem !important; right: 1.15rem !important; }
+  .voice-call-float-btn { width: 2.75rem; height: 2.75rem; }
+  .voice-call-float-btn svg { width: 15px; height: 15px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .voice-call-float-btn, .voice-call-float-text { transition: none; }
-  .voice-call-float-btn::after { animation: none; }
+  .voice-call-floating, .voice-call-float-btn, .voice-call-float-text { transition: none !important; }
+  .voice-call-float-btn::after { animation: none !important; }
 }
 
 /* ═══════════ preloader: the cup, centred, filling as the page loads ═══════════ */
@@ -4032,8 +4077,24 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
 }
 .pre-foot { position: absolute; left: 0; right: 0; bottom: 1.5rem; text-align: center; font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.22em; text-transform: uppercase; color: rgb(244 242 236 / 0.35); }
 @media (min-width: 640px) { .pre-foot { bottom: 2.5rem; } }
-/* Nothing floats over the loader: the call button waits until the page is in. */
-body:has(#pre) .voice-call-floating { display: none !important; }
+
+/* ── Hide floating call button whenever ANY modal, drawer, or sheet is active ──
+   Prevents overlapping with product cards, checkout buttons, bag drawer, or preloader. */
+body.modal-open .voice-call-floating,
+body.sheet-open .voice-call-floating,
+body:has(#pdp:not([hidden])) .voice-call-floating,
+body:has(#bag:not([hidden])) .voice-call-floating,
+body:has(#checkout:not([hidden])) .voice-call-floating,
+body:has(#full-menu-modal:not([hidden])) .voice-call-floating,
+body:has(#enquiry-modal:not([hidden])) .voice-call-floating,
+body:has(#club-pass:not([hidden])) .voice-call-floating,
+body:has(.voice-call-modal:not([hidden])) .voice-call-floating,
+body:has(#pre) .voice-call-floating {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  transform: translateY(14px) scale(0.88) !important;
+}
 
 /* ═══════════ hero: actions, live line, finish ═══════════ */
 .hero-lede { gap: 1.75rem; }
