@@ -48,6 +48,21 @@ export function initBrewns(container: HTMLElement = document.body, { kitchenPhot
 /* ═══════════ constants ═══════════ */
 const ASSET_BASE_URL = "/assets/";
 const MODEL_URL = ASSET_BASE_URL + "hero/models.glb";
+/* One Draco decoder (wasm and worker) for every scene that loads the model. */
+let dracoLoader = null;
+const sharedDraco = (DRACOLoader) => (dracoLoader ||= new DRACOLoader().setDecoderPath(DRACO_PATH));
+/* The hero and the story scene both use this model: download it once and let each parse its own copy. */
+let modelBytes = null;
+const loadPackagingModel = (loader, onLoad, onError) => {
+  modelBytes ||= fetch(MODEL_URL).then((r) => {
+    if (!r.ok) throw new Error(`${r.status} ${MODEL_URL}`);
+    return r.arrayBuffer();
+  });
+  modelBytes.then((buf) => loader.parse(buf.slice(0), "", onLoad, onError)).catch((e) => {
+    modelBytes = null;
+    onError(e);
+  });
+};
 /* Bump when scripts/build-models.mjs is re-run. The glb is served with an ETag
    and max-age=0, so a reload revalidates — but a tab left open across a rebuild
    keeps the model it already parsed, which reads as a rendering bug rather than a
@@ -367,7 +382,8 @@ let liveLocationsTimer = 0;
 /* ═══════════ smooth scroll ═══════════ */
 if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
-const lenis = new Lenis({ smoothWheel: true });
+// Eased wheel scrolling; people who ask for less motion get the browser's own.
+const lenis = new Lenis({ smoothWheel: !REDUCED, lerp: 0.1 });
 window.lenis = lenis;
 const root = document.documentElement;
 const stopScroll = () => {
@@ -1049,11 +1065,16 @@ $("#rev-cards").innerHTML = STATIC_REVIEWS.map(renderReviewCard).join("");
 /* ── fetch live reviews and merge ── */
 let currentLiveReviews: any[] = [];
 
+let lastReviewsStamp = "";
 const refreshReviews = () => {
   fetch("/api/public/reviews")
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
       if (!data) return;
+      // Same reviews as last time: leave the cards alone (a rebuild re-lays out the section).
+      const stamp = JSON.stringify(data.reviews || []);
+      if (stamp === lastReviewsStamp) return;
+      lastReviewsStamp = stamp;
       const liveReviews = data.reviews || [];
       currentLiveReviews = liveReviews;
       const merged = [...liveReviews, ...STATIC_REVIEWS];
@@ -1296,7 +1317,7 @@ const renderMomentCard = (m: any) => {
           <video src="${esc(m.imageUrl)}" muted loop playsinline autoplay preload="metadata" style="pointer-events:none;"></video>
           <span class="moments-video-badge"><i>▶</i> VIDEO</span>
         ` : `
-          <img src="${esc(m.imageUrl)}" alt="${esc(m.caption)}" loading="lazy" />
+          <img src="${esc(m.imageUrl)}" alt="${esc(m.caption)}" loading="lazy" decoding="async" />
         `}
         <span class="moments-loc-tag">📍 ${esc(m.location)}</span>
       </div>
@@ -1317,12 +1338,17 @@ const renderMomentCard = (m: any) => {
   `;
 };
 
+let lastMomentsStamp = "";
 const refreshCommunityMoments = () => {
   if (!momentsGrid) return;
   fetch("/api/public/moments")
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
       if (!data?.moments) return;
+      // Unchanged since the last poll: keep the cards (and their decoded photos) as they are.
+      const stamp = JSON.stringify(data.moments);
+      if (stamp === lastMomentsStamp) return;
+      lastMomentsStamp = stamp;
       momentsGrid.innerHTML = data.moments.map(renderMomentCard).join("");
       momentsGrid.querySelectorAll("video").forEach((v) => {
         v.muted = true;
@@ -1971,7 +1997,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 /* ═══════════ fonts must be visible when they fail ═══════════ */
-for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura", "Allura-Regular.ttf"]]) {
+for (const [family, file] of [["Space Mono", "SpaceMono-Regular.woff2"], ["Allura", "Allura-Regular.woff2"]]) {
   const url = `${ASSET_BASE_URL}fonts/${file}`;
   document.fonts
     .load(`16px "${family}"`)
@@ -2578,7 +2604,7 @@ const CONFIG = {
   scale: 0.5, speed: 0.12, flow: 0.16, warp: 1.45, warpScale: 0.75, roughness: 0.45, lacunarity: 2,
   thickness: 1.2, iridescence: 0.22, spread: 0.28, sheen: 0.05, contrast: 1.35, midpoint: 0.54,
   glow: 0.08, sink: 0.35, grain: 0.045, grainAnim: 1, dither: 1.55, vignette: 0.26, cursor: 1,
-  pointerRadius: 0.3, pointerStrength: 1.2, parallax: 0.01, maxDpr: 1.5,
+  pointerRadius: 0.3, pointerStrength: 1.2, parallax: 0.01, maxDpr: 1,
 };
 
 const VERT = `#version 300 es
@@ -3339,11 +3365,11 @@ function heroModel(T, mount, handle, onPiece) {
     }
   };
 
-  const draco = new DRACOLoader().setDecoderPath(DRACO_PATH);
+  const draco = sharedDraco(DRACOLoader);
   const loader = new GLTFLoader().setDRACOLoader(draco);
 
-  loader.load(
-    MODEL_URL,
+  loadPackagingModel(
+    loader,
     (gltf) => {
       const holdsMesh = (rootNode) => {
         let found = false;
@@ -3378,7 +3404,6 @@ function heroModel(T, mount, handle, onPiece) {
       measure();
       applyStage();
     },
-    undefined,
     (error) => {
       console.error("hero model", error);
       banner(`Hero model failed to load: ${MODEL_URL}`);
@@ -3899,10 +3924,10 @@ function philosophyScene(T, mount) {
     dirty = false;
   });
 
-  const draco = new DRACOLoader().setDecoderPath(DRACO_PATH);
+  const draco = sharedDraco(DRACOLoader);
   const loader = new GLTFLoader().setDRACOLoader(draco);
-  loader.load(
-    MODEL_URL,
+  loadPackagingModel(
+    loader,
     (gltf) => {
       const cupScene = gltf.scenes.find(isCupOnly);
       if (cupScene) {
@@ -3956,7 +3981,6 @@ function philosophyScene(T, mount) {
         dirty = true;
       });
     },
-    undefined,
     (error) => {
       console.error("philosophy scene", error);
       banner(`Philosophy model failed to load: ${MODEL_URL}`);
@@ -4830,7 +4854,7 @@ const loadShopModel = (productId) => {
   return (shopModels[url] ||= threeReady.then(
     (T) =>
       new Promise((resolve, reject) => {
-        const draco = new T.DRACOLoader().setDecoderPath(DRACO_PATH);
+        const draco = sharedDraco(T.DRACOLoader);
         new T.GLTFLoader().setDRACOLoader(draco).load(url, resolve, undefined, (error) => {
           banner(`Model failed to load: ${url}`);
           reject(error);
@@ -4844,7 +4868,7 @@ const loadProductAssets = () =>
   (productAssets ||= threeReady.then(
     (T) =>
       new Promise((resolve, reject) => {
-        const draco = new T.DRACOLoader().setDecoderPath(DRACO_PATH);
+        const draco = sharedDraco(T.DRACOLoader);
         new T.GLTFLoader().setDRACOLoader(draco).load(MODEL_URL, (gltf) => resolve({ T, gltf }), undefined, (error) => {
           banner(`Product model failed to load: ${MODEL_URL}`);
           reject(error);
@@ -4961,7 +4985,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
     return { destroy: () => {}, updateVariant: () => {} };
   }
   setupRenderer(T, renderer);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   const { scene, env } = makeStudio(T, renderer);
 
   const turn = new T.Group();
