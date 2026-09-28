@@ -741,7 +741,14 @@ const textEngine = (el) => {
       units = groups.map((g) => {
         const line = span("te-line");
         line.setAttribute("aria-hidden", "true");
-        const inner = span(null, g.join(" "));
+        const inner = span(null);
+        if (el.classList.contains("hero-h1")) {
+          inner.innerHTML = g
+            .map((w) => (w.toUpperCase().includes("MOMENT") ? `<span class="hero-gold">${w}</span>` : w))
+            .join(" ");
+        } else {
+          inner.textContent = g.join(" ");
+        }
         line.append(inner);
         el.append(line);
         return inner;
