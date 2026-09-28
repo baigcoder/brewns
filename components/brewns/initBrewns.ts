@@ -5877,7 +5877,7 @@ const orderLines = (o) =>
   o.items.map((it) => {
     const p = productById(it.id);
     const unit = unitPrice(p, it.sel);
-    return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * it.qty };
+    return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * it.qty, photo: p.photo ? photoSrc(p.photo) : "" };
   });
 const saveOrder = (o) => writeStore("brewns-orders", readStore("brewns-orders", []).map((x) => (x.number === o.number ? o : x)));
 /* An order the café's server has: take its word for number, times, totals and status. */
@@ -5952,19 +5952,19 @@ function receiptDoc(o) {
   const t = o.totals;
   const row = (a, b, cls = "") => `<div class="r ${cls}"><span>${a}</span><span>${b}</span></div>`;
   const reached = st.filter((s, k) => k <= now && k > 0).map((s) => row(s.label, stageTime(s.at), "dim")).join("");
+  const hero = lines.find((line) => line.photo);
   const body = `<main class="rc">
     <h1>BREWNS COFFEE HOUSE</h1>
-    <p class="c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
-    ${BUSINESS.ntn ? `<p class="c">NTN ${BUSINESS.ntn}${BUSINESS.strn ? ` · STRN ${BUSINESS.strn}` : ""}</p>` : ""}
-    <h2>SALES TAX INVOICE</h2>
+    <hr>
+    ${hero ? `<div class="hero"><img src="${esc(hero.photo)}" alt="${esc(hero.name)}" loading="eager"><span>${esc(hero.name.toUpperCase())}</span></div>` : ""}
+    <div class="hello"><span>GOOD COFFEE.<br>MADE FOR YOUR DAY.</span><span>ORDER ${String(o.number).padStart(5, "0")}<br>${date}</span></div>
+    <h2>${o.mode === "delivery" ? "DELIVERY" : o.mode === "dinein" ? `TABLE ${o.table}` : "PICKUP"} · TAX INVOICE</h2>
     ${row("INVOICE", invoiceNo(o, SHOP_CODES[o.loc]))}
-    ${row("DATE", date)}
-    ${row("ORDER", `#${String(o.number).padStart(5, "0")} · ${o.mode === "delivery" ? "DELIVERY" : "PICKUP"}`)}
     ${row("CUSTOMER", esc(o.name.toUpperCase()))}
     ${row("MOBILE", esc(o.phone))}
     ${o.mode === "delivery" ? `<p class="addr">DELIVER TO: ${esc(o.address.toUpperCase())}, ${DELIVERY.areas[o.area][0]}, LAHORE</p>` : ""}
     <hr>
-    ${lines.map((l) => `<div class="r"><span>${l.qty} × ${esc(l.name)}</span><span>${money(l.total)}</span></div><div class="r dim"><span>${esc(l.opts)}</span><span>@ ${money(l.unit)}</span></div>`).join("")}
+    ${lines.map((l) => `<div class="item"><div class="item-copy"><div class="r"><span>${l.qty} × ${esc(l.name)}</span><span>${money(l.total)}</span></div><div class="r dim"><span>${esc(l.opts)}</span><span>@ ${money(l.unit)}</span></div></div></div>`).join("")}
     <hr>
     ${row("SUBTOTAL", money(t.sub))}
     ${discountRows(t).map(([label, v]) => row(label, `−${money(v)}`)).join("")}
@@ -5978,13 +5978,16 @@ function receiptDoc(o) {
     ${row("PLACED", stageTime(o.placed), "dim")}${reached}
     ${o.cancelled ? row("CANCELLED", stageTime(o.cancelled), "dim") : ""}
     <svg class="bars" viewBox="0 0 296 38" preserveAspectRatio="none" aria-hidden="true">${barRects(o.number)}</svg>
-    <p class="c">THANK YOU. SKIP THE LINE, SEE YOU SOON.<br>BREWNS.COFFEE</p>
+    <hr><p class="thanks">SKIP THE LINE.<br>ORDER AHEAD.</p><p class="c">${LOCS[o.loc][0]} · ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
+    ${BUSINESS.ntn ? `<p class="c">NTN ${BUSINESS.ntn}${BUSINESS.strn ? ` · STRN ${BUSINESS.strn}` : ""}</p>` : ""}
+    <p class="c">THANK YOU · SHUKRIYA · BREWNS.COFFEE</p>
   </main>`;
   const css = `body{margin:0;background:#e9e6df;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;color:#111}
-    .rc{box-sizing:border-box;width:340px;margin:24px auto;padding:26px 22px;background:#f7f5ef;color:#111;text-align:left;text-transform:none;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.05em;line-height:1.7;box-shadow:0 10px 30px rgba(0,0,0,.15)}
-    h1{margin:0;text-align:center;font-size:13px;letter-spacing:.16em}h2{margin:12px 0 8px;text-align:center;font-size:11px;letter-spacing:.2em;border-block:1px dashed #999;padding:4px 0}
+    .rc{box-sizing:border-box;width:min(100%,380px);margin:24px auto;padding:26px 22px;background:#f7f5ef;color:#111;text-align:left;text-transform:none;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.05em;line-height:1.7;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+    h1{margin:0;text-align:center;font-size:13px;letter-spacing:.16em}h2{margin:8px 0;text-align:center;font-size:10px;letter-spacing:.16em;border-block:1px dashed #999;padding:4px 0}
     .c{text-align:center;margin:4px 0}.r{display:flex;justify-content:space-between;gap:10px}.r span:last-child{text-align:right}.dim{color:#6b6b66}
     .big{font-size:14px;font-weight:700;margin-top:6px}.addr{margin:6px 0}hr{border:0;border-top:1px dashed #999;margin:10px 0}
+    .hero{display:grid;justify-items:center;gap:4px;text-align:center;color:#555;font-size:8px;letter-spacing:.1em}.hero img{display:block;width:132px;height:142px;object-fit:contain;mix-blend-mode:multiply}.hello{display:flex;justify-content:space-between;gap:10px;font-size:8px;letter-spacing:.06em;line-height:1.8;text-transform:uppercase}.hello span:last-child{text-align:right}.item{margin:5px 0}.item-copy{min-width:0}.item-copy .r{gap:6px}.item-copy .r span:first-child{overflow-wrap:anywhere}.item-copy .dim{font-size:9px}.thanks{margin:2px 0;font-size:17px;font-weight:700;line-height:1.2;letter-spacing:-.03em}
     .bars{display:block;width:100%;height:38px;margin:14px 0 8px}@media print{body{background:#fff}.rc{box-shadow:none;margin:0 auto}}`;
   return { body, css, html: `<!doctype html><html><head><meta charset="utf-8"><title>brewns receipt #${String(o.number).padStart(5, "0")}</title><style>${css}</style></head><body>${body}</body></html>` };
 }
@@ -6011,29 +6014,24 @@ function renderDone() {
   const d = new Date(o.placed);
   const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
   const num = `#${String(o.number).padStart(5, "0")}`;
-  const lines = o.items
-    .map((it) => {
-      const p = productById(it.id);
-      return `<div><span>${it.qty} × ${p.name}</span><span>${money(unitPrice(p, it.sel) * it.qty)}</span></div><div style="color:#5b5b58;margin-top:-3px"><span>${esc(selLabel(p, it.sel))}</span></div>`;
-    })
-    .join("");
+  const heroItem = o.items.map((it) => ({ it, product: productById(it.id) })).find(({ product }) => product.photo);
   const shop = LOC_TITLES[o.loc];
   let stages = timeline(o, shop);
   const r = riderFor(o);
   const quick = QUICK_REPLIES[o.mode];
   coEl.innerHTML = `${coTop("CLOSE", true)}
     <div class="done">
-      <div class="done-print" aria-hidden="true"><div class="done-machine">
+      <div class="done-print"><div class="done-machine">
         <img src="${ASSET_BASE_URL}order/printer.webp" alt="" width="404" height="72">
         <div class="done-window"><div class="paper" id="done-paper"><div class="receipt">
           <div class="receipt-body bill">
             <p class="bill-brand">BREWNS COFFEE HOUSE</p>
-            <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
-            <p class="bill-h">${delivered ? "DELIVERY" : dine ? `TABLE ${o.table}` : "PICKUP"} · SALES TAX INVOICE</p>
+            <div class="rc-rule"></div>
+            ${heroItem ? `<div class="bill-hero"><img src="${esc(photoSrc(heroItem.product.photo))}" alt="${esc(heroItem.product.name)}" loading="eager"><span>${esc(heroItem.product.name.toUpperCase())}</span></div>` : ""}
+            <div class="bill-meta-head"><span>GOOD COFFEE.<br>MADE FOR YOUR DAY.</span><span>ORDER ${num}<br>${date} · ${stageTime(o.placed)}</span></div>
+            <p class="bill-h">${delivered ? "DELIVERY" : dine ? `TABLE ${o.table}` : "PICKUP"} · TAX INVOICE</p>
             <div class="bill-rows">
               <div><span>INVOICE</span><span>${invoiceNo(o, SHOP_CODES[o.loc])}</span></div>
-              <div><span>ORDER</span><span>${num}</span></div>
-              <div><span>PLACED</span><span>${date} ${stageTime(o.placed)}</span></div>
               <div><span>${delivered ? "DELIVER BY" : "READY AT"}</span><span>${when}${o.pickupAt.tomorrow ? "" : " TODAY"}</span></div>
             </div>
             <div class="rc-rule"></div>
@@ -6048,7 +6046,7 @@ function renderDone() {
               .map((it) => {
                 const p = productById(it.id);
                 const unit = unitPrice(p, it.sel);
-                return `<div class="bill-item"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}</span><span>@ ${money(unit)}</span></div></div>`;
+                return `<div class="bill-item">${p.photo ? `<span class="bill-thumb"><img src="${esc(photoSrc(p.photo))}" alt="" loading="lazy" decoding="async"></span>` : `<span class="bill-thumb bill-thumb-mark" aria-hidden="true">B</span>`}<div class="bill-item-copy"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}</span><span>@ ${money(unit)}</span></div></div></div>`;
               })
               .join("")}</div>
             <p class="bill-count">${o.items.reduce((a, it) => a + it.qty, 0)} ITEM${o.items.reduce((a, it) => a + it.qty, 0) === 1 ? "" : "S"}</p>
@@ -6067,9 +6065,9 @@ function renderDone() {
             </div>
             ${o.note ? `<p class="bill-addr">NOTE: ${esc(o.note.toUpperCase())}</p>` : ""}
             <div class="rc-rule"></div>
-            <p style="font-size:16px;font-weight:700;line-height:1.25"><span style="display:block">SKIP THE LINE.</span><span style="display:block">SEE YOU SOON.</span></p>
+            <div class="bill-promo"><p>SKIP THE LINE.<br>ORDER AHEAD.</p><div><small>SAVE TIME.<br>GET YOUR COFFEE FASTER.</small>${!o.cancelled ? `<button type="button" data-co="again">ORDER NOW <span aria-hidden="true">→</span></button>` : `<span class="bill-cancelled">ORDER CANCELLED</span>`}</div></div>
             <div class="barcode">${orderBars(o.number)}</div>
-            <p class="bill-c">TRACK ${num} AT BREWNS.COFFEE<br>THANK YOU · SHUKRIYA</p>
+            <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]} · ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}<br>TRACK ${num} AT BREWNS.COFFEE<br>THANK YOU · SHUKRIYA</p>
           </div>
           <svg width="328" height="9" viewBox="0 0 328 9" preserveAspectRatio="none" style="display:block"><path d="${tornPath(328)}" fill="#F2F0EA"/></svg>
         </div></div></div>
@@ -6581,7 +6579,9 @@ coEl.addEventListener("click", (e) => {
       w.document.write(html);
       w.document.close();
       w.focus();
-      return setTimeout(() => w.print(), 250);
+      const images = [...w.document.images].map((image) => image.decode().catch(() => undefined));
+      void Promise.race([Promise.all(images), new Promise((resolve) => setTimeout(resolve, 1800))]).then(() => w.print());
+      return;
     }
     if (act === "again" && !o.cancelled) {
       o.items.forEach((item) => cart.add(item.id, item.sel, item.qty));
