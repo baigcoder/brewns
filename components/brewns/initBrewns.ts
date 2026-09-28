@@ -397,9 +397,10 @@ if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
 const lenis = new Lenis({
   smoothWheel: !REDUCED,
-  lerp: 0.12,
+  lerp: 0.14,
   wheelMultiplier: 1.0,
-  touchMultiplier: 1.5,
+  syncTouch: true,
+  touchMultiplier: 1.0,
 });
 window.lenis = lenis;
 const root = document.documentElement;
@@ -883,14 +884,22 @@ const clampUnit = (v) => Math.max(-1, Math.min(1, v));
 const lean = (target, scope, max = 14) => {
   const s = new Spring({ rx: 0, ry: 0 }, (o) => (target.style.transform = `rotateX(${o.rx}deg) rotateY(${o.ry}deg)`));
   if (REDUCED) return;
+  let b: DOMRect | null = null;
+  scope.addEventListener("pointerenter", () => {
+    if (noHover()) return;
+    b = scope.getBoundingClientRect();
+  }, { passive: true });
   scope.addEventListener("pointermove", (e) => {
     if (noHover()) return;
-    const b = scope.getBoundingClientRect();
+    if (!b) b = scope.getBoundingClientRect();
     const dx = clampUnit(((e.clientX - b.left) / b.width) * 2 - 1);
     const dy = clampUnit(((e.clientY - b.top) / b.height) * 2 - 1);
     s.start({ rx: -dy * max, ry: dx * max }, { config: C(90, 22) });
-  });
-  scope.addEventListener("pointerleave", () => s.start({ rx: 0, ry: 0 }, { config: C(90, 22) }));
+  }, { passive: true });
+  scope.addEventListener("pointerleave", () => {
+    b = null;
+    s.start({ rx: 0, ry: 0 }, { config: C(90, 22) });
+  }, { passive: true });
 };
 
 const pulse = (el) => {
@@ -2918,16 +2927,22 @@ const opalesce = (wrapper) => {
   const draw = () => gl.drawArrays(gl.TRIANGLES, 0, 3);
 
   const mouse = { x: 0, y: 0, ax: 0, ay: 0, wx: 0, wy: 0, tx: 0, ty: 0 };
+  let canvasRect: DOMRect | null = null;
   const aim = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const a = rect.width / rect.height;
-    mouse.tx = ((e.clientX - rect.left) / rect.width - 0.5) * a;
-    mouse.ty = 0.5 - (e.clientY - rect.top) / rect.height;
+    if (!visible || document.hidden) return;
+    if (!canvasRect) canvasRect = canvas.getBoundingClientRect();
+    const a = canvasRect.width / (canvasRect.height || 1);
+    mouse.tx = ((e.clientX - canvasRect.left) / canvasRect.width - 0.5) * a;
+    mouse.ty = 0.5 - (e.clientY - canvasRect.top) / (canvasRect.height || 1);
   };
 
   let visible = true;
-  const io = new IntersectionObserver((es) => (visible = es[0].isIntersecting), { threshold: 0 });
+  const io = new IntersectionObserver((es) => {
+    visible = es[0].isIntersecting;
+    if (!visible) canvasRect = null;
+  }, { threshold: 0 });
   io.observe(canvas);
+  window.addEventListener("resize", () => { canvasRect = null; }, { passive: true });
 
   let prevT = performance.now();
   let clock = 0;
@@ -3550,20 +3565,25 @@ function heroModel(T, mount, handle, onPiece) {
   handle?.addEventListener("pointerup", onUp);
   handle?.addEventListener("pointercancel", onUp);
 
+  let heroBox: DOMRect | null = null;
+  hero?.addEventListener("pointerenter", () => {
+    heroBox = hero.getBoundingClientRect();
+  }, { passive: true });
   hero?.addEventListener("pointermove", (event) => {
     if (dragging || reduced) return;
-    const box = hero.getBoundingClientRect();
-    const nx = (event.clientX - (box.left + box.width / 2)) / (box.width / 2);
-    const ny = (event.clientY - (box.top + box.height / 2)) / (box.height / 2);
+    if (!heroBox) heroBox = hero.getBoundingClientRect();
+    const nx = (event.clientX - (heroBox.left + heroBox.width / 2)) / (heroBox.width / 2);
+    const ny = (event.clientY - (heroBox.top + heroBox.height / 2)) / (heroBox.height / 2);
     lean.yaw = clamp(nx, 1) * POINTER.lean.yaw;
     lean.pitch = -clamp(ny, 1) * POINTER.lean.pitch;
     dirty = true;
-  });
+  }, { passive: true });
   hero?.addEventListener("pointerleave", () => {
+    heroBox = null;
     lean.yaw = 0;
     lean.pitch = 0;
     dirty = true;
-  });
+  }, { passive: true });
 }
 
 /* ─────────── the philosophy scene ─────────── */
@@ -3895,6 +3915,14 @@ function philosophyScene(T, mount) {
   let rise = reduced ? 0 : 1;
 
   let field = null, beans = null, cupReady = false, ready = false, dirty = true, onScreen = false, last = 0, lastDraw = 0;
+  let cachedSectionTop = section ? section.offsetTop : 0;
+  let cachedSectionHeight = section ? section.offsetHeight || 800 : 800;
+  window.addEventListener("resize", () => {
+    if (section) {
+      cachedSectionTop = section.offsetTop;
+      cachedSectionHeight = section.offsetHeight || 800;
+    }
+  }, { passive: true });
 
   const poseCup = () => {
     cup.visible = cupReady && place.shown;
@@ -3984,8 +4012,8 @@ function philosophyScene(T, mount) {
       rise *= Math.exp(-CUP.riseRate * dt);
 
       const sy = window.scrollY || 0;
-      const boxTop = section.offsetTop - sy;
-      const boxHeight = section.offsetHeight || 800;
+      const boxTop = cachedSectionTop - sy;
+      const boxHeight = cachedSectionHeight;
       const travel = Math.min(1, Math.max(0, (window.innerHeight - boxTop) / (window.innerHeight + boxHeight)));
       turned += ((travel - 0.5) * CUP.spin - turned) * (1 - Math.exp(-CUP.spinFollow * dt));
       spin.rotation.y = turned;
@@ -4089,29 +4117,41 @@ function philosophyScene(T, mount) {
   canvas.addEventListener("webglcontextrestored", onVisible);
 
   let lastMove = { x: 0, y: 0, t: 0 };
+  let lastClatter = 0;
+  let mountBox: DOMRect | null = null;
   const scratch = new Vector3();
   const onMove = (event) => {
-    const box = mount.getBoundingClientRect();
-    aim.x = ((event.clientX - box.left) / box.width) * 2 - 1;
-    aim.y = -(((event.clientY - box.top) / box.height) * 2 - 1);
+    if (!onScreen) return;
+    if (!mountBox) mountBox = mount.getBoundingClientRect();
+    aim.x = ((event.clientX - mountBox.left) / mountBox.width) * 2 - 1;
+    aim.y = -(((event.clientY - mountBox.top) / mountBox.height) * 2 - 1);
     const elapsed = (event.timeStamp - lastMove.t) / 1000;
     if (world.pointer.active && elapsed > 0 && elapsed < 0.1) {
-      const u = (2 * VIEW.distance * tanHalf) / box.height;
+      const u = (2 * VIEW.distance * tanHalf) / mountBox.height;
       scratch.set(((event.clientX - lastMove.x) / elapsed) * u, -((event.clientY - lastMove.y) / elapsed) * u, 0);
       world.pointer.velocity.lerp(scratch, 0.5).clampLength(0, POINTER_MAX_SPEED);
     }
     lastMove = { x: event.clientX, y: event.clientY, t: event.timeStamp };
-    world.pointer.active = true; if (Math.random() < 0.15) playBeanClatter();
+    world.pointer.active = true;
+    if (Math.random() < 0.2 && event.timeStamp - lastClatter > 350) {
+      lastClatter = event.timeStamp;
+      playBeanClatter();
+    }
   };
   const onLeave = () => {
+    mountBox = null;
     world.pointer.active = false;
     aim.x = 0;
     aim.y = 0;
   };
+  section.addEventListener("pointerenter", () => {
+    if (onScreen) mountBox = mount.getBoundingClientRect();
+  }, { passive: true });
   section.addEventListener("pointermove", onMove, { passive: true });
   section.addEventListener("pointerdown", onMove, { passive: true });
   section.addEventListener("pointerleave", onLeave, { passive: true });
   section.addEventListener("pointercancel", onLeave, { passive: true });
+  window.addEventListener("resize", () => { mountBox = null; }, { passive: true });
 }
 
 /* ══════════════════════════════════ SHOP ══════════════════════════════════ */
