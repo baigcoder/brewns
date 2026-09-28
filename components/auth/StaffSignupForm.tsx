@@ -21,6 +21,23 @@ export function StaffSignupForm({ initialRole }: { initialRole?: Role }) {
   const [shop, setShop] = useState<string>('all');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  if (sent)
+    return (
+      <div className="auth-form auth-form-wide">
+        <p className="cx-eyebrow" style={{ marginBottom: '4px' }}>
+          <b>{'//'}</b> Staff sign-up
+        </p>
+        <h2>Request sent</h2>
+        <p className="cx-muted" style={{ marginTop: '4px', fontSize: '13px' }}>
+          The owner or a manager will check your details and switch your account on from Team. After that, sign in with the email and password you just chose.
+        </p>
+        <Link href="/staff/signin" className="cx-btn primary" style={{ marginTop: '12px', justifyContent: 'center' }}>
+          Go to sign in
+        </Link>
+      </div>
+    );
 
   return (
     <form
@@ -53,7 +70,7 @@ export function StaffSignupForm({ initialRole }: { initialRole?: Role }) {
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'Something went wrong. Try again.');
-          window.location.assign(data.next || '/dashboard');
+          setSent(true);
         } catch (err) {
           setError((err as Error).message);
           setBusy(false);
@@ -66,7 +83,7 @@ export function StaffSignupForm({ initialRole }: { initialRole?: Role }) {
         </p>
         <h2>Join the team</h2>
         <p className="cx-muted" style={{ marginTop: '4px', fontSize: '13px' }}>
-          Select your station and get instant access to your operations console.
+          Pick your station. The owner or a manager approves new accounts before they can sign in.
         </p>
       </div>
 
