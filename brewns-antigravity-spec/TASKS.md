@@ -181,4 +181,4 @@ Legend:
 - [x] `T185` Live SF Location Wait Time Badges with time-of-day awareness (Morning Peak, Steady Brew, Midday Rush, Closed).
 - [x] `T186` Universal PDP 3D Variety Rendering Engine (3D bakery cinnamon roll with steam & glaze expansion, transparent iced drink glasses with floating ice, real-time option updates).
 - [x] `T187` Refine locations-section hierarchy, responsive branch details, and direct Google Maps directions links.
-
+- [x] `T188` Make activity updates versioned and live, enforce active-screen permission revocation, and prevent concurrent role-setting overwrites.

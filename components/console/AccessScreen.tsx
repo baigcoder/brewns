@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ALL_PERMISSIONS, OWNER_ONLY, PERMISSIONS, ROLE_INFO, ROLES, type Permission, type Role, type RolePerms } from '@/lib/rbac';
 import { api } from './api';
 import { useLive } from './Live';
@@ -18,6 +18,7 @@ export function AccessScreen() {
   const [perms, setPerms] = useState<RolePerms | null>(null);
   const [defaults, setDefaults] = useState<RolePerms | null>(null);
   const [busy, setBusy] = useState('');
+  const lastSynced = useRef('');
   const [search, setSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
 
@@ -32,9 +33,9 @@ export function AccessScreen() {
 
   // Real-time synchronization from live poll / socket stream
   useEffect(() => {
-    if (data?.rolePerms) {
+    if (data?.rolePerms && lastSynced.current !== JSON.stringify(data.rolePerms)) {
+      lastSynced.current = JSON.stringify(data.rolePerms);
       // Mirror server-pushed permissions into the local optimistic edit state.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPerms(data.rolePerms);
     }
   }, [data?.rolePerms]);
@@ -99,14 +100,14 @@ export function AccessScreen() {
             <p className="cx-eyebrow" style={{ margin: 0 }}>
               <b>{'//'}</b> Owners only
             </p>
-            <span className="cx-live-tag" title="Changes sync live across all staff screens">
-              ● REALTIME RBAC ACTIVE
+            <span className="cx-live-tag" title="Active consoles refresh role permissions every few seconds">
+              ● LIVE SYNC · ~4 SEC
             </span>
           </div>
           <h1 className="cx-h1">Access Control</h1>
         </div>
         <p className="cx-small cx-muted" style={{ maxWidth: 460 }}>
-          What each role can see and do in real-time. Toggling a permission broadcasts immediately to all active screens without refreshing. Where someone works (shops) is set per person on the Team page.
+          Set what each role can see and do. Changes reach active consoles within a few seconds and are checked again on every protected API request. A screen closes when its permission is removed. Shop access stays per person on the Team page.
         </p>
       </div>
 

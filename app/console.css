@@ -403,4 +403,6 @@
   box-shadow: 0 0 6px var(--cx-ready);
   animation: cxBlink 1.4s ease-in-out infinite;
 }
-
+.cx-live-tag.stale { background: rgb(230 103 103 / 0.12); border-color: rgb(230 103 103 / 0.4); color: var(--cx-late); }
+.cx-live-tag.stale::before { background: var(--cx-late); box-shadow: 0 0 6px var(--cx-late); }
+@media (prefers-reduced-motion: reduce) { .cx-live-tag::before { animation: none; } }
