@@ -5877,7 +5877,7 @@ const orderLines = (o) =>
   o.items.map((it) => {
     const p = productById(it.id);
     const unit = unitPrice(p, it.sel);
-    return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * it.qty };
+    return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * it.qty, photo: p.photo ? photoSrc(p.photo) : "" };
   });
 const saveOrder = (o) => writeStore("brewns-orders", readStore("brewns-orders", []).map((x) => (x.number === o.number ? o : x)));
 /* An order the café's server has: take its word for number, times, totals and status. */
@@ -5964,7 +5964,7 @@ function receiptDoc(o) {
     ${row("MOBILE", esc(o.phone))}
     ${o.mode === "delivery" ? `<p class="addr">DELIVER TO: ${esc(o.address.toUpperCase())}, ${DELIVERY.areas[o.area][0]}, LAHORE</p>` : ""}
     <hr>
-    ${lines.map((l) => `<div class="r"><span>${l.qty} × ${esc(l.name)}</span><span>${money(l.total)}</span></div><div class="r dim"><span>${esc(l.opts)}</span><span>@ ${money(l.unit)}</span></div>`).join("")}
+    ${lines.map((l) => `<div class="item"><span class="item-thumb">${l.photo ? `<img src="${esc(l.photo)}" alt="" loading="eager">` : "B"}</span><div class="item-copy"><div class="r"><span>${l.qty} × ${esc(l.name)}</span><span>${money(l.total)}</span></div><div class="r dim"><span>${esc(l.opts)}</span><span>@ ${money(l.unit)}</span></div></div></div>`).join("")}
     <hr>
     ${row("SUBTOTAL", money(t.sub))}
     ${discountRows(t).map(([label, v]) => row(label, `−${money(v)}`)).join("")}
@@ -5981,10 +5981,11 @@ function receiptDoc(o) {
     <p class="c">THANK YOU. SKIP THE LINE, SEE YOU SOON.<br>BREWNS.COFFEE</p>
   </main>`;
   const css = `body{margin:0;background:#e9e6df;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;color:#111}
-    .rc{box-sizing:border-box;width:340px;margin:24px auto;padding:26px 22px;background:#f7f5ef;color:#111;text-align:left;text-transform:none;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.05em;line-height:1.7;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+    .rc{box-sizing:border-box;width:min(100%,380px);margin:24px auto;padding:26px 22px;background:#f7f5ef;color:#111;text-align:left;text-transform:none;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.05em;line-height:1.7;box-shadow:0 10px 30px rgba(0,0,0,.15)}
     h1{margin:0;text-align:center;font-size:13px;letter-spacing:.16em}h2{margin:12px 0 8px;text-align:center;font-size:11px;letter-spacing:.2em;border-block:1px dashed #999;padding:4px 0}
     .c{text-align:center;margin:4px 0}.r{display:flex;justify-content:space-between;gap:10px}.r span:last-child{text-align:right}.dim{color:#6b6b66}
     .big{font-size:14px;font-weight:700;margin-top:6px}.addr{margin:6px 0}hr{border:0;border-top:1px dashed #999;margin:10px 0}
+    .item{display:grid;grid-template-columns:38px minmax(0,1fr);align-items:center;gap:9px;margin:5px 0}.item-thumb{display:grid;width:38px;height:38px;place-items:center;overflow:hidden;border-radius:5px;background:#e8e4da;color:#78664f;font-weight:700}.item-thumb img{width:100%;height:100%;object-fit:cover}.item-copy{min-width:0}.item-copy .r{gap:6px}.item-copy .r span:first-child{overflow-wrap:anywhere}.item-copy .dim{font-size:9px}
     .bars{display:block;width:100%;height:38px;margin:14px 0 8px}@media print{body{background:#fff}.rc{box-shadow:none;margin:0 auto}}`;
   return { body, css, html: `<!doctype html><html><head><meta charset="utf-8"><title>brewns receipt #${String(o.number).padStart(5, "0")}</title><style>${css}</style></head><body>${body}</body></html>` };
 }
@@ -6048,7 +6049,7 @@ function renderDone() {
               .map((it) => {
                 const p = productById(it.id);
                 const unit = unitPrice(p, it.sel);
-                return `<div class="bill-item"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}</span><span>@ ${money(unit)}</span></div></div>`;
+                return `<div class="bill-item">${p.photo ? `<span class="bill-thumb"><img src="${esc(photoSrc(p.photo))}" alt="" loading="lazy" decoding="async"></span>` : `<span class="bill-thumb bill-thumb-mark" aria-hidden="true">B</span>`}<div class="bill-item-copy"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}</span><span>@ ${money(unit)}</span></div></div></div>`;
               })
               .join("")}</div>
             <p class="bill-count">${o.items.reduce((a, it) => a + it.qty, 0)} ITEM${o.items.reduce((a, it) => a + it.qty, 0) === 1 ? "" : "S"}</p>
@@ -6581,7 +6582,9 @@ coEl.addEventListener("click", (e) => {
       w.document.write(html);
       w.document.close();
       w.focus();
-      return setTimeout(() => w.print(), 250);
+      const images = [...w.document.images].map((image) => image.decode().catch(() => undefined));
+      void Promise.race([Promise.all(images), new Promise((resolve) => setTimeout(resolve, 1800))]).then(() => w.print());
+      return;
     }
     if (act === "again" && !o.cancelled) {
       o.items.forEach((item) => cart.add(item.id, item.sel, item.qty));
