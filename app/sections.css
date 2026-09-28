@@ -302,6 +302,10 @@
 .bill { gap: 8px; }
 .bill-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-align: center; }
 .bill-c { font-size: 7.5px; letter-spacing: 0.1em; line-height: 1.7; text-align: center; color: #3b3b38; }
+.bill-hero { display: grid; justify-items: center; gap: 3px; color: #4d4b45; font-size: 7px; letter-spacing: 0.12em; text-align: center; }
+.bill-hero img { display: block; width: 126px; height: 132px; object-fit: contain; mix-blend-mode: multiply; }
+.bill-meta-head { display: flex; justify-content: space-between; gap: 10px; font-size: 7px; letter-spacing: 0.07em; line-height: 1.8; text-transform: uppercase; }
+.bill-meta-head span:last-child { text-align: right; }
 .bill-h { margin: 2px 0; padding: 3px 0; border-block: 1px dashed rgb(17 17 17 / 0.35); font-size: 9px; font-weight: 700; letter-spacing: 0.18em; text-align: center; }
 .bill-rows { display: flex; flex-direction: column; gap: 3px; font-size: 8.5px; letter-spacing: 0.05em; line-height: 1.4; }
 .bill-rows div, .bill-item > div { display: flex; justify-content: space-between; gap: 10px; }
@@ -317,6 +321,11 @@
 .bill-item-copy > div:first-child span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .bill-opt { color: #5b5b58; font-size: 8px; }
 .bill-count { font-size: 7.5px; letter-spacing: 0.12em; color: #5b5b58; text-align: right; }
+.bill-promo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
+.bill-promo > p { margin: 0; font-family: var(--font-geist); font-size: 17px; font-weight: 750; letter-spacing: -0.04em; line-height: 1.1; }
+.bill-promo > div { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; border-left: 1px solid rgb(17 17 17 / 0.25); padding-left: 10px; }
+.bill-promo small { color: #5b5b58; font-size: 6px; letter-spacing: 0.06em; line-height: 1.5; }
+.bill-promo button { display: flex; justify-content: space-between; gap: 8px; border: 0; background: #111; color: #f2f0ea; padding: 6px 8px; font: inherit; font-size: 7px; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; }
 
 /* ── Live 3D delivery map ── */
 .trk-map3d { position: relative; height: 18rem; overflow: hidden; border: 1px solid rgb(216 183 119 / 0.3); border-radius: 10px; background: radial-gradient(80% 80% at 50% 30%, #2a211a, #0d0a08); }
