@@ -37,9 +37,12 @@ export const viewport: Viewport = {
    the founder, the bill, the map) go straight into the page, after the main
    stylesheet, instead of through the CSS build — so they always arrive, even if
    a local build serves a stale or partial stylesheet. */
+let cachedSectionsCss: string | null = null;
 function sectionsCss() {
+  if (cachedSectionsCss !== null) return cachedSectionsCss;
   try {
-    return readFileSync(path.join(process.cwd(), 'app/sections.css'), 'utf8');
+    cachedSectionsCss = readFileSync(path.join(process.cwd(), 'app/sections.css'), 'utf8');
+    return cachedSectionsCss;
   } catch {
     return '';
   }

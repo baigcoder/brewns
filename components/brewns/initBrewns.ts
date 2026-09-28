@@ -1804,7 +1804,11 @@ const header = $("#hdr");
 const themed = $$("[data-header-theme]");
 const footer = $("#ftr");
 const PROBE_OFFSET = 35;
+let lastThemeY = -1;
 loop(() => {
+  const y = window.scrollY;
+  if (y === lastThemeY) return;
+  lastThemeY = y;
   for (const s of themed) {
     const b = s.getBoundingClientRect();
     if (b.top <= PROBE_OFFSET && b.bottom > PROBE_OFFSET) {
@@ -1820,11 +1824,12 @@ loop(() => {
    The link for the section on screen gets a gold dot. */
 (() => {
   const links = $$(".hdr-nav a[href^='#']");
-  const targets = () => links.map((a) => [a, document.getElementById(a.getAttribute("href").slice(1))]);
-  let lastY = window.scrollY, travelled = 0;
+  const targetPairs = links.map((a) => [a, document.getElementById(a.getAttribute("href").slice(1))]);
+  let lastY = -1, travelled = 0;
   loop(() => {
     const y = window.scrollY;
-    const dy = y - lastY;
+    if (y === lastY) return;
+    const dy = y - (lastY === -1 ? y : lastY);
     lastY = y;
     header.classList.toggle("scrolled", y > 24);
     // Hide after a real downward run, never with the menu open or focus inside the bar.
@@ -1834,7 +1839,7 @@ loop(() => {
     else if (travelled > 64) header.classList.add("tucked");
     const probe = window.innerHeight * 0.35;
     let current = null;
-    for (const [a, el] of targets()) {
+    for (const [a, el] of targetPairs) {
       if (!el) continue;
       const b = el.getBoundingClientRect();
       if (b.top <= probe && b.bottom > probe) current = a;
@@ -1880,9 +1885,9 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
   const crema = $("#pre-crema"), bar = $("#pre-bar"), step = $("#pre-step");
   // What the bar is doing, as the cup fills.
   const STEPS = [[0, "Grinding the beans"], [0.25, "Tamping"], [0.45, "Pulling the shot"], [0.7, "Steaming the milk"], [0.92, "Pouring your cup"]];
-  const STEP = { mount: 0.1, fonts: 0.6, loaded: 1 };
-  const MIN_VISIBLE = 620, MAX_WAIT = 4000, HOLD = 180;
-  const FILL = C(120, 26), POUR = C(90, 18);
+  const STEP = { mount: 0.2, fonts: 0.7, loaded: 1 };
+  const MIN_VISIBLE = 240, MAX_WAIT = 1200, HOLD = 40;
+  const FILL = C(240, 24), POUR = C(200, 22);
   const t0 = performance.now();
   let level = 0, pour = 0, finishing = false;
   const draw = () => {
@@ -1905,15 +1910,17 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
   stopScroll();
   levelSpring.start({ v: STEP.mount }, { config: FILL });
 
-  const fonts = document.fonts.ready.then(() => {
-    if (!finishing) levelSpring.start({ v: STEP.fonts }, { config: FILL });
-  });
+  const fonts = document.fonts ? document.fonts.ready : Promise.resolve();
   const loaded = new Promise((resolve) => {
-    if (document.readyState === "complete") resolve();
-    else window.addEventListener("load", resolve, { once: true });
+    if (document.readyState !== "loading") resolve();
+    else document.addEventListener("DOMContentLoaded", resolve, { once: true });
   });
   const done = () => {
     if (!page.ready) {
+      window.removeEventListener("wheel", onUserIntent);
+      window.removeEventListener("touchmove", onUserIntent);
+      window.removeEventListener("keydown", onUserIntent);
+      el?.removeEventListener("click", onUserIntent);
       el.remove();
       page.set({ revealing: true, ready: true });
       startScroll();
@@ -1924,6 +1931,12 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
       }
     }
   };
+  const onUserIntent = () => done();
+  window.addEventListener("wheel", onUserIntent, { passive: true, once: true });
+  window.addEventListener("touchmove", onUserIntent, { passive: true, once: true });
+  window.addEventListener("keydown", onUserIntent, { passive: true, once: true });
+  el.addEventListener("click", onUserIntent, { once: true });
+
   Promise.race([Promise.all([fonts, loaded]), new Promise((r) => setTimeout(r, MAX_WAIT))]).then(() => {
     finishing = true;
     levelSpring.start({ v: STEP.loaded }, { config: FILL }).then(() => {
@@ -1933,7 +1946,7 @@ for (const [family, file] of [["Space Mono", "SpaceMono-Regular.ttf"], ["Allura"
       }, Math.max(0, MIN_VISIBLE - (performance.now() - t0)) + HOLD);
     });
   });
-  setTimeout(done, MAX_WAIT + 2000);
+  setTimeout(done, MAX_WAIT + 800);
 })();
 
 /* specks for the GPU warm-up; they live in the preloader, which reduced motion removes */
@@ -1947,7 +1960,15 @@ if (warmSpecks) warmSpecks.innerHTML = [50, 95]
   .join("");
 
 /* ═══════════ text reveals wait for the faces ═══════════ */
-document.fonts.ready.then(() => $$("[data-te]").forEach(textEngine));
+document.fonts.ready.then(() => {
+  $$("[data-te]").forEach((el) => {
+    if (el.closest("#hero")) {
+      textEngine(el);
+    } else {
+      whenNear(el, () => textEngine(el), "600px 0px");
+    }
+  });
+});
 
 /* ═══════════ swirl fill ═══════════ */
 function blobMask(direction) {
@@ -2747,8 +2768,10 @@ const opalesce = (wrapper) => {
     return;
   }
   draw();
-  whenReady(() => fade.classList.add("on"));
-  if (!REDUCED) stopFrame = loop(frame);
+  whenReady(() => {
+    fade.classList.add("on");
+    if (!REDUCED && !stopFrame) stopFrame = loop(frame);
+  });
 };
 /* Heavy scenes start when they're about to be seen, not at load: only the hero
    compiles its shaders up front, so the first screen is ready sooner and the
@@ -2843,7 +2866,7 @@ function heroModel(T, mount, handle, onPiece) {
   ];
   const LIGHT_COLOUR = 0xfcfff9;
   const ENVIRONMENT = 0.045;
-  const MIN_PIXEL_RATIO = 1.5;
+  const MIN_PIXEL_RATIO = 1.0;
   const NORMAL_STRENGTH = 1;
   const clamp = (value, limit) => Math.max(-limit, Math.min(limit, value));
 
@@ -3047,18 +3070,26 @@ function heroModel(T, mount, handle, onPiece) {
     pivot.rotation.copy(turned);
     reframe();
 
-    renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio, MIN_PIXEL_RATIO), 2));
+    const maxDpr = typeof window !== "undefined" && window.innerWidth < 768 ? 1.25 : 1.5;
+    renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, MIN_PIXEL_RATIO), maxDpr));
     renderer.setSize(canvasWidth, canvasHeight, false);
     dirty = true;
   };
+
+  let lastHeroScrollY = -1;
+  let cachedHeroAway = 0;
 
   const frame = () => {
     if (!model || !onScreen || document.hidden) return;
 
     if (hero && !reduced && productHeight) {
-      const box = hero.getBoundingClientRect();
-      const away = Math.min(1, Math.max(0, -box.top / box.height));
-      const gap = -away * SCROLL_DROP * productHeight - drift.position.y;
+      const sy = window.scrollY || window.pageYOffset || 0;
+      if (sy !== lastHeroScrollY) {
+        lastHeroScrollY = sy;
+        const box = hero.getBoundingClientRect();
+        cachedHeroAway = Math.min(1, Math.max(0, -box.top / (box.height || 1)));
+      }
+      const gap = -cachedHeroAway * SCROLL_DROP * productHeight - drift.position.y;
       if (Math.abs(gap) > productHeight * 1e-4) {
         drift.position.y += gap * SCROLL_EASE;
         dirty = true;
