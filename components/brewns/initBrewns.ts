@@ -32,7 +32,7 @@ import {
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
-import { autoReply, canCancel, currentStage, fastForward, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
+import { autoReply, canCancel, currentStage, fastForward, finalStage, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
 import { addStamps, birthdayTreat, CLUB, emptyClub, isDrink, memberNumber, normaliseClub, reverseOrder, rewardValue, spendReward, stampsFor } from './club';
 import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TITLES, LOCS, money, OPEN_MIN, PAY, pkMobile, PREP_MIN, PRODUCTS_BASE, selLabel, SHOP_CODES, TAX, TAX_CARD, unitPrice, validSel } from "@/lib/catalog";
 import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
@@ -5786,7 +5786,7 @@ const saveOrder = (o) => writeStore("brewns-orders", readStore("brewns-orders", 
 /* An order the café's server has: take its word for number, times, totals and status. */
 function applyServer(o, so, key = o.server?.key) {
   Object.assign(o, {
-    number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc,
+    number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc, table: so.table ?? o.table ?? null,
     cancelled: so.cancelled ? so.cancelled.t : undefined, collected: so.times?.collected,
   });
   o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
@@ -5828,7 +5828,7 @@ const orderWhen = (o) => `${o.pickupAt.tomorrow ? "tomorrow " : ""}${hhmm(o.pick
 const isActive = (o) => {
   if (o.cancelled || o.collected) return false;
   const st = timeline(o, LOC_TITLES[o.loc]);
-  return st[currentStage(o, st)].key !== (o.mode === "delivery" ? "delivered" : "collected");
+  return st[currentStage(o, st)].key !== finalStage(o);
 };
 
 // The same bars as orderBars(), as SVG so they survive print and download.
@@ -5848,7 +5848,7 @@ const barRects = (seed) => {
 function receiptDoc(o) {
   const st = timeline(o, LOC_TITLES[o.loc]);
   const now = currentStage(o, st);
-  const done = st[now].key === "delivered" || st[now].key === "collected" || o.collected;
+  const done = st[now].key === finalStage(o) || o.collected;
   const d = new Date(o.placed);
   const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${stageTime(o.placed)}`;
   const lines = orderLines(o);
@@ -5909,6 +5909,7 @@ function renderDone() {
   const o = co.done;
   const loc = LOCS[o.loc];
   const delivered = o.mode === "delivery";
+  const dine = o.mode === "dinein";
   const when = `${o.pickupAt.tomorrow ? "TOMORROW " : ""}${hhmm(o.pickupAt.t)}`;
   const d = new Date(o.placed);
   const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -5931,7 +5932,7 @@ function renderDone() {
           <div class="receipt-body bill">
             <p class="bill-brand">BREWNS COFFEE HOUSE</p>
             <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
-            <p class="bill-h">${delivered ? "DELIVERY" : "PICKUP"} · SALES TAX INVOICE</p>
+            <p class="bill-h">${delivered ? "DELIVERY" : dine ? `TABLE ${o.table}` : "PICKUP"} · SALES TAX INVOICE</p>
             <div class="bill-rows">
               <div><span>INVOICE</span><span>${invoiceNo(o, SHOP_CODES[o.loc])}</span></div>
               <div><span>ORDER</span><span>${num}</span></div>
@@ -5944,7 +5945,7 @@ function renderDone() {
               <div><span>MOBILE</span><span>${esc(o.phone)}</span></div>
               ${o.email ? `<div><span>EMAIL</span><span>${esc(o.email.toUpperCase())}</span></div>` : ""}
             </div>
-            <p class="bill-addr">${delivered ? `DELIVER TO<br><b>${esc(o.address.toUpperCase())}</b><br>${DELIVERY.areas[o.area][0]}, LAHORE · ~${DELIVERY.areas[o.area][4].toFixed(1)} KM<br>RIDER FROM ${LOCS[o.loc][0]}` : `COLLECT FROM<br><b>${LOCS[o.loc][0]}</b><br>${LOCS[o.loc][1]} · PICKUP COUNTER`}</p>
+            <p class="bill-addr">${delivered ? `DELIVER TO<br><b>${esc(o.address.toUpperCase())}</b><br>${DELIVERY.areas[o.area][0]}, LAHORE · ~${DELIVERY.areas[o.area][4].toFixed(1)} KM<br>RIDER FROM ${LOCS[o.loc][0]}` : dine ? `SERVED AT<br><b>TABLE ${o.table}</b><br>${LOCS[o.loc][0]}, ${LOCS[o.loc][1]}` : `COLLECT FROM<br><b>${LOCS[o.loc][0]}</b><br>${LOCS[o.loc][1]} · PICKUP COUNTER`}</p>
             <div class="rc-rule"></div>
             <div class="bill-items">${o.items
               .map((it) => {
@@ -5965,7 +5966,7 @@ function renderDone() {
             <div class="rc-total"><span>TOTAL</span><span>${money(o.totals.total)}</span></div>
             <div class="bill-rows">
               <div><span>PAYMENT</span><span>${PAY[o.pay][0]}</span></div>
-              <div><span>STATUS</span><span>DUE ${delivered ? "ON DELIVERY" : "AT PICKUP"}</span></div>
+              <div><span>STATUS</span><span>DUE ${delivered ? "ON DELIVERY" : dine ? "AT THE TABLE" : "AT PICKUP"}</span></div>
             </div>
             ${o.note ? `<p class="bill-addr">NOTE: ${esc(o.note.toUpperCase())}</p>` : ""}
             <div class="rc-rule"></div>
@@ -5978,7 +5979,7 @@ function renderDone() {
       </div></div>
       <div class="done-body">
         <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · <span id="trk-status">CONFIRMED</span></p>
-        <h2 class="done-h" id="trk-h">${delivered ? `AT YOUR DOOR BY ${when}.` : `SEE YOU AT ${when}.`}</h2>
+        <h2 class="done-h" id="trk-h">${delivered ? `AT YOUR DOOR BY ${when}.` : dine ? `AT TABLE ${o.table} SOON.` : `SEE YOU AT ${when}.`}</h2>
         <p class="pdp-desc" id="trk-sub"></p>
         <div class="done-eta">
           <div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="ring-bar" cx="50" cy="50" r="46" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="ring-num" aria-live="polite"><span><span id="ring-num">--</span><small id="ring-unit">MIN</small></span></div></div>
@@ -6016,7 +6017,7 @@ function renderDone() {
         <div class="done-actions trk-small">
           <a class="btn btn-line" id="trk-wa" target="_blank" rel="noopener">WHATSAPP</a>
           <a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
-          ${delivered ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS</a>`}
+          ${delivered || dine ? "" : `<a class="btn btn-line" href="${SHOP_MAPS(o.loc)}" target="_blank" rel="noopener">DIRECTIONS</a>`}
           <button type="button" class="btn btn-line" data-co="collected" hidden>I'VE COLLECTED IT</button>
           <button type="button" class="btn btn-line trk-rate" data-co="rate" hidden>★ RATE YOUR ORDER</button>
           <button type="button" class="btn btn-line trk-cancel" data-co="cancel" hidden>CANCEL ORDER</button>
@@ -6064,6 +6065,8 @@ function renderDone() {
 
   const HEAD = delivered
     ? { received: `AT YOUR DOOR BY ${when}.`, accepted: `AT YOUR DOOR BY ${when}.`, preparing: "BEING MADE FRESH.", rider: `${r.first.toUpperCase()} IS COLLECTING IT.`, onway: "ON ITS WAY.", arriving: "ALMOST THERE.", delivered: "DELIVERED. ENJOY." }
+    : dine
+    ? { received: `AT TABLE ${o.table} SOON.`, accepted: `AT TABLE ${o.table} SOON.`, preparing: "BEING MADE FRESH.", ready: "ON ITS WAY TO YOU.", served: "ENJOY IT." }
     : { received: `SEE YOU AT ${when}.`, accepted: `SEE YOU AT ${when}.`, preparing: "BARISTA ON IT.", ready: "READY AT THE COUNTER.", collected: "ENJOY IT." };
   const first = esc(titleCase(o.name.split(" ")[0]));
   const SUB = delivered
@@ -6078,6 +6081,14 @@ function renderDone() {
         get delivered() {
           return `Delivered at ${stageTime(o.server?.times?.delivered || o.target)}. Thanks for ordering from brewns.`;
         },
+      }
+    : dine
+    ? {
+        received: `We’ve got it, ${first}. Sit back: it comes to table ${o.table}.`,
+        accepted: `${shop} has your order. Pay ${money(o.totals.total)} at the table when you’re done.`,
+        preparing: `It’s being made now and comes straight to table ${o.table}.`,
+        ready: `It’s ready and on its way to table ${o.table}.`,
+        served: `Served. Enjoy, and tap Message if you need anything.`,
       }
     : {
         received: `We’ve got it, ${first}. Head to ${shop}. Your order will wait at the pickup counter under ${num}.`,
@@ -6214,7 +6225,7 @@ function renderDone() {
     const cancel = $("[data-co='cancel']", coEl), got = $("[data-co='collected']", coEl);
     cancel.hidden = !canCancel(o, stages, now);
     if (got) got.hidden = delivered || o.cancelled || key !== "ready";
-    const finished = key === "delivered" || key === "collected" || !!o.collected;
+    const finished = key === finalStage(o) || !!o.collected;
     $("[data-co='rate']", coEl).hidden = !finished || !!o.reviewed || !!o.cancelled;
     if (delivered) {
       const riderStage = stages.findIndex((s) => s.key === "rider");
@@ -6322,6 +6333,7 @@ function placeOrder() {
   const order = {
     number, placed, target, items: cart.items.map((it) => ({ ...it })), totals: orderTotals(), pickupAt, name: co.name.trim(), phone: co.phone, note: co.note.trim(), pay: co.pay,
     mode: co.mode, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "", loc: delivery ? DELIVERY.areas[co.area][1] : co.loc,
+    table: co.mode === "dinein" ? co.table : null,
   };
   // Send it: to the café API so it lands on the kitchen & delivery screens,
   // plus email backup when an order service is configured.
@@ -6329,10 +6341,9 @@ function placeOrder() {
   renderCheckout({ animate: false });
   const email = co.email.trim();
   const started = Date.now();
-<<<<<<< Updated upstream
   const payload = {
     items: cart.items.map(({ id, qty, sel }) => ({ id, qty, sel })),
-    mode: co.mode, loc: co.loc, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "",
+    mode: co.mode, loc: co.loc, area: delivery ? co.area : null, table: co.mode === "dinein" ? co.table : null, address: delivery ? co.address.trim() : "",
     when: co.when === "asap" ? "asap" : co.slot, name: co.name.trim(), phone: co.phone, email, note: co.note.trim(),
     pay: co.pay, promo: co.discount ? co.promo : "", useReward: !!co.useReward, guestReward: !!co.useReward,
   };
@@ -6375,61 +6386,6 @@ function placeOrder() {
       $("[data-co='close']", coEl)?.focus({ preventScroll: true });
     }, Math.max(0, 1100 - (Date.now() - started)));
   });
-=======
-
-  const apiPayload = {
-    loc: order.loc,
-    mode: order.mode,
-    area: order.area,
-    table: order.mode === "dinein" ? co.table : null,
-    address: order.address,
-    name: order.name,
-    phone: order.phone,
-    email,
-    note: order.note,
-    pay: order.pay,
-    when: co.when === "asap" ? "asap" : { t: pickupAt.t, tomorrow: !!pickupAt.tomorrow },
-    promo: co.promo,
-    useReward: !!co.useReward,
-    items: cart.items.map((it) => ({ id: it.id, qty: it.qty, sel: it.sel })),
-  };
-
-  fetch("/api/orders", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(apiPayload),
-  })
-    .then(async (res) => {
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.order) {
-          order.number = data.order.number;
-          order.key = data.key;
-          order.live = true;
-          if (data.order.totals) order.totals = data.order.totals;
-        }
-      }
-      return sendOrder(order, email);
-    })
-    .catch(() => sendOrder(order, email))
-    .then((sent) => {
-      order.sent = sent;
-      order.email = email;
-      order.club = creditClub(order);
-      writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
-      setTimeout(() => {
-        if (!co) return;
-        co.placing = false;
-        playChime();
-        co.done = order;
-        co.step = 3;
-        cart.clear();
-        renderCheckout();
-        coEl.scrollTop = 0;
-        $("[data-co='close']", coEl)?.focus({ preventScroll: true });
-      }, Math.max(0, 1100 - (Date.now() - started)));
-    });
->>>>>>> Stashed changes
 }
 
 /* ── sending the order by email ──
@@ -6654,7 +6610,6 @@ coEl.addEventListener("submit", (e) => {
   }
   if (!co || !e.target.matches("[data-promo]")) return;
   e.preventDefault();
-<<<<<<< Updated upstream
   co.promo = e.target.promo.value.trim().toUpperCase();
   // The owner's codes live on the server; offline, only the house code is known.
   const checking = co;
@@ -6666,37 +6621,6 @@ coEl.addEventListener("submit", (e) => {
       if (co !== checking) return;
       co.discount = pct;
       if (co.promo && !pct) toast("THAT CODE ISN'T VALID");
-=======
-  const inputCode = e.target.promo.value.trim().toUpperCase();
-  if (!inputCode) {
-    co.promo = "";
-    co.discount = 0;
-    renderCheckout({ animate: false });
-    return;
-  }
-  fetch("/api/public/promo", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: inputCode }),
-  })
-    .then((r) => r.json())
-    .then((res) => {
-      if (res?.valid) {
-        co.promo = res.code;
-        co.discount = (res.pct || 10) / 100;
-      } else if (inputCode === "BREWNS10") {
-        co.promo = "BREWNS10";
-        co.discount = 0.1;
-      } else {
-        co.promo = inputCode;
-        co.discount = 0;
-      }
-      renderCheckout({ animate: false });
-    })
-    .catch(() => {
-      co.promo = inputCode;
-      co.discount = inputCode === "BREWNS10" ? 0.1 : 0;
->>>>>>> Stashed changes
       renderCheckout({ animate: false });
     });
 });

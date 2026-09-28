@@ -1,6 +1,6 @@
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 
-// Configure Cloudinary from environment or fallback with user's provided API secret
+// Configure Cloudinary from the environment only; the secret is never written in code.
 const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
 const apiKey = process.env.CLOUDINARY_API_KEY || '';
 const apiSecret = process.env.CLOUDINARY_API_SECRET || '';
