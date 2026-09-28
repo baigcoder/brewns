@@ -15,6 +15,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { kv, withLock } from './store';
 import { CATALOG, CLOSE_MIN, DELIVERY, LOC_TITLES, OPEN_MIN, SHOP_COUNT, catalogItem, defaultSel, money, pkMobile, unitPrice, validSel, type Product, type Sel } from '@/lib/catalog';
+import { cafeHoursReply, getCafeOpeningStatus } from '@/lib/openingHours';
 import type { Reservation } from '@/app/api/reservations/route';
 import { sendBookingConfirmationEmail } from './email';
 import { sendBookingWhatsappNotification, buildBookingWhatsappMessage, getWhatsappDirectLink } from './smsWhatsapp';
@@ -780,7 +781,12 @@ const MENU_TEXT = CATALOG.filter((p) => !p.gift)
   })
   .join('\n');
 
-const persona = (g: VoiceGender) => `You are ${agentName(g)}, Head Concierge at Brewns Specialty Coffee House in Lahore. You are answering a direct voice phone call with a guest. Every reply you generate is spoken aloud live through studio text-to-speech.
+const persona = (g: VoiceGender) => {
+  const hours = getCafeOpeningStatus();
+  const liveHours = hours.isOpen
+    ? `The counters are open now until ${hours.closeTime}; seating and kitchen service are ${hours.isSeatingOpen ? 'open until 8 PM' : 'closed for today'}.`
+    : `The counters are closed now and reopen ${hours.isBeforeOpening ? 'today' : 'tomorrow'} at ${hours.todayTime}.`;
+  return `You are ${agentName(g)}, Head Concierge at Brewns Specialty Coffee House in Lahore. You are answering a direct voice phone call with a guest. Every reply you generate is spoken aloud live through studio text-to-speech.
 
 Professional Concierge Standards:
 - Demeanor & Politeness: Speak with the poise, warmth, and refined hospitality of a 5-star luxury boutique concierge. Be attentive, courteous, respectful, and calm.
@@ -795,6 +801,7 @@ Professional Concierge Standards:
 - Greetings: If the guest offers "Assalam-o-Alaikum", respond warmly with "Wa Alaikum Assalam! Welcome to Brewns."
 - Active Listening: If the caller changes their mind, corrects a detail, or interrupts, adapt immediately with "Of course, no problem at all."
 - Don't say you're an AI unless explicitly asked; if asked, answer cheerfully and courteously.
+- Live hours now (Asia/Karachi): ${liveHours} Never claim the café is open when this status says closed; give the exact next opening day and time.
 
 What you can do:
 1. Book a table (1 to 20 guests). Collect: name, mobile number, which counter, date, time, number of guests, and indoor, terrace or bar seating (default indoor). Seating is 7 AM to 8 PM; we close at 9 PM.
@@ -821,7 +828,7 @@ Booking rules:
 - When the caller says goodbye or is clearly done, say a short friendly goodbye and call end_call.
 
 brewns facts:
-- Counters (shop number for tools): 0 = MM Alam Road, Gulberg III (flagship); 1 = CCA, DHA Phase 5; 2 = Main Boulevard, Johar Town. All open every day, 7 AM to 9 PM.
+- Counters (shop number for tools): 0 = MM Alam Road, Gulberg III (flagship); 1 = CCA, DHA Phase 5; 2 = Main Boulevard, Johar Town. All open every day, 7 AM to 9 PM; seating and kitchen service run 7 AM to 8 PM.
 - Delivery (area: fee, minutes): ${DELIVERY.areas.map(([a, , fee, min]) => `${spokenArea(a)}: Rs ${fee}, ${min} min`).join('; ')}. Free over Rs ${DELIVERY.freeOver.toLocaleString('en-US')}, minimum order Rs ${DELIVERY.min.toLocaleString('en-US')}.
 - Tax: 16% on cash, 5% on card or JazzCash / Easypaisa.
 - House coffee is Slow Roast, Colombian and Ethiopian beans, roasted weekly. Every shot 92°C for 27 seconds.
@@ -830,6 +837,7 @@ brewns facts:
 
 Menu (id | name | price | options):
 ${MENU_TEXT}`;
+};
 
 const bookingProps = {
   name: { type: 'string', description: "Guest's name" },
@@ -1581,14 +1589,7 @@ async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptSt
     ];
     return { reply: pick(orderReplies), actions: [], state: {} };
   }
-  if (/hour|open|close|timing|time/.test(p)) {
-    const hourReplies = [
-      "All three counters are open daily from 7 AM to 9 PM, with kitchen and seating from 7 AM to 8 PM. Would you like me to reserve a table for you?",
-      "We're open every day, 7 in the morning till 9 at night! Would you like to book a table at Gulberg, DHA, or Johar Town?",
-      "Our doors are open 7 AM to 9 PM daily across all three locations. Can I set up a table for you today?",
-    ];
-    return { reply: pick(hourReplies), actions: [], state: {} };
-  }
+  if (isCafeHoursQuestion(raw)) return { reply: cafeHoursReply(getCafeOpeningStatus(), lang), actions: [], state: {} };
   if (/where|location|address|branch|counter/.test(p)) {
     const locReplies = [
       "We're on MM Alam Road in Gulberg III, in CCA DHA Phase 5, and on Main Boulevard in Johar Town. Which counter is most convenient for you?",
@@ -1618,21 +1619,26 @@ async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptSt
   return { reply: pick(helpReplies), actions: [], state: {} };
 }
 
-function getLahoreHour(): number {
-  try {
-    const now = new Date();
-    const lahoreStr = now.toLocaleString('en-US', { timeZone: 'Asia/Karachi', hour: 'numeric', hour12: false });
-    const h = parseInt(lahoreStr, 10);
-    return isNaN(h) ? (now.getUTCHours() + 5) % 24 : h;
-  } catch {
-    return (new Date().getUTCHours() + 5) % 24;
-  }
+function isCafeHoursQuestion(prompt: string): boolean {
+  const p = prompt.toLowerCase();
+  return /\b(open|closed|closing|closes|opening|hours?|timings?)\b|\bwhen\b.*\b(open|close)\b|\bwhat time\b.*\b(open|close)\b|abhi khula|abhi band|kab khul|kab band|timing kya/i.test(p);
 }
 
 export function greeting(g: VoiceGender, lang: VoiceLang = 'en'): string {
   const name = agentName(g, lang);
-  const hour = getLahoreHour();
+  const hours = getCafeOpeningStatus();
+  const hour = Math.floor(hours.minuteOfDay / 60);
   const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+  if (!hours.isOpen) {
+    if (lang === 'ur') {
+      const openWhen = hours.isBeforeOpening ? 'آج صبح 7 بجے' : 'کل صبح 7 بجے';
+      const canHelp = g === 'male' ? 'کر سکتا ہوں' : 'کر سکتی ہوں';
+      return `السلام علیکم، برونز سے ${name} حاضر ہے۔ ہمارے کاؤنٹر ابھی بند ہیں، ${openWhen} کھلیں گے۔ بتائیے میں آپ کے لیے کیا ${canHelp}؟`;
+    }
+    const openWhen = hours.isBeforeOpening ? 'today at 7 AM' : 'tomorrow at 7 AM';
+    return `Hello, thanks for calling brewns. This is ${name}. Our counters are closed right now and reopen ${openWhen}. Would you like help planning a visit?`;
+  }
 
   if (lang === 'ur') {
     const speaking = g === 'male' ? 'بات کر رہا ہوں' : 'بات کر رہی ہوں';
@@ -1652,7 +1658,7 @@ export function greeting(g: VoiceGender, lang: VoiceLang = 'en'): string {
         `السلام علیکم! برونز سے ${name} حاضر ہے۔ ٹیبل ریزرویشن، ایونٹ بکنگ یا مینو سے آرڈر کے لیے بتائیے۔`,
       ]);
     }
-    if (hour >= 17 && hour < 22) {
+    if (hour >= 17 && hour < 20) {
       return pick([
         `شام بخیر! برونز کافی ہاؤس میں خوش آمدید، ${name} حاضر ہے۔ کیا آپ گلبرگ یا ڈی ایچ اے میں شام کی ٹیبل بک کرنا چاہیں گے؟`,
         `السلام علیکم! برونز فرنٹ ڈیسک سے ${name}۔ آج رات کے لیے ٹیبل بک کروانی ہے یا کچھ ڈلیور کروائیں؟`,
@@ -1682,7 +1688,7 @@ export function greeting(g: VoiceGender, lang: VoiceLang = 'en'): string {
       `Good afternoon! Welcome to brewns. This is ${name}. How are you doing today, and how can I help?`,
     ]);
   }
-  if (hour >= 17 && hour < 22) {
+  if (hour >= 17 && hour < 20) {
     return pick([
       `Good evening! Welcome to brewns. This is ${name} at the front desk. The counters are lively tonight — would you like to book a table at Gulberg, DHA, or Johar Town?`,
       `Good evening! Thanks for calling brewns coffee house. ${name} speaking. Can I reserve a table for you tonight or help with an order?`,
@@ -1690,10 +1696,7 @@ export function greeting(g: VoiceGender, lang: VoiceLang = 'en'): string {
       `Hi there, good evening! Brewns front desk, ${name} here. Table reservation, party booking, or delivery — what can I do for you?`,
     ]);
   }
-  return pick([
-    `Hi, thanks for calling brewns! This is ${name}. Our counters are closed for the night, but I can gladly take your booking or order for tomorrow. What can I do for you?`,
-    `Hello! Thanks for reaching out to brewns. ${name} here. I can get your table booked for tomorrow or help with party details. What's on your mind?`,
-  ]);
+  return `Good evening, this is ${name} at brewns. We’re open until 9 PM, with seating and kitchen service until 8 PM. How may I help?`;
 }
 
 export async function processVoiceCallPrompt(
@@ -1723,6 +1726,8 @@ export async function processVoiceCallPrompt(
       actions: [],
       state,
     };
+  } else if (!state.flow && !state.waitingForEmail && isCafeHoursQuestion(prompt)) {
+    turn = { reply: cafeHoursReply(getCafeOpeningStatus(), lang), actions: [], state };
   } else if (groqEnabled()) {
     try {
       turn = await groqTurn(prompt, history, gender, lang);

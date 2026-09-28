@@ -1,5 +1,7 @@
 'use client';
 
+import { cafeHoursStatusLabel, getCafeOpeningStatus } from '@/lib/openingHours';
+
 /* The AI voice call, in the browser.
 
    It behaves like a phone call rather than a walkie-talkie:
@@ -57,6 +59,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   const voiceCurrentEl = $('vc-voice-current');
   const agentTitleEl = $('vc-agent-title');
   const agentSubtitleEl = $('vc-agent-subtitle');
+  const businessStatusEl = $('voice-hours-status');
+  const businessStatusLabelEl = $('voice-hours-label');
   const avatarRing = $('vc-avatar-ring');
   const avatarPulse = $('vc-avatar-pulse');
   const avatarContainer = $('vc-avatar-container');
@@ -94,6 +98,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let turnId = 0;
 
   let timer: ReturnType<typeof setInterval> | undefined;
+  let hoursTimer: ReturnType<typeof setInterval> | undefined;
   let seconds = 0;
 
   let recognition: any = null;
@@ -175,6 +180,16 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   function tick() {
     seconds++;
     if (timerEl) timerEl.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  function updateBusinessStatus() {
+    const status = getCafeOpeningStatus();
+    if (businessStatusLabelEl) businessStatusLabelEl.textContent = cafeHoursStatusLabel(status, lang);
+    if (businessStatusEl) {
+      businessStatusEl.dataset.state = status.isOpen ? (status.isSeatingOpen ? 'open' : 'late') : 'closed';
+      businessStatusEl.setAttribute('aria-label', `Café ${status.isOpen ? 'open' : 'closed'} in Lahore`);
+      businessStatusEl.dir = lang === 'ur' ? 'rtl' : 'ltr';
+    }
   }
 
   /* ── speaking ── */
@@ -864,6 +879,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       langBtn.setAttribute('aria-label', next === 'ur' ? 'Speaking Urdu. Switch to English' : 'Speaking English. Switch to Urdu');
     }
     if (textInput) textInput.dir = next === 'ur' ? 'rtl' : 'auto';
+    updateBusinessStatus();
   }
 
   function setVoiceGender(next: 'female' | 'male') {
@@ -873,6 +889,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (agentTitleEl) agentTitleEl.textContent = female ? 'Sarah · Brewns Front Desk' : 'Hamza · Roastery & Bar';
     if (agentSubtitleEl) agentSubtitleEl.textContent = female ? 'Guest Concierge · Urdu & English' : 'Specialty Roaster & Hospitality Lead';
     if (avatarMono) avatarMono.textContent = agent()[0];
+    updateBusinessStatus();
   }
 
   /* ── the call ── */
@@ -893,6 +910,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     tick();
     clearInterval(timer);
     timer = setInterval(tick, 1000);
+    updateBusinessStatus();
+    clearInterval(hoursTimer);
+    hoursTimer = setInterval(updateBusinessStatus, 30_000);
     playChime?.();
     triggerHaptic?.(50);
     caption(`Connecting to ${agent()} at brewns…`);
@@ -973,6 +993,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       callId = '';
     }
     clearInterval(timer);
+    clearInterval(hoursTimer);
     stopSpeaking();
     stopListening();
     micStream?.getTracks().forEach((t) => t.stop());
