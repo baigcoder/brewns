@@ -34,7 +34,7 @@ type Turn = { role: 'user' | 'assistant'; content: string };
 type Action = { type: string; data?: any };
 
 /** How long a pause means "I'm done talking", after some words have come in. */
-const END_OF_SPEECH_MS = 900;
+const END_OF_SPEECH_MS = 450;
 /** Mic level (RMS, 0..1) and how long it must hold to count as talking over the voice. */
 const BARGE_IN_LEVEL = 0.06;
 const BARGE_IN_MS = 280;
@@ -248,37 +248,6 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   }
 
   /* ── line tones ── */
-
-  /** One ring of a Pakistani/US-style PBX ringback: 440 + 480 Hz for about a second. */
-  function playRingbackTone(): Promise<void> {
-    return new Promise((resolve) => {
-      try {
-        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) return resolve();
-        const ctx: AudioContext = new Ctx();
-        ctx.resume().catch(() => {});
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.08);
-        gain.gain.setValueAtTime(0.06, ctx.currentTime + 0.85);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.05);
-        gain.connect(ctx.destination);
-        for (const f of [440, 480]) {
-          const o = ctx.createOscillator();
-          o.frequency.setValueAtTime(f, ctx.currentTime);
-          o.connect(gain);
-          o.start();
-          o.stop(ctx.currentTime + 1.1);
-        }
-        setTimeout(() => {
-          ctx.close().catch(() => {});
-          resolve();
-        }, 1050);
-      } catch {
-        resolve();
-      }
-    });
-  }
 
   function playHangupTone() {
     try {
@@ -551,7 +520,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
             caption('Listening to you…', 'you');
           } else if (vadSpeechDetected) {
             if (!silenceStart) silenceStart = now;
-            else if (now - silenceStart > 1100) {
+            else if (now - silenceStart > 650) {
               try { mediaRecorder?.stop(); } catch {}
               try { src.disconnect(); } catch {}
               return;
@@ -580,13 +549,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (!callActive) return;
     if (muted) return setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
 
-    // Prefer the same capture + transcription path on every device. Browser speech
-    // recognition is inconsistent across desktop, iOS and Android and often stops
-    // without a useful error; MediaRecorder gives us predictable audio instead.
-    if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
-      return listenWithRecorder();
-    }
-
+    // Use native live recognition first when the browser supports it. This avoids
+    // waiting for a recording to finish and uploading it for a separate transcript.
+    // MediaRecorder + Whisper stays available as a fallback.
     if (!SpeechRec) {
       if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
         return listenWithRecorder();
@@ -660,7 +625,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         const said = heard;
         stopListening();
         if (said) sendPrompt(said);
-      }, interim ? END_OF_SPEECH_MS + 400 : END_OF_SPEECH_MS);
+      }, interim ? END_OF_SPEECH_MS + 200 : END_OF_SPEECH_MS);
     };
 
     r.onerror = (event: any) => {
@@ -926,7 +891,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     }
 
     const id = ++turnId;
-    const [data] = await Promise.all([post({ message: 'call_init', history: [] }).catch(() => null), playRingbackTone()]);
+    // Start the greeting as soon as the call endpoint responds; a fixed ringback
+    // tone previously added more than a second of artificial setup delay.
+    const data = await post({ message: 'call_init', history: [] }).catch(() => null);
 
     // Set up a live permission watcher so if the user allows mic in Chrome settings while
     // the call is active, we instantly recover without needing to reload.

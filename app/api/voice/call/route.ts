@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { clientIp, json, rateLimit, readBody, route, str } from '@/lib/server/http';
 import { agentName, processVoiceCallPrompt, type ScriptState, type VoiceTurn } from '@/lib/server/voiceCall';
 import { endVoiceCall, logVoiceTurn, validCallId } from '@/lib/server/voiceLog';
@@ -33,10 +34,10 @@ export const POST = route(async (req) => {
 
   if (callId) {
     const caller = message === 'call_init' ? undefined : message === 'voice_switch' ? `(switched to ${agentName(gender)})` : message;
-    // The log is for the dashboard; a hiccup writing it must not drop the caller's reply.
-    await logVoiceTurn(callId, { caller, agent: result.reply, gender, agentName: agentName(gender), lang: result.lang, brain: result.brain, actions: result.actions }).catch((err) =>
+    // Dashboard logging should not hold the caller's spoken reply behind storage.
+    after(() => logVoiceTurn(callId, { caller, agent: result.reply, gender, agentName: agentName(gender), lang: result.lang, brain: result.brain, actions: result.actions }).catch((err) =>
       console.error('[Voice log]', err instanceof Error ? err.message : err),
-    );
+    ));
   }
   return json({ success: true, ...result });
 });
