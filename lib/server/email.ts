@@ -175,9 +175,9 @@ Open daily 07:00–21:00
 `;
 }
 
-export async function sendBookingConfirmationEmail(payload: BookingEmailPayload): Promise<{ ok: boolean; error?: string; sentVia?: string }> {
+export async function sendBookingConfirmationEmail(payload: BookingEmailPayload): Promise<{ ok: boolean; error?: string; sentVia: string }> {
   if (!payload.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email.trim())) {
-    return { ok: false, error: 'Invalid recipient email address.' };
+    return { ok: false, error: 'Invalid recipient email address.', sentVia: 'local_record' };
   }
 
   const cleanEmail = payload.email.trim().toLowerCase();
@@ -277,8 +277,8 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
       const target = Object.values(all).find((r) => r.code === payload.code || (r.phone === payload.phone && r.date === payload.date));
       if (target) {
         target.email = cleanEmail;
-        target.emailSent = true;
-        target.emailSentAt = now;
+        target.emailSent = sentVia !== 'local_record';
+        if (target.emailSent) target.emailSentAt = now;
         await kv.hset('reservations', target.id, target);
       }
     });
@@ -290,6 +290,8 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
         const target = Object.values(all).find((p) => p.code === payload.code);
         if (target) {
           target.email = cleanEmail;
+          target.emailSent = sentVia !== 'local_record';
+          if (target.emailSent) target.emailSentAt = now;
           await kv.hset('party_bookings', target.id, target);
         }
       });
@@ -299,6 +301,6 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
     return { ok: true, sentVia };
   } catch (err: any) {
     console.error('[Email Store Error]', err);
-    return { ok: false, error: err.message };
+    return { ok: false, error: err.message, sentVia };
   }
 }

@@ -142,6 +142,7 @@ export async function sendBookingWhatsappNotification(
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: body.toString(),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (res.ok) {
@@ -166,8 +167,10 @@ export async function sendBookingWhatsappNotification(
       date: payload.date,
       time: payload.time,
       guests: payload.guests,
-      sentAt: now,
+      sentAt: sentVia !== 'local_record' ? now : undefined,
+      recordedAt: now,
       sentVia,
+      status: sentVia === 'local_record' ? 'ready_to_share' : 'sent',
       whatsappUrl: directLink,
       text,
     };
@@ -180,8 +183,8 @@ export async function sendBookingWhatsappNotification(
       const all = (await kv.hall<Reservation>('reservations')) || {};
       const target = Object.values(all).find((r) => r.code === payload.code || (r.phone === payload.phone && r.date === payload.date));
       if (target) {
-        (target as any).whatsappSent = true;
-        (target as any).whatsappSentAt = now;
+        (target as any).whatsappSent = sentVia !== 'local_record';
+        if (sentVia !== 'local_record') (target as any).whatsappSentAt = now;
         (target as any).whatsappUrl = directLink;
         await kv.hset('reservations', target.id, target);
       }
@@ -193,8 +196,8 @@ export async function sendBookingWhatsappNotification(
         const all = (await kv.hall<PartyBooking>('party_bookings')) || {};
         const target = Object.values(all).find((p) => p.code === payload.code);
         if (target) {
-          (target as any).whatsappSent = true;
-          (target as any).whatsappSentAt = now;
+          (target as any).whatsappSent = sentVia !== 'local_record';
+          if (sentVia !== 'local_record') (target as any).whatsappSentAt = now;
           (target as any).whatsappUrl = directLink;
           await kv.hset('party_bookings', target.id, target);
         }
