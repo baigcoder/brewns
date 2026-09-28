@@ -961,6 +961,70 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
   return { reply, actions };
 }
 
+/* ═══════════ Groq ═══════════ */
+
+export const groqEnabled = () => Boolean(process.env.GROQ_API_KEY);
+const GROQ_MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b'];
+
+async function groqTurn(
+  prompt: string,
+  history: VoiceTurn[],
+  gender: VoiceGender,
+  lang: VoiceLang,
+): Promise<{ reply: string; actions: VoiceAction[] }> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('No Groq API key');
+
+  const now = lahoreNow();
+  const systemPrompt =
+    persona(gender) +
+    `\nCurrent time in Lahore: ${now.clock}, date: ${now.date}.\nMenu items:\n${MENU_TEXT}\nIMPORTANT: Keep answers short (1 to 2 spoken sentences, usually under 35 words). Never use markdown, bullet points, headings, or emojis.`;
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.slice(-8).map((t) => ({ role: t.role, content: t.content })),
+    { role: 'user', content: prompt },
+  ];
+
+  for (const model of GROQ_MODELS) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: 280,
+          temperature: 0.7,
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!res.ok) {
+        console.warn(`[Voice Groq ${model} ${res.status}]`, await res.text().catch(() => ''));
+        continue;
+      }
+
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content?.trim();
+      if (content) {
+        const reply = speakable(content);
+        const actions: VoiceAction[] = [];
+        if (BYE.test(prompt) && /\b(bye|take care|khuda hafiz|allah hafiz|have a (lovely|great|good))\b/i.test(reply)) {
+          actions.push({ type: 'END_CALL' });
+        }
+        return { reply, actions };
+      }
+    } catch (e) {
+      console.warn(`[Voice Groq ${model}]`, e instanceof Error ? e.message : e);
+    }
+  }
+  throw new Error('Every Groq model failed or is out of quota.');
+}
+
 /* ═══════════ the script, when there is no Gemini key ═══════════ */
 
 const QUESTIONS: Record<string, (flow: 'table' | 'party') => string> = {
@@ -1256,30 +1320,136 @@ async function scriptAnswer(prompt: string, gender: VoiceGender, state: ScriptSt
       };
     }
   }
-  if (/menu|what (do you have|is available|you have)|available|serve/.test(p))
-    return {
-      reply: `Happy to! From the bar there's ${sayList(menuNames('drinks', 4).map((n) => n.toLowerCase()))}. The kitchen does smash burgers, wood-fired pizza, pasta and paratha rolls, and there's fresh ${sayList(menuNames('bakery', 2).map((n) => n.toLowerCase()))}. Are you in the mood for coffee, a meal, or something sweet?`,
-      actions: [],
-      state: {},
-    };
+  const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+  if (/menu|what (do you have|is available|you have)|available|serve/.test(p)) {
+    const specials = [
+      `Our bar is pouring fresh ${sayList(menuNames('drinks', 4).map((n) => n.toLowerCase()))}. From the kitchen we have smash burgers, wood-fired pizza, pasta and flaky pastries. What are you craving?`,
+      `We have a full specialty line: hot espresso drinks, iced matcha, refreshers, plus gourmet burgers, wood-fired pizza and fresh bakery items. Are you looking for coffee, food, or a sweet treat?`,
+      `Lots of favorites today! Barista specials include our iced matcha latte and nitro cold brew, alongside classic smash burgers and pasta. Can I tell you about anything specific?`,
+    ];
+    return { reply: pick(specials), actions: [], state: {} };
+  }
   if (/coffee|beans|roast/.test(p)) return { reply: COFFEE_TALK(), actions: [], state: {} };
-  if (/order|deliver|hungry|eat|drink/.test(p))
-    return { reply: 'Happy to! We have smash burgers, wood-fired pizza, pasta, paratha rolls, coffee and pastries. What are you in the mood for?', actions: [], state: {} };
-  if (/hour|open|close|timing|time/.test(p))
-    return { reply: "All three counters are open every day from 7 in the morning to 9 at night. Would you like to book a table?", actions: [], state: {} };
-  if (/where|location|address|branch|counter/.test(p))
-    return { reply: "We're on MM Alam Road in Gulberg, in CCA DHA Phase 5, and on Main Boulevard in Johar Town. Which one's closest to you?", actions: [], state: {} };
+  if (/order|deliver|hungry|eat|drink/.test(p)) {
+    const orderReplies = [
+      'Happy to help with that! We have smash burgers, wood-fired pizza, fresh pasta, paratha rolls, and specialty coffee. What would you like to get started with?',
+      'You got it! You can order burgers, pizza, pasta, rolls or iced coffee right now. What sounds good to you?',
+      'Sure thing! Fresh from our kitchen we have burgers, pizza, pasta and artisan drinks. What can I add to your bag?',
+    ];
+    return { reply: pick(orderReplies), actions: [], state: {} };
+  }
+  if (/hour|open|close|timing|time/.test(p)) {
+    const hourReplies = [
+      "All three counters are open daily from 7 AM to 9 PM, with kitchen and seating from 7 AM to 8 PM. Would you like me to reserve a table for you?",
+      "We're open every day, 7 in the morning till 9 at night! Would you like to book a table at Gulberg, DHA, or Johar Town?",
+      "Our doors are open 7 AM to 9 PM daily across all three locations. Can I set up a table for you today?",
+    ];
+    return { reply: pick(hourReplies), actions: [], state: {} };
+  }
+  if (/where|location|address|branch|counter/.test(p)) {
+    const locReplies = [
+      "We're on MM Alam Road in Gulberg III, in CCA DHA Phase 5, and on Main Boulevard in Johar Town. Which counter is most convenient for you?",
+      "You can visit us in Gulberg on MM Alam, in DHA Phase 5 CCA, or in Johar Town on Main Boulevard. Looking to dine in or pick up?",
+      "We have three shops in Lahore: Gulberg MM Alam, DHA Phase 5, and Johar Town. Which one would you like to visit?",
+    ];
+    return { reply: pick(locReplies), actions: [], state: {} };
+  }
   if (/hassan|founder|owner|story/.test(p))
     return { reply: 'brewns was started by Hassan Baig, a software engineer from Lahore who wanted great coffee without the queue. He even built this website himself!', actions: [], state: {} };
   if (/hania|ambassador/.test(p))
     return { reply: "Hania Aamir is our brand ambassador! Her usual is an iced matcha latte with a cinnamon roll. Want me to add that for you?", actions: [], state: {} };
-  if (/\b(hi|hello|hey|a?s+alam|salaam|aoa)\b/.test(p) || !p) return { reply: `Hi there! This is ${name} at brewns. How can I help?`, actions: [], state: {} };
-  return { reply: "I can book you a table, set up a party, or put an order in your bag. Which would you like?", actions: [], state: {} };
+  if (/\b(hi|hello|hey|a?s+alam|salaam|aoa)\b/.test(p) || !p) {
+    const greetingsList = [
+      `Hi there! This is ${name} at brewns. How can I help you today?`,
+      `Hello! ${name} here at brewns concierge. What can I do for you?`,
+      `Hey! Thanks for reaching out to brewns. This is ${name}. How may I assist you?`,
+      `Assalam-o-Alaikum! ${name} from brewns here. Table booking, party, or an order — what's on your mind?`,
+    ];
+    return { reply: pick(greetingsList), actions: [], state: {} };
+  }
+  const helpReplies = [
+    "I can book you a table, arrange a private party, or put food and coffee straight into your bag. What would you like?",
+    "I'm here to help with reservations, private events, or ordering from the menu. Which can I do for you?",
+    "Whether you'd like a table reservation, an event booking, or a coffee delivery, just let me know!",
+  ];
+  return { reply: pick(helpReplies), actions: [], state: {} };
 }
 
-/* ═══════════ one turn of the call ═══════════ */
+function getLahoreHour(): number {
+  try {
+    const now = new Date();
+    const lahoreStr = now.toLocaleString('en-US', { timeZone: 'Asia/Karachi', hour: 'numeric', hour12: false });
+    const h = parseInt(lahoreStr, 10);
+    return isNaN(h) ? (now.getUTCHours() + 5) % 24 : h;
+  } catch {
+    return (new Date().getUTCHours() + 5) % 24;
+  }
+}
 
-export const greeting = (g: VoiceGender) => `Hi, thanks for calling brewns! This is ${agentName(g)}. I can book you a table, plan a party, or get an order started. What can I do for you?`;
+export function greeting(g: VoiceGender, lang: VoiceLang = 'en'): string {
+  const name = agentName(g);
+  const hour = getLahoreHour();
+  const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+  if (lang === 'ur') {
+    if (hour >= 5 && hour < 12) {
+      return pick([
+        `صبح بخیر! برونز کافی ہاؤس میں خوش آمدید، میں ${name} ہوں۔ فرمائیے، آپ کے لیے ٹیبل بک کروں یا ناشتے کا آرڈر لیں؟`,
+        `السلام علیکم، صبح بخیر! برونز فرنٹ ڈیسک سے ${name} حاضر ہے۔ آج آپ کی کیا خدمت کر سکتی ہوں؟`,
+        `صبح بخیر! برونز میں خوش آمدید، ${name} بات کر رہی ہوں۔ تازہ کافی تیار ہے، بتائیے کیا منگوائیں گے؟`,
+      ]);
+    }
+    if (hour >= 12 && hour < 17) {
+      return pick([
+        `السلام علیکم! برونز کافی ہاؤس میں خوش آمدید، ${name} بات کر رہی ہوں۔ کیا میں آپ کے لیے ٹیبل بک کروں یا لنچ کا آرڈر لکھوں؟`,
+        `دوپہر بخیر! برونز گلبرگ اور ڈی ایچ اے سے ${name}۔ بتائیے آج آپ کے لیے کیا تیار کروائیں؟`,
+        `السلام علیکم! برونز سے ${name} حاضر ہے۔ ٹیبل ریزرویشن، ایونٹ بکنگ یا مینو سے آرڈر کے لیے بتائیے۔`,
+      ]);
+    }
+    if (hour >= 17 && hour < 22) {
+      return pick([
+        `شام بخیر! برونز کافی ہاؤس میں خوش آمدید، ${name} حاضر ہوں۔ کیا آپ گلبرگ یا ڈی ایچ اے میں شام کی ٹیبل بک کرنا چاہیں گے؟`,
+        `السلام علیکم! برونز فرنٹ ڈیسک سے ${name}۔ آج رات کے لیے ٹیبل بک کروانی ہے یا کچھ ڈلیور کروائیں؟`,
+        `شام بخیر! برونز میں خوش آمدید، میں ${name} ہوں۔ فرمائیے آج آپ کی کیا مدد کروں؟`,
+      ]);
+    }
+    return pick([
+      `السلام علیکم! برونز کافی ہاؤس سے ${name} بات کر رہی ہوں۔ ہمارے کاؤنٹرز اب بند ہیں مگر کل کے لیے ٹیبل یا آرڈر بک کر سکتی ہوں۔ فرمائیے؟`,
+      `ہیلو! برونز سے ${name}۔ کل کی بکنگ یا آرڈر کے لیے فرمائیے، میں حاضر ہوں۔`,
+    ]);
+  }
+
+  // English
+  if (hour >= 5 && hour < 12) {
+    return pick([
+      `Good morning! Thanks for calling brewns roastery. This is ${name} at the front desk. Can I get a breakfast table ready or start an order for you?`,
+      `Good morning! Brewns coffee house, ${name} speaking. Slow roast beans are freshly brewed — what can I do for you today?`,
+      `Hi there, good morning! Thanks for calling brewns. This is ${name}. I can book you a morning table, plan a gathering, or take an order. How can I help?`,
+      `Good morning! Welcome to brewns specialty coffee. ${name} here. Looking to book a table at Gulberg or DHA, or can I get your coffee started?`,
+    ]);
+  }
+  if (hour >= 12 && hour < 17) {
+    return pick([
+      `Good afternoon! Thanks for calling brewns. ${name} here at the concierge. Looking to reserve a table for lunch, or can I get an order started for you?`,
+      `Hi there, good afternoon! Brewns coffee house, this is ${name}. What can I help you with today?`,
+      `Afternoon! Brewns front desk, ${name} speaking. Whether it's a table booking, a party, or something from the kitchen, I'm here to help!`,
+      `Good afternoon! Welcome to brewns. This is ${name}. How are you doing today, and how can I help?`,
+    ]);
+  }
+  if (hour >= 17 && hour < 22) {
+    return pick([
+      `Good evening! Welcome to brewns. This is ${name} at the front desk. The counters are lively tonight — would you like to book a table at Gulberg, DHA, or Johar Town?`,
+      `Good evening! Thanks for calling brewns coffee house. ${name} speaking. Can I reserve a table for you tonight or help with an order?`,
+      `Good evening! This is ${name} at brewns. Hope your day went great! Can I get a table ready or help you explore the menu?`,
+      `Hi there, good evening! Brewns front desk, ${name} here. Table reservation, party booking, or delivery — what can I do for you?`,
+    ]);
+  }
+  return pick([
+    `Hi, thanks for calling brewns! This is ${name}. Our counters are closed for the night, but I can gladly take your booking or order for tomorrow. What can I do for you?`,
+    `Hello! Thanks for reaching out to brewns. ${name} here. I can get your table booked for tomorrow or help with party details. What's on your mind?`,
+  ]);
+}
 
 export async function processVoiceCallPrompt(
   prompt: string,
@@ -1290,18 +1460,39 @@ export async function processVoiceCallPrompt(
 ): Promise<VoiceCallResponse> {
   const special = prompt === 'call_init' || prompt === 'voice_switch';
   const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !clearlyEnglish(prompt) ? 'ur' : 'en';
-  let brain: VoiceCallResponse['brain'] = geminiEnabled() ? 'gemini' : 'script';
+  let brain: VoiceCallResponse['brain'] = (groqEnabled() || geminiEnabled()) ? 'gemini' : 'script';
   let turn: { reply: string; actions: VoiceAction[]; state?: ScriptState };
 
   if (prompt === 'call_init') {
-    turn = { reply: greeting(gender), actions: [] };
+    turn = { reply: greeting(gender, lang), actions: [] };
   } else if (prompt === 'voice_switch') {
-    turn = { reply: `Hi, ${agentName(gender)} here, I'll take it from here. Where were we?`, actions: [], state };
-  } else if (brain === 'gemini') {
+    const sw = [
+      `Hi, ${agentName(gender)} here, I'll take it from here. Where were we?`,
+      `Hey there! ${agentName(gender)} stepping in. How can I help?`,
+      `Hello, ${agentName(gender)} on the line now. What were you thinking?`,
+    ];
+    turn = { reply: sw[Math.floor(Math.random() * sw.length)], actions: [], state };
+  } else if (groqEnabled()) {
+    try {
+      turn = await groqTurn(prompt, history, gender, lang);
+    } catch (err) {
+      console.error('[Voice Groq]', err instanceof Error ? err.message : err);
+      if (geminiEnabled()) {
+        try {
+          turn = await geminiTurn(prompt, history, gender, lang);
+        } catch {
+          turn = await scriptTurn(prompt, gender, state, history);
+          brain = 'script';
+        }
+      } else {
+        turn = await scriptTurn(prompt, gender, state, history);
+        brain = 'script';
+      }
+    }
+  } else if (geminiEnabled()) {
     try {
       turn = await geminiTurn(prompt, history, gender, lang);
     } catch (err) {
-      // Keep the call alive on a bad network moment; the script can carry on.
       console.error('[Voice Gemini]', err instanceof Error ? err.message : err);
       turn = await scriptTurn(prompt, gender, state, history);
       brain = 'script';

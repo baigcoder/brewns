@@ -402,50 +402,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     stopListening();
     heard = '';
 
-    // On first listen, try to acquire the mic if we don't have it yet.
-    // This is deferred from call start so the user already sees Sarah's greeting
-    // and understands why the browser is asking for mic access.
-    if (!micStream || !micStream.getAudioTracks().some((t) => t.readyState === 'live')) {
-      // Pre-check: ask the Permissions API whether mic is granted/prompt/denied.
-      // If Chrome has cached a 'denied', getUserMedia will fail instantly and silently
-      // (no popup) — don't even try, go straight to the type + SPEAK LIVE UI.
-      let permState: string | null = null;
-      try {
-        const ps = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
-        permState = ps?.state ?? null;
-      } catch {}
-
-      if (permState === 'denied') {
-        // Chrome cached a previous denial. getUserMedia from a non-gesture (like this
-        // speak-done callback) won't re-prompt. Guide the user to use SPEAK LIVE button
-        // (which IS a user gesture and CAN re-prompt on some browsers), or type.
-        muted = true;
-        setPhase('muted', 'TAP SPEAK LIVE');
-        caption(
-          IS_MOBILE
-            ? 'Tap SPEAK LIVE below to enable your mic, or type your reply in the text box.'
-            : 'Tap SPEAK LIVE below to enable your mic, or type your reply in the text box.'
-        );
-        inputRow?.classList.add('open');
-        textInput?.focus();
-        return;
-      }
-
-      // Permission is 'prompt' or 'granted' — try to acquire the stream.
-      setPhase('listening', 'REQUESTING MIC…');
-      const got = await ensureMic();
-      if (!callActive) return;  // call ended while we were waiting
-      if (!got) {
-        // getUserMedia failed even though permission wasn't 'denied'.
-        // Could be no hardware mic, or user dismissed the prompt just now.
-        muted = true;
-        setPhase('muted', 'TAP SPEAK LIVE');
-        caption('Mic not available right now. Tap SPEAK LIVE to try again, or type your reply below.');
-        unblockActions?.removeAttribute('hidden');
-        inputRow?.classList.add('open');
-        textInput?.focus();
-        return;
-      }
+    // Pre-warm mic stream in background for barge-in analyser if available
+    if (!micStream && typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia)) {
+      ensureMic().catch(() => {});
     }
     setPhase('listening');
 
@@ -515,36 +474,35 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         muted = true;
         stopListening();
-        setPhase('muted', 'MIC BLOCKED');
-        caption(
-          IS_MOBILE
-            ? 'Microphone blocked. Open your browser Settings → Site permissions → Microphone → Allow for this site. Or tap "Type message" below.'
-            : 'To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below.'
-        );
+        setPhase('muted', 'MIC BLOCKED IN BROWSER');
+        if (typeof window !== 'undefined' && !window.isSecureContext) {
+          caption('Microphone requires HTTPS or localhost. Interactive Voice Chat is active — you can type or tap below, and Sarah will speak her answers aloud!', 'agent');
+        } else {
+          caption(
+            IS_MOBILE
+              ? 'Microphone blocked in browser settings. Tap 🔒 in your address bar (top) → Site permissions → Allow Microphone → Tap "CONNECT MIC NOW".'
+              : 'Microphone blocked in browser settings. Click the 🔒 icon in your address bar (top left) → Site settings → Set Microphone to "Allow" → Click "CONNECT MIC NOW".'
+          );
+        }
         unblockActions?.removeAttribute('hidden');
+        captionBox?.classList.add('mic-alert');
+        setTimeout(() => captionBox?.classList.remove('mic-alert'), 600);
         inputRow?.classList.add('open');
         textInput?.focus();
       } else if (event.error === 'no-speech') {
-        // Keep listening – but use the rate-limited restart to avoid tight loops on mobile
-        if (callActive && phase === 'listening' && !muted) {
-          const delay = IS_MOBILE ? 600 : 300;
-          setTimeout(() => {
-            if (callActive && phase === 'listening' && !muted) listen();
-          }, delay);
-        }
+        // Normal pause; onend will automatically cycle listening cleanly
       } else if (event.error === 'audio-capture' || event.error === 'network') {
         // No mic, or the browser's speech service is unreachable
         muted = true;
         stopListening();
         setPhase('muted', event.error === 'network' ? 'VOICE INPUT OFFLINE' : 'NO MICROPHONE FOUND');
-        caption("I can't hear you right now, but you can type your reply below.");
+        caption("I can't hear you right now, but you can type your reply below. Sarah will answer in live voice!");
         unblockActions?.removeAttribute('hidden');
         inputRow?.classList.add('open');
         textInput?.focus();
       } else if (event.error === 'aborted') {
         // Ignore – this fires when we call r.abort() ourselves
       } else {
-        // language-not-supported, bad-grammar, etc.
         console.warn('[brewns-mic] Unhandled speech error:', event.error);
         if (callActive && phase === 'listening' && !muted) {
           setTimeout(() => {
@@ -761,24 +719,37 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       if (meterCtx && meterCtx.state === 'suspended') meterCtx.resume().catch(() => {});
     } catch {}
 
+    // Request microphone access synchronously during this user click gesture!
+    // This provides the essential user gesture token required by modern browsers to prompt for mic permission.
+    if (navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          micStream = stream;
+          muted = false;
+          updateMicUI();
+        })
+        .catch((err) => {
+          console.warn('[brewns-mic] Initial user-gesture mic check:', err?.name);
+        });
+    }
+
     const id = ++turnId;
-    // Don't request mic upfront — it triggers Chrome's permission prompt during the connecting
-    // animation, and if the user dismisses/denies it, Chrome caches the denial permanently.
-    // Instead, the first call to listen() (after Sarah's greeting) will request it, so the user
-    // already understands what's happening on the call.
-    // Ring the line meanwhile, so the wait sounds like a call connecting.
     const [data] = await Promise.all([post({ message: 'call_init', history: [] }).catch(() => null), playRingbackTone()]);
 
     // Set up a live permission watcher so if the user allows mic in Chrome settings while
-    // the call is active, we instantly recover without needing to click RETRY.
+    // the call is active, we instantly recover without needing to reload.
     if (!permissionWatcher) {
       try {
         const status = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
         if (status) {
           const onChange = () => {
-            if (status.state === 'granted' && callActive && muted) {
+            if (status.state === 'granted' && callActive) {
               muted = false;
               micRetryCount = 0;
+              unblockActions?.setAttribute('hidden', '');
+              captionBox?.classList.remove('mic-alert');
+              caption("Microphone allowed! Speak now — Sarah is listening!", 'agent');
+              toast("MICROPHONE ALLOWED", "SPEAK NOW");
               toggleMic();
             }
           };
@@ -848,87 +819,42 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     // Resume AudioContext inside this user-gesture (critical for iOS)
     await resumeAudioCtx();
 
-    if (!navigator.mediaDevices?.getUserMedia && !SpeechRec) {
-      muted = true;
-      setPhase('muted', 'MIC NOT SUPPORTED');
-      caption('Voice microphone is not supported in this browser. Please use Chrome or Safari, or type your reply below.');
-      inputRow?.classList.add('open');
-      textInput?.focus();
-      return;
-    }
-
     micRetryCount++;
 
-    // Request or resume microphone stream
-    try {
-      let stream: MediaStream | null = micStream;
-      // Check ALL audio tracks, not just "some" – a partially dead stream is as bad as no stream
-      const alive = stream && stream.getAudioTracks().length > 0 &&
-                    stream.getAudioTracks().every((t) => t.readyState === 'live' && t.enabled);
-      if (!alive) {
-        // Release old tracks before requesting new ones
-        stream?.getTracks().forEach((t) => t.stop());
-        // Try advanced constraints first, fall back to simple { audio: true }
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          });
-        } catch {
-          // Some devices/browsers reject advanced constraints; try bare minimum
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Request or resume microphone stream inside this direct user gesture
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        let stream: MediaStream | null = micStream;
+        const alive = stream && stream.getAudioTracks().length > 0 &&
+                      stream.getAudioTracks().every((t) => t.readyState === 'live' && t.enabled);
+        if (!alive) {
+          stream?.getTracks().forEach((t) => t.stop());
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            });
+          } catch {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          }
         }
+        micStream = stream;
+      } catch (err: any) {
+        console.warn('[brewns-mic] Microphone permission request in toggleMic:', err?.name, err?.message);
       }
-      micStream = stream;
-      muted = false;
-      micRetryCount = 0;
-      listenRestartCount = 0;
-      captionBox?.classList.remove('mic-alert');
-      unblockActions?.setAttribute('hidden', '');
-
-      stopListening();
-      setTimeout(() => {
-        if (callActive && !muted) listen();
-      }, IS_MOBILE ? 200 : 80);
-    } catch (err: any) {
-      console.warn('[brewns-mic] Microphone permission request error:', err?.name, err?.message);
-      muted = true;
-      micStream = null;
-
-      // AbortError = user dismissed the prompt; NotAllowedError = blocked in settings
-      const blocked = err?.name === 'NotAllowedError' || err?.name === 'AbortError' ||
-                      err?.name === 'PermissionDeniedError';
-      setPhase('muted', blocked ? 'MIC BLOCKED' : 'MIC UNAVAILABLE');
-
-      // After 2+ retries, tell the user to refresh the page (Chrome caches denials permanently)
-      if (micRetryCount >= 2) {
-        caption(
-          IS_MOBILE
-            ? 'Mic still blocked. Open browser menu → Settings → Site permissions → Allow microphone. Then refresh the page. Or type your message below!'
-            : 'Mic is still blocked by your browser. Click the 🔒 in the address bar → ⚙️ Site settings → set Microphone to "Allow" → then refresh this page. Or just type below!'
-        );
-      } else {
-        caption(
-          IS_MOBILE
-            ? 'Microphone is blocked. Open your browser menu → Settings → Site permissions → Microphone → Allow. Or tap "Type message" below.'
-            : 'To enable mic: Click the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below.'
-        );
-      }
-      unblockActions?.removeAttribute('hidden');
-      captionBox?.classList.add('mic-alert');
-      setTimeout(() => captionBox?.classList.remove('mic-alert'), 600);
-      inputRow?.classList.add('open');
-      textInput?.focus();
-      toast(
-        micRetryCount >= 2
-          ? 'ALLOW MIC IN SITE SETTINGS → REFRESH PAGE'
-          : (IS_MOBILE ? 'OPEN BROWSER SETTINGS → ALLOW MIC' : 'CLICK 🔒 → ⚙️ SITE SETTINGS → ALLOW MIC'),
-        'TYPE MESSAGE',
-        () => {
-          inputRow?.classList.add('open');
-          textInput?.focus();
-        }
-      );
     }
+
+    muted = false;
+    micRetryCount = 0;
+    listenRestartCount = 0;
+    captionBox?.classList.remove('mic-alert');
+    unblockActions?.setAttribute('hidden', '');
+
+    stopListening();
+    setPhase('listening');
+    caption('Listening… Speak now', 'agent');
+    setTimeout(() => {
+      if (callActive && !muted) listen();
+    }, IS_MOBILE ? 200 : 80);
   }
 
   /* ── wiring ── */
@@ -1006,9 +932,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     e.preventDefault();
     playSoftClick?.();
     triggerHaptic?.(25);
-    setPhase('muted', 'KEYPAD ACTIVE · TYPE TO SARAH');
-    caption('You can type any question or booking details below, and Sarah will answer in voice!');
+    muted = true;
+    stopListening();
+    setPhase('muted', 'KEYPAD ACTIVE · SARAH SPEAKS LIVE');
+    caption('Type your question or tap any option below. Sarah will answer in live voice!');
     unblockActions?.setAttribute('hidden', '');
+    captionBox?.classList.remove('mic-alert');
     inputRow?.classList.add('open');
     textInput?.focus();
   });
@@ -1030,7 +959,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   const sendTyped = () => {
     const txt = textInput?.value.trim() || '';
-    if (txt) sendPrompt(txt);
+    if (txt) {
+      unblockActions?.setAttribute('hidden', '');
+      captionBox?.classList.remove('mic-alert');
+      sendPrompt(txt);
+    }
   };
   on($('voice-send-btn'), 'click', (e: Event) => {
     e.preventDefault();
@@ -1054,6 +987,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const chip = (e.target as HTMLElement).closest('.voice-chip') as HTMLElement | null;
     if (chip?.dataset.prompt) {
       e.preventDefault();
+      unblockActions?.setAttribute('hidden', '');
+      captionBox?.classList.remove('mic-alert');
       sendPrompt(chip.dataset.prompt);
     }
   });
