@@ -59,7 +59,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   const captionBox = $('voice-caption-box');
   const captionStatus = $('voice-caption-status');
   const captionText = $('voice-caption-text');
+  const unblockActions = $('voice-unblock-actions');
   const unblockBtn = $('voice-unblock-btn');
+  const typeModeBtn = $('voice-type-mode-btn');
   const textInput = $<HTMLInputElement>('voice-text-input');
   const micToggleBtn = $('voice-mic-toggle');
   const micLabel = $('voice-mic-label');
@@ -115,7 +117,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       { idle: 'READY', connecting: 'DIALING DIRECT LINE…', speaking: `${agent().toUpperCase()} ON LINE`, listening: 'LISTENING…', thinking: `${agent().toUpperCase()} IS THINKING…`, muted: 'MIC MUTED' }[next];
     if (captionStatus) captionStatus.textContent = label;
     if (next === 'listening') {
-      unblockBtn?.setAttribute('hidden', '');
+      unblockActions?.setAttribute('hidden', '');
       captionBox?.classList.remove('mic-alert');
     }
     updateMicUI();
@@ -407,8 +409,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         muted = true;
         stopListening();
         setPhase('muted', 'MIC BLOCKED');
-        caption('Microphone is blocked. Tap the 🔒 lock icon in your browser address bar to allow Microphone, or type below.');
-        unblockBtn?.removeAttribute('hidden');
+        caption('To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below.');
+        unblockActions?.removeAttribute('hidden');
         inputRow?.classList.add('open');
         textInput?.focus();
       } else if (event.error === 'no-speech') {
@@ -655,7 +657,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     // Otherwise caller wants to UNMUTE and SPEAK LIVE!
     if (captionStatus) captionStatus.textContent = 'CONNECTING MIC…';
     if (micLabel) micLabel.textContent = 'CONNECTING…';
-    unblockBtn?.setAttribute('hidden', '');
+    unblockActions?.setAttribute('hidden', '');
 
     if (!navigator.mediaDevices?.getUserMedia && !SpeechRec) {
       muted = true;
@@ -666,29 +668,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       return;
     }
 
-    // Check if permission is known to be denied by browser
-    try {
-      if (navigator.permissions?.query) {
-        const p = await navigator.permissions.query({ name: 'microphone' as any }).catch(() => null);
-        if (p && p.state === 'denied') {
-          muted = true;
-          setPhase('muted', 'MIC BLOCKED');
-          caption('Microphone is blocked in your browser. Tap the 🔒 lock icon in your address bar above to allow Microphone, then tap SPEAK LIVE.');
-          unblockBtn?.removeAttribute('hidden');
-          captionBox?.classList.add('mic-alert');
-          setTimeout(() => captionBox?.classList.remove('mic-alert'), 600);
-          inputRow?.classList.add('open');
-          textInput?.focus();
-          toast('TAP 🔒 IN ADDRESS BAR TO ALLOW MIC', 'OPEN KEYPAD', () => {
-            inputRow?.classList.add('open');
-            textInput?.focus();
-          });
-          return;
-        }
-      }
-    } catch {}
-
-    // Request or resume microphone stream
+    // Request or resume microphone stream directly without artificial early returns
     try {
       let stream: MediaStream | null = micStream;
       if (!stream || !stream.getTracks().some((t) => t.readyState === 'live')) {
@@ -699,7 +679,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       micStream = stream;
       muted = false;
       captionBox?.classList.remove('mic-alert');
-      unblockBtn?.setAttribute('hidden', '');
+      unblockActions?.setAttribute('hidden', '');
 
       stopListening();
       setTimeout(() => {
@@ -710,14 +690,15 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       muted = true;
       micStream = null;
       setPhase('muted', 'MIC BLOCKED');
-      caption('Microphone is blocked. Tap the 🔒 lock icon in your browser address bar to allow Microphone, or type below.');
-      unblockBtn?.removeAttribute('hidden');
+      caption('To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below to chat without mic!');
+      unblockActions?.removeAttribute('hidden');
       captionBox?.classList.add('mic-alert');
       setTimeout(() => captionBox?.classList.remove('mic-alert'), 600);
       inputRow?.classList.add('open');
       textInput?.focus();
-      toast('MICROPHONE IS BLOCKED · TAP 🔒 TO ALLOW', 'HOW TO FIX', () => {
-        captionBox?.scrollIntoView({ behavior: 'smooth' });
+      toast('TAP 🔒 → CLICK ⚙️ SITE SETTINGS → ALLOW MIC', 'TYPE MESSAGE', () => {
+        inputRow?.classList.add('open');
+        textInput?.focus();
       });
     }
   }
@@ -743,6 +724,17 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   // Closing the tab mid-call still ends the call in the café's log.
   on(window, 'pagehide', () => callActive && endCall());
 
+  // If user switched to Site settings to allow mic and returned to this tab, auto-resume
+  on(window, 'focus', async () => {
+    if (!callActive || !muted) return;
+    try {
+      const p = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
+      if (p && p.state === 'granted') {
+        toggleMic();
+      }
+    } catch {}
+  });
+
   on($('vc-voice-switch'), 'click', async (e: Event) => {
     e.preventDefault();
     setVoiceGender(gender === 'female' ? 'male' : 'female');
@@ -767,6 +759,17 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   on(unblockBtn, 'click', (e: Event) => {
     e.preventDefault();
     toggleMic();
+  });
+
+  on(typeModeBtn, 'click', (e: Event) => {
+    e.preventDefault();
+    playSoftClick?.();
+    triggerHaptic?.(25);
+    setPhase('muted', 'KEYPAD ACTIVE · TYPE TO SARAH');
+    caption('You can type any question or booking details below, and Sarah will answer in voice!');
+    unblockActions?.setAttribute('hidden', '');
+    inputRow?.classList.add('open');
+    textInput?.focus();
   });
 
   on($('voice-keypad-toggle'), 'click', (e: Event) => {

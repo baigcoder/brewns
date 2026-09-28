@@ -3597,12 +3597,21 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
   30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
   40%, 60% { transform: translate3d(4px, 0, 0); }
 }
+.voice-unblock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.voice-unblock-actions[hidden] {
+  display: none !important;
+}
 .voice-unblock-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  margin-top: 0.75rem;
-  padding: 0.45rem 1.05rem;
+  padding: 0.45rem 1rem;
   background: linear-gradient(135deg, #c99355 0%, #b88242 100%);
   color: #0d0b09;
   border: none;
@@ -3620,6 +3629,17 @@ body:has(.voice-call-modal:not([hidden])) .voice-call-floating {
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(245, 158, 11, 0.45);
+}
+.voice-unblock-btn.voice-type-mode-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f4f2ec;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+}
+.voice-unblock-btn.voice-type-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(201, 147, 85, 0.5);
+  color: #c99355;
 }
 .voice-unblock-btn[hidden] {
   display: none !important;
