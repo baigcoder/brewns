@@ -98,6 +98,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let listenRestartResetTimer: ReturnType<typeof setTimeout> | undefined;
   /** Tracks the last time recognition.onend fired – guards against instant-end loop. */
   let lastOnEndTs = 0;
+  /** How many times RETRY MICROPHONE has been pressed this call without success. */
+  let micRetryCount = 0;
+  /** Live watcher: fires the instant the browser flips mic permission to 'granted'. */
+  let permissionWatcher: { status: PermissionStatus | null; cleanup: () => void } | null = null;
 
   let audioEl: HTMLAudioElement | null = null;
   let utterance: SpeechSynthesisUtterance | null = null;
@@ -392,11 +396,35 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     }
   }
 
-  function listen() {
+  async function listen() {
     if (!callActive) return;
     if (!SpeechRec || muted) return setPhase(SpeechRec ? 'muted' : 'idle', SpeechRec ? undefined : 'TYPE YOUR REPLY BELOW');
     stopListening();
     heard = '';
+
+    // On first listen, try to acquire the mic if we don't have it yet.
+    // This is deferred from call start so the user already sees Sarah's greeting
+    // and understands why the browser is asking for mic access.
+    if (!micStream || !micStream.getAudioTracks().some((t) => t.readyState === 'live')) {
+      setPhase('listening', 'REQUESTING MIC…');
+      const got = await ensureMic();
+      if (!callActive) return;  // call ended while we were waiting
+      if (!got) {
+        // Mic not available — don't try SpeechRecognition (it will also fail),
+        // go straight to the type/unblock UI.
+        muted = true;
+        setPhase('muted', 'MIC BLOCKED');
+        caption(
+          IS_MOBILE
+            ? 'Microphone blocked. Open your browser Settings → Site permissions → Microphone → Allow for this site. Or tap "Type message" below.'
+            : 'To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below.'
+        );
+        unblockActions?.removeAttribute('hidden');
+        inputRow?.classList.add('open');
+        textInput?.focus();
+        return;
+      }
+    }
     setPhase('listening');
 
     // Rate-limit restarts: after 6 rapid restarts (usually no-speech loops on mobile),
@@ -712,9 +740,31 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     } catch {}
 
     const id = ++turnId;
-    // Ask for the mic while the greeting loads, so the prompt doesn't cut into the conversation.
-    // …and ring the line meanwhile, so the wait sounds like a call connecting.
-    const [data] = await Promise.all([post({ message: 'call_init', history: [] }).catch(() => null), SpeechRec ? ensureMic() : null, playRingbackTone()]);
+    // Don't request mic upfront — it triggers Chrome's permission prompt during the connecting
+    // animation, and if the user dismisses/denies it, Chrome caches the denial permanently.
+    // Instead, the first call to listen() (after Sarah's greeting) will request it, so the user
+    // already understands what's happening on the call.
+    // Ring the line meanwhile, so the wait sounds like a call connecting.
+    const [data] = await Promise.all([post({ message: 'call_init', history: [] }).catch(() => null), playRingbackTone()]);
+
+    // Set up a live permission watcher so if the user allows mic in Chrome settings while
+    // the call is active, we instantly recover without needing to click RETRY.
+    if (!permissionWatcher) {
+      try {
+        const status = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
+        if (status) {
+          const onChange = () => {
+            if (status.state === 'granted' && callActive && muted) {
+              muted = false;
+              micRetryCount = 0;
+              toggleMic();
+            }
+          };
+          status.addEventListener('change', onChange);
+          permissionWatcher = { status, cleanup: () => status.removeEventListener('change', onChange) };
+        }
+      } catch {}
+    }
     if (id !== turnId || !callActive) return;
     const hello = data?.reply || `Hi, thanks for calling brewns! This is ${agent()}. What can I do for you?`;
     history.push({ role: 'assistant', content: hello });
@@ -738,6 +788,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     micStream = null;
     try { meterCtx?.close().catch(() => {}); } catch {}
     meterCtx = null;
+    // Clean up permission watcher
+    permissionWatcher?.cleanup();
+    permissionWatcher = null;
+    micRetryCount = 0;
     modal!.hidden = true;
     document.body.classList.remove('modal-open');
     document.body.style.removeProperty('overflow');
@@ -781,6 +835,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       return;
     }
 
+    micRetryCount++;
+
     // Request or resume microphone stream
     try {
       let stream: MediaStream | null = micStream;
@@ -796,6 +852,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       }
       micStream = stream;
       muted = false;
+      micRetryCount = 0;
       listenRestartCount = 0;
       captionBox?.classList.remove('mic-alert');
       unblockActions?.setAttribute('hidden', '');
@@ -813,18 +870,30 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       const blocked = err?.name === 'NotAllowedError' || err?.name === 'AbortError' ||
                       err?.name === 'PermissionDeniedError';
       setPhase('muted', blocked ? 'MIC BLOCKED' : 'MIC UNAVAILABLE');
-      caption(
-        IS_MOBILE
-          ? 'Microphone is blocked. Open your browser menu → Settings → Site permissions → Microphone → Allow. Or tap "Type message" below.'
-          : 'To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below!'
-      );
+
+      // After 2+ retries, tell the user to refresh the page (Chrome caches denials permanently)
+      if (micRetryCount >= 2) {
+        caption(
+          IS_MOBILE
+            ? 'Mic still blocked. Open browser menu → Settings → Site permissions → Allow microphone. Then refresh the page. Or type your message below!'
+            : 'Mic is still blocked by your browser. Click the 🔒 in the address bar → ⚙️ Site settings → set Microphone to "Allow" → then refresh this page. Or just type below!'
+        );
+      } else {
+        caption(
+          IS_MOBILE
+            ? 'Microphone is blocked. Open your browser menu → Settings → Site permissions → Microphone → Allow. Or tap "Type message" below.'
+            : 'To enable mic: Click the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below.'
+        );
+      }
       unblockActions?.removeAttribute('hidden');
       captionBox?.classList.add('mic-alert');
       setTimeout(() => captionBox?.classList.remove('mic-alert'), 600);
       inputRow?.classList.add('open');
       textInput?.focus();
       toast(
-        IS_MOBILE ? 'OPEN BROWSER SETTINGS → ALLOW MIC' : 'TAP 🔒 → CLICK ⚙️ SITE SETTINGS → ALLOW MIC',
+        micRetryCount >= 2
+          ? 'ALLOW MIC IN SITE SETTINGS → REFRESH PAGE'
+          : (IS_MOBILE ? 'OPEN BROWSER SETTINGS → ALLOW MIC' : 'CLICK 🔒 → ⚙️ SITE SETTINGS → ALLOW MIC'),
         'TYPE MESSAGE',
         () => {
           inputRow?.classList.add('open');
@@ -855,13 +924,26 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   // Closing the tab mid-call still ends the call in the café's log.
   on(window, 'pagehide', () => callActive && endCall());
 
-  // If user switched to Site settings to allow mic and returned to this tab, auto-resume
+  // If user switched to Site settings to allow mic and returned to this tab, auto-resume.
+  // Also re-check even if we don't have a permission query (some browsers skip it).
   on(window, 'focus', async () => {
     if (!callActive || !muted) return;
     try {
       const p = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
       if (p && p.state === 'granted') {
+        micRetryCount = 0;
         toggleMic();
+        return;
+      }
+      // Even if permission query says 'prompt' (not denied), try getUserMedia directly
+      // — some browsers update the mic permission without updating the Permissions API.
+      if (!p || p.state === 'prompt') {
+        const test = await navigator.mediaDevices?.getUserMedia({ audio: true }).catch(() => null);
+        if (test) {
+          test.getTracks().forEach((t) => t.stop());
+          micRetryCount = 0;
+          toggleMic();
+        }
       }
     } catch {}
   });
