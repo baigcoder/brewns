@@ -1,7 +1,8 @@
 import { currentStaff, requireStaff } from '@/lib/server/auth';
 import { clientIp, fail, isEmail, json, rateLimit, readBody, route, str, int } from '@/lib/server/http';
 import { kv, withLock } from '@/lib/server/store';
-import { pkMobile, SHOP_COUNT } from '@/lib/catalog';
+import { CLOSE_MIN, OPEN_MIN, pkMobile, SHOP_COUNT, slotMinutes } from '@/lib/catalog';
+import { pkDay, pkMinutes } from '@/lib/orderFlow';
 import { bumpLive } from '@/lib/server/orders';
 
 export type Reservation = {
@@ -66,6 +67,11 @@ export const POST = route(async (req) => {
   if (!phone || phone.length < 9) fail(400, 'Please provide a valid contact number.');
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) fail(400, 'Please pick a valid reservation date.');
   if (!time) fail(400, 'Please select a preferred seating time.');
+  const at = slotMinutes(time);
+  if (at === null || at < OPEN_MIN || at > CLOSE_MIN - 60) fail(400, 'Pick a time between 07:00 and 20:00. We close at 21:00.');
+  const today = pkDay(Date.now());
+  if (date < today) fail(400, 'That date has passed. Pick today or later.');
+  if (date === today && at! < pkMinutes(Date.now()) + 30) fail(400, 'That time has passed or is too soon. Pick a later slot.');
 
   const res: Reservation = await withLock('reservations', async () => {
     const id = `res_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;

@@ -2,25 +2,29 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { LOC_TITLES } from '@/lib/catalog';
+import { LOC_TITLES, RESERVE_SLOTS as TIME_SLOTS, slotMinutes } from '@/lib/catalog';
+import { pkDay, pkMinutes } from '@/lib/orderFlow';
 import { playSuccessChime } from '@/lib/audio-alerts';
 
-const TIME_SLOTS = [
-  '11:00 AM', '12:30 PM', '02:00 PM', '03:30 PM',
-  '05:00 PM', '06:30 PM', '08:00 PM', '09:30 PM', '10:30 PM'
-];
+/** A slot is bookable today only if it's at least 30 minutes away (Lahore time). */
+const openSlot = (date: string, slot: string, now = Date.now()) => date !== pkDay(now) || (slotMinutes(slot) ?? 0) >= pkMinutes(now) + 30;
 
 const SEATING_AREAS = [
-  { id: 'indoor', label: 'Indoor Lounge', desc: 'Warm ambient lighting, velvet sofas, La Marzocco soundtrack', icon: '🛋️' },
-  { id: 'terrace', label: 'Outdoor Terrace', desc: 'Breezy greenery, marble tables, natural light', icon: '🌿' },
-  { id: 'bar', label: 'Espresso Bar', desc: 'High stools directly at the brew bar with our baristas', icon: '☕' },
+  { id: 'indoor', label: 'Indoor Lounge', desc: 'Warm ambient lighting, velvet sofas, La Marzocco soundtrack' },
+  { id: 'terrace', label: 'Outdoor Terrace', desc: 'Breezy greenery, marble tables, natural light' },
+  { id: 'bar', label: 'Espresso Bar', desc: 'High stools directly at the brew bar with our baristas' },
 ] as const;
 
 export function ReservationForm() {
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Today in Lahore; after the last seating, tomorrow.
+  const [todayStr] = useState(() => pkDay(Date.now()));
   const [loc, setLoc] = useState(0);
-  const [date, setDate] = useState(todayStr);
-  const [time, setTime] = useState(TIME_SLOTS[4]); // default 5:00 PM
+  const [date, setDate] = useState(() => (TIME_SLOTS.some((t) => openSlot(todayStr, t)) ? todayStr : pkDay(Date.now() + 86400000)));
+  const [time, setTime] = useState(() => TIME_SLOTS.find((t) => openSlot(date, t) && (slotMinutes(t) ?? 0) >= 17 * 60) || TIME_SLOTS.find((t) => openSlot(date, t)) || TIME_SLOTS[0]);
+  const pickDate = (d: string) => {
+    setDate(d);
+    if (!openSlot(d, time)) setTime(TIME_SLOTS.find((t) => openSlot(d, t)) || time);
+  };
   const [guests, setGuests] = useState(2);
   const [area, setArea] = useState<'indoor' | 'terrace' | 'bar'>('indoor');
   const [name, setName] = useState('');
@@ -189,7 +193,7 @@ export function ReservationForm() {
                   transition: 'all 0.15s ease',
                 }}
               >
-                📍 {title}
+                {title}
               </button>
             );
           })}
@@ -204,7 +208,7 @@ export function ReservationForm() {
             type="date"
             min={todayStr}
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => pickDate(e.target.value)}
             required
             className="cx-input"
           />
@@ -231,11 +235,14 @@ export function ReservationForm() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           {TIME_SLOTS.map((slot) => {
             const active = time === slot;
+            const gone = !openSlot(date, slot);
             return (
               <button
                 key={slot}
                 type="button"
                 onClick={() => setTime(slot)}
+                disabled={gone}
+                title={gone ? 'That time has passed today' : undefined}
                 style={{
                   padding: '8px 14px',
                   borderRadius: '8px',
@@ -244,7 +251,9 @@ export function ReservationForm() {
                   color: active ? '#111' : '#f5ede3',
                   fontWeight: active ? 700 : 400,
                   fontSize: '13px',
-                  cursor: 'pointer',
+                  cursor: gone ? 'not-allowed' : 'pointer',
+                  opacity: gone ? 0.35 : 1,
+                  textDecoration: gone ? 'line-through' : 'none',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -281,7 +290,6 @@ export function ReservationForm() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: active ? 600 : 500, fontSize: '14px' }}>
-                  <span>{a.icon}</span>
                   <span>{a.label}</span>
                 </div>
                 <div style={{ fontSize: '11px', opacity: 0.8, lineHeight: 1.3 }}>{a.desc}</div>

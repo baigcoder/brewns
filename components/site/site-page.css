@@ -1,0 +1,38 @@
+/* The console's button and field styles, in the site's gold. */
+.sp {
+  --cx-bg: #0a0a09;
+  --cx-panel: #141412;
+  --cx-panel-2: #1b1b18;
+  --cx-line: rgb(255 255 255 / 0.09);
+  --cx-line-2: rgb(255 255 255 / 0.16);
+  --cx-text: #f5ede3;
+  --cx-muted: rgb(245 237 227 / 0.62);
+  --cx-faint: rgb(245 237 227 / 0.42);
+  --cx-accent: #c99355;
+  --cx-accent-ink: #120c06;
+  color-scheme: dark;
+}
+.sp .cx-btn.primary:hover { background: #e0a868; }
+.sp { min-height: 100vh; background: radial-gradient(1200px 600px at 80% -10%, rgb(201 147 85 / 0.1), transparent 60%), #0a0a09; color: #f5ede3; padding: 28px 16px 48px; }
+.sp-hdr { margin: 0 auto 36px; display: flex; align-items: center; gap: 24px; padding: 10px 10px 10px 20px; border: 1px solid rgb(255 255 255 / 0.08); border-radius: 9999px; background: rgb(20 17 14 / 0.7); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.sp-mark { display: block; flex-shrink: 0; color: #f5ede3; }
+.sp-mark .wordmark { display: block; width: 104px; height: 24px; -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+.sp-nav { display: flex; gap: 4px; margin-left: auto; overflow-x: auto; scrollbar-width: none; }
+.sp-nav::-webkit-scrollbar { display: none; }
+.sp-nav a { padding: 8px 12px; border-radius: 9999px; font-family: var(--font-space-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: rgb(245 237 227 / 0.62); text-decoration: none; transition: color 150ms ease, background-color 150ms ease; }
+.sp-nav a:hover { color: #f5ede3; }
+.sp-nav a.on { color: #0d0b09; background: var(--cx-accent, #c99355); font-weight: 700; }
+.sp-bag { flex-shrink: 0; padding: 8px 16px; border: 1px solid rgb(255 255 255 / 0.16); border-radius: 9999px; font-family: var(--font-space-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: #f5ede3; text-decoration: none; transition: border-color 150ms ease; }
+.sp-bag:hover { border-color: var(--cx-accent, #c99355); }
+.sp-main { margin: 0 auto; }
+.sp-foot { margin: 40px auto 0; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-family: var(--font-space-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: rgb(245 237 227 / 0.4); }
+.sp a:focus-visible, .sp button:focus-visible, .sp input:focus-visible { outline: 2px solid var(--cx-accent, #c99355); outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  .sp-hdr { flex-wrap: wrap; border-radius: 18px; gap: 10px; padding: 12px; }
+  .sp-mark { margin-right: auto; padding-left: 6px; }
+  .sp-nav { order: 3; width: 100%; margin-left: 0; flex-wrap: wrap; overflow: visible; }
+  .sp-main > div { padding: 22px 18px !important; border-radius: 16px !important; }
+  .sp-main > div > div > div > div { min-width: 0; }
+  .sp-main * { overflow-wrap: anywhere; }
+}
