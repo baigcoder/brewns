@@ -1483,6 +1483,13 @@ function rule(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number,
   ctx.stroke();
 }
 
+/** The last Monday roast at least three days back, as DD/MM/YY in Lahore: the bag always reads fresh. */
+function roastDate(now = Date.now()) {
+  const d = new Date(now + 5 * 3600000 - 3 * 86400000);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCFullYear()).slice(2)}`;
+}
+
 function drawBagFace(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, size: string) {
   // Below the curve, the panel: its own colour, and its own ink (the surface map keeps it matte).
   const surface = p === SURFACE;
@@ -1497,7 +1504,7 @@ function drawBagFace(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel,
   ctx.fill();
 
   text(ctx, 'ROAST DATE', 125, 112, p.gold, 24, 2);
-  text(ctx, '12/06/24', 660, 112, p.cream, 28, 2, 'right');
+  text(ctx, roastDate(), 660, 112, p.cream, 28, 2, 'right');
   rule(ctx, 125, 142, 660, 142, p.gold);
 
   drawWordmark(ctx, p.gold, 150, 330, 470);
@@ -1525,7 +1532,7 @@ function drawBagFace(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel,
   text(ctx, size, 132, 1185, pn.ink, 22);
   text(ctx, 'WHOLE BEAN', 258, 1185, pn.ink, 22);
   text(ctx, 'ROASTED IN', 465, 1170, pn.ink, 22);
-  text(ctx, 'COPENHAGEN', 465, 1202, pn.ink, 22);
+  text(ctx, 'LAHORE', 465, 1202, pn.ink, 22);
 }
 
 function paintBag(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, sel: Record<string, number>) {
