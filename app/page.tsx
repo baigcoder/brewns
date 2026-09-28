@@ -1,6 +1,15 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import type { Metadata } from 'next';
+import './sections.css';
 import { BrewnsApp } from '@/components/brewns/BrewnsApp';
+import { publicPageMetadata } from '@/lib/siteMetadata';
+
+export const metadata: Metadata = publicPageMetadata(
+  'brewns — Specialty Coffee House in Lahore',
+  'Specialty coffee house in Lahore. Carefully sourced beans, thoughtfully brewed. Order ahead and skip the line at MM Alam Road, DHA Phase 5 and Johar Town, open daily 07:00–21:00.',
+  '/',
+);
 
 const DEFAULT_KITCHEN_PHOTOS: Record<string, string> = {
   'alfredo-pasta': 'alfredo-pasta.webp',

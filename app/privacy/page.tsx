@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import { LegalPage } from '@/components/legal/LegalPage';
+import { publicPageMetadata } from '@/lib/siteMetadata';
 import '../legal.css';
 
-export const metadata: Metadata = {
-  title: 'Privacy policy — brewns',
-  description: 'What brewns keeps about you when you order, join brewns Club or write to us, where it goes, and how to have it removed.',
-  alternates: { canonical: '/privacy' },
-};
+export const metadata: Metadata = publicPageMetadata(
+  'Privacy policy — brewns',
+  'What brewns keeps about you when you order, join brewns Club or write to us, where it goes, and how to have it removed.',
+  '/privacy',
+);
 
 /* Keep this in step with what the site actually does: the localStorage keys in
    initBrewns.ts and lib/audio-ritual.ts, and where forms are sent
@@ -70,7 +71,7 @@ export default function Privacy() {
           <b>Hosting.</b> The site is served by Vercel, which keeps short-lived logs of requests (such as IP addresses) to keep the service secure and working.
         </li>
         <li>
-          <b>Fonts.</b> Some typefaces load from Google Fonts, which sees your IP address when they do.
+          <b>Fonts.</b> Typefaces are served by this website. Google does not receive font requests when you visit.
         </li>
         <li>
           <b>Links you choose to follow:</b> WhatsApp, Google Maps, Instagram and TikTok have their own privacy policies.
