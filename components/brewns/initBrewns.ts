@@ -5603,6 +5603,43 @@ const orderLines = (o) =>
     return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * it.qty };
   });
 const saveOrder = (o) => writeStore("brewns-orders", readStore("brewns-orders", []).map((x) => (x.number === o.number ? o : x)));
+/* An order the café's server has: take its word for number, times, totals and status. */
+function applyServer(o, so, key = o.server?.key) {
+  Object.assign(o, {
+    number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc,
+    cancelled: so.cancelled ? so.cancelled.t : undefined, collected: so.times?.collected,
+  });
+  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
+  return o;
+}
+const syncing = new Set();
+/* Ask the café how an order stands. Resolves true when something changed. */
+async function syncOrder(o) {
+  if (!o?.server?.key || syncing.has(o.number)) return false;
+  syncing.add(o.number);
+  try {
+    const res = await fetch(`/api/orders/${o.number}?k=${encodeURIComponent(o.server.key)}`, { cache: "no-store" });
+    if (!res.ok) return false;
+    const { order: so } = await res.json();
+    const before = JSON.stringify([o.server.stage, o.server.status, o.server.cancelled, o.target, o.server.rider, o.server.messages.length, o.server.times]);
+    applyServer(o, so);
+    saveOrder(o);
+    return JSON.stringify([o.server.stage, o.server.status, o.server.cancelled, o.target, o.server.rider, o.server.messages.length, o.server.times]) !== before;
+  } catch {
+    return false;
+  } finally {
+    syncing.delete(o.number);
+  }
+}
+/* Cancel, "collected" or a message, on the server. Throws with the café's own sentence. */
+async function orderAct(o, body) {
+  const res = await fetch(`/api/orders/${o.number}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, k: o.server.key }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "That didn't go through. Try again.");
+  applyServer(o, data.order);
+  saveOrder(o);
+  return o;
+}
 const chatKey = (o) => `brewns-chat-${o.number}`;
 const readChat = (o) => readStore(chatKey(o), { messages: [], said: [], seen: 0 });
 const writeChat = (o, c) => writeStore(chatKey(o), c);
@@ -5703,7 +5740,7 @@ function renderDone() {
     })
     .join("");
   const shop = LOC_TITLES[o.loc];
-  const stages = timeline(o, shop);
+  let stages = timeline(o, shop);
   const r = riderFor(o);
   const quick = QUICK_REPLIES[o.mode];
   coEl.innerHTML = `${coTop("CLOSE", true)}
@@ -5773,7 +5810,7 @@ function renderDone() {
           delivered
             ? `<div class="trk-rider" id="trk-rider" hidden>
             <span class="trk-avatar">${r.name.split(" ").map((w) => w[0]).join("")}</span>
-            <div><p><b>${r.name}</b> · ★ ${r.rating}</p><p class="mono-fine">YOUR RIDER · BIKE ${r.plate}</p></div>
+            <div><p><b>${esc(r.name)}</b>${r.rating ? ` · ★ ${r.rating}` : ""}</p><p class="mono-fine">YOUR RIDER${r.plate ? ` · BIKE ${esc(r.plate)}` : ""}</p></div>
             <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button><a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
           </div>
           <div class="trk-map3d" id="trk-map3d" role="img" aria-label="Live map of your delivery">
@@ -5805,7 +5842,9 @@ function renderDone() {
           <button type="button" class="btn btn-line trk-cancel" data-co="cancel" hidden>CANCEL ORDER</button>
         </div>
         <div class="done-actions"><button type="button" class="btn btn-line" data-co="shop">KEEP SHOPPING</button><button type="button" class="btn btn-line" data-co="close">BACK TO BREWNS</button></div>
-        <p class="trk-demo mono-fine"><button type="button" data-co="ff">${o.ff ? "PREVIEWING AT FAST-FORWARD" : "PREVIEW THE WHOLE FLOW ⏩"}</button> · LIVE STATUS FOLLOWS THE CLOCK; MESSAGES ARE ANSWERED AUTOMATICALLY UNTIL THE CAFÉ IS CONNECTED.</p>
+        ${o.server
+          ? `<p class="trk-demo mono-fine"><span class="dot" data-pulse></span> LIVE FROM ${LOCS[o.loc][0]} · THIS PAGE UPDATES AS THE TEAM MOVES YOUR ORDER, AND THEY READ YOUR MESSAGES.</p>`
+          : `<p class="trk-demo mono-fine"><button type="button" data-co="ff">${o.ff ? "PREVIEWING AT FAST-FORWARD" : "PREVIEW THE WHOLE FLOW ⏩"}</button> · PREVIEW: THE CAFÉ HASN'T SWITCHED ON ONLINE ORDERS YET, SO THIS RUNS ON THE CLOCK.</p>`}
       </div>
       <aside class="chat" id="chat" hidden aria-label="Messages">
         <div class="chat-head"><div><p><b>${delivered ? `${shop} · ${r.first}` : shop}</b></p><p class="mono-fine">ORDER ${num}</p></div><button type="button" class="x-btn" data-co="chat-close" aria-label="Close messages"></button></div>
@@ -5855,7 +5894,10 @@ function renderDone() {
         rider: `${r.name} (bike ${r.plate}) is heading to ${shop} to collect it.`,
         onway: `${r.first} has your order and is on the way. Follow the map below.`,
         arriving: `${r.first} is about 3 minutes away and will call ${esc(o.phone)} when outside.`,
-        delivered: `Delivered at ${stageTime(o.target)}. Thanks for ordering from brewns.`,
+        // Read when shown: the real delivery time only arrives with that stage.
+        get delivered() {
+          return `Delivered at ${stageTime(o.server?.times?.delivered || o.target)}. Thanks for ordering from brewns.`;
+        },
       }
     : {
         received: `We’ve got it, ${first}. Head to ${shop}. Your order will wait at the pickup counter under ${num}.`,
@@ -5887,9 +5929,27 @@ function renderDone() {
     writeChat(o, chat);
     drawChat();
   };
+  // A server order's conversation is the café's own record of it.
+  const fromServer = () => {
+    if (!o.server) return;
+    const heard = chat.messages.filter((m) => m.from !== "you").length;
+    chat.messages = o.server.messages.map((m) => ({ from: m.from, text: m.text, t: m.t }));
+    const now = chat.messages.filter((m) => m.from !== "you").length;
+    if (now > heard) playMessage(true);
+    if (chatOpen) chat.seen = now;
+    writeChat(o, chat);
+    drawChat();
+  };
   const send = (text) => {
     text = text.trim();
     if (!text) return;
+    if (o.server) {
+      post({ from: "you", text, t: Date.now() });
+      orderAct(o, { type: "message", text })
+        .then(fromServer)
+        .catch((err) => post({ from: "system", text: err.message, t: Date.now() }));
+      return;
+    }
     post({ from: "you", text, t: Date.now() });
     drawChat(true);
     setTimeout(() => post(autoReply(o, text, stages, shop)), 900 + Math.random() * 900);
@@ -5928,7 +5988,25 @@ function renderDone() {
     mapGone = true;
     map?.destroy();
   });
+  let lastSync = o.server ? o.server.checked : 0;
+  const riderShown = JSON.stringify(o.server?.rider || null);
+  const refresh = () => {
+    if (!o.server || Date.now() - lastSync < 5000) return;
+    lastSync = Date.now();
+    syncOrder(o).then((changed) => {
+      if (!changed || co?.done !== o) return;
+      // A rider assigned since this page was drawn: draw it again with their name.
+      if (JSON.stringify(o.server.rider || null) !== riderShown) return renderCheckout({ animate: false });
+      stages = timeline(o, shop);
+      $$("#trk-steps li", coEl).forEach((li, k) => {
+        const time = $("time", li);
+        if (time && stages[k]) time.textContent = stageTime(stages[k].at);
+      });
+      fromServer();
+    });
+  };
   const tickRing = () => {
+    refresh();
     const now = Date.now();
     const t = orderNow(o, now);
     const i = o.cancelled ? -1 : currentStage(o, stages, now);
@@ -5950,7 +6028,9 @@ function renderDone() {
     $("#trk-steps", coEl).classList.toggle("cancelled", !!o.cancelled);
     $("#trk-status", coEl).textContent = o.cancelled ? "CANCELLED" : stages[i].label;
     $("#trk-h", coEl).textContent = o.cancelled ? "ORDER CANCELLED." : HEAD[key];
-    $("#trk-sub", coEl).innerHTML = o.cancelled ? `Cancelled at ${stageTime(o.cancelled)}. Nothing was charged.` : SUB[key];
+    $("#trk-sub", coEl).innerHTML = o.cancelled
+      ? `Cancelled at ${stageTime(o.cancelled)}${o.server?.cancelled?.reason && o.server.cancelled.reason !== "Cancelled by the customer" ? `: ${esc(o.server.cancelled.reason)}` : ""}. Nothing was charged.`
+      : SUB[key];
     const cancel = $("[data-co='cancel']", coEl), got = $("[data-co='collected']", coEl);
     cancel.hidden = !canCancel(o, stages, now);
     if (got) got.hidden = delivered || o.cancelled || key !== "ready";
@@ -5967,13 +6047,15 @@ function renderDone() {
       const km = DELIVERY.areas[o.area][4] * (1 - prog);
       // speed in Lahore traffic: 18–32 km/h, easing off near the door
       const speed = riding ? Math.round((22 + 7 * Math.sin(now / 5300) + 3 * Math.sin(now / 1700)) * (prog > 0.9 ? 0.5 : 1)) : 0;
-      $("#trk-km", coEl).textContent = `${km.toFixed(1)} KM`;
-      $("#trk-speed", coEl).textContent = `${speed} KM/H`;
+      // A real order has no GPS yet: say what's known rather than invent a speed.
+      $("#trk-km", coEl).textContent = o.server ? (key === "delivered" ? "0 KM" : `~${km.toFixed(1)} KM`) : `${km.toFixed(1)} KM`;
+      $("#trk-speed", coEl).textContent = o.server ? (riding ? "ON THE ROAD" : "—") : `${speed} KM/H`;
       $("#trk-eta", coEl).textContent = key === "delivered" ? `DELIVERED ${stageTime(o.target)}` : stageTime(o.target);
-      $("#trk-live-l", coEl).textContent = o.cancelled ? "CANCELLED" : key === "delivered" ? "DELIVERED" : riding ? `LIVE · ${r.first.toUpperCase()} IS ON THE WAY · UPDATED JUST NOW` : i >= riderStage ? `${r.first.toUpperCase()} IS AT ${LOCS[o.loc][0]}` : "WAITING FOR THE RIDER";
+      $("#trk-live-l", coEl).textContent = o.cancelled ? "CANCELLED" : key === "delivered" ? "DELIVERED" : riding ? `LIVE · ${r.first.toUpperCase()} IS ON THE WAY · ${o.server ? `UPDATED ${Math.max(0, Math.round((now - o.server.checked) / 1000))}S AGO` : "UPDATED JUST NOW"}` : i >= riderStage ? `${r.first.toUpperCase()} IS AT ${LOCS[o.loc][0]}` : "WAITING FOR THE RIDER";
     }
-    // What the café and rider say on their own as stages are reached.
-    if (!o.cancelled)
+    // What the café and rider say on their own as stages are reached (the preview only;
+    // on a real order, the only messages are the ones people write).
+    if (!o.cancelled && !o.server)
       stages.slice(0, i + 1).forEach((s) => {
         if (chat.said.includes(s.key)) return;
         chat.said.push(s.key);
@@ -5982,7 +6064,8 @@ function renderDone() {
         else writeChat(o, chat);
       });
   };
-  drawChat();
+  if (o.server) fromServer();
+  else drawChat();
   tickRing();
   clearInterval(coTimer);
   coTimer = setInterval(tickRing, 1000);
@@ -6023,6 +6106,10 @@ const tickPill = () => {
   livePill.innerHTML = `<span class="dot" data-pulse></span><b>#${String(o.number).padStart(5, "0")}</b> ${st[currentStage(o, st)].label}${left ? ` · ${left} MIN` : ""}<span aria-hidden="true">→</span>`;
 };
 setInterval(tickPill, 2000);
+setInterval(() => {
+  if (document.hidden) return;
+  readStore("brewns-orders", []).filter((x) => x.server && isActive(x) && co?.done?.number !== x.number && Date.now() - x.placed < 12 * 3600000).forEach((x) => syncOrder(x));
+}, 20000);
 setTimeout(tickPill, 1500);
 
 function placeOrder() {
@@ -6062,7 +6149,35 @@ function placeOrder() {
   renderCheckout({ animate: false });
   const email = co.email.trim();
   const started = Date.now();
-  sendOrder(order, email).then((sent) => {
+  const payload = {
+    items: cart.items.map(({ id, qty, sel }) => ({ id, qty, sel })),
+    mode: co.mode, loc: co.loc, area: delivery ? co.area : null, address: delivery ? co.address.trim() : "",
+    when: co.when === "asap" ? "asap" : co.slot, name: co.name.trim(), phone: co.phone, email, note: co.note.trim(),
+    pay: co.pay, promo: co.discount ? co.promo : "", useReward: !!co.useReward, guestReward: !!co.useReward,
+  };
+  // The café's server takes the order: it prices it again, gives it a number
+  // and puts it on the kitchen screen. Only before the owner has set the café
+  // up does the order stay in this browser as a preview.
+  fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+    .then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        applyServer(order, data.order, data.key);
+        return "server";
+      }
+      if (res.status === 503 && /not switched on/i.test(data.error || "")) return "preview";
+      throw new Error(data.error || "We couldn't place the order. Try again in a moment.");
+    })
+    .then((how) => (how === "server" ? sendOrder(order, email).catch(() => false) : sendOrder(order, email)))
+    .catch((err) => {
+      co.placing = false;
+      renderCheckout({ animate: false });
+      toast(err.message === "Failed to fetch" ? "NO CONNECTION. CHECK YOUR INTERNET AND TRY AGAIN." : err.message.toUpperCase());
+      triggerHaptic(30);
+      return null;
+    })
+    .then((sent) => {
+    if (sent === null) return;
     order.sent = sent;
     order.email = email;
     order.club = creditClub(order);
@@ -6182,6 +6297,20 @@ coEl.addEventListener("click", (e) => {
       closeCheckout();
       return setTimeout(() => lenis.scrollTo("#club", { force: true }), 80);
     }
+    if (act === "cancel" && o.server) {
+      if (!window.confirm("Cancel this order? The café hasn't started on it yet.")) return;
+      return orderAct(o, { type: "cancel" })
+        .then(() => {
+          if (o.club) writeClub(reverseOrder(readClub(), o.number, o.club.stamps, o.club.used));
+          renderCheckout({ animate: false });
+        })
+        .catch((err) => toast(err.message.toUpperCase()));
+    }
+    if (act === "collected" && o.server) {
+      return orderAct(o, { type: "collected" })
+        .then(() => renderCheckout({ animate: false }))
+        .catch((err) => toast(err.message.toUpperCase()));
+    }
     if (act === "cancel") {
       if (!window.confirm("Cancel this order? The café hasn't started on it yet.")) return;
       o.cancelled = Date.now();
@@ -6198,7 +6327,7 @@ coEl.addEventListener("click", (e) => {
       saveOrder(o);
       return renderCheckout({ animate: false });
     }
-    if (act === "ff") {
+    if (act === "ff" && !o.server) {
       // Preview: run the rest of the flow in about a minute.
       fastForward(o);
       saveOrder(o);
@@ -6290,8 +6419,18 @@ coEl.addEventListener("submit", (e) => {
   if (!co || !e.target.matches("[data-promo]")) return;
   e.preventDefault();
   co.promo = e.target.promo.value.trim().toUpperCase();
-  co.discount = co.promo === "BREWNS10" ? 0.1 : 0;
-  renderCheckout({ animate: false });
+  // The owner's codes live on the server; offline, only the house code is known.
+  const checking = co;
+  fetch("/api/public/promo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: co.promo }) })
+    .then((r) => r.json())
+    .then((d) => (d.valid ? d.pct / 100 : 0))
+    .catch(() => (checking.promo === "BREWNS10" ? 0.1 : 0))
+    .then((pct) => {
+      if (co !== checking) return;
+      co.discount = pct;
+      if (co.promo && !pct) toast("THAT CODE ISN'T VALID");
+      renderCheckout({ animate: false });
+    });
 });
 
   /* ═══════════════════════ customer reviews ═══════════════════════

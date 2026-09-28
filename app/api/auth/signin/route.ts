@@ -29,7 +29,10 @@ export const POST = route(async (req) => {
     if (user?.invite && !user.passHash) fail(401, 'Your account is waiting for you to set a password: open the invite link the owner sent you.');
     fail(401, kind === 'staff' ? "That email and password don't match." : "That login and password don't match.");
   }
-  if (!user!.active) fail(403, kind === 'staff' ? 'This account is switched off. Ask the owner or a manager.' : 'This account is closed.');
+  if (!user!.active) {
+    const waiting = user!.invitedBy === 'Self sign-up' && !user!.lastLoginAt;
+    fail(403, kind === 'staff' ? (waiting ? "Your account is waiting for the owner or a manager to approve it. They'll switch it on from Team." : 'This account is switched off. Ask the owner or a manager.') : 'This account is closed.');
+  }
 
   await startSession(user!);
   if (kind === 'staff') {

@@ -2,12 +2,15 @@
  * What happens after an order is placed: its stages and their times, the
  * rider, the conversation with the café, and the receipt.
  *
- * There is no backend yet, so the flow runs on the clock from the moment the
- * order was placed. Every stage has a real time: a pickup is ready at its
- * pickup time, a delivery arrives at its delivery time, and the stages in
- * between are spread over the real preparation and riding time. `ff`
- * fast-forwards the same flow for a preview. When a backend exists, only
- * `timeline()` needs to read the café's real status instead of the clock.
+ * An order placed on the server (`o.server`) follows the café's real status:
+ * the stage staff set on the console, when each stage was reached, the rider
+ * they assigned and the messages they sent. Stages not reached yet show the
+ * expected time.
+ *
+ * Without a server (a fresh install before the owner has signed up) the flow
+ * runs on the clock from the moment the order was placed, as a preview: a
+ * pickup is ready at its pickup time, a delivery arrives at its delivery time,
+ * and `ff` fast-forwards it.
  */
 
 export type Order = {
@@ -28,6 +31,21 @@ export type Order = {
   ff?: { at: number; v: number; speed: number };
   cancelled?: number;
   collected?: number;
+  /** The café's own record of the order, refreshed from /api/orders/<number>. */
+  server?: ServerView;
+};
+
+export type ServerView = {
+  /** The customer's tracking key: the password for this order's status and messages. */
+  key: string;
+  stage: string;
+  status: string;
+  times: Record<string, number>;
+  rider: { name: string; plate: string } | null;
+  messages: { id: string; from: 'you' | 'cafe' | 'rider'; text: string; t: number; by?: string }[];
+  cancelled: { t: number; reason: string } | null;
+  /** When the tracker last heard from the server. */
+  checked: number;
 };
 
 export type Stage = { key: string; label: string; detail: string; at: number };
@@ -51,6 +69,11 @@ const RIDERS = [
   ['Zain Abbas', 'LEB 23 5820'],
 ];
 export const riderFor = (o: Order) => {
+  if (o.server) {
+    const r = o.server.rider;
+    if (!r) return { name: 'Your rider', first: 'Rider', plate: '', rating: '' };
+    return { name: r.name, first: r.name.split(' ')[0], plate: r.plate, rating: '' };
+  }
   const [name, plate] = RIDERS[o.number % RIDERS.length];
   return { name, first: name.split(' ')[0], plate, rating: (4.7 + ((o.number * 7) % 3) / 10).toFixed(1) };
 };
@@ -60,6 +83,13 @@ export const riderFor = (o: Order) => {
  * flow backwards from its time; an ASAP order starts straight away.
  */
 export function timeline(o: Order, shopName: string): Stage[] {
+  const stages = clockTimeline(o, shopName);
+  if (!o.server) return stages;
+  // Reached stages carry the time the café actually reached them.
+  return stages.map((s) => (s.key in o.server!.times ? { ...s, at: o.server!.times[s.key] } : s));
+}
+
+function clockTimeline(o: Order, shopName: string): Stage[] {
   const lead = o.target - o.placed;
   const accepted = o.placed + Math.min(45000, lead * 0.05);
   if (o.mode === 'delivery') {
@@ -73,7 +103,7 @@ export function timeline(o: Order, shopName: string): Stage[] {
       { key: 'received', label: 'ORDER RECEIVED', detail: 'Sent to the café', at: o.placed },
       { key: 'accepted', label: 'ACCEPTED', detail: `${shopName} has it`, at: accepted },
       { key: 'preparing', label: 'PREPARING', detail: 'Being made fresh', at: at(0.1) },
-      { key: 'rider', label: 'RIDER ASSIGNED', detail: `${r.first} · ${r.plate}`, at: at(0.35) },
+      { key: 'rider', label: 'RIDER ASSIGNED', detail: r.plate ? `${r.first} · ${r.plate}` : 'Picked just before it’s ready', at: at(0.35) },
       { key: 'onway', label: 'OUT FOR DELIVERY', detail: 'Picked up, on the road', at: at(0.5) },
       { key: 'arriving', label: 'ARRIVING', detail: 'Nearly at your door', at: at(0.9) },
       { key: 'delivered', label: 'DELIVERED', detail: 'Enjoy', at: o.target },
@@ -91,6 +121,16 @@ export function timeline(o: Order, shopName: string): Stage[] {
 
 /** Where the order is now: the index of the last stage reached. */
 export function currentStage(o: Order, stages: Stage[], now = Date.now()) {
+  if (o.server) {
+    const at = stages.findIndex((s) => s.key === o.server!.stage);
+    if (at >= 0) return at;
+    // Cancelled (or a stage this view doesn't show): the last one reached.
+    let last = 0;
+    stages.forEach((s, k) => {
+      if (s.key in o.server!.times) last = k;
+    });
+    return last;
+  }
   const t = orderNow(o, now);
   let i = 0;
   stages.forEach((s, k) => {
@@ -102,13 +142,25 @@ export function currentStage(o: Order, stages: Stage[], now = Date.now()) {
 /** How far along the rider is between the shop and the door, 0–1. */
 export function riderProgress(o: Order, stages: Stage[], now = Date.now()) {
   if (o.mode !== 'delivery') return 0;
+  if (o.server) {
+    const stage = o.server.stage;
+    if (stage === 'delivered') return 1;
+    if (stage !== 'onway' && stage !== 'arriving') return 0;
+    // No GPS: estimate from when the rider left against the promised time, and
+    // never show "at the door" until the rider says so.
+    const from = o.server.times.onway ?? now;
+    const est = (now - from) / Math.max(60000, o.target - from);
+    return Math.max(stage === 'arriving' ? 0.85 : 0.02, Math.min(stage === 'arriving' ? 0.97 : 0.85, est));
+  }
   const t = orderNow(o, now);
   const from = stages.find((s) => s.key === 'onway')!.at;
   return Math.max(0, Math.min(1, (t - from) / Math.max(1, o.target - from)));
 }
 
 export const canCancel = (o: Order, stages: Stage[], now = Date.now()) =>
-  !o.cancelled && currentStage(o, stages, now) < stages.findIndex((s) => s.key === 'preparing');
+  o.server
+    ? !o.server.cancelled && (o.server.status === 'received' || o.server.status === 'accepted')
+    : !o.cancelled && currentStage(o, stages, now) < stages.findIndex((s) => s.key === 'preparing');
 
 /* ── messages ── */
 

@@ -122,7 +122,9 @@ export function TeamScreen() {
                   <td>{ROLE_INFO[m.role].label}</td>
                   <td className="cx-muted">{shopsLabel(m.shops)}</td>
                   <td>
-                    {!m.active ? (
+                    {!m.active && m.invitedBy === 'Self sign-up' && !m.lastLoginAt ? (
+                      <span className="cx-pill received">Waiting for approval</span>
+                    ) : !m.active ? (
                       <span className="cx-pill cancelled">Switched off</span>
                     ) : m.invited && !m.lastLoginAt ? (
                       <span className={`cx-pill ${m.inviteExpired ? 'cancelled' : 'received'}`}>{m.inviteExpired ? 'Invite expired' : 'Invited'}</span>
