@@ -10,6 +10,7 @@
 
 import { kv } from './store';
 import { randomBytes } from 'node:crypto';
+import { bumpLive } from './orders';
 
 export interface Moment {
   id: string;
@@ -136,6 +137,12 @@ export async function listAllMoments(): Promise<Moment[]> {
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** Count moments currently awaiting review/approval for real-time sidebar notification */
+export async function countPendingMoments(): Promise<number> {
+  const all = await kv.hall<Moment>(KEY);
+  return Object.values(all || {}).filter((m) => m.status === 'pending').length;
+}
+
 /** Add a new customer moment (defaults to 'pending' until owner approves). */
 export async function submitMoment(data: {
   imageUrl: string;
@@ -167,6 +174,7 @@ export async function submitMoment(data: {
     approvedAt: status === 'approved' ? now : undefined,
   };
   await kv.hset(KEY, id, moment);
+  await bumpLive().catch(() => {});
   return moment;
 }
 
@@ -177,6 +185,7 @@ export async function approveMoment(id: string): Promise<Moment | null> {
   moment.status = 'approved';
   moment.approvedAt = Date.now();
   await kv.hset(KEY, id, moment);
+  await bumpLive().catch(() => {});
   return moment;
 }
 
@@ -186,6 +195,7 @@ export async function rejectMoment(id: string): Promise<Moment | null> {
   if (!moment) return null;
   moment.status = 'rejected';
   await kv.hset(KEY, id, moment);
+  await bumpLive().catch(() => {});
   return moment;
 }
 
@@ -194,6 +204,7 @@ export async function deleteMoment(id: string): Promise<boolean> {
   const moment = await kv.hget<Moment>(KEY, id);
   if (!moment) return false;
   await kv.hdel(KEY, id);
+  await bumpLive().catch(() => {});
   return true;
 }
 

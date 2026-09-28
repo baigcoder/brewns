@@ -29,11 +29,30 @@ function Nav({ perms, onGo }: { perms: Permission[]; onGo: () => void }) {
   const { data } = useLive();
   const orders = data?.orders || [];
   const badge: Record<string, { n: number; alert?: boolean }> = {
-    orders: { n: orders.filter((o) => o.status === 'received').length, alert: true },
-    kitchen: { n: orders.filter((o) => ['accepted', 'preparing'].includes(o.status) && Object.values(o.stations).some((s) => s !== 'done')).length },
-    floor: { n: (data?.calls.length || 0) + orders.filter((o) => o.mode === 'dinein' && o.status === 'ready').length, alert: !!data?.calls.length },
-    deliveries: { n: orders.filter((o) => o.mode === 'delivery' && !o.rider && ['accepted', 'preparing', 'ready'].includes(o.status)).length },
-    bookings: { n: data?.aiLive || 0, alert: !!data?.aiLive },
+    orders: {
+      n: orders.filter((o) => ['received', 'accepted', 'preparing', 'ready'].includes(o.status)).length,
+      alert: orders.some((o) => o.status === 'received'),
+    },
+    kitchen: {
+      n: orders.filter((o) => ['accepted', 'preparing'].includes(o.status) && Object.values(o.stations).some((s) => s !== 'done')).length,
+      alert: orders.some((o) => o.status === 'preparing' && Date.now() - o.placed > 15 * 60000),
+    },
+    floor: {
+      n: (data?.calls.length || 0) + orders.filter((o) => o.mode === 'dinein' && o.status === 'ready').length,
+      alert: !!data?.calls.length,
+    },
+    deliveries: {
+      n: orders.filter((o) => o.mode === 'delivery' && ['received', 'accepted', 'preparing', 'ready', 'onway'].includes(o.status)).length,
+      alert: orders.some((o) => o.mode === 'delivery' && !o.rider && ['accepted', 'preparing', 'ready'].includes(o.status)),
+    },
+    bookings: {
+      n: (data?.aiLive || 0) + (data?.upcomingBookings || 0),
+      alert: !!data?.aiLive,
+    },
+    moments: {
+      n: data?.pendingMoments || 0,
+      alert: (data?.pendingMoments || 0) > 0,
+    },
   };
   const visible = SECTIONS.filter((s) => canOpen(perms, s));
   return (

@@ -16,6 +16,8 @@ export type LiveData = {
   calls: Call[];
   riders: Rider[];
   aiLive?: number;
+  pendingMoments?: number;
+  upcomingBookings?: number;
   soldOut: string[];
   shops: ShopSettings[];
   me?: { id: string; name: string; email: string; role: Role; shops: number[]; active?: boolean };

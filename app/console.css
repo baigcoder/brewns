@@ -57,8 +57,8 @@
 .cx-nav a { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; color: var(--cx-muted); font-weight: 500; transition: background 120ms, color 120ms; }
 .cx-nav a:hover { background: var(--cx-panel); color: var(--cx-text); }
 .cx-nav a[aria-current="page"] { background: var(--cx-panel-2); color: var(--cx-text); box-shadow: inset 2px 0 0 var(--cx-accent); }
-.cx-badge { min-width: 20px; height: 20px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 99px; background: var(--cx-accent); color: var(--cx-accent-ink); font-family: var(--font-space-mono); font-size: 11px; font-weight: 700; }
-.cx-badge.alert { background: var(--cx-late); color: #fff; }
+.cx-badge { min-width: 20px; height: 20px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 99px; background: var(--cx-accent); color: var(--cx-accent-ink); font-family: var(--font-space-mono); font-size: 11px; font-weight: 700; transition: transform 0.2s ease, background 0.2s ease; }
+.cx-badge.alert { background: #e04c38; color: #fff; box-shadow: 0 0 10px rgba(224, 76, 56, 0.45); }
 .cx-me { margin-top: auto; display: grid; gap: 10px; padding: 12px; border: 1px solid var(--cx-line); border-radius: 12px; background: var(--cx-panel); }
 .cx-me-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .cx-avatar { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 99px; background: var(--cx-panel-2); border: 1px solid var(--cx-line-2); font-family: var(--font-geist); font-weight: 700; font-size: 13px; }
