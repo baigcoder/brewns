@@ -63,16 +63,28 @@ export async function POST(req: NextRequest) {
           console.warn('[Cloudinary] Upload failed, falling back to local storage:', cErr);
         }
 
-        // Fallback to local storage if Cloudinary wasn't configured or failed
+        // Fallback to local storage (only when filesystem is writable) or resilient base64 data URL
         if (!finalMediaUrl) {
-          let ext = path.extname(file.name).toLowerCase().replace('.', '') || (isVid ? 'mp4' : 'jpg');
-          if (ext === 'jpeg') ext = 'jpg';
-          const fileName = `moment_${isVid ? 'vid_' : ''}${Date.now()}_${randomBytes(4).toString('hex')}.${ext}`;
-          const uploadDir = path.join(process.cwd(), 'public', 'assets', 'uploads', 'moments');
-          await mkdir(uploadDir, { recursive: true });
-          const filePath = path.join(uploadDir, fileName);
-          await writeFile(filePath, buffer);
-          finalMediaUrl = `/assets/uploads/moments/${fileName}`;
+          const mimeType = file.type || (isVid ? 'video/mp4' : 'image/jpeg');
+          // Only attempt local disk write if NOT on Vercel/serverless
+          if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+            try {
+              let ext = path.extname(file.name).toLowerCase().replace('.', '') || (isVid ? 'mp4' : 'jpg');
+              if (ext === 'jpeg') ext = 'jpg';
+              const fileName = `moment_${isVid ? 'vid_' : ''}${Date.now()}_${randomBytes(4).toString('hex')}.${ext}`;
+              const uploadDir = path.join(process.cwd(), 'public', 'assets', 'uploads', 'moments');
+              await mkdir(uploadDir, { recursive: true });
+              const filePath = path.join(uploadDir, fileName);
+              await writeFile(filePath, buffer);
+              finalMediaUrl = `/assets/uploads/moments/${fileName}`;
+            } catch (fsErr) {
+              console.warn('[Storage] Local write failed, falling back to data URL:', fsErr);
+            }
+          }
+          // Serverless / read-only filesystem fallback: direct base64 data URL
+          if (!finalMediaUrl) {
+            finalMediaUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+          }
         }
       }
 
@@ -130,7 +142,7 @@ export async function POST(req: NextRequest) {
         console.warn('[Cloudinary] Video base64 upload failed, falling back to local file:', cErr);
       }
 
-      if (finalMediaUrl.startsWith('data:video/')) {
+      if (finalMediaUrl.startsWith('data:video/') && !process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
         try {
           const matches = finalMediaUrl.match(/^data:video\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
           if (matches) {
@@ -148,7 +160,7 @@ export async function POST(req: NextRequest) {
             finalMediaUrl = `/assets/uploads/moments/${fileName}`;
           }
         } catch (e) {
-          console.error('Failed to save base64 video:', e);
+          console.warn('[Storage] Could not write video to local disk, keeping base64 data URL:', e);
         }
       }
     } else if (finalMediaUrl.startsWith('data:image/')) {
@@ -166,7 +178,7 @@ export async function POST(req: NextRequest) {
         console.warn('[Cloudinary] Image base64 upload failed, falling back to local file:', cErr);
       }
 
-      if (finalMediaUrl.startsWith('data:image/')) {
+      if (finalMediaUrl.startsWith('data:image/') && !process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
         try {
           const matches = finalMediaUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
           if (matches) {
@@ -180,7 +192,7 @@ export async function POST(req: NextRequest) {
             finalMediaUrl = `/assets/uploads/moments/${fileName}`;
           }
         } catch (e) {
-          console.error('Failed to save base64 image:', e);
+          console.warn('[Storage] Could not write image to local disk, keeping base64 data URL:', e);
         }
       }
     } else if (isVideoMedia(finalMediaUrl, mediaType)) {

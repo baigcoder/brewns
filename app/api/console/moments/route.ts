@@ -126,14 +126,24 @@ export async function POST(req: NextRequest) {
         }
 
         if (!finalMediaUrl) {
-          let ext = path.extname(file.name).toLowerCase().replace('.', '') || (isVid ? 'mp4' : 'jpg');
-          if (ext === 'jpeg') ext = 'jpg';
-          const fileName = `moment_staff_${isVid ? 'vid_' : ''}${Date.now()}_${randomBytes(4).toString('hex')}.${ext}`;
-          const uploadDir = path.join(process.cwd(), 'public', 'assets', 'uploads', 'moments');
-          await mkdir(uploadDir, { recursive: true });
-          const filePath = path.join(uploadDir, fileName);
-          await writeFile(filePath, buffer);
-          finalMediaUrl = `/assets/uploads/moments/${fileName}`;
+          const mimeType = file.type || (isVid ? 'video/mp4' : 'image/jpeg');
+          if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+            try {
+              let ext = path.extname(file.name).toLowerCase().replace('.', '') || (isVid ? 'mp4' : 'jpg');
+              if (ext === 'jpeg') ext = 'jpg';
+              const fileName = `moment_staff_${isVid ? 'vid_' : ''}${Date.now()}_${randomBytes(4).toString('hex')}.${ext}`;
+              const uploadDir = path.join(process.cwd(), 'public', 'assets', 'uploads', 'moments');
+              await mkdir(uploadDir, { recursive: true });
+              const filePath = path.join(uploadDir, fileName);
+              await writeFile(filePath, buffer);
+              finalMediaUrl = `/assets/uploads/moments/${fileName}`;
+            } catch (fsErr) {
+              console.warn('[Storage] Local write failed, falling back to data URL:', fsErr);
+            }
+          }
+          if (!finalMediaUrl) {
+            finalMediaUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+          }
         }
       }
     } else {

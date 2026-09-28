@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useState, useEffect } from 'react';
 import { LOC_TITLES } from '@/lib/catalog';
 import { money } from '@/lib/catalog';
 import { pkDate, pkTime, rs } from './api';
@@ -48,6 +48,19 @@ export function ZReportModal({
   const locName = selectedLoc === 'all' ? 'Consolidated (All 3 Stores)' : LOC_TITLES[selectedLoc];
   const titleId = useId();
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -60,13 +73,13 @@ export function ZReportModal({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
         backdropFilter: 'blur(8px)',
         zIndex: 9999,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '20px',
+        padding: '36px 16px',
         overflowY: 'auto',
       }}
       onClick={(e) => {
@@ -103,12 +116,13 @@ export function ZReportModal({
         style={{
           width: '100%',
           maxWidth: '680px',
+          margin: '0 auto',
           background: '#141413',
           border: '1px solid #2e2e2a',
           borderRadius: '12px',
           padding: '28px',
           color: '#f5ede3',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
           fontFamily: 'var(--font-space-mono), monospace',
           position: 'relative',
         }}
@@ -117,12 +131,17 @@ export function ZReportModal({
         <div
           className="cx-no-print"
           style={{
+            position: 'sticky',
+            top: '-28px',
+            background: '#141413',
+            zIndex: 10,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             marginBottom: '20px',
             borderBottom: '1px solid #2e2e2a',
-            paddingBottom: '16px',
+            paddingBottom: '14px',
+            paddingTop: '4px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
