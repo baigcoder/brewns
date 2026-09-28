@@ -8,6 +8,7 @@
     ],
     "allowJs": true,
     "skipLibCheck": true,
+    "types": ["bun"],
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,

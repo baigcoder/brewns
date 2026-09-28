@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { api, ago } from './api';
 import { useRun } from './Toasts';
 import type { Moment } from '@/lib/server/moments';
@@ -95,14 +96,14 @@ export function MomentsScreen() {
     }
   };
 
-  const fetchMoments = async () => {
+  const fetchMoments = useCallback(async () => {
     const res = await run(() => api<MomentsResponse>('/api/console/moments'));
     if (res) setData(res);
-  };
+  }, [run]);
 
   useEffect(() => {
     fetchMoments();
-  }, []);
+  }, [fetchMoments]);
 
   const handleAction = async (id: string, action: 'approve' | 'reject') => {
     setProcessingId(id);
