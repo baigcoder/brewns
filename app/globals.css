@@ -72,7 +72,7 @@
   --raw-font-size-display-tablet: 4rem; /* 64px on the 1024 base */
   --raw-font-size-headline-phone: 2rem; /* 32px */
   --raw-font-size-headline-tablet: 3rem; /* 48px */
-  --raw-font-size-script-phone: clamp(2.65rem, 11vw, 3.35rem);
+  --raw-font-size-script-phone: clamp(2.25rem, 7.5vw, 2.75rem);
   --raw-font-size-script-tablet: 7rem; /* 112px */
   --raw-font-size-display-hero-tablet: 6rem; /* 96px — the hero only */
   /* The preloader's count. It is the one figure on that screen, so it runs a
@@ -133,8 +133,8 @@
      column lets "COFFEE FOR YOUR" sit on one line, where the engine leaves the
      single line in its out-state and the headline never appears. */
   --raw-size-hero-copy-tablet: 42rem; /* 480px on the 1024 base */
-  --raw-size-hero-script-x-phone: clamp(4.5rem, 18vw, 6.75rem);
-  --raw-size-hero-script-y-phone: clamp(4.25rem, 15vw, 5.25rem);
+  --raw-size-hero-script-x-phone: clamp(7.25rem, 21vw, 8.5rem);
+  --raw-size-hero-script-y-phone: clamp(4.75rem, 13vw, 5.25rem);
   --raw-size-hero-script-x-tablet: 16.25rem; /* 260px — clear of YOUR at 96px */
   --raw-size-hero-script-y-tablet: 7.8125rem; /* 136px — sits the script on YOUR's baseline */
   --raw-size-hero-script-x: 17.375rem; /* 278px — "moment" offset in the grid */
@@ -646,17 +646,18 @@ address { font-style: normal; }
 @media (min-width: 640px) { .hero-head { gap: 1rem; } }
 @media (min-width: 1024px) { .hero-head { gap: 1.25rem; } }
 .hero-h1 { text-align: left; font-family: var(--font-geist); font-weight: 700; font-size: var(--font-size-display-phone); line-height: var(--leading-display); letter-spacing: var(--letter-spacing-tight); }
-@media (max-width: 639.98px) { .hero-h1 { font-size: var(--font-size-display-hero-phone); } }
+@media (max-width: 639.98px) { .hero-h1 { font-size: clamp(2.45rem, 8.2vw, 3rem); } }
 @media (min-width: 640px) { .hero-h1 { font-size: var(--font-size-display-tablet); } }
 @media (min-width: 640px) and (max-width: 1023.98px) { .hero-h1 { font-size: var(--font-size-display-hero-tablet); } }
 @media (min-width: 1024px) { .hero-h1 { font-size: var(--font-size-display); } }
 .hero-script { grid-column-start: 1; grid-row-start: 1; margin-left: var(--size-hero-script-x-phone); margin-top: var(--size-hero-script-y-phone); width: max-content; white-space: nowrap; font-family: var(--font-allura); font-size: var(--font-size-script-phone); line-height: var(--line-height-headline); letter-spacing: var(--letter-spacing-tight); clip-path: inset(-12% 100% -22% -4%); }
 @media (max-width: 639.98px) {
   .hero-script {
-    margin-left: clamp(4.5rem, 18vw, 6.75rem) !important;
-    margin-top: clamp(4.25rem, 15vw, 5.25rem) !important;
-    font-size: clamp(2.65rem, 11vw, 3.35rem) !important;
+    margin-left: clamp(7.25rem, 21vw, 8.5rem) !important;
+    margin-top: clamp(4.75rem, 13vw, 5.25rem) !important;
+    font-size: clamp(2.25rem, 7.5vw, 2.75rem) !important;
     max-width: calc(100vw - 2.5rem);
+    white-space: nowrap;
   }
 }
 @media (min-width: 640px) { .hero-script { margin-left: var(--size-hero-script-x-tablet); margin-top: var(--size-hero-script-y-tablet); font-size: var(--font-size-script-tablet); } }
