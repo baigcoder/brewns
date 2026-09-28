@@ -66,6 +66,6 @@ export const GET = route(async (req) => {
       active: ctx.user.active,
     },
     perms: ctx.perms,
-    rolePerms: ctx.settings.rolePerms,
+    rolePerms: canAny(ctx.perms, 'access.manage') ? ctx.settings.rolePerms : undefined,
   });
 });

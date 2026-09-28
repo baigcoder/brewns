@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createContext, Suspense, useContext, useEffect, useState, type ReactNode } from 'react';
-import { canOpen, ROLE_INFO, SECTIONS, type Permission, type Role } from '@/lib/rbac';
+import { canOpen, homeFor, ROLE_INFO, SECTIONS, type Permission, type Role } from '@/lib/rbac';
 import { api, initials } from './api';
 import { LiveProvider, useLive } from './Live';
 import { ToastProvider, useToast } from './Toasts';
@@ -102,12 +102,21 @@ function ShellContent({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const { data } = useLive();
+  const { data, error: liveError } = useLive();
   const toast = useToast();
+  const router = useRouter();
+  const path = usePathname();
 
   // Dynamic Realtime RBAC Sync: updates role and permissions on the fly without page reload
   const me = data?.me ? { ...initialMe, ...data.me } : initialMe;
   const perms = data?.perms || initialPerms;
+  const section = SECTIONS.find((s) => path === s.href || path.startsWith(`${s.href}/`));
+  const accessRevoked = !!section && !canOpen(perms, section);
+  const safeHome = homeFor(me.role, perms);
+
+  useEffect(() => {
+    if (accessRevoked) router.replace(safeHome);
+  }, [accessRevoked, router, safeHome]);
 
   useEffect(() => {
     const handleRoleChange = (e: Event) => {
@@ -151,7 +160,9 @@ function ShellContent({
                 <p className="cx-me-name">{me.name}</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <p className="cx-eyebrow" style={{ margin: 0 }}>{ROLE_INFO[me.role].label}</p>
-                  <span className="cx-live-tag" title="Realtime role & permission sync active">LIVE</span>
+                  <span className={`cx-live-tag${liveError ? ' stale' : ''}`} title={liveError || 'Role, permissions, and live board are syncing automatically'}>
+                    {liveError ? 'SYNC ISSUE' : data ? 'LIVE' : 'CONNECTING'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -170,7 +181,13 @@ function ShellContent({
           <Suspense fallback={null}>
             <Denied />
           </Suspense>
-          {children}
+          {accessRevoked ? (
+            <section className="cx-card" role="status" style={{ maxWidth: 560, margin: '12vh auto', padding: 28 }}>
+              <p className="cx-eyebrow"><b>{'//'}</b> Access updated</p>
+              <h1 className="cx-h2">This screen is no longer available to your role.</h1>
+              <p className="cx-small cx-muted">Taking you to the first screen your current role can use…</p>
+            </section>
+          ) : children}
         </main>
       </div>
     </MeCtx.Provider>

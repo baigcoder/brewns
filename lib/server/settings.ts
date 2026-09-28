@@ -4,7 +4,7 @@
 
 import { SHOP_COUNT } from '@/lib/catalog';
 import { normaliseRolePerms, type RolePerms } from '@/lib/rbac';
-import { kv } from './store';
+import { kv, withLock } from './store';
 
 export type ShopSettings = {
   /** Online orders paused (busy, closed early, power cut). */
@@ -54,9 +54,11 @@ export async function getSettings(): Promise<Settings> {
 }
 
 export async function updateSettings(change: (s: Settings) => void | Settings) {
-  const s = await getSettings();
-  const next = change(s) || s;
-  next.updatedAt = Date.now();
-  await kv.set('settings', next);
-  return next;
+  return withLock('settings', async () => {
+    const s = await getSettings();
+    const next = change(s) || s;
+    next.updatedAt = Date.now();
+    await kv.set('settings', next);
+    return next;
+  });
 }

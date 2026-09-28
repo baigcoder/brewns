@@ -92,7 +92,7 @@ function Bars({ data, label }: { data: { key: string; axis: string; value: numbe
 
 export function OverviewScreen() {
   const { me } = useMe();
-  const { data: live } = useLive();
+  const { data: live, error: liveError } = useLive();
   const run = useRun();
   const [range, setRange] = useState<string>('today');
   const [report, setReport] = useState<Report | null>(null);
@@ -277,7 +277,9 @@ export function OverviewScreen() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 16 }}>☕</span>
                 <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, textTransform: 'uppercase', color: '#fff' }}>Café Register Open · 0 Orders Today</h3>
-                <span className="cx-live-tag">● LIVE SYSTEM READY</span>
+                <span className={`cx-live-tag${liveError ? ' stale' : ''}`} title={liveError || 'The console checks for order and access changes automatically'}>
+                  {liveError ? '● SYNC ISSUE · RETRYING' : live ? '● LIVE SYSTEM READY' : '● CONNECTING TO LIVE BOARD'}
+                </span>
               </div>
               <p className="cx-small cx-muted" style={{ margin: 0, maxWidth: 520 }}>
                 Live orders appear automatically. You can ring up walk-ins via <strong>New Order (POS)</strong>, or populate a <strong>Realistic Café Day</strong> to test live kitchen tickets, delivery riders, table seatings, and financial analytics with real-world business logic.
