@@ -5956,7 +5956,7 @@ function receiptDoc(o) {
   const body = `<main class="rc">
     <h1>BREWNS COFFEE HOUSE</h1>
     <hr>
-    ${hero ? `<div class="hero"><img src="${esc(hero.photo)}" alt="${esc(hero.name)}" loading="eager"><span>${esc(hero.name.toUpperCase())}</span></div>` : ""}
+    ${hero ? `<div class="receipt-hero"><img src="${esc(hero.photo)}" alt="${esc(hero.name)}" loading="eager"><span>${esc(hero.name.toUpperCase())}</span></div>` : ""}
     <div class="hello"><span>GOOD COFFEE.<br>MADE FOR YOUR DAY.</span><span>ORDER ${String(o.number).padStart(5, "0")}<br>${date}</span></div>
     <h2>${o.mode === "delivery" ? "DELIVERY" : o.mode === "dinein" ? `TABLE ${o.table}` : "PICKUP"} · TAX INVOICE</h2>
     ${row("INVOICE", invoiceNo(o, SHOP_CODES[o.loc]))}
@@ -5987,7 +5987,7 @@ function receiptDoc(o) {
     h1{margin:0;text-align:center;font-size:13px;letter-spacing:.16em}h2{margin:8px 0;text-align:center;font-size:10px;letter-spacing:.16em;border-block:1px dashed #999;padding:4px 0}
     .c{text-align:center;margin:4px 0}.r{display:flex;justify-content:space-between;gap:10px}.r span:last-child{text-align:right}.dim{color:#6b6b66}
     .big{font-size:14px;font-weight:700;margin-top:6px}.addr{margin:6px 0}hr{border:0;border-top:1px dashed #999;margin:10px 0}
-    .hero{display:grid;justify-items:center;gap:4px;text-align:center;color:#555;font-size:8px;letter-spacing:.1em}.hero img{display:block;width:132px;height:142px;object-fit:contain;mix-blend-mode:multiply}.hello{display:flex;justify-content:space-between;gap:10px;font-size:8px;letter-spacing:.06em;line-height:1.8;text-transform:uppercase}.hello span:last-child{text-align:right}.item{margin:5px 0}.item-copy{min-width:0}.item-copy .r{gap:6px}.item-copy .r span:first-child{overflow-wrap:anywhere}.item-copy .dim{font-size:9px}.thanks{margin:2px 0;font-size:17px;font-weight:700;line-height:1.2;letter-spacing:-.03em}
+    .receipt-hero{position:static;display:grid;width:auto;height:auto;min-height:0;overflow:visible;justify-items:center;gap:4px;background:transparent;text-align:center;color:#555;font-size:8px;letter-spacing:.1em}.receipt-hero img{display:block;width:132px;height:142px;object-fit:contain;mix-blend-mode:multiply}.hello{display:flex;justify-content:space-between;gap:10px;font-size:8px;letter-spacing:.06em;line-height:1.8;text-transform:uppercase}.hello span:last-child{text-align:right}.item{margin:5px 0}.item-copy{min-width:0}.item-copy .r{gap:6px}.item-copy .r span:first-child{overflow-wrap:anywhere}.item-copy .dim{font-size:9px}.thanks{margin:2px 0;font-size:17px;font-weight:700;line-height:1.2;letter-spacing:-.03em}
     .bars{display:block;width:100%;height:38px;margin:14px 0 8px}@media print{body{background:#fff}.rc{box-shadow:none;margin:0 auto}}`;
   return { body, css, html: `<!doctype html><html><head><meta charset="utf-8"><title>brewns receipt #${String(o.number).padStart(5, "0")}</title><style>${css}</style></head><body>${body}</body></html>` };
 }
