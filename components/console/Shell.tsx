@@ -27,6 +27,18 @@ function Denied() {
 function Nav({ perms, onGo }: { perms: Permission[]; onGo: () => void }) {
   const path = usePathname();
   const { data } = useLive();
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    let interval = 0;
+    const timeout = window.setTimeout(() => {
+      setNow(Date.now());
+      interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    }, 0);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, []);
   const orders = data?.orders || [];
   const badge: Record<string, { n: number; alert?: boolean }> = {
     orders: {
@@ -35,7 +47,7 @@ function Nav({ perms, onGo }: { perms: Permission[]; onGo: () => void }) {
     },
     kitchen: {
       n: orders.filter((o) => ['accepted', 'preparing'].includes(o.status) && Object.values(o.stations).some((s) => s !== 'done')).length,
-      alert: orders.some((o) => o.status === 'preparing' && Date.now() - o.placed > 15 * 60000),
+      alert: orders.some((o) => o.status === 'preparing' && now - o.placed > 15 * 60000),
     },
     floor: {
       n: (data?.calls.length || 0) + orders.filter((o) => o.mode === 'dinein' && o.status === 'ready').length,

@@ -33,6 +33,8 @@ export function AccessScreen() {
   // Real-time synchronization from live poll / socket stream
   useEffect(() => {
     if (data?.rolePerms) {
+      // Mirror server-pushed permissions into the local optimistic edit state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPerms(data.rolePerms);
     }
   }, [data?.rolePerms]);
