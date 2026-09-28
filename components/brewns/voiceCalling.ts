@@ -406,19 +406,41 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     // This is deferred from call start so the user already sees Sarah's greeting
     // and understands why the browser is asking for mic access.
     if (!micStream || !micStream.getAudioTracks().some((t) => t.readyState === 'live')) {
+      // Pre-check: ask the Permissions API whether mic is granted/prompt/denied.
+      // If Chrome has cached a 'denied', getUserMedia will fail instantly and silently
+      // (no popup) — don't even try, go straight to the type + SPEAK LIVE UI.
+      let permState: string | null = null;
+      try {
+        const ps = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
+        permState = ps?.state ?? null;
+      } catch {}
+
+      if (permState === 'denied') {
+        // Chrome cached a previous denial. getUserMedia from a non-gesture (like this
+        // speak-done callback) won't re-prompt. Guide the user to use SPEAK LIVE button
+        // (which IS a user gesture and CAN re-prompt on some browsers), or type.
+        muted = true;
+        setPhase('muted', 'TAP SPEAK LIVE');
+        caption(
+          IS_MOBILE
+            ? 'Tap SPEAK LIVE below to enable your mic, or type your reply in the text box.'
+            : 'Tap SPEAK LIVE below to enable your mic, or type your reply in the text box.'
+        );
+        inputRow?.classList.add('open');
+        textInput?.focus();
+        return;
+      }
+
+      // Permission is 'prompt' or 'granted' — try to acquire the stream.
       setPhase('listening', 'REQUESTING MIC…');
       const got = await ensureMic();
       if (!callActive) return;  // call ended while we were waiting
       if (!got) {
-        // Mic not available — don't try SpeechRecognition (it will also fail),
-        // go straight to the type/unblock UI.
+        // getUserMedia failed even though permission wasn't 'denied'.
+        // Could be no hardware mic, or user dismissed the prompt just now.
         muted = true;
-        setPhase('muted', 'MIC BLOCKED');
-        caption(
-          IS_MOBILE
-            ? 'Microphone blocked. Open your browser Settings → Site permissions → Microphone → Allow for this site. Or tap "Type message" below.'
-            : 'To enable mic: Tap the 🔒 icon in your address bar → click ⚙️ Site settings → set Microphone to "Allow". Or tap "Type message" below.'
-        );
+        setPhase('muted', 'TAP SPEAK LIVE');
+        caption('Mic not available right now. Tap SPEAK LIVE to try again, or type your reply below.');
         unblockActions?.removeAttribute('hidden');
         inputRow?.classList.add('open');
         textInput?.focus();
@@ -846,9 +868,15 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       if (!alive) {
         // Release old tracks before requesting new ones
         stream?.getTracks().forEach((t) => t.stop());
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
+        // Try advanced constraints first, fall back to simple { audio: true }
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          });
+        } catch {
+          // Some devices/browsers reject advanced constraints; try bare minimum
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
       }
       micStream = stream;
       muted = false;
