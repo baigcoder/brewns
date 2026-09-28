@@ -53,6 +53,10 @@ export function renderBookingEmailHtml(p: BookingEmailPayload): string {
   <title>Your Booking at brewns — ${p.code}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#0d0c0a; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#f5ede3; -webkit-font-smoothing:antialiased;">
+  <!-- Hidden Preheader Preview Text -->
+  <div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">
+    Your reservation ${p.code} at brewns coffee house is confirmed for ${displayDate} at ${displayTime}.
+  </div>
   <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#0d0c0a; padding:32px 16px;">
     <tr>
       <td align="center">
@@ -190,6 +194,7 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
     try {
       // Use onboarding@resend.dev unless a custom domain is explicitly configured
       const fromAddr = process.env.EMAIL_FROM || 'brewns Concierge <onboarding@resend.dev>';
+      const replyTo = process.env.EMAIL_REPLY_TO || 'brewns.coffee@gmail.com';
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -199,9 +204,13 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
         body: JSON.stringify({
           from: fromAddr,
           to: [cleanEmail],
+          reply_to: replyTo,
           subject,
           html,
           text,
+          headers: {
+            'X-Entity-Ref-ID': payload.code,
+          },
         }),
       });
       if (res.ok) {

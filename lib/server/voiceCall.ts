@@ -79,7 +79,7 @@ export interface VoiceCallResponse {
   audioUrl?: string;
   actions: VoiceAction[];
   state?: ScriptState;
-  brain: 'gemini' | 'script';
+  brain: 'groq' | 'gemini' | 'script';
   /** The language the caller spoke, so the browser listens in it next turn. */
   lang: VoiceLang;
 }
@@ -338,6 +338,16 @@ export function parseEmail(text: string): string {
   return '';
 }
 
+function extractBookingCode(text: string): string | undefined {
+  const direct = text.match(/\b(RES|PTY)-([A-Z0-9]{4,6})\b/i);
+  if (direct) return `${direct[1].toUpperCase()}-${direct[2].toUpperCase()}`;
+  const spoken = text.match(/\b(R\s*E\s*S|P\s*T\s*Y)[,:;\s-]+((?:\d[\s,]*){4,6})/i);
+  const digits = spoken?.[2].replace(/\D/g, '');
+  return digits && digits.length >= 4 && digits.length <= 6 ? `${/R\s*E\s*S/i.test(spoken![1]) ? 'RES' : 'PTY'}-${digits}` : undefined;
+}
+
+const bookingCodeFromHistory = (history: VoiceTurn[]) => extractBookingCode(history.map((turn) => turn.content).join(' '));
+
 export async function attachEmailToBooking(
   email: string,
   codeOrPhone?: string,
@@ -358,6 +368,7 @@ export async function attachEmailToBooking(
     occasion?: string;
     kind: 'table' | 'party';
   } | null = null;
+  let emailNeedsSending = false;
 
   const phoneMatch = codeOrPhone ? pkMobile(codeOrPhone) : '';
   const searchCode = (codeOrPhone || '').toUpperCase().trim();
@@ -371,9 +382,10 @@ export async function attachEmailToBooking(
         if (searchCode && (r.code === searchCode || r.code.replace(/-/g, '') === searchCode.replace(/-/g, ''))) return true;
         if (phoneMatch && r.phone === phoneMatch) return true;
         return false;
-      }) || (list.length > 0 && !searchCode ? list[0] : null);
+      }) || null;
 
       if (target) {
+        emailNeedsSending = target.email !== clean;
         target.email = clean;
         await kv.hset('reservations', target.id, target);
         return {
@@ -401,9 +413,10 @@ export async function attachEmailToBooking(
         if (searchCode && (p.code === searchCode || p.code.replace(/-/g, '') === searchCode.replace(/-/g, ''))) return true;
         if (phoneMatch && p.phone === phoneMatch) return true;
         return false;
-      }) || (list.length > 0 && !searchCode ? list[0] : null);
+      }) || null;
 
       if (target) {
+        emailNeedsSending = target.email !== clean;
         target.email = clean;
         await kv.hset('party_bookings', target.id, target);
         return {
@@ -423,23 +436,22 @@ export async function attachEmailToBooking(
   }
 
   if (foundBooking) {
-    // Notify live dashboard immediately so owner/staff sees it
-    await bumpLive();
-
-    // Send confirmation email asynchronously
-    sendBookingConfirmationEmail({
-      code: foundBooking.code,
-      name: foundBooking.name,
-      email: clean,
-      phone: foundBooking.phone,
-      loc: foundBooking.loc,
-      date: foundBooking.date,
-      time: foundBooking.time,
-      guests: foundBooking.guests,
-      area: foundBooking.area,
-      occasion: foundBooking.occasion,
-      kind: foundBooking.kind,
-    }).catch((err) => console.error('[Voice Email Send Error]', err));
+    if (emailNeedsSending) {
+      await bumpLive();
+      sendBookingConfirmationEmail({
+        code: foundBooking.code,
+        name: foundBooking.name,
+        email: clean,
+        phone: foundBooking.phone,
+        loc: foundBooking.loc,
+        date: foundBooking.date,
+        time: foundBooking.time,
+        guests: foundBooking.guests,
+        area: foundBooking.area,
+        occasion: foundBooking.occasion,
+        kind: foundBooking.kind,
+      }).catch((err) => console.error('[Voice Email Send Error]', err));
+    }
 
     return { ok: true, code: foundBooking.code, details: foundBooking };
   }
@@ -808,13 +820,32 @@ const speakable = (t: string) =>
 
 type ToolOut = { content: string; isError?: boolean };
 
-/** "yes", "haan bilkul", "book kar dein", "ٹھیک ہے": the caller agreeing to what was read back. */
-const CONFIRM = /\b(yes|yeah|yep|yup|sure|ok|okay|correct|right|confirm|confirmed|go ahead|book it|do it|perfect|sounds good|haan|han|ji|jee|theek|thik|bilkul|zaroor|kar do|kar dein|kardo|kardein|done)\b|ہاں|جی|ٹھیک|بالکل|ضرور|کر دیں|کردیں/i;
+function replyAfterToolFailure(actions: VoiceAction[], outputs: ToolOut[], lang: VoiceLang) {
+  const booking = actions.find((action) => action.type === 'RESERVE_TABLE' || action.type === 'BOOK_PARTY');
+  if (booking?.type === 'RESERVE_TABLE') return `You're all set. Your confirmation code is ${spokenCode(booking.data.code)}. Is there anything else I can help with?`;
+  if (booking?.type === 'BOOK_PARTY') return `Your party is booked. Your confirmation code is ${spokenCode(booking.data.code)}. Our events team will be in touch. Anything else?`;
+  const bag = actions.find((action) => action.type === 'ADD_TO_BAG');
+  if (bag?.type === 'ADD_TO_BAG') return `I've added ${bag.data.items.map((item) => `${item.qty} ${titleCase(item.name)}`).join(' and ')} to your bag, for ${money(bag.data.total)}. Anything else?`;
+  const email = actions.find((action) => action.type === 'SAVED_EMAIL');
+  if (email?.type === 'SAVED_EMAIL') return `I've sent the confirmation details to ${email.data.email}. Is there anything else I can help with?`;
+  const failure = outputs.find((output) => output.isError);
+  if (failure) return lang === 'ur' ? 'معذرت، میں یہ ابھی مکمل نہیں کر سکی۔ کیا آپ تفصیل دوبارہ بتائیں گے؟' : `I couldn't complete that just now. ${failure.content} Could you tell me what you'd like to do next?`;
+  return lang === 'ur' ? 'معذرت، لائن میں مسئلہ آ گیا۔ کیا آپ ایک بار پھر کہیں گے؟' : 'Sorry, the line cut out for a moment. Could you say that again?';
+}
 
-async function runTool(name: string, input: Record<string, unknown>, transcript: string, actions: VoiceAction[]): Promise<ToolOut> {
-  // A booking goes through only on the caller's yes to the details read back, never on the turn they're given.
-  if ((name === 'reserve_table' || name === 'book_party') && !CONFIRM.test(transcript)) {
-    return { content: 'Not booked yet: read the details back to the caller in one short sentence and ask them to confirm. Book on their yes.', isError: true };
+/** Require an affirmative response; a "no, that is not right" must never book. */
+const CONFIRM = /\b(yes|yeah|yep|yup|sure|ok|okay|correct|confirm|confirmed|go ahead|book it|do it|sounds good|haan|han|ji|jee|theek|thik|bilkul|zaroor|kar do|kar dein|kardo|kardein)\b|ہاں|جی|ٹھیک|بالکل|ضرور|کر دیں|کردیں/i;
+const NOT_CONFIRM = /\b(no|nope|not|don't|do not|wait|hold on|change|instead|actually|cancel|wrong|never mind)\b|نہیں|نہ|مت|رکیں|غلط|بدل|تبدیل/i;
+const ASKED_TO_CONFIRM = /\b(shall i (book|confirm)|should i (book|confirm)|would you like me to (book|confirm)|can i (go ahead|confirm)|shall i go ahead|does that sound (right|good)|is that (right|correct)|confirm (it|this|the booking))\b|کیا میں.*(بک|کنفرم)/i;
+
+async function runTool(name: string, input: Record<string, unknown>, transcript: string, actions: VoiceAction[], previousAssistant = ''): Promise<ToolOut> {
+  if (name === 'reserve_table' || name === 'book_party') {
+    if (NOT_CONFIRM.test(transcript) || !CONFIRM.test(transcript)) {
+      return { content: 'Not booked: the caller did not clearly confirm. Ask them to confirm the read-back or ask what they want changed.', isError: true };
+    }
+    if (!ASKED_TO_CONFIRM.test(previousAssistant)) {
+      return { content: 'Not booked: read all booking details back to the caller and ask whether they want you to confirm before trying again.', isError: true };
+    }
   }
   if (name === 'reserve_table') {
     const r = await saveReservation(input, transcript);
@@ -836,13 +867,13 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
     const emailStr = String(input.email || '');
     const codeStr = String(input.code || '');
     const clean = parseEmail(emailStr);
-    const r = await attachEmailToBooking(clean || emailStr, codeStr);
+    if (!clean) return { content: 'That does not look like a valid email address. Ask the caller to repeat it.', isError: true };
+    const r = await attachEmailToBooking(clean, codeStr);
     if (r.ok) {
-      actions.push({ type: 'SAVED_EMAIL', data: { email: clean || emailStr, code: r.code } });
-      return { content: JSON.stringify({ saved: true, email: clean || emailStr, code: r.code, note: 'Confirmation email queued and linked to customer profile.' }) };
+      actions.push({ type: 'SAVED_EMAIL', data: { email: clean, code: r.code } });
+      return { content: JSON.stringify({ saved: true, email: clean, code: r.code, note: 'Confirmation email queued and linked to customer profile.' }) };
     }
-    actions.push({ type: 'SAVED_EMAIL', data: { email: clean || emailStr, code: codeStr } });
-    return { content: JSON.stringify({ saved: true, email: clean || emailStr, note: 'Email recorded.' }) };
+    return { content: 'No booking matched that email and confirmation code. Do not say the email was saved or sent; ask the caller to repeat their booking code.', isError: true };
   }
   if (name === 'add_to_bag') {
     const r = checkBag(input.items);
@@ -947,7 +978,8 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
     const responses: GeminiPart[] = [];
     for (const c of calls) {
       const { name, args } = c.functionCall!;
-      const out = await runTool(name, args || {}, prompt, actions);
+      const previousAssistant = [...history].reverse().find((turn) => turn.role === 'assistant')?.content || '';
+      const out = await runTool(name, args || {}, prompt, actions, previousAssistant);
       responses.push({ functionResponse: { name, response: out.isError ? { error: out.content } : { result: out.content } } });
     }
     contents.push({ role: 'user', parts: responses });
@@ -964,7 +996,7 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
 /* ═══════════ Groq ═══════════ */
 
 export const groqEnabled = () => Boolean(process.env.GROQ_API_KEY);
-const GROQ_MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b'];
+const GROQ_MODELS = [...new Set([process.env.GROQ_MODEL || 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b'])];
 
 const GROQ_TOOLS = TOOLS[0].functionDeclarations.map((fn) => ({
   type: 'function',
@@ -985,9 +1017,12 @@ async function groqTurn(
   if (!apiKey) throw new Error('No Groq API key');
 
   const now = lahoreNow();
+  const languageInstruction = lang === 'ur'
+    ? 'The caller is speaking Urdu. Reply in natural conversational Urdu written in Urdu script; preserve menu names, email addresses, and booking codes clearly.'
+    : 'Reply in natural conversational English. If the caller switches to Urdu, follow their language.';
   const systemPrompt =
     persona(gender) +
-    `\nCurrent time in Lahore: ${now.clock}, date: ${now.date}.\nMenu items:\n${MENU_TEXT}\nIMPORTANT: Keep answers short (1 to 2 spoken sentences, usually under 35 words). Never use markdown, bullet points, headings, or emojis. Call tools when reserving a table, party, saving email, or ordering.`;
+    `\nCurrent time in Lahore: ${now.clock}, date: ${now.date}.\n${languageInstruction}\nMenu items:\n${MENU_TEXT}\nIMPORTANT: Keep answers short (1 to 2 spoken sentences, usually under 35 words). Never use markdown, bullet points, headings, or emojis. Call tools when reserving a table, party, saving email, or ordering.`;
 
   const messages: any[] = [
     { role: 'system', content: systemPrompt },
@@ -996,16 +1031,9 @@ async function groqTurn(
   ];
 
   const actions: VoiceAction[] = [];
+  const previousAssistant = [...history].reverse().find((turn) => turn.role === 'assistant')?.content || '';
 
-  // Deterministic email capture: if the user prompt mentions an email, attach it immediately!
   const detectedEmail = parseEmail(prompt);
-  if (detectedEmail) {
-    const codeFromHistory = history.map((h) => h.content).join(' ').match(/\b(RES|PTY)-[A-Z0-9]{4,6}\b/i)?.[0];
-    const r = await attachEmailToBooking(detectedEmail, codeFromHistory);
-    if (r.ok) {
-      actions.push({ type: 'SAVED_EMAIL', data: { email: detectedEmail, code: r.code } });
-    }
-  }
 
   for (const model of GROQ_MODELS) {
     try {
@@ -1039,6 +1067,7 @@ async function groqTurn(
       // Handle function tool calls
       if (message.tool_calls && message.tool_calls.length > 0) {
         messages.push(message);
+        const toolOutputs: ToolOut[] = [];
         for (const toolCall of message.tool_calls) {
           const fnName = toolCall.function.name;
           let fnArgs: Record<string, unknown> = {};
@@ -1046,7 +1075,8 @@ async function groqTurn(
             fnArgs = JSON.parse(toolCall.function.arguments || '{}');
           } catch {}
 
-          const toolOut = await runTool(fnName, fnArgs, prompt, actions);
+          const toolOut = await runTool(fnName, fnArgs, prompt, actions, previousAssistant);
+          toolOutputs.push(toolOut);
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -1055,42 +1085,35 @@ async function groqTurn(
         }
 
         // Send tool results back to Groq for spoken confirmation sentence
-        const secondRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model,
-            messages,
-            max_tokens: 220,
-            temperature: 0.7,
-          }),
-          signal: AbortSignal.timeout(7000),
-        });
-
-        if (secondRes.ok) {
-          const secondData = await secondRes.json();
-          const secondContent = secondData.choices?.[0]?.message?.content?.trim();
-          if (secondContent) {
-            const reply = speakable(secondContent);
-            if (BYE.test(prompt) && /\b(bye|take care|khuda hafiz|allah hafiz)\b/i.test(reply)) {
-              actions.push({ type: 'END_CALL' });
+        try {
+          const secondRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, messages, max_tokens: 220, temperature: 0.7 }),
+            signal: AbortSignal.timeout(7000),
+          });
+          if (secondRes.ok) {
+            const secondData = await secondRes.json();
+            const secondContent = secondData.choices?.[0]?.message?.content?.trim();
+            if (secondContent) {
+              const reply = speakable(secondContent);
+              if (BYE.test(prompt) && /\b(bye|take care|khuda hafiz|allah hafiz)\b/i.test(reply)) actions.push({ type: 'END_CALL' });
+              return { reply, actions };
             }
-            return { reply, actions };
+          } else {
+            console.warn(`[Voice Groq ${model} tool follow-up ${secondRes.status}]`, (await secondRes.text().catch(() => '')).slice(0, 300));
           }
+        } catch (error) {
+          console.warn(`[Voice Groq ${model} tool follow-up]`, error instanceof Error ? error.message : error);
         }
+        // Tools may already have written to the booking store or bag. Never retry
+        // the original model request after that, or a second provider may repeat it.
+        return { reply: replyAfterToolFailure(actions, toolOutputs, lang), actions };
       }
 
       const content = message.content?.trim();
       if (content) {
         let reply = speakable(content);
-        if (detectedEmail && !/email|gmail|ای میل/i.test(reply)) {
-          reply = lang === 'ur'
-            ? `بہت شکریہ! کنفرمیشن ای میل ${detectedEmail} پر بھیج دی گئی ہے۔`
-            : `Lovely! I've sent the confirmation details to ${detectedEmail}. See you then!`;
-        }
         if (BYE.test(prompt) && /\b(bye|take care|khuda hafiz|allah hafiz|have a (lovely|great|good))\b/i.test(reply)) {
           actions.push({ type: 'END_CALL' });
         }
@@ -1295,8 +1318,7 @@ function stateFromHistory(history: VoiceTurn[]): ScriptState {
   for (const t of history) {
     if (t.role === 'assistant') {
       if (/email|gmail/i.test(t.content) && (/\b(RES|PTY)\b|R E S|P T Y|code is/i.test(t.content))) {
-        const codeMatch = t.content.match(/\b(RES|PTY)[- ]?(\d{4})\b/i) || t.content.match(/\b(R\s*E\s*S|P\s*T\s*Y)[,\s]+(\d(?:\s+\d){3})/i);
-        const normCode = codeMatch ? codeMatch[0].replace(/\s+/g, '').replace(/,/g, '').toUpperCase() : '';
+        const normCode = extractBookingCode(t.content) || '';
         const kind = /party|ایونٹ/i.test(t.content) ? 'party' : 'table';
         st = { flow: kind, waitingForEmail: true, confirmedCode: normCode, confirmedKind: kind };
         continue;
@@ -1538,7 +1560,7 @@ export async function processVoiceCallPrompt(
 ): Promise<VoiceCallResponse> {
   const special = prompt === 'call_init' || prompt === 'voice_switch';
   const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !clearlyEnglish(prompt) ? 'ur' : 'en';
-  let brain: VoiceCallResponse['brain'] = (groqEnabled() || geminiEnabled()) ? 'gemini' : 'script';
+  let brain: VoiceCallResponse['brain'] = 'script';
   let turn: { reply: string; actions: VoiceAction[]; state?: ScriptState };
 
   if (prompt === 'call_init') {
@@ -1553,14 +1575,16 @@ export async function processVoiceCallPrompt(
   } else if (groqEnabled()) {
     try {
       turn = await groqTurn(prompt, history, gender, lang);
-    } catch (err) {
-      console.error('[Voice Groq]', err instanceof Error ? err.message : err);
-      if (geminiEnabled()) {
-        try {
-          turn = await geminiTurn(prompt, history, gender, lang);
-        } catch {
-          turn = await scriptTurn(prompt, gender, state, history);
-          brain = 'script';
+      brain = 'groq';
+      } catch (err) {
+        console.error('[Voice Groq]', err instanceof Error ? err.message : err);
+        if (geminiEnabled()) {
+          try {
+            turn = await geminiTurn(prompt, history, gender, lang);
+            brain = 'gemini';
+          } catch {
+            turn = await scriptTurn(prompt, gender, state, history);
+            brain = 'script';
         }
       } else {
         turn = await scriptTurn(prompt, gender, state, history);
@@ -1570,6 +1594,7 @@ export async function processVoiceCallPrompt(
   } else if (geminiEnabled()) {
     try {
       turn = await geminiTurn(prompt, history, gender, lang);
+      brain = 'gemini';
     } catch (err) {
       console.error('[Voice Gemini]', err instanceof Error ? err.message : err);
       turn = await scriptTurn(prompt, gender, state, history);
@@ -1581,10 +1606,13 @@ export async function processVoiceCallPrompt(
 
   const emailInPrompt = parseEmail(prompt);
   if (emailInPrompt && !turn.actions.some((a) => a.type === 'SAVED_EMAIL')) {
-    const codeFromHistory = history.map((h) => h.content).join(' ').match(/\b(RES|PTY)-[A-Z0-9]{4,6}\b/i)?.[0];
+    const codeFromHistory = bookingCodeFromHistory(history);
     const r = await attachEmailToBooking(emailInPrompt, codeFromHistory);
     if (r.ok) {
       turn.actions.push({ type: 'SAVED_EMAIL', data: { email: emailInPrompt, code: r.code } });
+      turn.reply = `I've sent the confirmation details to ${emailInPrompt}. Is there anything else I can help with?`;
+    } else if (/\b(sent|saved|emailed|email is on its way|confirmation sent)\b/i.test(turn.reply) || /بھیج دی|ارسال کر دی/i.test(turn.reply)) {
+      turn.reply = 'I have your email, but I need your booking confirmation code to attach it to the right reservation. Could you repeat that code?';
     }
   }
 

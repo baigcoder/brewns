@@ -15,7 +15,7 @@ export interface VoiceCallLog {
   endedAt?: number;
   agent: string;
   langs: VoiceLang[];
-  brain: 'gemini' | 'script';
+  brain: 'groq' | 'gemini' | 'script';
   turns: { who: 'caller' | 'agent'; text: string; t: number }[];
   outcomes: VoiceOutcome[];
 }
@@ -43,7 +43,7 @@ function outcomesOf(actions: VoiceAction[]): VoiceOutcome[] {
 /** Record one turn of a call (creating the call on its first turn). */
 export async function logVoiceTurn(
   id: string,
-  t: { caller?: string; agent: string; gender: VoiceGender; agentName: string; lang: VoiceLang; brain: 'gemini' | 'script'; actions: VoiceAction[] },
+  t: { caller?: string; agent: string; gender: VoiceGender; agentName: string; lang: VoiceLang; brain: 'groq' | 'gemini' | 'script'; actions: VoiceAction[] },
 ) {
   const now = Date.now();
   const call: VoiceCallLog = (await kv.hget<VoiceCallLog>(KEY, id)) || { id, startedAt: now, lastAt: now, agent: t.agentName, langs: [], brain: t.brain, turns: [], outcomes: [] };
