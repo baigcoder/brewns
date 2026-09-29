@@ -1,6 +1,7 @@
 // @ts-nocheck
 import * as THREE from 'three';
 import { createBurgerModel } from './foodModels3d';
+import { createCeramicTumblerModel as createTumblerModel, createCortadoModel as createGlassCortadoModel, createNitroColdBrewModel as createGlassNitroModel } from './drinkModels3d';
 import { createBrownieModel, createCardamomBunModel as createKnotBunModel, createCheesecakeModel, createCoolerLook, createCroissantModel, createFinancierModel, createTiramisuModel, isCooler } from './bakeryModels3d';
 import { createFriesModel, createGarlicBreadModel, createPastaModel, createPizzaModel, createRollModel, createTendersModel } from './kitchenModels3d';
 
@@ -124,7 +125,7 @@ export function createSteamSystem(T: typeof THREE, count = 28, yOffset = 0.25): 
   const group = new T.Group();
   group.position.y = yOffset;
 
-  const warmLight = new T.PointLight(0xff9944, 0, 1.8);
+  const warmLight = new T.PointLight(0xffd9b0, 0, 1.8);
   warmLight.position.set(0, yOffset + 0.1, 0);
 
   const steamGeo = new T.SphereGeometry(0.038, 8, 8);
@@ -155,7 +156,7 @@ export function createSteamSystem(T: typeof THREE, count = 28, yOffset = 0.25): 
     },
     tick(dt: number, time: number) {
       currentOpacity += (targetOpacity - currentOpacity) * Math.min(1, dt * 3.5);
-      warmLight.intensity = (currentOpacity / 0.32) * 1.6;
+      warmLight.intensity = (currentOpacity / 0.32) * 0.3;
 
       if (currentOpacity > 0.01) {
         particles.forEach((p) => {
@@ -2202,10 +2203,10 @@ export function createProduct3DModel(
 
     // 2. Specialty Bar & Draft Drinks
     case 'cortado':
-      return createCortadoModel(T, initialSel);
+      return createGlassCortadoModel(T, id, initialSel);
 
     case 'nitro-cold-brew':
-      return createNitroColdBrewModel(T, initialSel);
+      return createGlassNitroModel(T, id, initialSel);
 
     case 'iced-matcha':
     case 'iced-latte':
@@ -2258,7 +2259,7 @@ export function createProduct3DModel(
 
     // 6. Merch & Equipment
     case 'ceramic-tumbler':
-      return createCeramicTumblerModel(T, initialSel);
+      return createTumblerModel(T, id, initialSel);
 
     default:
       // Fallback router by kind

@@ -5015,12 +5015,34 @@ const loadProductAssets = () =>
       }),
   ));
 
+/* A photo studio to reflect: a big softbox front-left, a strip light on the right, a rim light behind and a warm bounce
+   from below, on a mid-grey room. Glass, glaze, sauce and metal pick these up as the soft window highlights a product
+   photograph has; the old blocky "room" gave them nothing believable to show. */
+const studioEnvironment = (T, pmrem) => {
+  const room = new T.Scene();
+  room.add(new T.Mesh(new T.SphereGeometry(30, 32, 16), new T.MeshBasicMaterial({ color: new T.Color(0.42, 0.42, 0.44), side: T.BackSide })));
+  const panel = (w, h, pos, k, tint = [1, 1, 1]) => {
+    const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ color: new T.Color(tint[0] * k, tint[1] * k, tint[2] * k), side: T.DoubleSide }));
+    m.position.set(...pos);
+    m.lookAt(0, 0, 0);
+    room.add(m);
+  };
+  panel(12, 8, [-9, 7, 8], 9);
+  panel(4, 14, [10, 3, 6], 5, [0.95, 0.98, 1]);
+  panel(14, 4, [0, 10, -8], 7);
+  panel(16, 4, [0, -6, 8], 1.2, [1, 0.92, 0.82]);
+  const env = pmrem.fromScene(room, 0.02);
+  room.traverse((o) => {
+    o.geometry?.dispose();
+    o.material?.dispose();
+  });
+  return env;
+};
+
 const makeStudio = (T, renderer) => {
   const scene = new T.Scene();
   const pmrem = new T.PMREMGenerator(renderer);
-  const room = new T.RoomEnvironment();
-  const env = pmrem.fromScene(room, 0.04);
-  room.dispose();
+  const env = studioEnvironment(T, pmrem);
   pmrem.dispose();
   scene.environment = env.texture;
   scene.environmentIntensity = 0.6;
@@ -5132,11 +5154,14 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   let piece = null;
   // Food is lit like a photograph: a slightly lower exposure so colour holds, and real soft shadows from the key light
   // (toppings shade the cheese, the dish shades the board) instead of only a blob under the plate.
-  if (product && ["kitchen", "bakery"].includes(product.cat)) {
+  const isFood = product && ["kitchen", "bakery"].includes(product.cat);
+  if (product) {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = T.PCFSoftShadowMap;
-    renderer.toneMappingExposure = 0.9;
-    scene.environmentIntensity = 0.45;
+    if (isFood) {
+      renderer.toneMappingExposure = 0.9;
+      scene.environmentIntensity = 0.45;
+    }
     const key = scene.children.find((o) => o.isDirectionalLight);
     if (key) {
       key.castShadow = true;
@@ -5153,6 +5178,24 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   }
   variantEngine = createProduct3DModel(T, gltf, product, initialSel, kind, shopModel);
   piece = variantEngine.group;
+  // Models that do not bring their own get real shadows too: every solid part casts and receives the key light's shadow,
+  // and a catcher under the piece shows only what falls on the floor.
+  if (product && !piece.userData.hasCatcher) {
+    piece.traverse((m) => {
+      if (!m.isMesh) return;
+      const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+      m.castShadow = !(m.userData.noShadow || mat?.transmission > 0 || (mat?.transparent && mat.opacity < 0.9));
+      m.receiveShadow = true;
+    });
+    const box = new T.Box3().setFromObject(piece);
+    if (Number.isFinite(box.min.y)) {
+      const catcher = new T.Mesh(new T.CircleGeometry(1.4, 48), new T.ShadowMaterial({ opacity: 0.26 }));
+      catcher.rotation.x = -Math.PI / 2;
+      catcher.position.y = box.min.y - 0.003;
+      catcher.receiveShadow = true;
+      turn.add(catcher);
+    }
+  }
 
   turn.add(piece);
   scene.add(turn);

@@ -371,6 +371,7 @@ export function assemble(
   o: { apply?: (sel: Record<string, number>) => void; sel?: Record<string, number>; steam?: { count?: number; height?: number; on?: (sel: Record<string, number>) => boolean }; shadow?: [number, number]; extraTick?: (dt: number, time: number) => void; fill?: number } = {},
 ): Assembled {
   const group = new T.Group();
+  group.userData.hasCatcher = true;
   const fitter = new T.Group();
   fitter.add(inner);
   group.add(fitter);
@@ -378,7 +379,9 @@ export function assemble(
   // Every part casts and receives the key light's shadow (the viewer switches shadows on for food).
   inner.traverse((m) => {
     if (m.isMesh) {
-      m.castShadow = true;
+      const mat = m.material && (Array.isArray(m.material) ? m.material[0] : m.material);
+      // Glass and clear plastic let light through, so they do not cast a solid shadow.
+      m.castShadow = !(m.userData.noShadow || mat?.transmission > 0 || (mat?.transparent && mat.opacity < 0.9));
       m.receiveShadow = true;
     }
   });
