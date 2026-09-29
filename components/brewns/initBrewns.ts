@@ -78,6 +78,11 @@ const ICED_CUP_URL = `${ASSET_BASE_URL}shop/iced-cup.glb?v=${MODELS_VERSION}`;
 const SHOP_MODEL_URL = {
   "iced-matcha": ICED_CUP_URL,
   "iced-latte": ICED_CUP_URL,
+  "mint-margarita": ICED_CUP_URL,
+  "peach-iced-tea": ICED_CUP_URL,
+  "mango-smoothie": ICED_CUP_URL,
+  "lime-soda": ICED_CUP_URL,
+  "spanish-latte": ICED_CUP_URL,
   "cinnamon-roll": `${ASSET_BASE_URL}shop/cinnamon-roll.glb?v=${MODELS_VERSION}`,
 };
 const DRACO_PATH = "/draco/gltf/";
@@ -935,6 +940,8 @@ const KITCHEN = KITCHEN_BASE.map((k) => {
     cat: k.menuCat === "drinks" ? "coolers" : "kitchen",
     photo: kitchenPhotos && kitchenPhotos[k.id] ? `kitchen/${kitchenPhotos[k.id]}` : `kitchen/${k.id}.webp`,
     art,
+    // A procedural 3D view (foodModels3d.ts).
+    model: "food",
     alt: `The brewns ${k.name.toLowerCase()}`,
     cutout: true,
     care: k.menuCat === "drinks" ? "Made to order and best within the hour. Ask for less ice or less sugar at the counter." : "Cooked to order when you arrive or when the rider is five minutes out, so it reaches you hot.",
@@ -4850,7 +4857,7 @@ function mountMedia() {
   const media = stage.parentElement;
   const hint = $("#pdp-hint", pdpEl);
   stage.innerHTML = "";
-  const isLightProduct = p.cat === "drinks" || p.cat === "bakery" || p.cat === "merch";
+  const isLightProduct = p.cat === "drinks" || p.cat === "bakery" || p.cat === "merch" || p.cat === "kitchen" || p.cat === "coolers";
   media.classList.toggle("light", isLightProduct || view === "photo");
   $$("[data-view]", pdpEl).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
 
@@ -5123,6 +5130,27 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   const turn = new T.Group();
   let variantEngine = null;
   let piece = null;
+  // Food is lit like a photograph: a slightly lower exposure so colour holds, and real soft shadows from the key light
+  // (toppings shade the cheese, the dish shades the board) instead of only a blob under the plate.
+  if (product && ["kitchen", "bakery"].includes(product.cat)) {
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = T.PCFSoftShadowMap;
+    renderer.toneMappingExposure = 0.9;
+    scene.environmentIntensity = 0.45;
+    const key = scene.children.find((o) => o.isDirectionalLight);
+    if (key) {
+      key.castShadow = true;
+      key.shadow.mapSize.set(2048, 2048);
+      const cam = key.shadow.camera;
+      cam.left = cam.bottom = -1.3;
+      cam.right = cam.top = 1.3;
+      cam.near = 1;
+      cam.far = 12;
+      key.shadow.bias = -0.0004;
+      key.shadow.normalBias = 0.012;
+      key.shadow.radius = 5;
+    }
+  }
   variantEngine = createProduct3DModel(T, gltf, product, initialSel, kind, shopModel);
   piece = variantEngine.group;
 
@@ -5130,7 +5158,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   scene.add(turn);
   const camera = new T.PerspectiveCamera(22, 1, 0.1, 100);
 
-  const isBakery = product?.cat === 'bakery' || kind === 'bakery';
+  const isBakery = product?.cat === 'bakery' || kind === 'bakery' || product?.cat === 'kitchen';
   const isCupWithArt = product?.id === 'cortado';
   const initPitch = isBakery ? 0.45 : isCupWithArt ? 0.28 : 0.06;
   const view = { yaw: 0, pitch: initPitch, targetPitch: initPitch, spin: 0, idle: 0, zoom: 1, targetZoom: 1, intro: REDUCED ? 1 : 0, dragging: false, lastX: 0, lastY: 0 };

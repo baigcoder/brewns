@@ -1,5 +1,8 @@
 // @ts-nocheck
 import * as THREE from 'three';
+import { createBurgerModel } from './foodModels3d';
+import { createBrownieModel, createCardamomBunModel as createKnotBunModel, createCheesecakeModel, createCoolerLook, createCroissantModel, createFinancierModel, createTiramisuModel, isCooler } from './bakeryModels3d';
+import { createFriesModel, createGarlicBreadModel, createPastaModel, createPizzaModel, createRollModel, createTendersModel } from './kitchenModels3d';
 
 export interface VariantEngine {
   group: THREE.Group;
@@ -15,7 +18,7 @@ export interface VariantEngine {
 /**
  * Creates a soft radial contact shadow plane on the tabletop.
  */
-function createShadowMesh(T: typeof THREE, width = 1.4, depth = 0.7, opacity = 0.85): { mesh: THREE.Mesh; dispose: () => void } {
+export function createShadowMesh(T: typeof THREE, width = 1.4, depth = 0.7, opacity = 0.85): { mesh: THREE.Mesh; dispose: () => void } {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -111,7 +114,7 @@ function createCeramicPlate(T: typeof THREE): { group: THREE.Group; dispose: () 
 /**
  * Creates rising thermal steam particles for warm drinks and freshly baked pastries.
  */
-function createSteamSystem(T: typeof THREE, count = 28, yOffset = 0.25): {
+export function createSteamSystem(T: typeof THREE, count = 28, yOffset = 0.25): {
   group: THREE.Group;
   light: THREE.PointLight;
   setWarm: (warm: boolean) => void;
@@ -1792,8 +1795,10 @@ export function createIcedGlassModel(
   shadowMesh.position.set(0, -0.47, 0);
 
   const isMatcha = productId === 'iced-matcha';
-  const drinkTex = createDrinkTexture(T, productId);
-  const surfaceTex = createSurfaceTexture(T, isMatcha);
+  // The coolers are painted by bakeryModels3d.ts; the two iced coffees keep their own textures.
+  const cooler = isCooler(productId) ? createCoolerLook(T, productId) : null;
+  const drinkTex = cooler ? cooler.drink : createDrinkTexture(T, productId);
+  const surfaceTex = cooler ? cooler.surface : createSurfaceTexture(T, isMatcha);
 
   const cupMat = new T.MeshPhysicalMaterial({
     color: 0xffffff,
@@ -1830,7 +1835,7 @@ export function createIcedGlassModel(
     // Tinted to the drink it is sitting in, and lit by scattering rather than
     // refraction: frosted ice diffuses light, it does not act as a lens. Six flat
     // faces refracting the scene threw a starburst of hard edges instead.
-    color: isMatcha ? 0xc7ddb2 : 0xdfcfb4,
+    color: cooler ? cooler.ice : isMatcha ? 0xc7ddb2 : 0xdfcfb4,
     transparent: true,
     // Thinner, so the drink shows through the cubes and they sit in it rather
     // than on it. At 0.62 they were solid enough to read as bars of soap.
@@ -2174,10 +2179,23 @@ export function createProduct3DModel(
   switch (id) {
     // 1. Specialty & Bakery Items
     case 'cardamom-bun':
-      return createCardamomBunModel(T, initialSel);
+      return createKnotBunModel(T, id, initialSel);
 
     case 'matcha-financier':
-      return createMatchaFinancierModel(T, initialSel);
+      return createFinancierModel(T, id, initialSel);
+
+    case 'butter-croissant':
+    case 'almond-croissant':
+      return createCroissantModel(T, id, initialSel);
+
+    case 'san-sebastian':
+      return createCheesecakeModel(T, id, initialSel);
+
+    case 'fudge-brownie':
+      return createBrownieModel(T, id, initialSel);
+
+    case 'tiramisu':
+      return createTiramisuModel(T, id, initialSel);
 
     case 'cinnamon-roll':
       return createBakeryModel(T, initialSel, shopModel);
@@ -2191,6 +2209,11 @@ export function createProduct3DModel(
 
     case 'iced-matcha':
     case 'iced-latte':
+    case 'mint-margarita':
+    case 'peach-iced-tea':
+    case 'mango-smoothie':
+    case 'lime-soda':
+    case 'spanish-latte':
       return createIcedGlassModel(T, id, initialSel, shopModel);
 
     // 3. Hot Café Drinks
@@ -2203,7 +2226,37 @@ export function createProduct3DModel(
     case 'slow-roast':
       return createPackagingModel(T, gltf, 'bag', id, initialSel);
 
-    // 5. Merch & Equipment
+    // 5. Kitchen
+    case 'smash-burger':
+    case 'zinger-burger':
+    case 'bbq-burger':
+      return createBurgerModel(T, id, initialSel);
+
+    case 'margherita-pizza':
+    case 'fajita-pizza':
+    case 'pepperoni-pizza':
+      return createPizzaModel(T, id, initialSel);
+
+    case 'alfredo-pasta':
+    case 'arrabbiata-pasta':
+    case 'pesto-pasta':
+      return createPastaModel(T, id, initialSel);
+
+    case 'tikka-roll':
+    case 'behari-roll':
+    case 'crispy-wrap':
+      return createRollModel(T, id, initialSel);
+
+    case 'truffle-fries':
+      return createFriesModel(T, id, initialSel);
+
+    case 'chicken-tenders':
+      return createTendersModel(T, id, initialSel);
+
+    case 'garlic-bread':
+      return createGarlicBreadModel(T, id, initialSel);
+
+    // 6. Merch & Equipment
     case 'ceramic-tumbler':
       return createCeramicTumblerModel(T, initialSel);
 
