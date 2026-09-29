@@ -25,6 +25,11 @@ describe('3D product models', () => {
     for (const id of ['americano', 'cappuccino', 'flat-white', 'mocha']) expect(engine).toMatch(new RegExp(`case '${id}':[\\s\\S]*?createCeramicCupModel`));
   });
 
+  it('shows each product with a photo as its photograph in relief, falling back to the model', () => {
+    expect(site).toMatch(/createPhotoRelief\(T, photoUrl/);
+    expect(site).toMatch(/onError: \(\) => !destroyed && fallBackToModel\(\)/);
+  });
+
   it('turns the 3D tab on for every kitchen product', () => {
     expect(site).toContain('model: "food"');
   });
@@ -44,5 +49,13 @@ describe('food kit', () => {
     const a = rng(9), b = rng(9);
     expect([a(), a(), a()]).toEqual([b(), b(), b()]);
     expect(rng(9)()).not.toBe(rng(10)());
+  });
+});
+
+describe('photo relief', () => {
+  it('keeps overhead shots shallow and side-on products round', async () => {
+    const { reliefDepth } = await import('@/components/brewns/photoRelief');
+    expect(reliefDepth({ id: 'margherita-pizza', cat: 'kitchen' })).toBeLessThan(reliefDepth({ id: 'americano', cat: 'drinks' }));
+    expect(reliefDepth({ id: 'alfredo-pasta', cat: 'kitchen' })).toBeLessThan(reliefDepth({ id: 'iced-latte', cat: 'drinks' }));
   });
 });

@@ -41,6 +41,7 @@ import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTH
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 import { initVoiceCalling } from './voiceCalling';
 import { createViewerFX, lightProduct, makeStudio, setupRenderer, shadowPiece } from './viewerStage';
+import { createPhotoRelief, RELIEF_PITCH, RELIEF_YAW, reliefDepth } from './photoRelief';
 
 export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
   if (cafeRecording !== null) setCafeRecording(cafeRecording);
@@ -5100,15 +5101,39 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   // Ambient occlusion and multisampling on desktop screens; phones keep the plain, cheaper render.
   const wantsAO = !!product && window.innerWidth >= 768 && !window.matchMedia("(hover: none) and (pointer: coarse)").matches;
   if (product) lightProduct(T, renderer, scene, ["kitchen", "bakery"].includes(product.cat), wantsAO);
-  variantEngine = createProduct3DModel(T, gltf, product, initialSel, kind, shopModel);
-  piece = variantEngine.group;
-  const catcher = product ? shadowPiece(T, piece) : null;
-  if (catcher) turn.add(catcher);
+  /* The product's own photograph, given depth, so the 3D view looks exactly like the picture. The modelled piece is
+     the fallback if the photo cannot be loaded (and the view for anything without a photo). */
+  let catcher = null;
+  const fallBackToModel = () => {
+    if (piece) {
+      turn.remove(piece);
+      variantEngine?.dispose();
+    }
+    variantEngine = createProduct3DModel(T, gltf, product, initialSel, kind, shopModel);
+    piece = variantEngine.group;
+    catcher = product ? shadowPiece(T, piece) : null;
+    if (catcher) turn.add(catcher);
+    turn.add(piece);
+    variantEngine.updateVariant?.(currentSel);
+  };
+  let currentSel = initialSel;
+  const photoUrl = product?.photo && !product.gift ? photoSrc(product.photo) : null;
+  if (photoUrl) {
+    variantEngine = createPhotoRelief(T, photoUrl, { depth: reliefDepth(product), onError: () => !destroyed && fallBackToModel() });
+    piece = variantEngine.group;
+  } else {
+    variantEngine = createProduct3DModel(T, gltf, product, initialSel, kind, shopModel);
+    piece = variantEngine.group;
+    catcher = product ? shadowPiece(T, piece) : null;
+    if (catcher) turn.add(catcher);
+  }
+  let destroyed = false;
 
   turn.add(piece);
   scene.add(turn);
   const camera = new T.PerspectiveCamera(22, 1, 0.1, 100);
-  const fx = createViewerFX(T, renderer, scene, camera, { ao: wantsAO });
+  // The photograph carries its own light and shade: ambient occlusion is only for modelled pieces.
+  const fx = createViewerFX(T, renderer, scene, camera, { ao: wantsAO && !piece.userData.relief });
 
   const isBakery = product?.cat === 'bakery' || kind === 'bakery' || product?.cat === 'kitchen';
   const isCupWithArt = product?.id === 'cortado';
@@ -5201,17 +5226,26 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
     if (variantEngine?.tick) {
       variantEngine.tick(dt, now / 1000);
     }
+    const relief = piece?.userData.relief;
     if (!view.dragging) {
       view.yaw += view.spin;
       view.spin *= Math.pow(0.93, dt * 60);
       view.idle += dt;
-      if (view.idle > 2.5 && !REDUCED) view.yaw += dt * 0.32 * Math.min(1, view.idle - 2.5);
+      if (view.idle > 2.5 && !REDUCED) {
+        // A photograph can only turn so far: sway gently side to side instead of spinning round.
+        if (relief) view.yaw += (Math.sin((now / 1000) * 0.5) * RELIEF_YAW * 0.55 - view.yaw) * (1 - Math.exp(-1.5 * dt)) * Math.min(1, view.idle - 2.5);
+        else view.yaw += dt * 0.32 * Math.min(1, view.idle - 2.5);
+      }
+    }
+    if (relief) {
+      view.yaw = Math.max(-RELIEF_YAW, Math.min(RELIEF_YAW, view.yaw));
+      view.targetPitch = Math.max(RELIEF_PITCH[0], Math.min(RELIEF_PITCH[1], view.targetPitch));
     }
     view.pitch += (view.targetPitch - view.pitch) * (1 - Math.exp(-10 * dt));
     view.zoom += (view.targetZoom - view.zoom) * (1 - Math.exp(-10 * dt));
     if (view.intro < 1) view.intro = Math.min(1, view.intro + dt / 1.25);
     const arrived = 1 - Math.pow(1 - view.intro, 3);
-    turn.rotation.set(view.pitch, view.yaw - (1 - arrived) * 1.6, 0);
+    turn.rotation.set(view.pitch, view.yaw - (1 - arrived) * (relief ? 0.5 : 1.6), 0);
     turn.position.y = -(1 - arrived) * 0.4;
     camera.position.set(0, 0, distance * view.zoom);
     camera.lookAt(0, 0, 0);
@@ -5220,6 +5254,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
 
   return {
     destroy() {
+      destroyed = true;
       stop();
       observer.disconnect();
       variantEngine?.dispose();
@@ -5232,6 +5267,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
       canvas.remove();
     },
     updateVariant(sel) {
+      currentSel = sel;
       if (variantEngine?.updateVariant) {
         variantEngine.updateVariant(sel);
       }
