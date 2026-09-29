@@ -7,7 +7,7 @@ import type * as THREE from 'three';
 import type { VariantEngine } from './pdp3dEngine';
 
 /** How far the viewer may turn a relief each way, in radians; beyond this a single photograph has nothing to show. */
-export const RELIEF_YAW = 0.45;
+export const RELIEF_YAW = 0.38;
 export const RELIEF_PITCH = [-0.25, 0.35];
 
 const loadImage = (src: string) =>
@@ -85,11 +85,15 @@ function heightField(img: HTMLImageElement, box: number[], W: number, H: number)
     }
   let dmax = 1;
   for (let i = 0; i < n; i++) if (d[i] < INF) dmax = Math.max(dmax, d[i]);
-  // Inflate: a circular profile, so the form rolls over at its edge the way a cup, a bun or a glass does.
+  // Inflate: rise from the silhouette over a fixed band and then stay level, eased so the slope at the very edge is
+  // finite. A circular profile stands vertical at the silhouette, and turning it then stretched the photo's edge pixels
+  // into streaks; a narrow part (a handle, a spoon, a fork) never gets far up the ramp, so it stays low instead of
+  // puffing into a blob.
+  const band = Math.max(6, Math.min(dmax * 0.45, Math.max(W, H) * 0.12));
   const h = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const t = Math.min(1, d[i] / (dmax * 0.9));
-    h[i] = Math.sqrt(Math.max(0, 1 - (1 - t) * (1 - t)));
+    const t = Math.min(1, d[i] / band);
+    h[i] = 1 - (1 - t) * (1 - t);
   }
   const blur = (src: Float32Array, r: number) => {
     const tmp = new Float32Array(n), out = new Float32Array(n);
@@ -113,10 +117,10 @@ function heightField(img: HTMLImageElement, box: number[], W: number, H: number)
       }
     return out;
   };
-  const smooth = blur(h, 2);
+  const smooth = blur(h, 3);
   // Surface detail: light areas stand a touch proud of dark ones (crevices are dark, crowns are lit).
   const lumBlur = blur(lum, 6);
-  for (let i = 0; i < n; i++) smooth[i] = alpha[i] > 0.02 ? smooth[i] + (lum[i] - lumBlur[i]) * 0.12 * Math.min(1, smooth[i] * 3) : 0;
+  for (let i = 0; i < n; i++) smooth[i] = alpha[i] > 0.02 ? smooth[i] + (lum[i] - lumBlur[i]) * 0.04 * Math.min(1, smooth[i] * 3) : 0;
   return smooth;
 }
 
@@ -141,12 +145,12 @@ export function createPhotoRelief(T: typeof THREE, src: string, o: { depth?: num
       // Crop to the product so every piece fills the stage the same way, whatever margin its photo has.
       const bw = (box[2] - box[0]) * img.width, bh = (box[3] - box[1]) * img.height;
       const big = Math.max(bw, bh);
-      const G = 200;
+      const G = 256;
       const W = Math.max(8, Math.round((G * bw) / big)), H = Math.max(8, Math.round((G * bh) / big));
       const h = heightField(img, box, W, H);
       const geo = new T.PlaneGeometry(bw / big, bh / big, W - 1, H - 1);
       const p = geo.attributes.position;
-      const depth = (o.depth ?? 0.32) * (bw / big);
+      const depth = (o.depth ?? 0.16) * (bw / big);
       // PlaneGeometry runs its rows top to bottom, the same order as the image.
       for (let i = 0; i < p.count; i++) p.setZ(i, h[i] * depth);
       geo.computeVertexNormals();
@@ -159,16 +163,6 @@ export function createPhotoRelief(T: typeof THREE, src: string, o: { depth?: num
       tex.needsUpdate = true;
       // Unlit and not tone-mapped: the photograph's own light, exactly as it was taken.
       const mat = new T.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.03, toneMapped: false, side: T.DoubleSide });
-      // Where the relief turns steeply away from the eye, its few edge pixels would be stretched across the slope and
-      // smear. Fade those slopes out instead, so the silhouette stays as crisp as the photograph's.
-      mat.onBeforeCompile = (shader) => {
-        shader.vertexShader = shader.vertexShader
-          .replace('#include <common>', '#include <common>\nvarying vec3 vReliefN;\nvarying vec3 vReliefV;')
-          .replace('#include <project_vertex>', '#include <project_vertex>\nvReliefN = normalize(normalMatrix * normal);\nvReliefV = -mvPosition.xyz;');
-        shader.fragmentShader = shader.fragmentShader
-          .replace('#include <common>', '#include <common>\nvarying vec3 vReliefN;\nvarying vec3 vReliefV;')
-          .replace('#include <alphatest_fragment>', 'diffuseColor.a *= smoothstep(0.26, 0.5, abs(dot(normalize(vReliefN), normalize(vReliefV))));\n#include <alphatest_fragment>');
-      };
       const mesh = new T.Mesh(geo, mat);
       // Centre it on its solid part: sit it so the relief's middle depth is on the turning axis.
       mesh.position.z = -depth * 0.35;
@@ -193,9 +187,9 @@ export function createPhotoRelief(T: typeof THREE, src: string, o: { depth?: num
     a glass seen from the side is round and deep. */
 export function reliefDepth(product: { id?: string; menuCat?: string; cat?: string } | null) {
   const id = product?.id || '';
-  if (/pizza/.test(id)) return 0.12;
-  if (/pasta/.test(id)) return 0.16;
-  if (/fries|tenders|garlic-bread|roll|wrap/.test(id) && product?.cat === 'kitchen') return 0.24;
-  if (product?.cat === 'bakery') return 0.26;
-  return 0.32;
+  if (/pizza/.test(id)) return 0.06;
+  if (/pasta/.test(id)) return 0.08;
+  if (/fries|tenders|garlic-bread|roll|wrap/.test(id) && product?.cat === 'kitchen') return 0.12;
+  if (product?.cat === 'bakery') return 0.12;
+  return 0.16;
 }
