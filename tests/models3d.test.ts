@@ -15,11 +15,10 @@ describe('3D product models', () => {
     expect(missing).toEqual([]);
   });
 
-  it('gives the iced-cup products the model file they load, and no one else', () => {
-    const icedCup = ['iced-matcha', 'iced-latte'];
-    for (const id of icedCup) expect(site.includes(`"${id}": ICED_CUP_URL`)).toBe(true);
-    // The coolers and the Spanish latte are built in tall glasses and need no file.
-    for (const p of CATALOG.filter((p) => p.cat === 'coolers' || p.id === 'spanish-latte')) expect(site.includes(`"${p.id}": ICED_CUP_URL`)).toBe(false);
+  it('builds every drink without downloading a cup model', () => {
+    // The iced cups, the coolers and the Spanish latte are all built procedurally now.
+    for (const p of CATALOG.filter((p) => ['iced-matcha', 'iced-latte', 'spanish-latte'].includes(p.id) || p.cat === 'coolers')) expect(site).not.toContain(`"${p.id}": ICED_CUP_URL`);
+    expect(engine).toMatch(/case 'iced-matcha':[\s\S]*?createIcedCupModel/);
   });
 
   it('shows the hot ceramic drinks in ceramic, not the takeaway cup', () => {

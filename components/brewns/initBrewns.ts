@@ -71,15 +71,10 @@ const loadPackagingModel = (loader, onLoad, onError) => {
    keeps the model it already parsed, which reads as a rendering bug rather than a
    stale file. The query string makes a changed model a different URL. */
 const MODELS_VERSION = "4";
-const ICED_CUP_URL = `${ASSET_BASE_URL}shop/iced-cup.glb?v=${MODELS_VERSION}`;
-/* Keyed by product, not by viewer kind: the cardamom bun is a bakery piece too,
-   but it is modelled procedurally and has no use for the roll's half-megabyte.
-   A new glass or bakery product that should use these assets needs a line here —
-   without one its builder has no model to bind and the viewer says so. */
-const SHOP_MODEL_URL = {
-  "iced-matcha": ICED_CUP_URL,
-  "iced-latte": ICED_CUP_URL,
-};
+/* Asset models a product's 3D view loads, keyed by product. Every product on the menu is now modelled procedurally
+   (pdp3dEngine.ts and the *Models3d.ts files), so none is listed; a product added here gets its file loaded and
+   passed to its builder. */
+const SHOP_MODEL_URL = {};
 const DRACO_PATH = "/draco/gltf/";
 const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const noHover = () => window.innerWidth < 768;

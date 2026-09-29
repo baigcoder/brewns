@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createBurgerModel } from './foodModels3d';
 import { createCeramicCupModel } from './cupModels3d';
-import { createTallGlassModel } from './glassModels3d';
+import { createIcedCupModel, createTallGlassModel } from './glassModels3d';
 import { createCeramicTumblerModel as createTumblerModel, createCortadoModel as createGlassCortadoModel, createNitroColdBrewModel as createGlassNitroModel } from './drinkModels3d';
 import { createBrownieModel, createCinnamonRollModel, createCardamomBunModel as createKnotBunModel, createCheesecakeModel, createCoolerLook, createCroissantModel, createFinancierModel, createTiramisuModel, isCooler } from './bakeryModels3d';
 import { createFriesModel, createGarlicBreadModel, createPastaModel, createPizzaModel, createRollModel, createTendersModel } from './kitchenModels3d';
@@ -2210,9 +2210,10 @@ export function createProduct3DModel(
     case 'nitro-cold-brew':
       return createGlassNitroModel(T, id, initialSel);
 
+    // The printed takeaway cup, as photographed.
     case 'iced-matcha':
     case 'iced-latte':
-      return createIcedGlassModel(T, id, initialSel, shopModel);
+      return createIcedCupModel(T, id, initialSel);
 
     // Served in tall glasses, as photographed.
     case 'mint-margarita':

@@ -5,7 +5,7 @@
    the drink is a painted body a little inside the wall, and the ice and fruit are pressed between it and the glass,
    where a photograph sees them. */
 import type * as THREE from 'three';
-import { Kit, assemble, blob, clamp01, draw, fbm, leaf, mix, paint, rng, roundBox, scatter, surface, sweep } from './foodKit';
+import { Kit, assemble, blob, clamp01, draw, fbm, lathe, leaf, mix, paint, rng, roundBox, scatter, surface, sweep } from './foodKit';
 import { glassShell } from './drinkModels3d';
 import { saucer, spoon } from './cupModels3d';
 import type { VariantEngine } from './pdp3dEngine';
@@ -402,5 +402,216 @@ export function createTallGlassModel(T: typeof THREE, id: string, sel: Sel = {})
   };
   const piece = assemble(T, kit, inner, { sel, apply, steam: look.steamOn ? { count: 16, height: 0.02, on: look.steamOn } : undefined, shadow: [1.3, 1.2] });
   piece.group.userData.viewPitch = 0.12;
+  return piece;
+}
+
+/* ── iced matcha and iced latte: the printed takeaway cup ── */
+
+/** The cup's wraparound print: a watercolour wash with leaves round the sides, a cream shield on the front with the
+    wordmark, the drink's name and the signature. Transparent above and below the print, so the drink shows. */
+function cupPrint(T: typeof THREE, kit: Kit, look: { name: string; tag: string[]; wash: string[]; leaf: string[]; ink: string; bean?: boolean }) {
+  return draw(T, kit, 2048, 1024, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const top = h * 0.07, bottom = h * 0.93;
+    const R = rng(look.name.length * 17);
+    // Watercolour wash: soft layered blots, blurred, clipped to the printed band with ragged edges.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0, top + 18);
+    for (let x = 0; x <= w; x += 32) ctx.lineTo(x, top + 10 + Math.sin(x * 0.02) * 8 + R() * 14);
+    for (let x = w; x >= 0; x -= 32) ctx.lineTo(x, bottom - 10 - Math.sin(x * 0.017) * 8 - R() * 14);
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = look.wash[0];
+    ctx.fillRect(0, 0, w, h);
+    ctx.filter = 'blur(18px)';
+    for (let i = 0; i < 90; i++) {
+      ctx.fillStyle = look.wash[1 + (i % (look.wash.length - 1))];
+      ctx.globalAlpha = 0.3 + R() * 0.35;
+      ctx.beginPath();
+      ctx.ellipse(R() * w, top + R() * (bottom - top), 40 + R() * 160, 30 + R() * 110, R() * 3, 0, TAU);
+      ctx.fill();
+    }
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    // Leaves on long stems, painted in two or three tones with a vein.
+    const leafAt = (x: number, y: number, ang: number, len: number, tone: string) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      ctx.fillStyle = tone;
+      ctx.globalAlpha = 0.75 + R() * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(len * 0.35, -len * 0.28, len * 0.8, -len * 0.18, len, 0);
+      ctx.bezierCurveTo(len * 0.8, len * 0.18, len * 0.35, len * 0.28, 0, 0);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(len * 0.05, 0);
+      ctx.lineTo(len * 0.92, 0);
+      ctx.stroke();
+      ctx.restore();
+    };
+    const sprig = (x: number, y0: number, y1: number, lean: number) => {
+      ctx.strokeStyle = look.leaf[0];
+      ctx.globalAlpha = 0.8;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(x, y0);
+      ctx.quadraticCurveTo(x + lean * 0.5, (y0 + y1) / 2, x + lean, y1);
+      ctx.stroke();
+      const n = 9;
+      for (let k = 0; k < n; k++) {
+        const t = k / n;
+        const px = x + lean * t * t, py = y0 + (y1 - y0) * t;
+        const len = 110 + (1 - t) * 110 + R() * 30;
+        const side = k % 2 ? 1 : -1;
+        leafAt(px, py, -Math.PI / 2 + side * (0.7 + R() * 0.3) + lean * 0.002, len, look.leaf[k % look.leaf.length]);
+      }
+      ctx.globalAlpha = 1;
+    };
+    for (const cx of [w * 0.3, w * 0.7, w * 0.05, w * 0.95]) sprig(cx + (R() - 0.5) * 60, bottom - 20, top + 90 + R() * 80, (R() - 0.5) * 160);
+    // A coffee bean or two for the latte.
+    if (look.bean) {
+      for (const [bx, by] of [[w * 0.36, h * 0.6], [w * 0.64, h * 0.34]]) {
+        ctx.fillStyle = look.leaf[0];
+        ctx.beginPath();
+        ctx.ellipse(bx, by, 26, 36, 0.4, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = look.wash[0];
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(bx - 6, by - 30);
+        ctx.quadraticCurveTo(bx + 10, by, bx - 4, by + 30);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    // The cream shield on the front (the middle of the canvas faces the camera).
+    const cx = w / 2, sw = 330, st = h * 0.2, sb = h * 0.86;
+    ctx.save();
+    ctx.filter = 'blur(3px)';
+    ctx.fillStyle = '#f4efe4';
+    ctx.beginPath();
+    ctx.moveTo(cx - sw, st + 20);
+    ctx.quadraticCurveTo(cx, st - 30, cx + sw, st + 20);
+    ctx.lineTo(cx + sw * 0.92, h * 0.62);
+    ctx.quadraticCurveTo(cx + sw * 0.4, sb - 40, cx, sb);
+    ctx.quadraticCurveTo(cx - sw * 0.4, sb - 40, cx - sw * 0.92, h * 0.62);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = look.ink;
+    ctx.textAlign = 'center';
+    ctx.font = '700 118px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    ctx.fillText('brewns', cx, h * 0.38);
+    ctx.font = '600 30px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    ctx.letterSpacing = '8px';
+    ctx.fillText(look.name, cx, h * 0.46);
+    ctx.letterSpacing = '1px';
+    ctx.font = '400 26px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    ctx.fillText(look.tag[0], cx, h * 0.53);
+    ctx.fillText(look.tag[1], cx, h * 0.565);
+    ctx.font = 'italic 64px "Brush Script MT", "Segoe Script", cursive';
+    ctx.fillText('Br.', cx, h * 0.72);
+  });
+}
+
+const ICED = {
+  'iced-matcha': {
+    name: 'ICED MATCHA', tag: ['Ceremonial Grade', 'Over Ice'], ink: '#24382a',
+    wash: ['#cfe0b4', '#8fb266', '#6f9a4a', '#b7cf92', '#5c8a3e'], leaf: ['#355f33', '#4f8243', '#2a4d2a'],
+    // Matcha poured over milk: grassy green above, marbling down into milk.
+    body: (u: number, v: number, s: Sel) => {
+      const swirl = (fbm(u * 6, v * 4, 2, 3, 5) - 0.5) * 0.3;
+      const t = smoothstep(0.25, 0.6, v + swirl);
+      const sweet = [0.96, 1, 1.03][s.sweet ?? 1] ?? 1;
+      let c = mix([236, 238, 220], [112, 156, 72], t);
+      c = mix(c, [150, 184, 100], smoothstep(0.85, 1, v) * 0.5);
+      return [c[0] * sweet, c[1] * sweet, c[2], 0.5];
+    },
+    top: 0x9cbc6c, iceTint: 0xdcecc8,
+  },
+  'iced-latte': {
+    name: 'ICED LATTE', tag: ['Smooth & Creamy', 'Over Ice'], ink: '#2a2a2a', bean: true,
+    wash: ['#ead6c0', '#c48656', '#a8683c', '#dbb690', '#8e4f2a'], leaf: ['#7c3f1e', '#9c5a30', '#5e3014'],
+    // Espresso over cold milk: coffee at the bottom rising into marbled milk.
+    body: (u: number, v: number, s: Sel) => {
+      const swirl = (fbm(u * 6, v * 4, 3, 3, 7) - 0.5) * 0.32;
+      const t = smoothstep(0.15, 0.7, v + swirl);
+      const dark = s.shots === 1 ? 0.82 : 1;
+      let c = mix([104, 60, 32], [226, 200, 170], t);
+      c = mix(c, [150, 98, 60], (1 - Math.abs(t - 0.5) * 2) * 0.35);
+      const milk = [1, 0.98, 0.96][s.milk ?? 0] ?? 1;
+      return [c[0] * dark * milk, c[1] * dark * milk, c[2] * dark * milk * milk, 0.5];
+    },
+    top: 0xc8a482, iceTint: 0xe8d8c4,
+  },
+};
+
+export const isIcedCup = (id: string) => id in ICED;
+
+export function createIcedCupModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
+  const kit = new Kit();
+  const inner = new T.Group();
+  const look = ICED[id] || ICED['iced-matcha'];
+  const cup = new T.Group();
+  inner.add(cup);
+
+  // A clear PET cup, tapering to its foot.
+  const g = { rb: 0.25, rt: 0.34, h: 0.84, wall: 0.012, base: 0.05 };
+  const shell = glassShell(T, kit, g);
+  (shell.mesh.material as THREE.MeshPhysicalMaterial).roughness = 0.08;
+  (shell.mesh.material as THREE.MeshPhysicalMaterial).thickness = 0.02;
+  const level = g.h - 0.04;
+  let key = '';
+  const sideMat = bodyLook(T, kit, (u, v) => look.body(u, v, sel), { roughness: 0.3, clearcoat: 0.2 });
+  const topMat = kit.add(new T.MeshPhysicalMaterial({ color: look.top, roughness: 0.35, specularIntensity: 0.5 }));
+  const body = drinkBody(T, kit, (y) => shell.innerR(y) - 0.004, g.base + 0.004, level, sideMat, topMat);
+  cup.add(body.group);
+  const ice = iceCubes(T, kit, cup, look.iceTint, (i, r) => {
+    const a = (i / 5) * TAU + r() * 0.5, rad = shell.innerR(level) * 0.5;
+    return [Math.sin(a) * rad, level + 0.01, Math.cos(a) * rad];
+  }, 5, 9);
+  cup.add(shell.mesh);
+
+  // The print, wrapped on the outside of the wall; the front of it faces the camera.
+  const rAt = (y: number) => g.rb + ((g.rt - g.rb) * y) / g.h + 0.004;
+  const y0 = 0.04, y1 = g.h - 0.02;
+  const labelGeo = kit.add(new T.CylinderGeometry(rAt(y1), rAt(y0), y1 - y0, 96, 1, true, Math.PI, TAU));
+  const label = new T.Mesh(labelGeo, kit.add(new T.MeshPhysicalMaterial({ map: cupPrint(T, kit, look), transparent: true, alphaTest: 0.02, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.1, side: T.DoubleSide })));
+  label.position.y = (y0 + y1) / 2;
+  label.userData.noShadow = true;
+  cup.add(label);
+
+  // A flat black lid with a thick rolled rim, a raised sip ring, and a black straw through it.
+  // Glossy black, but its flat top would mirror the studio's back softbox into silver: keep the reflection low.
+  const lidMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x111112, roughness: 0.3, specularIntensity: 0.35, clearcoat: 0.3, clearcoatRoughness: 0.3, envMapIntensity: 0.5 }));
+  const rt = g.rt;
+  const lid = new T.Mesh(lathe(T, kit, [[rt - 0.01, g.h - 0.01], [rt + 0.022, g.h - 0.005], [rt + 0.03, g.h + 0.02], [rt + 0.026, g.h + 0.05], [rt + 0.005, g.h + 0.056], [rt - 0.02, g.h + 0.058], [rt - 0.035, g.h + 0.075], [rt - 0.06, g.h + 0.082], [0, g.h + 0.082]], 96), lidMat);
+  cup.add(lid);
+  const strawMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x0e0e0f, roughness: 0.28, clearcoat: 0.6 }));
+  const straw = new T.Mesh(kit.add(new T.CylinderGeometry(0.017, 0.017, 1.0, 16)), strawMat);
+  straw.position.set(0.1, g.h + 0.1, -0.02);
+  straw.rotation.z = -0.3;
+  cup.add(straw);
+  beads(T, kit, cup, (y) => rAt(y) + 0.002, 0.06, g.h - 0.06, 50, 5);
+
+  const apply = (s: Sel) => {
+    const next = JSON.stringify([s.sweet, s.milk, s.shots]);
+    if (next !== key) {
+      key = next;
+      const tex = paint(T, kit, 256, 256, (u, v) => look.body(u, v, s));
+      sideMat.map = tex.map;
+      sideMat.bumpMap = tex.bump;
+      sideMat.needsUpdate = true;
+    }
+    cup.scale.set(1, s.size === 1 ? 1.1 : 1, 1);
+    ice.count = 5;
+  };
+  const piece = assemble(T, kit, inner, { sel, apply, shadow: [1.2, 1.2] });
+  piece.group.userData.viewPitch = 0.1;
   return piece;
 }
