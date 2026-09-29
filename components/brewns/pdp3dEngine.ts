@@ -1,6 +1,7 @@
 // @ts-nocheck
 import * as THREE from 'three';
 import { createBurgerModel } from './foodModels3d';
+import { createCeramicCupModel } from './cupModels3d';
 import { createCeramicTumblerModel as createTumblerModel, createCortadoModel as createGlassCortadoModel, createNitroColdBrewModel as createGlassNitroModel } from './drinkModels3d';
 import { createBrownieModel, createCardamomBunModel as createKnotBunModel, createCheesecakeModel, createCoolerLook, createCroissantModel, createFinancierModel, createTiramisuModel, isCooler } from './bakeryModels3d';
 import { createFriesModel, createGarlicBreadModel, createPastaModel, createPizzaModel, createRollModel, createTendersModel } from './kitchenModels3d';
@@ -2221,6 +2222,13 @@ export function createProduct3DModel(
     case 'espresso':
     case 'latte':
       return createPackagingModel(T, gltf, 'cup', id, initialSel);
+
+    // Served in ceramic, as photographed.
+    case 'americano':
+    case 'cappuccino':
+    case 'flat-white':
+    case 'mocha':
+      return createCeramicCupModel(T, id, initialSel);
 
     // 4. Whole Bean Coffees
     case 'single-origin':

@@ -5119,7 +5119,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
 
   const isBakery = product?.cat === 'bakery' || kind === 'bakery' || product?.cat === 'kitchen';
   const isCupWithArt = product?.id === 'cortado';
-  const initPitch = isBakery ? 0.45 : isCupWithArt ? 0.28 : 0.06;
+  const initPitch = piece.userData.viewPitch ?? (isBakery ? 0.45 : isCupWithArt ? 0.28 : 0.06);
   const view = { yaw: 0, pitch: initPitch, targetPitch: initPitch, spin: 0, idle: 0, zoom: 1, targetZoom: 1, intro: REDUCED ? 1 : 0, dragging: false, lastX: 0, lastY: 0 };
   let distance = 4;
   const resize = () => {
