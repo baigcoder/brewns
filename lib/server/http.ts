@@ -2,6 +2,7 @@
    check that keeps other sites from posting with a signed-in visitor's cookie,
    reading a body safely, and rate limits. */
 
+import { timingSafeEqual } from 'node:crypto';
 import { kv } from './store';
 
 export class HttpError extends Error {
@@ -76,3 +77,11 @@ export const int = (v: unknown, min: number, max: number) => {
 };
 export const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 export const normEmail = (v: unknown) => str(v, 120).toLowerCase();
+
+/** Compares two secrets without leaking, through timing, how much of them matched. */
+export function safeEqual(a: unknown, b: unknown): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string' || !a || !b) return false;
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}

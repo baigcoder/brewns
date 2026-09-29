@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CLUB, type ClubState } from '@/components/brewns/club';
 import { LOC_TITLES } from '@/lib/catalog';
+import { usualOf } from '@/lib/usual';
 import { MODE_LABEL, orderNo, type Mode } from '@/lib/orderFlow';
 import { api, pkDate, pkTime, rs } from '@/components/console/api';
 
-type Order = { number: number; key: string; placed: number; status: string; statusLabel: string; mode: Mode; loc: number; table: number | null; totals: { total: number }; items: { id: string; qty: number; sel: Record<string, number>; name: string }[] };
+type Order = { number: number; key: string; placed: number; status: string; statusLabel: string; mode: Mode; loc: number; table: number | null; totals: { total: number }; items: { id: string; qty: number; sel: Record<string, number>; name: string; opts?: string }[] };
 type User = { id: string; name: string; email: string; phone: string; since: number };
 
 const OPEN = ['received', 'accepted', 'preparing', 'ready', 'onway', 'arriving'];
@@ -57,6 +58,8 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load: the café page's engine starts once per document
     window.location.assign('/?bag=open');
   };
+  const usual = orders ? usualOf(orders) : [];
+  const addUsual = () => again({ items: usual.map((u) => ({ id: u.id, qty: 1, sel: u.sel, name: u.name })) } as Order);
   const join = async () => {
     const birthday = bday.d && bday.m ? `${bday.m}-${bday.d}` : '';
     try {
@@ -145,6 +148,20 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
                 Join the club
               </button>
             </div>
+          </section>
+        )}
+
+        {usual.length > 0 && (
+          <section className="cx-card">
+            <div className="cx-card-h" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p className="cx-h2" style={{ margin: 0 }}>Your usual</p>
+              <button type="button" className="cx-btn sm primary" onClick={addUsual}>
+                Add all to bag
+              </button>
+            </div>
+            <p className="cx-small cx-muted">
+              {usual.map((u) => `${u.name.charAt(0)}${u.name.slice(1).toLowerCase()}${u.opts ? ` (${u.opts.toLowerCase()})` : ''} · ${u.times} orders`).join('  ·  ')}
+            </p>
           </section>
         )}
 

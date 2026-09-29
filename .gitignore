@@ -38,3 +38,5 @@ __pycache__/
 # editor workspace
 *.code-workspace
 
+# files staff upload while running locally (production uses Cloudinary)
+/public/assets/uploads/

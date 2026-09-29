@@ -110,6 +110,8 @@ export async function POST(req: NextRequest) {
       if (file && typeof file === 'object' && 'name' in file && file.size > 0) {
         const isVid = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|ogg)$/i.test(file.name);
         detectedType = isVid ? 'video' : 'image';
+        if (!isVid && !file.type.startsWith('image/')) return NextResponse.json({ error: 'Upload a photo or a video.' }, { status: 415 });
+        if (file.size > (isVid ? 60 : 10) * 1024 * 1024) return NextResponse.json({ error: `That ${isVid ? 'video' : 'photo'} is too large (max ${isVid ? 60 : 10} MB).` }, { status: 413 });
         const buffer = Buffer.from(await file.arrayBuffer());
 
         try {

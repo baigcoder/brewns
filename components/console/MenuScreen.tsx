@@ -44,6 +44,7 @@ function SoldOut() {
   const run = useRun();
   const [q, setQ] = useState('');
   const out = new Set(data?.soldOut || []);
+  const stock = data?.stock || {};
   const [pending, setPending] = useState<string>('');
   const list = useMemo(() => CATALOG.filter((p) => !q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase())), [q]);
   const toggle = async (id: string, name: string) => {
@@ -51,12 +52,19 @@ function SoldOut() {
     await run(() => api('/api/staff/menu', { id, out: !out.has(id) }).then(refresh), out.has(id) ? `${name} is back on the menu.` : `${name} is sold out on the site and the counter.`);
     setPending('');
   };
+  const setCount = async (id: string, name: string, value: string) => {
+    const count = value.trim() === '' ? null : Number(value);
+    if (count === (stock[id] ?? null)) return;
+    setPending(id);
+    await run(() => api('/api/staff/menu', { id, stock: count }).then(refresh), count === null ? `${name} is no longer counted.` : `${name}: ${count} left.`);
+    setPending('');
+  };
   return (
     <section className="cx-card">
       <div className="cx-card-h">
         <div className="cx-stack" style={{ gap: 4 }}>
-          <p className="cx-h2">Sold out</p>
-          <p className="cx-small cx-muted">Switch an item off and the site stops selling it within seconds, at every shop. {out.size ? `${out.size} off now.` : ''}</p>
+          <p className="cx-h2">Sold out and stock</p>
+          <p className="cx-small cx-muted">Switch an item off and the site stops selling it within seconds, at every shop. Type a count to track what is left: it sells out by itself at zero, and a cancelled order puts it back. {out.size ? `${out.size} off now.` : ''}</p>
         </div>
         <input className="cx-input" style={{ maxWidth: 220 }} placeholder="Find an item" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -72,7 +80,21 @@ function SoldOut() {
                   <span style={{ opacity: out.has(p.id) ? 0.55 : 1 }}>
                     {p.name.charAt(0) + p.name.slice(1).toLowerCase()}
                     {out.has(p.id) && <span className="cx-small" style={{ color: 'var(--cx-late)' }}> · sold out</span>}
+                    {stock[p.id] !== undefined && stock[p.id] > 0 && stock[p.id] <= 5 && <span className="cx-small" style={{ color: 'var(--cx-late)' }}> · low</span>}
                   </span>
+                  <input
+                    key={`${p.id}:${stock[p.id] ?? ''}`}
+                    className="cx-input"
+                    style={{ width: 64, marginLeft: 'auto' }}
+                    type="number"
+                    min={0}
+                    max={9999}
+                    placeholder="∞"
+                    aria-label={`${p.name} in stock`}
+                    defaultValue={stock[p.id] ?? ''}
+                    disabled={pending === p.id}
+                    onBlur={(e) => setCount(p.id, p.name.charAt(0) + p.name.slice(1).toLowerCase(), e.target.value)}
+                  />
                   <button
                     type="button"
                     role="switch"

@@ -205,6 +205,9 @@ export function OverviewScreen() {
               </button>
             ))}
           </div>
+          <a className="cx-btn" href={`/api/staff/reports?range=${range}&format=csv`} download>
+            Export CSV
+          </a>
           <button
             type="button"
             className="cx-btn"

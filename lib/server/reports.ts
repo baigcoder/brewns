@@ -1,7 +1,7 @@
 /* The numbers on the owner's Overview: sales, orders, what sells, how each
    shop keeps time, and the same figures for the period before, to compare. */
 
-import { PAY, SHOP_COUNT } from '@/lib/catalog';
+import { LOC_TITLES, PAY, SHOP_COUNT } from '@/lib/catalog';
 import { FLOW, pkDay, pkHour, type Mode, type ServerOrder } from '@/lib/orderFlow';
 import { worksAt, type StaffContext } from './auth';
 import { ordersOn } from './orders';
@@ -145,4 +145,36 @@ export async function report(range: Range, ctx: StaffContext) {
       .map((o) => ({ number: o.number, placed: o.placed, name: o.name, total: o.totals.total, mode: o.mode, status: o.status, loc: o.loc, table: o.table })),
     demo: orders.some((o) => o.demo),
   };
+}
+
+/* ── CSV for the accountant ── */
+
+const cell = (v: string | number) => {
+  let t = String(v);
+  // A cell that starts like a formula would run in a spreadsheet; keep it as text.
+  if (/^[=+\-@\t\r]/.test(t) && Number.isNaN(Number(t))) t = `'${t}`;
+  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+};
+const csvRow = (...v: (string | number)[]) => v.map(cell).join(',');
+
+/** A finished report as CSV: totals, sales by day and shop, then what sold. */
+export function reportCsv(r: Pick<Awaited<ReturnType<typeof report>>, 'range' | 'kpis' | 'byDay' | 'byShop' | 'top'>) {
+  const k = r.kpis;
+  return (
+    [
+      csvRow('brewns report', r.range),
+      '',
+      csvRow('Gross', 'Net', 'Tax', 'Delivery fees', 'Discounts', 'Orders', 'Average order', 'Cancelled'),
+      csvRow(k.gross, k.net, k.tax, k.fees, k.discount, k.orders, Math.round(k.avg), k.cancelled),
+      '',
+      csvRow('Day', 'Sales', 'Orders'),
+      ...r.byDay.map((d) => csvRow(d.day, d.sales, d.orders)),
+      '',
+      csvRow('Shop', 'Sales', 'Orders'),
+      ...r.byShop.map((s) => csvRow(LOC_TITLES[s.loc] || s.loc, s.gross, s.orders)),
+      '',
+      csvRow('Item', 'Category', 'Quantity', 'Sales'),
+      ...r.top.map((t) => csvRow(t.name, t.cat, t.qty, t.sales)),
+    ].join('\r\n') + '\r\n'
+  );
 }

@@ -3,6 +3,7 @@ import { Geist, Onest, Space_Mono, Allura } from 'next/font/google';
 import './globals.css';
 import { SITE_URL } from '@/lib/site';
 import { FAQ } from '@/lib/faq';
+import RegisterSW from '@/components/site/RegisterSW';
 
 const geist = Geist({
   subsets: ['latin'],
@@ -102,6 +103,7 @@ export default function RootLayout({
       </head>
       <body>
         {children}
+        <RegisterSW />
       </body>
     </html>
   );

@@ -55,6 +55,7 @@ export const GET = route(async (req) => {
     pendingMoments,
     upcomingBookings,
     soldOut: ctx.settings.soldOut,
+    stock: ctx.settings.stock,
     shops: ctx.settings.shops,
     // Dynamic realtime RBAC details
     me: {

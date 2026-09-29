@@ -32,8 +32,9 @@ import { can, canAny, type Permission } from '@/lib/rbac';
 import { audit, type Actor } from './audit';
 import { allUsers, randomToken, worksAt, type StaffContext, type User } from './auth';
 import { addCustomerOrder, creditOrder, reverseCredit } from './customers';
-import { fail } from './http';
-import { getSettings, type Settings } from './settings';
+import { fail, safeEqual } from './http';
+import { getSettings, releaseStock, reserveStock, type Settings } from './settings';
+import { notifyOrder } from './orderNotify';
 import { kv, withLock } from './store';
 
 const dayKey = (day: string) => `orders:day:${day}`;
@@ -166,6 +167,7 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   const totals = priceOrder(items, { mode, area: input.area, pay, promoPct: promo ? promo.pct / 100 : 0, useReward });
   if (mode === 'delivery' && online && totals.sub - totals.discount < DELIVERY.min) fail(400, `Delivery starts at Rs ${DELIVERY.min.toLocaleString('en-US')}.`);
 
+  await reserveStock(items);
   const number = await nextNumber();
   const stations = Object.fromEntries(stationsOf(items).map((s) => [s, 'queued'])) as ServerOrder['stations'];
   const staffActor = by.kind === 'staff' ? by.ctx.user : null;
@@ -221,6 +223,8 @@ export async function placeOrder(input: OrderInput, by: Placer) {
     await addCustomerOrder(customer.id, { number, day: o.day, placed: now, total: totals.total, mode, lines: items.map(({ cat, qty, unit }) => ({ cat, qty, unit })) });
   }
   await saveOrder(o);
+  if (!staffActor) await notifyOrder(o, undefined, 'received');
+  if (o.status === 'ready') await notifyOrder(o);
   if (staffActor) await audit(staffActor, `Took order #${number}`, `${o.mode === 'dinein' ? `Table ${o.table}` : o.name} · Rs ${totals.total}`);
   return { order: o, credit };
 }
@@ -312,6 +316,7 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
   return withLock(`order:${number}`, async () => {
     const o = await getOrder(number);
     if (!o) return fail(404, 'No such order.') as never;
+    const before = o.status;
     if (!worksAt(ctx.user, o.loc)) fail(403, "That order is at a shop you don't work at.");
     const actor: Actor = { id: ctx.user.id, name: ctx.user.name, role: ctx.role };
     const need = (...p: Permission[]) => {
@@ -441,6 +446,7 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
         o.cancelReason = String(action.reason || '').trim().slice(0, 140) || 'Cancelled by the café';
         move('cancelled');
         if (o.customerId && o.club) await reverseCredit(o.customerId, o.number, o.club.stamps, o.club.used && o.club.verified);
+        await releaseStock(o.items);
         log = `Cancelled · ${o.cancelReason}`;
         break;
       }
@@ -460,6 +466,7 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
         fail(400, 'Unknown action.');
     }
     await saveOrder(o);
+    await notifyOrder(o, before);
     if (log) await audit(actor, `${log} · #${o.number}`, o.mode === 'dinein' ? `Table ${o.table} · ${o.name}` : o.name);
     return o;
   });
@@ -470,7 +477,8 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
 export async function customerAct(number: number, key: string, action: { type: 'cancel' | 'collected' | 'message'; text?: string }) {
   return withLock(`order:${number}`, async () => {
     const o = await getOrder(number);
-    if (!o || !key || o.key !== key) return fail(404, 'No such order.') as never;
+    if (!o || !safeEqual(o.key, key)) return fail(404, 'No such order.') as never;
+    const before = o.status;
     const t = Date.now();
     if (action.type === 'cancel') {
       if (!['received', 'accepted'].includes(o.status) || Object.values(o.stations).some((s) => s !== 'queued'))
@@ -479,6 +487,7 @@ export async function customerAct(number: number, key: string, action: { type: '
       o.cancelReason = 'Cancelled by the customer';
       o.events.push({ t, what: 'cancelled', status: 'cancelled', by: 'Customer' });
       if (o.customerId && o.club) await reverseCredit(o.customerId, o.number, o.club.stamps, o.club.used && o.club.verified);
+      await releaseStock(o.items);
     } else if (action.type === 'collected') {
       if (o.mode !== 'pickup' || o.status !== 'ready') fail(409, 'It isn’t ready yet.');
       o.status = 'collected';
@@ -490,6 +499,7 @@ export async function customerAct(number: number, key: string, action: { type: '
       o.messages.push({ id: randomToken(6), from: 'you', text, t });
     } else fail(400, 'Unknown action.');
     await saveOrder(o);
+    await notifyOrder(o, before);
     return o;
   });
 }

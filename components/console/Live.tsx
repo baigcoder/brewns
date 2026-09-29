@@ -19,6 +19,7 @@ export type LiveData = {
   pendingMoments?: number;
   upcomingBookings?: number;
   soldOut: string[];
+  stock: Record<string, number>;
   shops: ShopSettings[];
   me?: { id: string; name: string; email: string; role: Role; shops: number[]; active?: boolean };
   perms?: Permission[];

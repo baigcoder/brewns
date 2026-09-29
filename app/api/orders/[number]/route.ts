@@ -1,4 +1,4 @@
-import { clientIp, fail, json, rateLimit, readBody, route, str } from '@/lib/server/http';
+import { clientIp, fail, json, rateLimit, readBody, route, safeEqual, str } from '@/lib/server/http';
 import { customerAct, getOrder, publicOrder } from '@/lib/server/orders';
 
 type Ctx = { params: Promise<{ number: string }> };
@@ -8,7 +8,7 @@ export const GET = route(async (req: Request, ctx: Ctx) => {
   const number = Number((await ctx.params).number);
   const key = new URL(req.url).searchParams.get('k') || '';
   const o = Number.isInteger(number) ? await getOrder(number) : null;
-  if (!o || !key || o.key !== key) return fail(404, 'No such order.');
+  if (!o || !safeEqual(o.key, key)) return fail(404, 'No such order.');
   return json({ order: publicOrder(o) });
 });
 
