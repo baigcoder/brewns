@@ -673,3 +673,143 @@ export function createCardamomBunModel(T: typeof THREE, id: string, sel: Sel = {
 
   return assemble(T, kit, inner, { sel, steam: { count: 22, height: 0.02, on: (s) => s.serve === 1 }, shadow: [1.9, 1.7] });
 }
+
+/* ── cinnamon roll ── */
+
+/**
+ * A tall cinnamon roll as photographed: a strip of dough wound into a spiral whose grooves run with cinnamon butter,
+ * domed a little in the middle, under a thick vanilla glaze that pools on top and runs down the sides. The spiral is
+ * carved into a turned body: every vertex knows how far it is along the spiral, so the grooves, the puff of each turn
+ * and the colour all follow it.
+ */
+export function createCinnamonRollModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
+  const kit = new Kit();
+  const inner = new T.Group();
+  inner.add(plate(T, kit, 0.8, 'speckled'));
+
+  const R = 0.36, H = 0.42, pitch = 0.085;
+  // The top: domed towards the middle, rolling over at the edge into the side.
+  const topY = (r: number) => H + 0.05 * (1 - Math.pow(Math.min(1, r / R), 2));
+  const pts: number[][] = [[0, 0]];
+  for (let i = 0; i <= 12; i++) pts.push([R * 0.92 + R * 0.08 * Math.sin((i / 12) * Math.PI * 0.5), 0.02 + (i / 12) * (H - 0.08)]);
+  for (let i = 0; i <= 10; i++) {
+    const a = (i / 10) * Math.PI * 0.5;
+    pts.push([R - 0.06 + Math.cos(a) * 0.06, H - 0.08 + Math.sin(a) * 0.08]);
+  }
+  for (let i = 1; i <= 24; i++) {
+    const r = (R - 0.06) * (1 - i / 24);
+    pts.push([r, topY(r)]);
+  }
+  const geo = kit.add(new T.LatheGeometry(pts.map((p) => new T.Vector2(p[0], p[1])), 220));
+  geo.computeVertexNormals();
+  // Where a point sits along the spiral: 0 at a groove, 0.5 on the crown of a turn.
+  const phase = (x: number, z: number) => {
+    const r = Math.hypot(x, z), a = Math.atan2(z, x);
+    const s = r / pitch - a / TAU;
+    return s - Math.floor(s);
+  };
+  const p = geo.attributes.position, n = geo.attributes.normal;
+  const colors: number[] = [];
+  const col = new T.Color();
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const r = Math.hypot(x, z);
+    const f = phase(x, z);
+    const d = Math.min(f, 1 - f);
+    const groove = smoothstep(0.16, 0.0, d);
+    const crown = 0.5 - 0.5 * Math.cos(f * TAU);
+    const onTop = clamp01((n.getY(i) - 0.2) / 0.6);
+    // On the top the grooves cut in and each turn puffs up; on the side the spiral shows as the seam of the last turn.
+    const side = 1 - onTop;
+    const seam = smoothstep(0.1, 0.0, Math.abs(((Math.atan2(z, x) + TAU) % TAU) - 4.2)) * side;
+    const dy = onTop * (crown * 0.02 - groove * 0.04);
+    const dr = side * (-seam * 0.015 + (fbm(x * 9, y * 9, z * 9, 3, 7) - 0.5) * 0.012);
+    const k = r > 1e-4 ? (r + dr) / r : 1;
+    p.setXYZ(i, x * k, y + dy, z * k);
+    // Golden dough, browner where it baked high and at the edge, cinnamon butter dark in the grooves.
+    const bake = clamp01(onTop * (0.3 + crown * 0.4) + side * (0.25 + (y / H) * 0.5));
+    let c = mix([214, 160, 92], [160, 94, 40], bake);
+    c = mix(c, [104, 52, 22], (groove * onTop + seam) * 0.85);
+    c = mix(c, [240, 206, 150], side * smoothstep(0.3, 0.0, y / H) * 0.4);
+    col.setRGB(c[0] / 255, c[1] / 255, c[2] / 255).convertSRGBToLinear();
+    colors.push(col.r, col.g, col.b);
+  }
+  geo.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const crumb = paint(T, kit, 256, 256, (u, v) => {
+    const g = fbm(u * 40, v * 20, 2, 4, 5);
+    return [255 - g * 30, 255 - g * 36, 255 - g * 40, 0.3 + g * 0.7];
+  });
+  crumb.map.repeat.set(3, 1);
+  crumb.bump.repeat.set(3, 1);
+  const roll = new T.Mesh(geo, kit.add(new T.MeshPhysicalMaterial({ vertexColors: true, map: crumb.map, bumpMap: crumb.bump, bumpScale: 2, roughness: 0.55, clearcoat: 0.25, clearcoatRoughness: 0.4 })));
+  roll.position.y = 0.03;
+  inner.add(roll);
+
+  // The glaze: a thick sheet over the top, sinking into the grooves, with an uneven edge, and runs down the side.
+  const glazeMat = kit.add(new T.MeshPhysicalMaterial({ color: 0xf7f0e4, roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.4, sheenColor: new T.Color(0xffffff), specularIntensity: 0.6, side: T.DoubleSide }));
+  const glaze = (extra: boolean) => {
+    const g = new T.Group();
+    const reach = extra ? 1.05 : 0.86;
+    // A disc with rings of vertices through it (a circle is only a fan from the centre), so it can follow the dome.
+    const sheet = kit.add(new T.RingGeometry(0.0005, 1, 160, 48));
+    sheet.rotateX(-Math.PI / 2);
+    const sp = sheet.attributes.position;
+    const edge = (a: number) => R * reach * (0.78 + fbm(Math.cos(a) * 2, Math.sin(a) * 2, extra ? 3 : 1, 3, 5) * 0.3);
+    for (let i = 0; i < sp.count; i++) {
+      const x0 = sp.getX(i), z0 = sp.getZ(i);
+      const t = Math.hypot(x0, z0), a = Math.atan2(z0, x0);
+      const r = Math.min(R - 0.012, t * edge(a));
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      const f = phase(x, z), dd = Math.min(f, 1 - f);
+      const y = r > R - 0.06 ? H - 0.08 + Math.sqrt(Math.max(0, 0.0064 - Math.pow(r - (R - 0.06), 2))) : topY(r);
+      // Over the crowns of the dough (which puff up to 0.02) and sagging into the grooves, thinning at its edge.
+      sp.setXYZ(i, x, y + 0.03 + (0.5 - 0.5 * Math.cos(f * TAU)) * 0.014 - smoothstep(0.16, 0, dd) * 0.018 - Math.pow(t, 6) * 0.012, z);
+    }
+    sheet.computeVertexNormals();
+    g.add(new T.Mesh(sheet, glazeMat));
+    // Runs down the side where the sheet reaches the edge, each ending in a bead.
+    const rr = rng(extra ? 29 : 23);
+    const runs = extra ? 9 : 6;
+    for (let k = 0; k < runs; k++) {
+      const a = (k / runs) * TAU + rr() * 0.5;
+      const len = 0.06 + rr() * (extra ? 0.16 : 0.1);
+      // A flat run of glaze over the rounded edge and down the side, lying against the dough.
+      const path = [
+        V(T, Math.cos(a) * (R - 0.05), H + 0.035, Math.sin(a) * (R - 0.05)),
+        V(T, Math.cos(a) * (R - 0.006), H - 0.02, Math.sin(a) * (R - 0.006)),
+        V(T, Math.cos(a) * (R + 0.006), H - 0.08 - len * 0.5, Math.sin(a) * (R + 0.006)),
+        V(T, Math.cos(a) * (R + 0.004), H - 0.08 - len, Math.sin(a) * (R + 0.004)),
+      ];
+      const w = 0.028 + rr() * 0.022;
+      const run = new T.Mesh(sweep(T, kit, new T.CatmullRomCurve3(path), { width: w * 2, thick: 0.014, segs: 30 }), glazeMat);
+      g.add(run);
+      const bead = new T.Mesh(kit.add(new T.SphereGeometry(w * 0.8, 12, 10)), glazeMat);
+      bead.scale.set(1, 1.2, 0.7);
+      bead.lookAt(Math.cos(a) * 10, H - 0.08 - len, Math.sin(a) * 10);
+      bead.position.copy(path[3]);
+      g.add(bead);
+    }
+    g.position.y = 0.03;
+    inner.add(g);
+    return g;
+  };
+  const regular = glaze(false), extra = glaze(true);
+
+  // Cinnamon dusted over the plate round it.
+  const dust = kit.add(new T.PlaneGeometry(0.012, 0.012));
+  dust.rotateX(-Math.PI / 2);
+  scatter(T, kit, inner, dust, kit.add(new T.MeshStandardMaterial({ color: 0x8a4a22, roughness: 0.95 })), 500, (i, r) => {
+    const a = r() * TAU, d = R + 0.03 + Math.pow(r(), 1.4) * 0.3;
+    return { pos: [Math.cos(a) * d, 0.034 + Math.max(0, d - 0.46) * 0.35, Math.sin(a) * d], rot: [0, r() * 3, 0], scale: 0.4 + r() * 1.1 };
+  }, 12);
+
+  const apply = (s: Sel) => {
+    const more = s.glaze === 1;
+    regular.visible = !more;
+    extra.visible = more;
+  };
+  const piece = assemble(T, kit, inner, { sel, apply, steam: { count: 22, height: 0.02, on: (s) => s.warm === 1 }, shadow: [1.9, 1.7] });
+  piece.group.userData.viewPitch = 0.38;
+  return piece;
+}

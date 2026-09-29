@@ -79,7 +79,6 @@ const ICED_CUP_URL = `${ASSET_BASE_URL}shop/iced-cup.glb?v=${MODELS_VERSION}`;
 const SHOP_MODEL_URL = {
   "iced-matcha": ICED_CUP_URL,
   "iced-latte": ICED_CUP_URL,
-  "cinnamon-roll": `${ASSET_BASE_URL}shop/cinnamon-roll.glb?v=${MODELS_VERSION}`,
 };
 const DRACO_PATH = "/draco/gltf/";
 const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -5005,7 +5004,8 @@ const loadProductAssets = () =>
       new Promise((resolve, reject) => {
         const draco = sharedDraco(T.DRACOLoader);
         new T.GLTFLoader().setDRACOLoader(draco).load(MODEL_URL, (gltf) => resolve({ T, gltf }), undefined, (error) => {
-          banner(`Product model failed to load: ${MODEL_URL}`);
+          // Not a banner: the viewer carries on without it (see mountViewer), so there is nothing to tell the customer.
+          console.warn(`Product model failed to load: ${MODEL_URL}`);
           reject(error);
         });
       }),
@@ -5055,7 +5055,10 @@ function mountViewer(container, kind, initialSel = {}, product = null) {
   container.append(spinner);
   let destroyed = false;
   let viewerInstance = null;
-  Promise.all([loadProductAssets(), loadShopModel(product?.id)])
+  // Only the printed cups and bags need the packaging model; if it fails to load, everything built procedurally
+  // still shows (the packaging pieces fall back in createProduct3DModel).
+  const assets = loadProductAssets().catch(() => threeReady.then((T) => ({ T, gltf: null })));
+  Promise.all([assets, loadShopModel(product?.id)])
     .then(([{ T, gltf }, shopModel]) => {
       if (destroyed) return;
       spinner.remove();

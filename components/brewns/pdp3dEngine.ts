@@ -4,7 +4,7 @@ import { createBurgerModel } from './foodModels3d';
 import { createCeramicCupModel } from './cupModels3d';
 import { createTallGlassModel } from './glassModels3d';
 import { createCeramicTumblerModel as createTumblerModel, createCortadoModel as createGlassCortadoModel, createNitroColdBrewModel as createGlassNitroModel } from './drinkModels3d';
-import { createBrownieModel, createCardamomBunModel as createKnotBunModel, createCheesecakeModel, createCoolerLook, createCroissantModel, createFinancierModel, createTiramisuModel, isCooler } from './bakeryModels3d';
+import { createBrownieModel, createCinnamonRollModel, createCardamomBunModel as createKnotBunModel, createCheesecakeModel, createCoolerLook, createCroissantModel, createFinancierModel, createTiramisuModel, isCooler } from './bakeryModels3d';
 import { createFriesModel, createGarlicBreadModel, createPastaModel, createPizzaModel, createRollModel, createTendersModel } from './kitchenModels3d';
 
 export interface VariantEngine {
@@ -2201,7 +2201,7 @@ export function createProduct3DModel(
       return createTiramisuModel(T, id, initialSel);
 
     case 'cinnamon-roll':
-      return createBakeryModel(T, initialSel, shopModel);
+      return createCinnamonRollModel(T, id, initialSel);
 
     // 2. Specialty Bar & Draft Drinks
     case 'cortado':
@@ -2225,7 +2225,8 @@ export function createProduct3DModel(
     // 3. Hot Café Drinks
     case 'espresso':
     case 'latte':
-      return createPackagingModel(T, gltf, 'cup', id, initialSel);
+      // The printed takeaway cup; if its model could not be loaded, a ceramic cup rather than nothing.
+      return gltf ? createPackagingModel(T, gltf, 'cup', id, initialSel) : createCeramicCupModel(T, id === 'latte' ? 'cappuccino' : 'americano', initialSel);
 
     // Served in ceramic, as photographed.
     case 'americano':
@@ -2275,8 +2276,11 @@ export function createProduct3DModel(
 
     default:
       // Fallback router by kind
-      if (kind === 'bakery') return createBakeryModel(T, initialSel, shopModel);
-      if (kind === 'glass') return createIcedGlassModel(T, id, initialSel, shopModel);
+      // Fallback router by kind, for a product added to the menu before it has a model of its own. Every branch here
+      // builds without an asset file where it can, so a new product shows something rather than "3D view unavailable".
+      if (kind === 'bakery') return shopModel ? createBakeryModel(T, initialSel, shopModel) : createCinnamonRollModel(T, id, initialSel);
+      if (kind === 'glass') return shopModel ? createIcedGlassModel(T, id, initialSel, shopModel) : createTallGlassModel(T, id, initialSel);
+      if (!gltf) return createCeramicCupModel(T, 'americano', initialSel);
       return createPackagingModel(T, gltf, kind === 'bag' ? 'bag' : 'cup', id, initialSel);
   }
 }
