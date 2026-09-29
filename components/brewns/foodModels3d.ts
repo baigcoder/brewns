@@ -99,20 +99,27 @@ const bunTexture = (T: typeof THREE, kit: Kit, cut: number, seed: number, crumbA
   surface(
     T,
     kit,
-    paint(T, kit, 256, 256, (u, v) => {
+    paint(T, kit, 512, 512, (u, v) => {
       const n = fbm(u * 8, v * 8, seed, 4, seed);
+      // Fine texture: the pores and tiny cracks of a baked crust, and a mottle from the egg wash.
+      const pore = fbm(u * 90, v * 90, seed + 3, 2, seed + 5);
+      const mottle = fbm(u * 18, v * 14, seed + 7, 3, seed + 2);
       if (crumbAbove) v = 1 - v;
       if (v < cut) {
-        const c = mix([248, 226, 178], [236, 200, 138], n);
-        return [c[0], c[1], c[2], 0.3 + n * 0.6];
+        // The toasted cut face: pale crumb browned in patches on the griddle.
+        let c = mix([240, 214, 162], [222, 184, 122], n);
+        c = mix(c, [176, 116, 56], smoothstep(0.55, 0.75, mottle) * 0.6);
+        return [c[0], c[1], c[2], 0.3 + n * 0.3 + pore * 0.4];
       }
-      // Egg-washed brioche: deep glossy amber on the crown, paler gold down the sides.
+      // Egg-washed brioche: deep mahogany on the crown, amber down the sides, a pale gold waist where it rose.
       const shell = clamp01((v - cut) / (1 - cut));
-      const c = mix(mix([210, 140, 60], [184, 106, 38], n), [128, 58, 18], Math.pow(shell, 1.3) * 0.85);
-      const sheen = clamp01((fbm(u * 3, v * 5, 9, 2, 4) - 0.5) * 2);
-      return [c[0] + sheen * 16, c[1] + sheen * 9, c[2] + sheen * 4, 0.5 + n * 0.2];
+      let c = mix([226, 170, 96], [176, 98, 38], smoothstep(0.0, 0.35, shell));
+      c = mix(c, [112, 48, 16], smoothstep(0.35, 1, shell) * 0.92);
+      c = mix(c, [96, 42, 14], smoothstep(0.6, 0.85, mottle) * 0.35 * shell);
+      c = mix(c, [220, 150, 80], smoothstep(0.7, 0.9, pore) * 0.18);
+      return [c[0], c[1], c[2], 0.45 + n * 0.2 + pore * 0.35];
     }),
-    { roughness: 0.42, bumpScale: 1, physical: true, clearcoat: 0.75, clearcoatRoughness: 0.22 },
+    { roughness: 0.55, bumpScale: 1.6, physical: true, clearcoat: 0.3, clearcoatRoughness: 0.4, specularIntensity: 0.5 },
   );
 
 const tomatoSlice = (T: typeof THREE, kit: Kit, r = 0.3) => {
@@ -149,19 +156,48 @@ const tomatoSlice = (T: typeof THREE, kit: Kit, r = 0.3) => {
   return m;
 };
 
-/** The cheese slice, corners drooping over the patty. */
-const cheeseSlice = (T: typeof THREE, kit: Kit, tone = 0xf0a72a, size = 0.86) => {
-  const g = kit.add(new T.PlaneGeometry(size, size, 20, 20));
+/**
+ * A slice of cheddar melted over a patty of radius `rim`: flat on top, then slumped over the edge and hugging the side,
+ * the corners running furthest and ending in drips, the edge rounded and uneven as melted cheese is.
+ */
+const cheeseSlice = (T: typeof THREE, kit: Kit, tone = 0xf0a72a, size = 0.86, rim = 0.4, seed = 5) => {
+  const g = kit.add(new T.PlaneGeometry(size, size, 48, 48));
   g.rotateX(-Math.PI / 2);
-  g.rotateY(Math.PI / 4);
+  g.rotateY(Math.PI / 4 + seed * 0.3);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), z = p.getZ(i);
-    const r = Math.hypot(x, z);
-    p.setY(i, -Math.max(0, r - 0.36) * 0.75 + (fbm(x * 5, z * 5, 0, 2, 5) - 0.5) * 0.012);
+    const r = Math.hypot(x, z), a = Math.atan2(z, x);
+    const edge = rim * (0.96 + (fbm(Math.cos(a) * 2, Math.sin(a) * 2, seed, 2, seed) - 0.5) * 0.12);
+    const over = Math.max(0, r - edge);
+    // Past the edge the cheese folds down the side: it keeps its length but spends it going down, not out.
+    const outR = edge + over * 0.22;
+    // It runs down the side a little way and stops: melted cheese hangs, it does not pour.
+    const drop = Math.min(0.075, over * 0.9 + over * over * 2);
+    const k = r > 1e-4 ? outR / r : 1;
+    const sag = (fbm(x * 7, z * 7, seed + 1, 2, seed + 3) - 0.5) * 0.01;
+    p.setXYZ(i, x * (r > edge ? k : 1), -drop + sag + (r < edge ? (1 - (r / edge) ** 2) * 0.006 : 0), z * (r > edge ? k : 1));
   }
   g.computeVertexNormals();
-  return new T.Mesh(g, kit.add(new T.MeshPhysicalMaterial({ color: tone, roughness: 0.32, clearcoat: 0.35, sheen: 0.4, sheenColor: new T.Color(0xffe0a0), side: T.DoubleSide })));
+  return new T.Mesh(g, kit.add(new T.MeshPhysicalMaterial({ color: tone, roughness: 0.26, clearcoat: 0.55, clearcoatRoughness: 0.2, sheen: 0.5, sheenColor: new T.Color(0xffe6a0), specularIntensity: 0.6, side: T.DoubleSide })));
+};
+
+/** Drips of sauce or cheese running over an edge at radius `rim`, from height 0 down, each ending in a bead. */
+const drips = (T: typeof THREE, kit: Kit, mat: THREE.Material, rim: number, n: number, seed: number, len = 0.1, w = 0.022) => {
+  const g = new T.Group();
+  const r = rng(seed);
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * TAU + r() * 0.7;
+    const l = len * (0.5 + r());
+    const path = new T.CatmullRomCurve3([V(T, Math.cos(a) * (rim - 0.04), 0.004, Math.sin(a) * (rim - 0.04)), V(T, Math.cos(a) * (rim + 0.012), -0.012, Math.sin(a) * (rim + 0.012)), V(T, Math.cos(a) * (rim + 0.016), -l * 0.6, Math.sin(a) * (rim + 0.016)), V(T, Math.cos(a) * (rim + 0.012), -l, Math.sin(a) * (rim + 0.012))]);
+    const ww = w * (0.7 + r() * 0.6);
+    g.add(new T.Mesh(sweep(T, kit, path, { width: ww * 2, thick: ww * 0.7, segs: 24 }), mat));
+    const bead = new T.Mesh(kit.add(new T.SphereGeometry(ww * 0.95, 12, 10)), mat);
+    bead.position.copy(path.getPoint(1));
+    bead.scale.set(1, 1.3, 1);
+    g.add(bead);
+  }
+  return g;
 };
 
 const pattyMaterial = (T: typeof THREE, kit: Kit, glaze = false) =>
@@ -169,14 +205,16 @@ const pattyMaterial = (T: typeof THREE, kit: Kit, glaze = false) =>
     T,
     kit,
     paint(T, kit, 256, 256, (u, v) => {
+      // Seared on a hot griddle: a deep brown crust, craggy, charred almost black at the high points, with
+      // glistening fat in the crevices.
       const n = fbm(u * 10, v * 10, 2, 4, 6);
-      const crust = clamp01((n - 0.35) * 2.2);
-      let c = mix([72, 40, 24], [128, 74, 44], n);
-      c = mix(c, [30, 16, 10], clamp01((0.36 - n) * 3));
-      c = mix(c, [150, 92, 56], crust * 0.25);
-      return [c[0], c[1], c[2], 0.3 + n * 0.7];
+      const crag = fbm(u * 40, v * 40, 3, 3, 9);
+      let c = mix([54, 28, 15], [100, 54, 28], n);
+      c = mix(c, [22, 11, 6], smoothstep(0.56, 0.74, crag) * 0.85);
+      c = mix(c, [128, 72, 38], smoothstep(0.35, 0.2, crag) * 0.3);
+      return [c[0], c[1], c[2], 0.25 + n * 0.35 + crag * 0.4];
     }),
-    glaze ? { roughness: 0.32, bumpScale: 3, physical: true, clearcoat: 0.9, clearcoatRoughness: 0.18 } : { roughness: 0.62, bumpScale: 4 },
+    glaze ? { roughness: 0.34, bumpScale: 3, physical: true, clearcoat: 0.6, clearcoatRoughness: 0.25, specularIntensity: 0.5 } : { roughness: 0.62, bumpScale: 6, physical: true, specularIntensity: 0.45 },
   );
 
 const onionRing = (T: typeof THREE, kit: Kit, mat: THREE.Material, r = 0.2) => {
@@ -206,7 +244,7 @@ export function createBurgerModel(T: typeof THREE, id: string, sel: Sel = {}): V
   };
 
   // Bottom bun.
-  const bunBottom = new T.Mesh(lathe(T, kit, [[0, 0], [0.38, 0], [0.43, 0.025], [0.445, 0.07], [0.42, 0.115], [0.3, 0.13], [0, 0.13]]), bunTexture(T, kit, 0.2, 4, true));
+  const bunBottom = new T.Mesh(lathe(T, kit, [[0, 0], [0.38, 0], [0.43, 0.025], [0.445, 0.07], [0.42, 0.115], [0.3, 0.13], [0, 0.13]], 96), bunTexture(T, kit, 0.2, 4, true));
   put(bunBottom, 0.115);
 
   // Sauce on the bun.
@@ -233,11 +271,30 @@ export function createBurgerModel(T: typeof THREE, id: string, sel: Sel = {}): V
     }, 17);
     put(nest, 0.05, 0.02);
   }
-  const pickleMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x8aa138, roughness: 0.3, clearcoat: 0.6, transmission: 0.0 }));
-  const pickleGeo = kit.add(new T.CylinderGeometry(0.1, 0.1, 0.016, 28));
+  // Crinkle-cut pickle slices: dark green rind, paler flesh with a ring of seeds, glossy with brine.
+  const pickleFace = draw(T, kit, 128, 128, (ctx) => {
+    ctx.fillStyle = '#4f6a1e';
+    ctx.beginPath();
+    ctx.arc(64, 64, 64, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#a9b457';
+    ctx.beginPath();
+    ctx.arc(64, 64, 54, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#c9c878';
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * TAU;
+      ctx.beginPath();
+      ctx.ellipse(64 + Math.cos(a) * 24, 64 + Math.sin(a) * 24, 6, 3.5, a, 0, TAU);
+      ctx.fill();
+    }
+  });
+  const pickleRind = kit.add(new T.MeshPhysicalMaterial({ color: 0x455e18, roughness: 0.35, clearcoat: 0.7 }));
+  const pickleMat = kit.add(new T.MeshPhysicalMaterial({ map: pickleFace, roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.1 }));
+  const pickleGeo = kit.add(new T.CylinderGeometry(0.09, 0.09, 0.016, 28));
   const pickles = new T.Group();
-  [[0.18, 0.05], [-0.14, 0.16], [-0.06, -0.2]].forEach(([px, pz], i) => {
-    const pk = new T.Mesh(pickleGeo, pickleMat);
+  [[0.3, 0.12], [-0.22, 0.26], [0.02, -0.33]].forEach(([px, pz], i) => {
+    const pk = new T.Mesh(pickleGeo, [pickleRind, pickleMat, pickleMat]);
     pk.position.set(px, 0, pz);
     pk.rotation.y = i;
     pickles.add(pk);
@@ -251,17 +308,19 @@ export function createBurgerModel(T: typeof THREE, id: string, sel: Sel = {}): V
   if (isZinger) {
     const crust = friedCrust(T, kit, 5);
     // Double-dipped and fried: a big fillet overhanging the bun, its coating craggy at two scales.
-    const filletGeo = blob(T, kit, 0.54, 0.1, 0.46, { amp: 0.035, freq: 5, seed: 21, seg: 110 });
-    displace(filletGeo, 0.014, 22, 23, 2);
+    // A whole thigh, not a disc: lumpy in outline and thickness, then the crumb's crags on top of that.
+    const filletGeo = blob(T, kit, 0.56, 0.15, 0.46, { amp: 0.06, freq: 2.4, seed: 21, seg: 120 });
+    displace(filletGeo, 0.03, 7, 22, 2);
+    displace(filletGeo, 0.016, 24, 23, 2);
     const fillet = new T.Mesh(filletGeo, crust);
     fillet.rotation.y = 0.3;
     meat.add(fillet);
-    meatH = 0.14;
+    meatH = 0.2;
   } else {
     const n = isSmash ? 2 : 1;
     for (let i = 0; i < n; i++) {
       const rr = isSmash ? 0.5 : 0.45;
-      const hh = isSmash ? 0.05 : 0.1;
+      const hh = isSmash ? 0.085 : 0.1;
       const g = kit.add(new T.CylinderGeometry(rr, rr * 0.97, hh, 72, 2));
       if (isSmash) {
         // Smashed thin on the plancha: the edge goes lacy and ragged, and thinner than the middle.
@@ -274,26 +333,37 @@ export function createBurgerModel(T: typeof THREE, id: string, sel: Sel = {}): V
         }
         g.computeVertexNormals();
       }
-      displace(g, isSmash ? 0.022 : 0.018, isSmash ? 9 : 6, 30 + i);
+      displace(g, isSmash ? 0.022 : 0.03, isSmash ? 9 : 4, 30 + i);
+      if (!isSmash) displace(g, 0.012, 16, 31 + i);
       const patty = new T.Mesh(g, pattyMat);
-      patty.position.y = i * (hh + 0.055) + hh / 2;
+      patty.position.y = i * (hh + 0.05) + hh / 2;
       patty.rotation.y = i * 1.7;
       meat.add(patty);
       if (isSmash) {
-        const cs = cheeseSlice(T, kit, 0xf0a72a);
-        cs.position.y = i * (hh + 0.055) + hh;
-        cs.rotation.y = i * 0.8;
+        // Wider than the patty, so it melts over the lacy edge where it can be seen.
+        const cs = cheeseSlice(T, kit, 0xf2a826, 0.92, 0.5, 5 + i);
+        cs.position.y = i * (hh + 0.05) + hh + 0.004;
         meat.add(cs);
       }
     }
-    meatH = isSmash ? 0.16 : 0.1;
+    meatH = isSmash ? 0.23 : 0.1;
   }
   put(meat, meatH, 0.02);
+  // House sauce running over the edge of the top patty.
+  if (isSmash) {
+    const houseSauce = kit.add(new T.MeshPhysicalMaterial({ color: 0xe0874e, roughness: 0.32, clearcoat: 0.4, clearcoatRoughness: 0.25, specularIntensity: 0.5 }));
+    const run = drips(T, kit, houseSauce, 0.52, 4, 41, 0.08, 0.018);
+    run.position.y = y - 0.005;
+    stack.add(run);
+    const pool = new T.Mesh(blob(T, kit, 0.38, 0.016, 0.38, { amp: 0.01, freq: 6, seed: 44 }), houseSauce);
+    pool.position.y = y;
+    stack.add(pool);
+  }
   // Pickles on the smash burger's cheese.
   if (isSmash) put(pickles, 0.016, 0.0);
   // The hero patty's cheese: the BBQ burger gets cheddar over its patty.
   if (isBbq) {
-    const cs = cheeseSlice(T, kit, 0xf3b03a);
+    const cs = cheeseSlice(T, kit, 0xf3b03a, 0.92, 0.47, 9);
     put(cs, 0.02);
   }
   // BBQ glaze drizzle and onion rings.
@@ -330,14 +400,15 @@ export function createBurgerModel(T: typeof THREE, id: string, sel: Sel = {}): V
     }
     put(rings, 0.17, 0.06);
   }
-  // Garlic mayo for the zinger.
+  // Spicy mayo over the zinger's fillet.
   if (isZinger) {
-    const mayo = new T.Mesh(blob(T, kit, 0.3, 0.03, 0.3, { amp: 0.01, freq: 8, seed: 33 }), kit.add(new T.MeshPhysicalMaterial({ color: 0xf6efdc, roughness: 0.25, clearcoat: 0.7 })));
+    const mayoMat = kit.add(new T.MeshPhysicalMaterial({ color: 0xefc9a0, roughness: 0.3, clearcoat: 0.5, clearcoatRoughness: 0.2, specularIntensity: 0.5 }));
+    const mayo = new T.Mesh(blob(T, kit, 0.36, 0.03, 0.34, { amp: 0.014, freq: 6, seed: 33 }), mayoMat);
     put(mayo, 0.02, 0.005);
   }
 
   // Top bun with sesame.
-  const topBunGeo = lathe(T, kit, [[0, 0], [0.4, 0], [0.445, 0.03], [0.455, 0.09], [0.425, 0.19], [0.34, 0.275], [0.19, 0.318], [0, 0.328]]);
+  const topBunGeo = lathe(T, kit, [[0, 0], [0.4, 0], [0.445, 0.03], [0.455, 0.09], [0.425, 0.19], [0.34, 0.275], [0.19, 0.318], [0, 0.328]], 96);
   const topBun = new T.Mesh(topBunGeo, bunTexture(T, kit, 0.34, 9));
   const bunY = y + 0.02;
   topBun.position.y = bunY;

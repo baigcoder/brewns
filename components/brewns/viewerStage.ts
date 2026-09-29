@@ -24,7 +24,9 @@ const studioEnvironment = (T, pmrem) => {
   };
   panel(12, 8, [-9, 7, 8], 9);
   panel(4, 14, [10, 3, 6], 5, [0.95, 0.98, 1]);
-  panel(14, 4, [0, 10, -8], 7);
+  // The rim light behind. Kept moderate: every flat, glossy, upward-facing surface (a saucer, a patty, a pool of sauce)
+  // mirrors it towards a camera in front, and at full strength it greyed them all out.
+  panel(14, 4, [0, 10, -8], 3.2);
   panel(16, 4, [0, -6, 8], 1.2, [1, 0.92, 0.82]);
   const env = pmrem.fromScene(room, 0.02);
   room.traverse((o) => {
