@@ -8,18 +8,24 @@
 
 import { LOC_TITLES, pkMobile } from '@/lib/catalog';
 import { clock, orderNo, type ServerOrder, type Status } from '@/lib/orderFlow';
+import { SITE_URL } from '@/lib/site';
 import { formatPakistaniMobileForWa } from './smsWhatsapp';
 import { kv } from './store';
 
 /** The milestones a customer is told about. */
-export const NOTIFY_ON: readonly Status[] = ['received', 'ready', 'onway', 'delivered', 'cancelled'];
+export const NOTIFY_ON: readonly Status[] = ['received', 'ready', 'onway', 'delivered', 'collected', 'cancelled'];
+
+export const trackUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/?track=${o.number}&k=${o.key}`;
+export const reviewUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/review/${o.number}?k=${o.key}`;
 
 /** What to say when an order reaches `status`, or null when that step is silent. */
-export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' | 'name' | 'loc' | 'target' | 'rider' | 'cancelReason' | 'table'>, status: Status = o.status): { subject: string; text: string } | null {
+export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' | 'name' | 'loc' | 'target' | 'rider' | 'cancelReason' | 'table'> & { key?: string }, status: Status = o.status): { subject: string; text: string } | null {
   if (!NOTIFY_ON.includes(status)) return null;
   const no = orderNo(o.number);
   const first = o.name.split(' ')[0] || 'there';
   const shop = LOC_TITLES[o.loc] || 'brewns';
+  const link = o.key ? trackUrl({ number: o.number, key: o.key }) : '';
+  const rate = o.key ? ` How was it? Rate it in a few seconds: ${reviewUrl({ number: o.number, key: o.key })}` : '';
   let text: string;
   switch (status) {
     case 'received':
@@ -33,12 +39,16 @@ export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' |
       text = `Order ${no} is on its way${o.rider ? ` with ${o.rider.name}` : ''}.`;
       break;
     case 'delivered':
-      text = `Order ${no} has been delivered. Enjoy, ${first}!`;
+      text = `Order ${no} has been delivered. Enjoy, ${first}!${rate}`;
+      break;
+    case 'collected':
+      text = `Thanks ${first}, order ${no} is collected. See you again soon.${rate}`;
       break;
     default:
       text = `Order ${no} was cancelled${o.cancelReason ? `: ${o.cancelReason}` : ''}. If that's a surprise, please call brewns ${shop}.`;
   }
-  return { subject: `brewns · order ${no}`, text: `☕ brewns · ${text}` };
+  const track = link && ['received', 'ready', 'onway'].includes(status) ? ` Track it: ${link}` : '';
+  return { subject: `brewns · order ${no}`, text: `☕ brewns · ${text}${track}` };
 }
 
 async function whatsapp(phone: string, text: string): Promise<boolean> {

@@ -143,3 +143,36 @@ describe('stock counts', () => {
     await orders.placeOrder({ ...base, mode: 'pickup', items: [americano(30)] }, guest);
   });
 });
+
+describe('links and verified reviews', () => {
+  const call = (handler: (req: Request, ctx: { params: Promise<{ number: string }> }) => Promise<Response>, number: number, key: string, body?: unknown) =>
+    handler(
+      new Request(`http://localhost/api/orders/${number}/review?k=${encodeURIComponent(key)}`, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }),
+      { params: Promise.resolve({ number: String(number) }) },
+    );
+
+  it('puts the tracking and review links in the right messages', () => {
+    const o = { number: 42, key: 'sekret', mode: 'pickup' as const, status: 'ready' as const, name: 'Sara Khan', loc: 0, target: Date.UTC(2026, 2, 4, 7, 15), rider: null, table: null };
+    expect(notify.orderMessage(o)?.text).toContain('/?track=42&k=sekret');
+    expect(notify.orderMessage(o)?.text).not.toContain('/review/');
+    expect(notify.orderMessage({ ...o, status: 'collected' })?.text).toContain('/review/42?k=sekret');
+    expect(notify.orderMessage({ ...o, mode: 'delivery', status: 'delivered' })?.text).toContain('/review/42?k=sekret');
+  });
+
+  it('takes one verified review per received order, for the key holder only', async () => {
+    const route = await import('@/app/api/orders/[number]/review/route');
+    const { order } = await orders.placeOrder({ ...base, mode: 'pickup', items: [americano()] }, guest);
+    expect((await call(route.POST, order.number, order.key, { stars: 5, quote: 'Great' })).status).toBe(409); // not collected yet
+    order.status = 'collected';
+    await orders.saveOrder(order);
+    expect((await call(route.POST, order.number, 'wrong', { stars: 5, quote: 'Great coffee' })).status).toBe(404);
+    expect((await call(route.POST, order.number, order.key, { stars: 9, quote: 'Great coffee' })).status).toBe(400);
+    expect((await call(route.GET, order.number, order.key)).status).toBe(200);
+    const ok = await call(route.POST, order.number, order.key, { stars: 5, quote: 'Great coffee' });
+    expect(ok.status).toBe(201);
+    expect(((await ok.json()) as { review: { verified: boolean } }).review.verified).toBe(true);
+    expect((await call(route.POST, order.number, order.key, { stars: 4, quote: 'Again' })).status).toBe(409);
+    const info = (await (await call(route.GET, order.number, order.key)).json()) as { reason: string };
+    expect(info.reason).toBe('already');
+  });
+});

@@ -37,6 +37,8 @@ export async function addReview(data: {
   order?: string;
   product?: string;
   stars: number;
+  /** Set only by the server, for a review left through a real order's link. */
+  verified?: boolean;
 }): Promise<Review> {
   const id = randomBytes(6).toString('hex');
   const now = new Date();
@@ -49,7 +51,7 @@ export async function addReview(data: {
     product: data.product || '',
     when: `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`,
     stars: Math.max(1, Math.min(5, Math.round(data.stars))),
-    verified: false,
+    verified: !!data.verified,
     helpful: 0,
     createdAt: now.getTime(),
   };
