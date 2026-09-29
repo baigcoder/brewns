@@ -10,7 +10,8 @@
  *            tables, chairs, spoons and cups, the door with the road outside
  *   bar      every drink made start to finish: ticket, knock, grind, tamp,
  *            the pump and the shot, milk steamed, ice, the counter bell
- *   music    slow lo-fi jazz on a real, sampled grand piano, brushes and kick
+ *   music    the house trio (sampled grand piano, upright bass, brushes and
+ *            ride) playing a set of original tunes from lib/jazzScore.ts
  *   ui       clicks, pours, the printer, message pops, chimes
  *
  * Everything in the room has a place (the bar ahead to the left, the door
@@ -23,6 +24,8 @@
  * Nothing plays until the visitor turns sound on (browsers require a click),
  * and it fades out when the tab is hidden.
  */
+
+import { BOOK, FEEL_NAMES, perform, setList, type Bar } from './jazzScore';
 
 type Settings = { on: boolean; volume: number; ambience: boolean; music: boolean; ui: boolean };
 const KEY = 'brewns-sound';
@@ -1021,87 +1024,276 @@ function loadPiano() {
   return pianoLoading;
 }
 
-function startMusic() {
-  const c = ctx!;
-  // the chain: tape wobble (a delay line whose length drifts), a little
-  // saturation, a rolled-off top
-  const tape = c.createDelay(0.05);
-  tape.delayTime.value = 0.012;
-  const wob = c.createOscillator();
-  wob.frequency.value = 0.42;
-  const wobG = gainNode(0.0012);
-  wob.connect(wobG).connect(tape.delayTime);
-  wob.start();
-  const shaper = c.createWaveShaper();
-  shaper.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(((i / 1023) * 2 - 1) * 1.6) / Math.tanh(1.6));
-  const top = filter('lowpass', 3600, 0.5);
-  const body = filter('peaking', 220, 0.8);
-  body.gain.value = 2.5;
-  const inp = gainNode(0.9);
-  inp.connect(tape).connect(shaper).connect(body).connect(top).connect(musicBus!);
-  // vinyl: crackle and a low hiss
-  const cb = c.createBuffer(1, c.sampleRate * 4, c.sampleRate);
-  const cd = cb.getChannelData(0);
-  for (let i = 0; i < cd.length; i++) cd[i] = Math.random() < 0.0005 ? (Math.random() * 2 - 1) * 0.6 : 0;
-  const crackle = c.createBufferSource();
-  crackle.buffer = cb;
-  crackle.loop = true;
-  crackle.connect(gainNode(0.22)).connect(musicBus!);
-  crackle.start();
-  noise('pink', c.currentTime, Infinity, filter('bandpass', 4000, 0.4)).connect(gainNode(0.004)).connect(musicBus!);
+/* ── the house trio ──
+   Piano, upright bass and drums playing a set of original tunes (lib/jazzScore.ts writes out every bar). The piano is
+   the sampled grand, spread across the stereo field the way it sounds from a table in front of it; the bass is a
+   plucked string modelled in the audio graph; the drums (ride, hi-hat foot, brushes, cross-stick, shaker) are rendered
+   once into short buffers. Between tunes there is a pause, and sometimes a few tables clap. */
+type NowPlaying = { title: string; feel: string; index: number; of: number } | null;
+let nowPlaying: NowPlaying = null;
+const nowListeners = new Set<(n: NowPlaying) => void>();
+export const getNowPlaying = () => nowPlaying;
+export const onNowPlaying = (f: (n: NowPlaying) => void) => {
+  nowListeners.add(f);
+  return () => nowListeners.delete(f);
+};
+let skipRequested = false;
+/** Ends the tune being played (with a quick fade) and starts the next one. */
+export function skipTune() {
+  skipRequested = true;
+}
 
-  const key = (m: number, t: number, dur: number, vel: number) => {
-    if (!piano.length) return;
-    let s = piano[0];
-    for (const p of piano) if (Math.abs(p.midi - m) < Math.abs(s.midi - m)) s = p;
+/** Drum sounds, rendered once. Each is a short mono buffer computed sample by sample. */
+function drumKit(c: BaseAudioContext) {
+  const sr = c.sampleRate;
+  const make = (secs: number, fn: (t: number, i: number) => number) => {
+    const b = c.createBuffer(1, Math.floor(sr * secs), sr);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = fn(i / sr, i);
+    return b;
+  };
+  // A cymbal is a cluster of inharmonic partials: square waves at unrelated frequencies, high-passed, plus noise.
+  const metal = (freqs: number[], decay: number, ping: number, secs: number, noiseMix = 0.35) => {
+    let xa = 0, ya = 0, xb = 0, yb = 0;
+    return make(secs, (t) => {
+      let v = 0;
+      for (const f of freqs) v += Math.sign(Math.sin(2 * Math.PI * f * t));
+      v = v / freqs.length + (Math.random() * 2 - 1) * noiseMix;
+      // two first-order high-passes take away the body and leave the shimmer
+      ya = 0.94 * (ya + v - xa);
+      xa = v;
+      yb = 0.9 * (yb + ya - xb);
+      xb = ya;
+      return yb * (Math.exp(-t / decay) * 0.7 + Math.exp(-t / ping) * 0.5);
+    });
+  };
+  const RIDE = [322, 441, 587, 739, 1013, 1291].map((f) => f * 2.3);
+  let lp = 0;
+  return {
+    ride: metal(RIDE, 0.55, 0.012, 1.6),
+    chick: metal(RIDE.map((f) => f * 1.2), 0.03, 0.006, 0.12, 0.6),
+    // a brushed snare: a short breath of noise, band-limited
+    snare: make(0.35, (t) => {
+      lp += 0.35 * ((Math.random() * 2 - 1) - lp);
+      return lp * Math.exp(-t / 0.09) * (t < 0.004 ? t / 0.004 : 1);
+    }),
+    // cross-stick: a woody knock
+    rim: make(0.12, (t) => (Math.sin(2 * Math.PI * 1650 * t) * 0.6 + Math.sin(2 * Math.PI * 520 * t) * 0.5 + (Math.random() * 2 - 1) * 0.3) * Math.exp(-t / 0.018)),
+    // shaker: noise that swells and drops
+    shaker: make(0.1, (t) => (Math.random() * 2 - 1) * Math.sin(Math.PI * Math.min(1, t / 0.09)) * 0.5),
+    kick: make(0.3, (t) => Math.sin(2 * Math.PI * (55 + 40 * Math.exp(-t / 0.03)) * t) * Math.exp(-t / 0.09)),
+    // steady noise for the brushes to sweep with
+    noise: make(1, () => Math.random() * 2 - 1),
+  };
+}
+type Kit = ReturnType<typeof drumKit>;
+
+/**
+ * A band that plays notes into `out`. Kept apart from the scheduler so it can also be rendered offline.
+ * `samples` are the piano recordings, lowest first.
+ */
+export function createTrio(c: BaseAudioContext, out: AudioNode, samples: { midi: number; buf: AudioBuffer }[], kit: Kit = drumKit(c)) {
+  // Piano: a touch of warmth (gentle saturation, a lifted low-mid, the top rolled off like a room does).
+  const shaper = c.createWaveShaper();
+  shaper.curve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh(((i / 1023) * 2 - 1) * 1.3) / Math.tanh(1.3));
+  const pianoIn = c.createGain();
+  // Balance: the piano leads, the bass sits a couple of dB under it, the drums further back.
+  pianoIn.gain.value = 2.8;
+  const body = c.createBiquadFilter();
+  body.type = 'peaking';
+  body.frequency.value = 240;
+  body.gain.value = 2;
+  const air = c.createBiquadFilter();
+  air.type = 'lowpass';
+  air.frequency.value = 5200;
+  air.Q.value = 0.5;
+  pianoIn.connect(shaper).connect(body).connect(air).connect(out);
+  const drums = c.createGain();
+  drums.gain.value = 0.4;
+  drums.connect(out);
+  const bassBus = c.createGain();
+  bassBus.gain.value = 0.3;
+  bassBus.connect(out);
+
+  const pan = (v: number) => {
+    const p = c.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, v));
+    return p;
+  };
+  const piano = (m: number, t: number, dur: number, vel: number) => {
+    if (!samples.length) return;
+    let s = samples[0];
+    for (const p of samples) if (Math.abs(p.midi - m) < Math.abs(s.midi - m)) s = p;
     const src = c.createBufferSource();
     src.buffer = s.buf;
     src.playbackRate.value = Math.pow(2, (m - s.midi) / 12);
-    const g = gainNode(0);
+    const g = c.createGain();
+    // Softer notes are darker as well as quieter, as they are on a real piano.
+    const tone = c.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 1400 + vel * 7000;
     g.gain.setValueAtTime(vel, t);
-    g.gain.setTargetAtTime(0, t + dur, 0.18); // the damper comes down
-    src.connect(g).connect(inp);
+    g.gain.setTargetAtTime(0, t + dur, 0.16); // the damper comes down
+    // Low notes to the left, high to the right: the keyboard as heard from in front of it.
+    src.connect(tone).connect(g).connect(pan((m - 62) / 36)).connect(pianoIn);
     src.start(t);
     src.stop(t + dur + 1.2);
   };
-  const kick = (t: number, v = 1) => {
-    const o = c.createOscillator();
-    o.frequency.setValueAtTime(110, t);
-    o.frequency.exponentialRampToValueAtTime(44, t + 0.16);
-    const g = gainNode(0);
-    g.gain.setValueAtTime(0.16 * v, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
-    o.connect(g).connect(inp);
-    o.start(t);
-    o.stop(t + 0.34);
-  };
-  const brush = (t: number, level: number, len = 0.16) => {
-    const g = gainNode(0);
+  // Upright bass: a plucked string. A sine for the fundamental and a quieter triangle an octave up give the tone; the
+  // filter snaps open at the pluck and closes as the note dies, and the pitch settles a few cents after the attack.
+  const bass = (m: number, t: number, dur: number, vel: number) => {
+    const f = 440 * Math.pow(2, (m - 69) / 12);
+    const o1 = c.createOscillator();
+    const o2 = c.createOscillator();
+    o2.type = 'triangle';
+    [o1, o2].forEach((o, k) => {
+      const fk = f * (k + 1);
+      o.frequency.setValueAtTime(fk * 1.006, t);
+      o.frequency.exponentialRampToValueAtTime(fk, t + 0.05);
+    });
+    const o2g = c.createGain();
+    o2g.gain.value = 0.35;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 1.4;
+    lp.frequency.setValueAtTime(260 + vel * 900, t);
+    lp.frequency.exponentialRampToValueAtTime(220, t + 0.25);
+    const g = c.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(level, t + len * 0.3);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-    noise('white', t, len + 0.02, filter('bandpass', 5200, 0.6)).connect(g);
-    g.connect(inp);
+    g.gain.linearRampToValueAtTime(vel * 0.55, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(vel * 0.3, t + 0.18);
+    g.gain.setTargetAtTime(0.0001, t + dur, 0.06);
+    o1.connect(lp);
+    o2.connect(o2g).connect(lp);
+    lp.connect(g).connect(bassBus);
+    // the finger on the string
+    const thump = c.createBufferSource();
+    thump.buffer = kit.snare;
+    const tf = c.createBiquadFilter();
+    tf.type = 'bandpass';
+    tf.frequency.value = 180;
+    const tg = c.createGain();
+    tg.gain.value = vel * 0.35;
+    thump.connect(tf).connect(tg).connect(bassBus);
+    thump.start(t);
+    thump.stop(t + 0.06);
+    [o1, o2].forEach((o) => {
+      o.start(t);
+      o.stop(t + dur + 0.4);
+    });
+  };
+  const hit = (buf: AudioBuffer, t: number, vel: number, where: number, rate = 1) => {
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = c.createGain();
+    g.gain.value = vel;
+    src.connect(g).connect(pan(where)).connect(drums);
+    src.start(t);
+  };
+  // Brushes swept round the snare head: filtered noise that swells twice a bar.
+  const swirl = (t: number, beats: number, spb: number, vel: number) => {
+    const n = c.createBufferSource();
+    n.buffer = kit.noise;
+    n.loop = true;
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 3200;
+    bp.Q.value = 0.6;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t);
+    for (let k = 0; k < beats / 2; k++) {
+      g.gain.linearRampToValueAtTime(vel * 0.32, t + (k * 2 + 1) * spb);
+      g.gain.linearRampToValueAtTime(vel * 0.1, t + (k * 2 + 2) * spb);
+    }
+    n.connect(bp).connect(g).connect(pan(-0.15)).connect(drums);
+    n.start(t);
+    n.stop(t + beats * spb + 0.05);
   };
 
-  // Gb maj9 · Fm7 · Ebm9 · Ab13 · Db maj9 · Bbm9 · Ebm9 · Ab7sus
-  const CHORDS: { bass: number; fifth: number; v: number[] }[] = [
-    { bass: 42, fifth: 49, v: [53, 56, 58, 61] },
-    { bass: 41, fifth: 48, v: [51, 56, 60, 63] },
-    { bass: 39, fifth: 46, v: [54, 58, 61, 65] },
-    { bass: 44, fifth: 39, v: [54, 60, 65, 67] },
-    { bass: 37, fifth: 44, v: [53, 56, 60, 63] },
-    { bass: 34, fifth: 41, v: [56, 61, 65, 68] },
-    { bass: 39, fifth: 46, v: [54, 58, 61, 65] },
-    { bass: 44, fifth: 39, v: [54, 58, 61, 63] },
-  ];
-  const PENTA = [61, 63, 65, 68, 70, 73, 75, 77, 80];
-  const BPM = 72;
-  const beat = 60 / BPM;
-  const swing = beat * 0.64; // the "and" lands late
-  let barN = 0;
-  let next = c.currentTime + 0.4;
-  let melody = 4;
+  return {
+    /** Plays one bar starting at `t`; returns its length in seconds. */
+    bar(notes: import('./jazzScore').Note[], t: number, bpm: number) {
+      const spb = 60 / bpm;
+      for (const n of notes) {
+        const at = t + n.t * spb;
+        const d = n.dur * spb;
+        switch (n.inst) {
+          case 'piano': piano(n.midi!, at, d, n.vel); break;
+          case 'bass': bass(n.midi!, at, d, n.vel); break;
+          case 'ride': hit(kit.ride, at, n.vel * 0.5, 0.35); break;
+          case 'chick': hit(kit.chick, at, n.vel * 0.45, 0.25); break;
+          case 'snare': hit(kit.snare, at, n.vel * 0.9, -0.1); break;
+          case 'rim': hit(kit.rim, at, n.vel * 0.55, -0.15); break;
+          case 'shaker': hit(kit.shaker, at, n.vel * 0.35, 0.45); break;
+          case 'kick': hit(kit.kick, at, n.vel * 1.1, 0); break;
+          case 'swirl': swirl(at, n.dur, spb, n.vel); break;
+        }
+      }
+      return 4 * spb;
+    },
+  };
+}
+
+function startMusic() {
+  const c = ctx!;
+  // The trio plays in the corner of the room: the music bus already goes to the room's reverb; each tune gets its own
+  // gain so a skipped tune can fade out while the next one starts clean.
+  let tuneGain: GainNode | null = null;
+  let bars: Bar[] = [];
+  let barI = 0;
+  let next = 0;
+  let setOrder: number[] = [];
+  let setI = -1;
+  let trio: ReturnType<typeof createTrio> | null = null;
+  let kit: Kit | null = null;
+
+  const startTune = () => {
+    if (!setOrder.length || setI >= setOrder.length - 1) {
+      setOrder = setList(Math.floor(pkHour()));
+      setI = -1;
+    }
+    setI++;
+    skipRequested = false;
+    const tune = BOOK[setOrder[setI]];
+    bars = perform(tune);
+    barI = 0;
+    tuneGain = gainNode(1);
+    tuneGain.connect(musicBus!);
+    kit ||= drumKit(c);
+    trio = createTrio(c, tuneGain, piano, kit);
+    next = c.currentTime + 0.3;
+    nowPlaying = { title: tune.title, feel: FEEL_NAMES[tune.feel], index: setI + 1, of: setOrder.length };
+    nowListeners.forEach((f) => f(nowPlaying));
+  };
+
+  const between = (ms: number) => {
+    // A few tables clap for the trio, now and then.
+    if (settings.ambience && Math.random() < 0.55) {
+      const people = Math.floor(rand(3, 7));
+      for (let p = 0; p < people; p++) {
+        const x = rand(-3, 3), z = rand(-3.5, -0.5);
+        const claps = Math.floor(rand(4, 9));
+        const start = c.currentTime + rand(0.05, 0.5);
+        const rate = rand(0.16, 0.22);
+        const out = placed(roomBus!, { x, z });
+        for (let k = 0; k < claps; k++) {
+          const at = start + k * rate + rand(-0.02, 0.02);
+          const g = gainNode(0);
+          g.gain.setValueAtTime(rand(0.03, 0.06) * (1 - k / (claps * 1.4)), at);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
+          noise('white', at, 0.07, filter('bandpass', rand(900, 1600), 1.2)).connect(g);
+          g.connect(out);
+        }
+      }
+      moment('A few tables clap for the trio');
+    }
+    later(() => {
+      startTune();
+      schedule();
+    }, ms);
+  };
+
   const schedule = () => {
     if (!live() || !settings.music) return later(schedule, 600);
     if (!pianoReady) {
@@ -1113,36 +1305,27 @@ function startMusic() {
       pianoLoading = null;
       return later(schedule, 8000);
     }
+    if (!trio) startTune();
+    if (skipRequested) {
+      skipRequested = false;
+      const old = tuneGain!;
+      old.gain.setTargetAtTime(0, c.currentTime, 0.25);
+      later(() => old.disconnect(), 2500);
+      startTune();
+    }
+    // Fell behind (the tab was asleep): pick up from now rather than rushing to catch up.
     if (next < c.currentTime) next = c.currentTime + 0.1;
-    while (next < c.currentTime + 3.5) {
-      const ch = CHORDS[barN % CHORDS.length];
-      const human = () => rand(-0.012, 0.018);
-      // left hand: root on one, the fifth or a walk-up on three
-      key(ch.bass, next + human(), beat * 1.8, rand(0.5, 0.6));
-      key(Math.random() < 0.6 ? ch.fifth : ch.bass + 12, next + beat * 2 + human(), beat * 1.6, rand(0.35, 0.45));
-      // right hand: the chord rolled, sometimes pushed to the "and" of four before
-      const at = Math.random() < 0.25 ? next - (beat - swing) : next + 0.02;
-      ch.v.forEach((m, i) => key(m, at + i * rand(0.012, 0.03), beat * rand(2.2, 3.4), rand(0.26, 0.36)));
-      if (Math.random() < 0.45) ch.v.slice(1).forEach((m, i) => key(m, next + beat * 2 + swing + i * 0.015, beat * 1.2, rand(0.14, 0.2)));
-      // a few melody notes, in phrases that come and go
-      if (barN % 2 === 0) melody = Math.random() < 0.7 ? Math.floor(rand(2, 7)) : 0;
-      if (melody) {
-        const slots = [0, swing, beat, beat + swing, beat * 2, beat * 2 + swing, beat * 3, beat * 3 + swing].filter(() => Math.random() < 0.38);
-        slots.forEach((dt) => {
-          melody = Math.max(0, Math.min(PENTA.length - 1, melody + Math.floor(rand(-2, 3))));
-          key(PENTA[melody], next + dt + human(), beat * rand(0.5, 1.2), rand(0.18, 0.3));
-        });
-      }
-      // drums: soft kick, brushes on two and four, swung ticks
-      kick(next, 1);
-      if (Math.random() < 0.5) kick(next + beat * 2 + swing, 0.6);
-      for (let b = 0; b < 4; b++) {
-        const t = next + b * beat;
-        brush(t, b % 2 ? 0.03 : 0.012, b % 2 ? 0.22 : 0.1);
-        brush(t + swing, 0.01, 0.06);
-      }
-      next += beat * 4;
-      barN++;
+    while (barI < bars.length && next < c.currentTime + 3) {
+      const bar = bars[barI++];
+      next += trio!.bar(bar.notes, next, bar.bpm);
+    }
+    if (barI >= bars.length) {
+      // Let the last chord ring, then a pause before the next tune.
+      const wait = Math.max(0, next - c.currentTime) * 1000 + rand(4000, 7000);
+      const old = tuneGain;
+      later(() => old?.disconnect(), wait);
+      trio = null;
+      return later(() => between(rand(2500, 4500)), wait - 3000);
     }
     later(schedule, 500);
   };
