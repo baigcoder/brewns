@@ -14,7 +14,7 @@ const smoothstep = (a: number, b: number, x: number) => {
 };
 
 /** A thick-based drinking glass as one closed shell: outside, rim, inside, floor. */
-function glassShell(T: typeof THREE, kit: Kit, o: { rb: number; rt: number; h: number; wall: number; base: number; bevel?: number }) {
+export function glassShell(T: typeof THREE, kit: Kit, o: { rb: number; rt: number; h: number; wall: number; base: number; bevel?: number }) {
   const { rb, rt, h, wall, base } = o;
   const bev = o.bevel ?? 0.03;
   const rAt = (y: number) => rb + ((rt - rb) * y) / h;

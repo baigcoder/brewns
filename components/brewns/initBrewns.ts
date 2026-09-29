@@ -79,11 +79,6 @@ const ICED_CUP_URL = `${ASSET_BASE_URL}shop/iced-cup.glb?v=${MODELS_VERSION}`;
 const SHOP_MODEL_URL = {
   "iced-matcha": ICED_CUP_URL,
   "iced-latte": ICED_CUP_URL,
-  "mint-margarita": ICED_CUP_URL,
-  "peach-iced-tea": ICED_CUP_URL,
-  "mango-smoothie": ICED_CUP_URL,
-  "lime-soda": ICED_CUP_URL,
-  "spanish-latte": ICED_CUP_URL,
   "cinnamon-roll": `${ASSET_BASE_URL}shop/cinnamon-roll.glb?v=${MODELS_VERSION}`,
 };
 const DRACO_PATH = "/draco/gltf/";

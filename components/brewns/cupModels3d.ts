@@ -207,13 +207,13 @@ function handle(T: typeof THREE, kit: Kit, mat: THREE.Material, o: { x0: number;
   return new T.Mesh(geo, mat);
 }
 
-function saucer(T: typeof THREE, kit: Kit, mat: THREE.Material, r: number) {
+export function saucer(T: typeof THREE, kit: Kit, mat: THREE.Material, r: number) {
   const pts = [[0, 0.004], [r * 0.34, 0.004], [r * 0.38, 0.016], [r * 0.46, 0.03], [r * 0.43, 0.036], [r * 0.4, 0.034], [r * 0.5, 0.036], [r * 0.9, 0.07], [r, 0.09], [r * 0.99, 0.1], [r * 0.93, 0.088], [r * 0.5, 0.05], [0, 0.046]];
   return new T.Mesh(turned(T, kit, pts, 96).geo, mat);
 }
 
 /** A teaspoon lying on its back: a shallow bowl and a handle that rises off the table and flares at the end. */
-function spoon(T: typeof THREE, kit: Kit, mat: THREE.Material, len = 0.5) {
+export function spoon(T: typeof THREE, kit: Kit, mat: THREE.Material, len = 0.5) {
   const g = new T.Group();
   const bowlGeo = kit.add(new T.SphereGeometry(1, 28, 14, 0, TAU, Math.PI / 2, Math.PI / 2));
   bowlGeo.scale(len * 0.19, len * 0.065, len * 0.13);

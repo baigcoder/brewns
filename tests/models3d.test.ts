@@ -7,7 +7,7 @@ const engine = readFileSync('components/brewns/pdp3dEngine.ts', 'utf8');
 const site = readFileSync('components/brewns/initBrewns.ts', 'utf8');
 
 /** Products whose 3D view is a purpose-built model rather than the shared cup or bag. */
-const BUILT_BY_ID = CATALOG.filter((p) => ['kitchen', 'coolers', 'bakery'].includes(p.cat) || p.id === 'spanish-latte');
+const BUILT_BY_ID = CATALOG.filter((p) => ['kitchen', 'coolers', 'bakery'].includes(p.cat) || ['spanish-latte', 'americano', 'cappuccino', 'flat-white', 'mocha'].includes(p.id));
 
 describe('3D product models', () => {
   it('routes every kitchen, cooler and bakery product to its own builder', () => {
@@ -15,10 +15,15 @@ describe('3D product models', () => {
     expect(missing).toEqual([]);
   });
 
-  it('gives every glass product the iced-cup model file it loads', () => {
-    const glass = CATALOG.filter((p) => (p as { model?: string }).model === 'glass' && engine.includes(`case '${p.id}':`) && /createIcedGlassModel/.test(engine));
-    for (const p of glass) if (['iced-matcha', 'iced-latte', 'spanish-latte'].includes(p.id) || p.cat === 'coolers') expect(site.includes(`"${p.id}": ICED_CUP_URL`)).toBe(true);
-    for (const p of CATALOG.filter((p) => p.cat === 'coolers')) expect(site.includes(`"${p.id}": ICED_CUP_URL`)).toBe(true);
+  it('gives the iced-cup products the model file they load, and no one else', () => {
+    const icedCup = ['iced-matcha', 'iced-latte'];
+    for (const id of icedCup) expect(site.includes(`"${id}": ICED_CUP_URL`)).toBe(true);
+    // The coolers and the Spanish latte are built in tall glasses and need no file.
+    for (const p of CATALOG.filter((p) => p.cat === 'coolers' || p.id === 'spanish-latte')) expect(site.includes(`"${p.id}": ICED_CUP_URL`)).toBe(false);
+  });
+
+  it('shows the hot ceramic drinks in ceramic, not the takeaway cup', () => {
+    for (const id of ['americano', 'cappuccino', 'flat-white', 'mocha']) expect(engine).toMatch(new RegExp(`case '${id}':[\\s\\S]*?createCeramicCupModel`));
   });
 
   it('turns the 3D tab on for every kitchen product', () => {

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createBurgerModel } from './foodModels3d';
 import { createCeramicCupModel } from './cupModels3d';
+import { createTallGlassModel } from './glassModels3d';
 import { createCeramicTumblerModel as createTumblerModel, createCortadoModel as createGlassCortadoModel, createNitroColdBrewModel as createGlassNitroModel } from './drinkModels3d';
 import { createBrownieModel, createCardamomBunModel as createKnotBunModel, createCheesecakeModel, createCoolerLook, createCroissantModel, createFinancierModel, createTiramisuModel, isCooler } from './bakeryModels3d';
 import { createFriesModel, createGarlicBreadModel, createPastaModel, createPizzaModel, createRollModel, createTendersModel } from './kitchenModels3d';
@@ -2211,12 +2212,15 @@ export function createProduct3DModel(
 
     case 'iced-matcha':
     case 'iced-latte':
+      return createIcedGlassModel(T, id, initialSel, shopModel);
+
+    // Served in tall glasses, as photographed.
     case 'mint-margarita':
     case 'peach-iced-tea':
     case 'mango-smoothie':
     case 'lime-soda':
     case 'spanish-latte':
-      return createIcedGlassModel(T, id, initialSel, shopModel);
+      return createTallGlassModel(T, id, initialSel);
 
     // 3. Hot Café Drinks
     case 'espresso':
