@@ -114,9 +114,9 @@ const cremaSurface = (T: typeof THREE, kit: Kit, dark: boolean) =>
     const r = Math.hypot(x, y), a = Math.atan2(y, x);
     const swirl = 0.5 + 0.5 * Math.sin(a * 3 + r * 9 + fbm(x * 3, y * 3, 1, 3, 5) * 7);
     const fleck = smoothstep(0.62, 0.8, fbm(x * 30, y * 30, 2, 2, 8));
-    let c = mix([196, 136, 70], [150, 92, 40], swirl * 0.6);
-    c = mix(c, [226, 176, 110], smoothstep(0.5, 0.0, r) * 0.35 * (1 - swirl));
-    c = mix(c, [92, 50, 20], fleck * 0.35);
+    let c = mix([184, 120, 58], [112, 62, 26], swirl * 0.85);
+    c = mix(c, [214, 158, 92], smoothstep(0.5, 0.0, r) * 0.3 * (1 - swirl));
+    c = mix(c, [80, 42, 16], fleck * 0.45);
     c = mix(c, [60, 32, 14], smoothstep(0.72, 0.98, r));
     if (dark) c = mix(c, [70, 40, 18], 0.35);
     // Fine bubbles caught at the edge.
@@ -334,7 +334,7 @@ export function createCeramicCupModel(T: typeof THREE, id: string, sel: Sel = {}
     topMat = kit.add(new T.MeshPhysicalMaterial({ map: art, bumpMap: art, bumpScale: 0.6, roughness: 0.6, specularIntensity: 0.4, envMapIntensity: 0.5 }));
   }
   // The drink faces straight up into the key light: hold it down to the tone it has in the photograph.
-  const topTone = spec.top === 'crema' ? 0.85 : 0.8;
+  const topTone = spec.top === 'crema' ? 0.72 : 0.8;
   topMat.color.setScalar(topTone);
   const top = new T.Mesh(topGeo, topMat);
   top.position.y = level;
