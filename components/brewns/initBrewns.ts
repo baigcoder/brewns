@@ -30,6 +30,9 @@ import {
   setSoundScene,
   triggerHaptic,
   onCafeMoment,
+  getNowPlaying,
+  onNowPlaying,
+  skipTune,
   SOUND_CREDITS
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
@@ -230,8 +233,13 @@ const renderSoundPanel = () => {
     : music.status === "unavailable"
       ? "Piano is reconnecting · café ambience stays on"
       : music.status === "ready"
-        ? "Live grand piano, soft brushes and an easy swing"
-        : "Slow lo-fi jazz on a real grand piano";
+        ? "The house trio: grand piano, upright bass, brushes"
+        : "A live jazz trio in the corner, on a real grand piano";
+  // What the trio is playing, with a way to move on to the next tune.
+  const np = getNowPlaying();
+  const nowPlayingCard = st.on && st.music && np
+    ? `<div class="sp-np"><div><p class="mono-fine">NOW PLAYING · ${np.index} OF ${np.of}</p><b>${np.title}</b><small>${np.feel[0].toUpperCase() + np.feel.slice(1)} · the house trio</small></div><button type="button" class="sp-skip" data-sp="skip" aria-label="Next tune">NEXT <span aria-hidden="true">→</span></button></div>`
+    : "";
   soundPanel.innerHTML = `
     <div class="sp-head"><div><p class="sp-title">CAFÉ SOUND</p><p class="sp-now mono-fine"><span class="sp-eq"><i></i><i></i><i></i></span>${st.on ? (st.music && music.status === "loading" ? `STARTING JAZZ · ${music.loaded}/${music.total}` : st.music && music.status === "unavailable" ? "AMBIENCE ON · MUSIC RETRYING" : `NOW · ${SCENE_NAMES[sceneName] || "Brewns"}`).toUpperCase() : "OFF"}</p></div>
       <button type="button" class="sp-switch" role="switch" aria-checked="${st.on}" data-sp="on" aria-label="Sound"><i></i></button></div>
@@ -239,6 +247,7 @@ const renderSoundPanel = () => {
     ${[["ambience", "Café ambience", "Tables talking, every drink made at the bar, the door onto the road"], ["music", "Music", musicDescription], ["ui", "Touch sounds", "Clicks, pours, the printer"]]
       .map(([k, t, d]) => `<button type="button" class="sp-row" role="switch" aria-checked="${st[k]}" data-sp="${k}" ${st.on ? "" : "disabled"}><span><b>${t}</b><small>${d}</small></span><span class="sp-switch sm"><i></i></span></button>`)
       .join("")}
+    ${nowPlayingCard}
     <p class="sp-moment" aria-live="polite"><span class="sp-moment-dot"></span><span id="sp-moment-t">${st.on ? lastMoment || "The room is filling up" : "Switch on to hear the café"}</span></p>
     <p class="sp-foot mono-fine">MIX FOLLOWS WHERE YOU ARE ON THE PAGE · BUSIER AT LAHORE'S RUSH HOURS · HEADPHONES PUT YOU AT A TABLE</p>
     <p class="sp-credit">${SOUND_CREDITS}</p>`;
@@ -276,6 +285,9 @@ updateSoundUI();
 onMusicStatusChange(() => {
   if (!soundPanel.hidden) renderSoundPanel();
 });
+onNowPlaying(() => {
+  if (!soundPanel.hidden) renderSoundPanel();
+});
 soundBtn?.addEventListener("click", (e) => {
   e.stopPropagation();
   if (!getIsAudioEnabled()) {
@@ -290,6 +302,11 @@ soundPanel.addEventListener("click", (e) => {
   const k = e.target.closest("[data-sp]")?.dataset.sp;
   if (!k || k === "volume") return;
   if (k === "on") return toggleAudioState();
+  if (k === "skip") {
+    skipTune();
+    playSoftClick();
+    return;
+  }
   setSound({ [k]: !getSoundSettings()[k] });
   playSoftClick();
 });
