@@ -279,13 +279,45 @@ export function sweep(T: typeof THREE, kit: Kit, curve: THREE.Curve<THREE.Vector
 
 /* ── props ── */
 
-/** A glazed white plate, rim and well, sitting on y = 0. */
-export function plate(T: typeof THREE, kit: Kit, r = 0.75) {
+/** Stoneware glazes for plates, as the photographs have them. */
+export const GLAZES = {
+  /** Cream with iron speckle. */
+  speckled: { base: [226, 220, 206], speck: [120, 104, 88], gloss: 0.35 },
+  /** Dark grey reactive glaze, speckled, paler where it breaks over the rim. */
+  slate: { base: [74, 78, 82], speck: [150, 150, 146], gloss: 0.4 },
+  /** Pale dove grey. */
+  dove: { base: [196, 198, 200], speck: [140, 140, 140], gloss: 0.3 },
+  /** Black, satin. */
+  black: { base: [30, 29, 28], speck: [80, 72, 64], gloss: 0.4 },
+};
+
+/** A plate, rim and well, sitting on y = 0: plain glazed white, or stoneware in one of the GLAZES. */
+export function plate(T: typeof THREE, kit: Kit, r = 0.75, glaze?: keyof typeof GLAZES) {
   const pts = [[0, 0], [r * 0.5, 0], [r * 0.58, 0.012], [r * 0.96, 0.085], [r, 0.11], [r * 0.985, 0.122], [r * 0.94, 0.104], [r * 0.7, 0.04], [0, 0.03]];
   const g = lathe(T, kit, pts, 80);
-  const m = kit.add(new T.MeshPhysicalMaterial({ color: 0xe4dfd4, roughness: 0.3, clearcoat: 0.3, clearcoatRoughness: 0.25, side: T.DoubleSide }));
+  if (!glaze) {
+    const m = kit.add(new T.MeshPhysicalMaterial({ color: 0xe4dfd4, roughness: 0.3, clearcoat: 0.3, clearcoatRoughness: 0.25, side: T.DoubleSide }));
+    return new T.Mesh(g, m);
+  }
+  const gl = GLAZES[glaze];
+  const tex = paint(T, kit, 512, 256, (u, v) => {
+    const n = fbm(u * 18, v * 9, 2, 4, 5);
+    const speck = smoothstep01(0.8, 0.9, fbm(u * 160, v * 80, 4, 2, 9));
+    // The rim is profile points 3 to 6 of 8: the glaze thins and breaks paler over it.
+    const rim = smoothstep01(0.3, 0.45, v) * smoothstep01(0.8, 0.65, v);
+    let c = mix(gl.base, [gl.base[0] * 0.9, gl.base[1] * 0.9, gl.base[2] * 0.9], n);
+    c = mix(c, [Math.min(255, gl.base[0] * 1.25 + 20), Math.min(255, gl.base[1] * 1.22 + 20), Math.min(255, gl.base[2] * 1.18 + 20)], rim * 0.45);
+    c = mix(c, gl.speck, speck * 0.7);
+    return [c[0], c[1], c[2], 0.45 + n * 0.3 + speck * 0.25];
+  });
+  const m = surface(T, kit, tex, { physical: true, roughness: 0.5, clearcoat: gl.gloss, clearcoatRoughness: 0.35, specularIntensity: 0.5, bumpScale: 0.6, side: T.DoubleSide });
   return new T.Mesh(g, m);
 }
+
+const smoothstep01 = (a: number, b: number, x: number) => {
+  const t = clamp01((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
 
 /** A round wooden board with grain. */
 export function woodBoard(T: typeof THREE, kit: Kit, r = 0.78, h = 0.045, o: { rect?: [number, number]; tone?: number[] } = {}) {
@@ -333,6 +365,24 @@ export function paperSheet(T: typeof THREE, kit: Kit, w = 1.2, d = 1.0, tone = 0
   for (let i = 0; i < p.count; i++) p.setY(i, (fbm(p.getX(i) * 4, p.getZ(i) * 4, 0, 3, 9) - 0.5) * 0.02);
   g.computeVertexNormals();
   return new T.Mesh(g, kit.add(new T.MeshStandardMaterial({ color: tone, roughness: 0.85, side: T.DoubleSide })));
+}
+
+/** A table fork lying on its back: a flat handle that rises off the table, a neck and four tines. */
+export function fork(T: typeof THREE, kit: Kit, mat: THREE.Material, len = 0.5) {
+  const g = new T.Group();
+  const handle = new T.CatmullRomCurve3([new T.Vector3(len * 0.3, len * 0.03, 0), new T.Vector3(len * 0.6, len * 0.055, 0), new T.Vector3(len, len * 0.035, 0)]);
+  g.add(new T.Mesh(sweep(T, kit, handle, { width: len * 0.07, thick: len * 0.02, segs: 30 }), mat));
+  const head = roundBox(T, kit, len * 0.3, len * 0.018, len * 0.09, len * 0.008, 4);
+  const h = new T.Mesh(head, mat);
+  h.position.set(len * 0.2, len * 0.03, 0);
+  g.add(h);
+  for (let k = 0; k < 4; k++) {
+    const tine = new T.Mesh(kit.add(new T.BoxGeometry(len * 0.2, len * 0.014, len * 0.014)), mat);
+    tine.position.set(len * 0.0, len * 0.022, (k - 1.5) * len * 0.024);
+    tine.rotation.z = -0.12;
+    g.add(tine);
+  }
+  return g;
 }
 
 /** A small round dipping pot with a glossy sauce in it. */

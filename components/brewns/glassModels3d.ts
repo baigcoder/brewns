@@ -121,7 +121,7 @@ function fruitWedge(T: typeof THREE, kit: Kit, r: number, angle: number, skin: n
 }
 
 /** A sprig of mint: a stem with pairs of leaves, smaller towards the tip. */
-function mintSprig(T: typeof THREE, kit: Kit, size = 1, seed = 3) {
+export function mintSprig(T: typeof THREE, kit: Kit, size = 1, seed = 3) {
   const g = new T.Group();
   const mat = kit.add(new T.MeshPhysicalMaterial({ color: 0x3f9a3a, roughness: 0.45, sheen: 0.4, sheenColor: new T.Color(0xc8f0b0), side: T.DoubleSide }));
   const young = kit.add(new T.MeshPhysicalMaterial({ color: 0x62b84c, roughness: 0.45, sheen: 0.4, sheenColor: new T.Color(0xd8f8c0), side: T.DoubleSide }));

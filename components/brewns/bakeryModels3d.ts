@@ -2,7 +2,9 @@
 /* Croissants, cheesecake, brownie, tiramisu, financier and the cooler drinks:
    procedural 3D models built with the tools in foodKit.ts. */
 import type * as THREE from 'three';
-import { Kit, assemble, blob, clamp01, displace, draw, dipCup, fbm, lathe, mix, paint, plate, rng, roundBox, scatter, surface, sweep, woodBoard } from './foodKit';
+import { Kit, assemble, blob, clamp01, displace, draw, dipCup, fbm, fork, lathe, mix, paint, plate, rng, roundBox, scatter, surface, sweep, woodBoard } from './foodKit';
+import { spoon } from './cupModels3d';
+import { mintSprig } from './glassModels3d';
 import type { VariantEngine } from './pdp3dEngine';
 
 type Sel = Record<string, number>;
@@ -22,7 +24,7 @@ const spine = (T: typeof THREE, t: number) => {
   const phi = (t - 0.5) * 2.9;
   return V(T, Math.sin(phi) * 0.46, 0, (1 - Math.cos(phi)) * 0.5 - 0.14);
 };
-const thickness = (t: number) => 0.24 * Math.pow(Math.sin(Math.PI * t), 0.72) * (1 + 0.1 * (Math.abs(Math.sin(Math.PI * BANDS * t + 0.3)) - 0.62));
+const thickness = (t: number) => 0.27 * Math.pow(Math.sin(Math.PI * t), 0.72) * (1 + 0.1 * (Math.abs(Math.sin(Math.PI * BANDS * t + 0.3)) - 0.62));
 
 /** A point on the croissant's skin and its outward normal, a being the angle round the body (0 side, PI/2 top). */
 const skin = (T: typeof THREE, t: number, a: number) => {
@@ -72,11 +74,16 @@ const croissantSkin = (T: typeof THREE, kit: Kit, glaze: boolean) =>
       const fine = fbm(u * 90, v * 36, 5, 2, 11);
       const crease = smoothstep(0.7, 1, 1 - Math.abs(Math.sin(Math.PI * BANDS * u + 0.3)) * 1.0) * 0.9 + fbm(u * 60, v * 20, 2, 2, 5) * 0.12;
       const bulge = 1 - crease;
-      let c = mix([206, 134, 52], [178, 106, 36], n);
-      c = mix(c, [118, 60, 20], top * (0.55 + n * 0.4));
-      c = mix(c, [86, 42, 14], crease * 0.7);
-      c = mix(c, [226, 174, 100], smoothstep(0.68, 0.86, fine) * 0.45 * bulge);
-      return [c[0], c[1], c[2], 0.25 + bulge * 0.5 + n * 0.25];
+      // Lamination: the fine layers of butter and dough run round each band and show as ridges and pale flakes,
+      // most where the pastry opened up at the creases.
+      const layers = 0.5 + 0.5 * Math.sin(v * 150 + fbm(u * 20, v * 6, 4, 2, 3) * 5);
+      const flaky = smoothstep(0.35, 0.8, crease + (1 - top) * 0.3);
+      let c = mix([214, 142, 56], [184, 110, 38], n);
+      c = mix(c, [124, 64, 22], top * (0.5 + n * 0.4));
+      c = mix(c, [236, 186, 110], layers * flaky * bulge * 0.35);
+      c = mix(c, [92, 46, 16], crease * 0.55);
+      c = mix(c, [226, 174, 100], smoothstep(0.68, 0.86, fine) * 0.35 * bulge);
+      return [c[0], c[1], c[2], 0.25 + bulge * 0.45 + n * 0.15 + layers * flaky * bulge * 0.2];
     }),
     glaze
       ? { roughness: 0.4, bumpScale: 5, physical: true, clearcoat: 0.4, clearcoatRoughness: 0.35 }
@@ -87,10 +94,11 @@ export function createCroissantModel(T: typeof THREE, id: string, sel: Sel = {})
   const kit = new Kit();
   const inner = new T.Group();
   const almond = id === 'almond-croissant';
-  inner.add(plate(T, kit, 0.74));
+  // The butter croissant is photographed on its own; the almond one on a dark stoneware plate.
+  if (almond) inner.add(plate(T, kit, 0.74, 'slate'));
 
   const body = new T.Mesh(croissantGeometry(T, kit), croissantSkin(T, kit, almond));
-  body.position.y = 0.04;
+  body.position.y = almond ? 0.04 : 0;
   body.rotation.y = -0.2;
   inner.add(body);
 
@@ -130,7 +138,7 @@ export function createCroissantModel(T: typeof THREE, id: string, sel: Sel = {})
 export function createCheesecakeModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
   const kit = new Kit();
   const inner = new T.Group();
-  inner.add(plate(T, kit, 0.84));
+  inner.add(plate(T, kit, 0.84, 'slate'));
   const R = 0.66, H = 0.36, A = Math.PI / 3;
 
   const wedge = new T.Group();
@@ -141,8 +149,8 @@ export function createCheesecakeModel(T: typeof THREE, id: string, sel: Sel = {}
   const topTex = paint(T, kit, 256, 256, (u, v) => {
     const n = fbm(u * 6, v * 6, 1, 4, 3);
     const r = fbm(u * 14, v * 14, 4, 3, 8);
-    let c = mix([50, 24, 10], [112, 56, 20], n);
-    c = mix(c, [160, 96, 40], smoothstep(0.66, 0.82, r) * 0.6);
+    let c = mix([28, 14, 8], [86, 42, 16], n);
+    c = mix(c, [150, 88, 36], smoothstep(0.7, 0.86, r) * 0.55);
     const crack = 1 - smoothstep(0.0, 0.03, Math.abs(fbm(u * 5, v * 5, 9, 3, 12) - 0.5));
     c = mix(c, [214, 158, 84], crack * 0.7);
     return [c[0], c[1], c[2], 0.4 + n * 0.4 - crack * 0.3];
@@ -193,11 +201,12 @@ export function createCheesecakeModel(T: typeof THREE, id: string, sel: Sel = {}
   });
   // Point the tip at the camera so both cut faces show.
   wedge.rotation.y = Math.PI / 2;
-  wedge.position.z = -R * 0.45 + 0.16;
+  wedge.position.z = R * 0.5;
   wedge.position.x = 0.0;
 
   // Warm Belgian chocolate: poured beside it, in a ramekin, or left off.
-  const chocMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x2a1208, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.08 }));
+  // Glossy, but a flat pool must not mirror the studio's back softbox into grey.
+  const chocMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x3a1a0c, roughness: 0.3, clearcoat: 0.4, clearcoatRoughness: 0.2, specularIntensity: 0.45 }));
   const pool = new T.Group();
   const poolGeo = kit.add(new T.CircleGeometry(0.24, 40));
   poolGeo.rotateX(-Math.PI / 2);
@@ -209,8 +218,24 @@ export function createCheesecakeModel(T: typeof THREE, id: string, sel: Sel = {}
   }
   poolGeo.computeVertexNormals();
   const puddle = new T.Mesh(poolGeo, chocMat);
-  puddle.position.set(0.32, 0.05, 0.3);
+  puddle.position.set(-0.36, 0.036, 0.14);
+  puddle.scale.setScalar(0.6);
   pool.add(puddle);
+  // Swooshes of sauce dragged across the plate with a spoon, as in the photo.
+  for (let k = 0; k < 3; k++) {
+    const pts = Array.from({ length: 7 }, (_, i) => V(T, -0.5 + i * 0.07 + k * 0.03, 0.04 + Math.max(0, i - 4) * 0.012, 0.18 + k * 0.08 + Math.sin(i * 0.9 + k) * 0.05));
+    pool.add(new T.Mesh(sweep(T, kit, new T.CatmullRomCurve3(pts), { width: 0.04 - k * 0.008, thick: 0.004, segs: 40 }), chocMat));
+  }
+  // A little stoneware jug of it at the back.
+  const jugMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x55585c, roughness: 0.5, clearcoat: 0.3, side: T.DoubleSide }));
+  const jug = new T.Group();
+  jug.add(new T.Mesh(lathe(T, kit, [[0, 0], [0.07, 0], [0.085, 0.04], [0.08, 0.13], [0.07, 0.17], [0.078, 0.2], [0.07, 0.2], [0.06, 0.17], [0.07, 0.13], [0.074, 0.04], [0, 0.012]], 40), jugMat));
+  const jugTop = new T.Mesh(kit.add(new T.CircleGeometry(0.062, 24)), chocMat);
+  jugTop.rotation.x = -Math.PI / 2;
+  jugTop.position.y = 0.17;
+  jug.add(jugTop);
+  jug.position.set(-0.46, 0.03, -0.3);
+  pool.add(jug);
   const drizzle = new T.Mesh(sweep(T, kit, new T.CatmullRomCurve3([V(T, -0.02, 0.005, -0.05), V(T, 0.08, 0.006, -0.02), V(T, 0.17, 0.005, 0.02), V(T, 0.26, 0.006, 0.05), V(T, 0.36, 0.005, 0.03)]), { round: true, radius: 0.012, segs: 40 }), chocMat);
   drizzle.position.set(0, H + 0.006, 0);
   drizzle.rotation.y = 0;
@@ -219,6 +244,15 @@ export function createCheesecakeModel(T: typeof THREE, id: string, sel: Sel = {}
   const ramekin = dipCup(T, kit, 0x2a1208, 0.15);
   ramekin.group.position.set(0.5, 0.05, 0.25);
   inner.add(ramekin.group);
+  // The custard at the heart of a Basque cheesecake is barely set: it slumps out of the cut onto the plate.
+  const ooze = new T.Mesh(blob(T, kit, 0.09, 0.05, 0.07, { amp: 0.01, freq: 8, seed: 9, seg: 40 }), kit.add(new T.MeshPhysicalMaterial({ color: 0xf8e6a8, roughness: 0.35, clearcoat: 0.4, clearcoatRoughness: 0.3 })));
+  ooze.position.set(0, 0.06, R * 0.5 + 0.03);
+  inner.add(ooze);
+  const steel = kit.add(new T.MeshStandardMaterial({ color: 0xc9cbce, metalness: 1, roughness: 0.25 }));
+  const f = fork(T, kit, steel, 0.6);
+  f.position.set(0.36, 0.035, 0.1);
+  f.rotation.y = -1.7;
+  inner.add(f);
 
   const apply = (s: Sel) => {
     const mode = s.serve ?? 0;
@@ -234,7 +268,7 @@ export function createCheesecakeModel(T: typeof THREE, id: string, sel: Sel = {}
 export function createBrownieModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
   const kit = new Kit();
   const inner = new T.Group();
-  inner.add(plate(T, kit, 0.74));
+  inner.add(plate(T, kit, 0.74, 'dove'));
   const W = 0.58, Hh = 0.24;
 
   const sideTex = paint(T, kit, 256, 128, (u, v) => {
@@ -254,7 +288,11 @@ export function createBrownieModel(T: typeof THREE, id: string, sel: Sel = {}): 
     return [c[0], c[1], c[2], 0.55 + f * 0.3 - crack * 0.35];
   });
   const sideMat = surface(T, kit, sideTex, { roughness: 0.7, bumpScale: 2.5 });
-  const topMat = surface(T, kit, topTex, { roughness: 0.32, bumpScale: 3.5, physical: true, clearcoat: 0.7, clearcoatRoughness: 0.22 });
+  const topMat = surface(T, kit, topTex, { roughness: 0.34, bumpScale: 3.5, physical: true, clearcoat: 0.5, clearcoatRoughness: 0.25, specularIntensity: 0.5 });
+  const sp = spoon(T, kit, kit.add(new T.MeshStandardMaterial({ color: 0xc9cbce, metalness: 1, roughness: 0.22 })), 0.5);
+  sp.position.set(0.24, 0.04, 0.26);
+  sp.rotation.set(0, -0.6, -0.05);
+  inner.add(sp);
   const cake = new T.Mesh(roundBox(T, kit, W, Hh, W, 0.03, 18), [sideMat, sideMat, topMat, sideMat, sideMat, sideMat]);
   cake.position.set(-0.05, 0.04 + Hh / 2, 0.02);
   cake.rotation.y = 0.28;
@@ -301,7 +339,7 @@ export function createBrownieModel(T: typeof THREE, id: string, sel: Sel = {}): 
 export function createTiramisuModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
   const kit = new Kit();
   const inner = new T.Group();
-  const dish = plate(T, kit, 0.7);
+  const dish = plate(T, kit, 0.7, 'black');
   inner.add(dish);
   const tray = woodBoard(T, kit, 0.8, 0.045, { rect: [1.9, 0.78], tone: [184, 146, 98] });
   inner.add(tray);
@@ -312,14 +350,15 @@ export function createTiramisuModel(T: typeof THREE, id: string, sel: Sel = {}):
     const air = smoothstep(0.74, 0.86, fbm(u * 40, v * 30, 6, 2, 9));
     const cream = [248, 238, 208], sponge = [128, 82, 46];
     let layer: number[];
-    if (v < 0.03) layer = [188, 150, 96];
-    else if (v < 0.30) layer = mix(sponge, [156, 108, 62], fbm(u * 30, v * 20, 5, 2, 4));
-    else if (v < 0.50) layer = cream;
-    else if (v < 0.74) layer = mix(sponge, [150, 102, 58], fbm(u * 30, v * 20, 7, 2, 6));
-    else if (v < 0.94) layer = cream;
-    else layer = [96, 58, 34];
+    // Three layers of espresso-soaked savoiardi between mascarpone, under a thick dusting of cocoa.
+    const bands = [0.02, 0.2, 0.34, 0.5, 0.64, 0.8, 0.95];
+    const k = bands.findIndex((b) => v < b);
+    if (k === 0) layer = [188, 150, 96];
+    else if (k === -1) layer = [96, 58, 34];
+    else if (k % 2 === 1) layer = mix(sponge, [150, 102, 58], fbm(u * 30, v * 20, 5 + k, 2, 4));
+    else layer = cream;
     // The sponge is soaked at its edges with espresso.
-    const edge = smoothstep(0.02, 0.0, Math.abs(v - 0.30)) + smoothstep(0.02, 0.0, Math.abs(v - 0.50)) + smoothstep(0.02, 0.0, Math.abs(v - 0.74));
+    const edge = bands.reduce((a, b) => a + smoothstep(0.018, 0.0, Math.abs(v - b)), 0);
     let c = mix(layer, [88, 54, 30], clamp01(edge) * 0.35);
     c = mix(c, [220, 208, 176], air * 0.4);
     return [c[0], c[1], c[2], 0.4 + n * 0.4];
@@ -348,30 +387,28 @@ export function createTiramisuModel(T: typeof THREE, id: string, sel: Sel = {}):
   slice(-0.62, -0.12, -0.1, 0.9);
   slice(0.66, -0.1, 0.12, 0.9);
 
-  // Chocolate curls and coffee beans on the hero slice.
-  const chocMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x3a1c0e, roughness: 0.3, clearcoat: 0.5 }));
-  for (let i = 0; i < 4; i++) {
-    const g = kit.add(new T.TorusGeometry(0.032, 0.007, 6, 14, Math.PI * 1.5));
-    const m = new T.Mesh(g, chocMat);
-    m.position.set((i - 1.5) * 0.11, Hh / 2 + 0.014, (i % 2 ? 0.06 : -0.06));
-    m.rotation.set(Math.PI / 2 + 0.2 * i, i * 1.2, 0);
-    hero.add(m);
-  }
-  const bean = kit.add(new T.SphereGeometry(0.03, 14, 10));
-  bean.scale(1, 0.55, 0.75);
-  [[-0.16, 0.1], [0.2, -0.02]].forEach(([x, z], i) => {
-    const b = new T.Mesh(bean, kit.add(new T.MeshPhysicalMaterial({ color: 0x24140b, roughness: 0.35, clearcoat: 0.5 })));
-    b.position.set(x, Hh / 2 + 0.016, z);
-    b.rotation.y = i * 1.4;
-    hero.add(b);
-  });
+  // A sprig of mint on the hero slice, as photographed.
+  const mint = mintSprig(T, kit, 1.1, 4);
+  mint.position.set(0.08, Hh / 2 + 0.01, -0.04);
+  hero.add(mint);
+  // Cocoa dusted over the plate round it, and a fork.
+  const dust = kit.add(new T.PlaneGeometry(0.012, 0.012));
+  dust.rotateX(-Math.PI / 2);
+  const cocoa = scatter(T, kit, inner, dust, kit.add(new T.MeshStandardMaterial({ color: 0x5a3620, roughness: 0.95 })), 700, (i, r) => {
+    const a = r() * TAU, d = 0.3 + Math.pow(r(), 0.7) * 0.32;
+    return { pos: [Math.cos(a) * d, 0.034 + Math.max(0, d - 0.49) * 0.35, Math.sin(a) * d], rot: [0, r() * 3, 0], scale: 0.5 + r() * 1.2 };
+  }, 8);
+  const tFork = fork(T, kit, kit.add(new T.MeshStandardMaterial({ color: 0xc9cbce, metalness: 1, roughness: 0.25 })), 0.55);
+  tFork.position.set(0.22, 0.036, 0.28);
+  tFork.rotation.y = -0.5;
+  inner.add(tFork);
 
   let fit = null, baseScale = 1;
   const apply = (s: Sel) => {
     const share = s.portion === 1;
     slices[1].visible = slices[2].visible = share;
     tray.visible = share;
-    dish.visible = !share;
+    dish.visible = cocoa.visible = tFork.visible = !share;
     if (fit) fit.scale.setScalar(baseScale * (share ? 1 : 1.45));
   };
   const out = assemble(T, kit, inner, { sel, apply, shadow: [2.4, 1.4] });
@@ -386,7 +423,7 @@ export function createTiramisuModel(T: typeof THREE, id: string, sel: Sel = {}):
 export function createFinancierModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
   const kit = new Kit();
   const inner = new T.Group();
-  inner.add(plate(T, kit, 0.8));
+  inner.add(plate(T, kit, 0.8, 'speckled'));
   const W = 0.62, Hh = 0.19, D = 0.34;
 
   const crustTex = paint(T, kit, 256, 128, (u, v) => {
@@ -565,27 +602,61 @@ export function createCoolerLook(T: typeof THREE, id: string) {
 export function createCardamomBunModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
   const kit = new Kit();
   const inner = new T.Group();
-  inner.add(plate(T, kit, 0.8));
+  inner.add(plate(T, kit, 0.8, 'speckled'));
 
-  const geo = kit.add(new T.TorusKnotGeometry(0.29, 0.118, 240, 30, 2, 3));
-  geo.rotateX(-Math.PI / 2);
-  geo.scale(1, 0.82, 1);
-  geo.computeVertexNormals();
-  displace(geo, 0.01, 8, 4);
+  /* A strip of dough twisted into a rope, then wound on itself into a round knot, the end tucked over the top:
+     coils stacked into a dome, with the grooves of the twist running round every coil. */
+  class Coil extends T.Curve {
+    getPoint(t: number, target = new T.Vector3()) {
+      const turns = 1.9;
+      const a = t * turns * TAU;
+      const r = 0.29 * (1 - t * 0.85) + 0.025 * Math.sin(a * 1.5);
+      const y = 0.02 + Math.sin(t * Math.PI * 0.95) * 0.1 + t * 0.12;
+      return target.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    }
+  }
+  const geo = kit.add(new T.TubeGeometry(new Coil(), 420, 0.105, 28, false));
+  {
+    const p = geo.attributes.position, n = geo.attributes.normal, uv = geo.attributes.uv;
+    for (let i = 0; i < p.count; i++) {
+      const u = uv.getX(i), v = uv.getY(i);
+      // The twist: helical grooves round the rope, and the rope thinning towards the tucked end.
+      const twist = Math.pow(Math.abs(Math.sin(Math.PI * (u * 70 + v * 2))), 0.6) * 0.03 - 0.015;
+      const taper = -0.035 * smoothstep(0.75, 1, u) - 0.02 * smoothstep(0.08, 0, u);
+      const d = twist + taper;
+      p.setXYZ(i, p.getX(i) + n.getX(i) * d, p.getY(i) + n.getY(i) * d, p.getZ(i) + n.getZ(i) * d);
+    }
+    geo.computeVertexNormals();
+  }
+  displace(geo, 0.008, 10, 4);
+  // The end of the rope brought up and over the top of the knot and tucked in on the far side.
+  const tuckCurve = new T.CatmullRomCurve3([V(T, -0.27, 0.05, 0.08), V(T, -0.16, 0.25, 0.02), V(T, 0.02, 0.33, -0.02), V(T, 0.18, 0.26, -0.06), V(T, 0.27, 0.07, -0.1)]);
+  const tuck = kit.add(new T.TubeGeometry(tuckCurve, 160, 0.09, 24, false));
+  {
+    const p = tuck.attributes.position, n = tuck.attributes.normal, uv = tuck.attributes.uv;
+    for (let i = 0; i < p.count; i++) {
+      const u = uv.getX(i), v = uv.getY(i);
+      const d = Math.pow(Math.abs(Math.sin(Math.PI * (u * 22 + v * 2))), 0.6) * 0.028 - 0.014 - 0.03 * (smoothstep(0.8, 1, u) + smoothstep(0.2, 0, u));
+      p.setXYZ(i, p.getX(i) + n.getX(i) * d, p.getY(i) + n.getY(i) * d, p.getZ(i) + n.getZ(i) * d);
+    }
+    tuck.computeVertexNormals();
+  }
   const tex = paint(T, kit, 512, 256, (u, v) => {
     const n = fbm(u * 30, v * 8, 2, 4, 5);
     const fine = fbm(u * 120, v * 40, 4, 2, 9);
     const top = clamp01(Math.sin(v * TAU) * 0.5 + 0.5);
-    let c = mix([206, 136, 58], [172, 100, 34], n);
-    c = mix(c, [122, 64, 22], top * 0.5 * (0.4 + n));
+    let c = mix([190, 120, 50], [150, 86, 30], n);
+    c = mix(c, [104, 54, 20], top * 0.55 * (0.4 + n));
     c = mix(c, [222, 168, 96], smoothstep(0.66, 0.85, fine) * 0.4);
     // Cardamom seed flecks and a brushed syrup sheen.
     const seed = smoothstep(0.8, 0.86, fbm(u * 90, v * 30, 8, 2, 13));
     c = mix(c, [52, 46, 22], seed * 0.8);
     return [c[0], c[1], c[2], 0.35 + n * 0.55];
   });
-  const bun = new T.Mesh(geo, surface(T, kit, tex, { roughness: 0.4, bumpScale: 4, physical: true, clearcoat: 0.5, clearcoatRoughness: 0.3 }));
-  bun.position.y = 0.04 + 0.118 * 0.82 + 0.02;
+  const bunMat = surface(T, kit, tex, { roughness: 0.4, bumpScale: 4, physical: true, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+  const bun = new T.Mesh(geo, bunMat);
+  bun.position.y = 0.04 + 0.085;
+  bun.add(new T.Mesh(tuck, bunMat));
   inner.add(bun);
 
   // Pearl sugar on the upward-facing dough.
