@@ -382,152 +382,405 @@ export function createPastaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
   return assemble(T, kit, inner, { sel, apply, steam: { count: 24, height: 0.05, on: () => true }, shadow: [1.9, 1.8] });
 }
 
-/* ── rolls and wraps ── */
+/* ── rolls and wraps ──
+   Each half is a flatbread wound one and a bit turns round its filling and cut on a slant. The cut shows what a real
+   one does: the bread's spiral with its flaky layers, the seam where the flap ends, sauce in the gap between the turns,
+   and a filling that is modelled rather than painted (pieces of tikka, kebab or fried chicken, onion, herbs and a
+   drizzle of chutney), so every piece stands proud of the cut and throws its own shadow. */
 
-const rollFilling = (T: typeof THREE, kit: Kit, id: string) =>
-  draw(T, kit, 256, 256, (ctx, w, h) => {
-    const R = rng(id.length * 7);
-    const blobAt = (x: number, y: number, rx: number, ry: number, rot: number, fill: string, edge?: string) => {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(rot);
-      ctx.fillStyle = fill;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, rx, ry, 0, 0, TAU);
-      ctx.fill();
-      if (edge) {
-        ctx.strokeStyle = edge;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
-      ctx.restore();
-    };
-    const each = (n: number, f: (i: number) => void) => {
-      for (let i = 0; i < n; i++) f(i);
-    };
-    const inDisc = () => {
-      const a = R() * TAU, r = Math.sqrt(R()) * 108;
-      return [128 + Math.cos(a) * r, 128 + Math.sin(a) * r];
-    };
-    if (id === 'tikka-roll') {
-      ctx.fillStyle = '#c0511f';
-      ctx.fillRect(0, 0, w, h);
-      each(9, () => { const [x, y] = inDisc(); blobAt(x, y, 30 + R() * 8, 16 + R() * 6, R() * 3, `hsl(${12 + R() * 8},${68 + R() * 10}%,${42 + R() * 8}%)`, '#5a1e0c'); });
-      each(8, () => { const [x, y] = inDisc(); blobAt(x, y, 24, 6, R() * 3, '#efd4e2', '#c99ab4'); });
-      each(6, () => { const [x, y] = inDisc(); blobAt(x, y, 18, 8, R() * 3, '#5aa23a'); });
-    } else if (id === 'behari-roll') {
-      ctx.fillStyle = '#6d3a1f';
-      ctx.fillRect(0, 0, w, h);
-      each(12, () => { const [x, y] = inDisc(); blobAt(x, y, 34 + R() * 10, 8 + R() * 3, R() * 3, `hsl(${22 + R() * 6},${45 + R() * 10}%,${26 + R() * 10}%)`, '#2a1408'); });
-      each(6, () => { const [x, y] = inDisc(); blobAt(x, y, 24, 5, R() * 3, '#f0e2ee', '#c8a8c0'); });
-      each(4, () => { const [x, y] = inDisc(); blobAt(x, y, 20, 9, R() * 3, '#b3702c'); });
-    } else {
-      ctx.fillStyle = '#e9d9b4';
-      ctx.fillRect(0, 0, w, h);
-      each(9, () => { const [x, y] = inDisc(); blobAt(x, y, 32, 9, R() * 3, `hsl(${34 + R() * 6},${72 + R() * 10}%,${50 + R() * 8}%)`, '#8a5416'); });
-      each(6, () => { const [x, y] = inDisc(); blobAt(x, y, 28, 12, R() * 3, '#7cbc48', '#4d8a2c'); });
-      each(6, () => { const [x, y] = inDisc(); blobAt(x, y, 12, 12, 0, '#cf3a24'); });
-    }
-    // Char and juice, so it does not read as flat print.
-    each(90, () => { const [x, y] = inDisc(); ctx.fillStyle = `rgba(20,10,4,${0.06 + R() * 0.1})`; ctx.fillRect(x, y, 3 + R() * 6, 2 + R() * 3); });
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.arc(128, 128, 126, 0, TAU);
-    ctx.stroke();
-  });
+type RollSpec = { turns: number; gap: number; thick: number; bread: 'paratha' | 'tortilla'; base: number[][]; sauce: number; paper: string };
 
-const rollWrapper = (T: typeof THREE, kit: Kit, tortilla: boolean) =>
+const ROLL_R = 0.19, ROLL_LEN = 0.6, ROLL_SLOPE = 0.55;
+const ROLLS: Record<string, RollSpec> = {
+  'tikka-roll': { turns: 1.2, gap: 0.03, thick: 0.02, bread: 'paratha', base: [[150, 72, 30], [112, 48, 18]], sauce: 0x5f9a2e, paper: '#8a3b16' },
+  'behari-roll': { turns: 1.2, gap: 0.03, thick: 0.02, bread: 'paratha', base: [[104, 52, 24], [70, 32, 14]], sauce: 0x5c2610, paper: '#3a2a20' },
+  'crispy-wrap': { turns: 1.35, gap: 0.022, thick: 0.011, bread: 'tortilla', base: [[222, 204, 160], [184, 160, 108]], sauce: 0xf1ead4, paper: '#1f3a2c' },
+};
+
+/** Height of the slanted cut at x (half-local; the cut faces −x). */
+const cutY = (x: number) => ROLL_LEN / 2 + x * ROLL_SLOPE;
+
+/** The outside of the bread: a golden, blistered lachha paratha with ghee on it, or a tortilla toasted on the tawa. */
+const breadSkin = (T: typeof THREE, kit: Kit, spec: RollSpec) =>
   surface(
     T,
     kit,
-    paint(T, kit, 256, 256, (u, v) => {
-      const layers = 0.5 + 0.5 * Math.sin((u * 26 + fbm(u * 4, v * 4, 3, 2, 5) * 4) * Math.PI);
-      const n = fbm(u * 8, v * 6, 2, 4, 9);
-      let c = tortilla ? mix([222, 186, 122], [196, 150, 84], n) : mix([206, 150, 78], [176, 118, 52], n);
-      c = mix(c, tortilla ? [206, 162, 96] : [214, 160, 88], layers * 0.35);
-      const char = smoothstep(0.62, 0.76, fbm(u * 9, v * 5, 5, 3, 3));
-      c = mix(c, [98, 52, 20], char * 0.8);
-      if (tortilla) {
-        const bar = smoothstep(0.88, 0.96, Math.abs(Math.sin((u * 10 + v * 4) * Math.PI)));
-        c = mix(c, [120, 74, 30], bar * 0.55);
+    paint(T, kit, 512, 256, (u, v) => {
+      const n = fbm(u * 10, v * 5, 2, 4, 9);
+      const patch = smoothstep(0.42, 0.62, fbm(u * 4, v * 2, 7, 2, 11));
+      const spot = smoothstep(0.58, 0.74, fbm(u * 34, v * 17, 5, 3, 3)) * (0.35 + patch * 0.65);
+      const speck = smoothstep(0.74, 0.86, fbm(u * 70, v * 35, 8, 2, 6));
+      let c: number[];
+      let h: number;
+      if (spec.bread === 'tortilla') {
+        c = mix([238, 220, 178], [222, 196, 146], n);
+        c = mix(c, [176, 120, 60], spot * 0.8);
+        c = mix(c, [120, 76, 34], speck * 0.5);
+        h = 0.5 + n * 0.2 + spot * 0.25;
+      } else {
+        // Lachha paratha is laminated: faint swirls of layers run round it under the blisters.
+        const layers = 0.5 + 0.5 * Math.sin((u * 46 + fbm(u * 3, v * 3, 3, 2, 5) * 7) * Math.PI);
+        c = mix([222, 172, 98], [196, 138, 66], n);
+        c = mix(c, [238, 202, 138], layers * 0.22);
+        c = mix(c, [132, 72, 28], spot * 0.85);
+        c = mix(c, [86, 44, 16], speck * 0.6);
+        h = 0.35 + layers * 0.25 + spot * 0.3 + n * 0.15;
       }
-      return [c[0], c[1], c[2], 0.35 + layers * 0.3 + n * 0.3 - char * 0.2];
+      return [c[0], c[1], c[2], h];
     }),
-    { roughness: 0.55, bumpScale: 3 },
+    { physical: true, roughness: 0.52, clearcoat: spec.bread === 'paratha' ? 0.22 : 0.05, clearcoatRoughness: 0.5, bumpScale: 3, side: T.DoubleSide },
   );
+
+/** The bread in section, at the cut: pale crumb between browned faces, and for paratha, its flaky layers. */
+const breadSection = (T: typeof THREE, kit: Kit, spec: RollSpec) =>
+  surface(
+    T,
+    kit,
+    paint(T, kit, 256, 64, (u, v) => {
+      const edge = Math.pow(Math.abs(v - 0.5) * 2, 4);
+      const flakes = spec.bread === 'paratha' ? 0.5 + 0.5 * Math.sin(v * Math.PI * 9 + fbm(u * 30, v, 1, 2, 4) * 3) : 0.5;
+      let c = mix([240, 214, 162], [214, 172, 108], flakes * 0.7);
+      c = mix(c, [168, 108, 48], edge * 0.8);
+      return [c[0], c[1], c[2], 0.3 + flakes * 0.5];
+    }),
+    { roughness: 0.75, bumpScale: 2, side: T.DoubleSide },
+  );
+
+/**
+ * The bread: a spiral band `thick` deep, from radius R at the flap inwards by `gap` a turn, standing from the bottom
+ * to the slanted cut. Walls, the cut strip and the two ends are separate vertex runs, so their edges stay crisp.
+ * Returns the geometry (group 0 skin, group 1 section) and, per angle, the radius of the innermost turn: the filling's edge.
+ */
+function breadGeometry(T: typeof THREE, kit: Kit, spec: RollSpec, seed: number) {
+  const THETA = spec.turns * TAU;
+  const NT = Math.round(spec.turns * 110), NY = 22;
+  const rAt = (t: number) => ROLL_R - (spec.gap * t) / TAU;
+  const bulge = (t: number, y: number) => 1 + (fbm(Math.cos(t) * 2.4 + 4, y * 5, Math.sin(t) * 2.4, 3, seed) - 0.5) * 0.1;
+  // A point on the band at spiral angle t, height y and depth `inset` (0 outside, `thick` inside). `top` snaps y to the cut.
+  const at = (t: number, y: number, inset: number, top = false) => {
+    const r = (rAt(t) - inset) * bulge(t, y);
+    const x = Math.cos(t) * r, z = Math.sin(t) * r;
+    return [x, top ? cutY(x) : y, z];
+  };
+  const pos: number[] = [], uv: number[] = [], skin: number[] = [], section: number[] = [];
+  const gridRun = (cols: number, rows: number, fn: (i: number, j: number) => number[], uvFn: (i: number, j: number) => number[], into: number[], flip = false) => {
+    const base = pos.length / 3;
+    for (let i = 0; i <= cols; i++)
+      for (let j = 0; j <= rows; j++) {
+        pos.push(...fn(i, j));
+        uv.push(...uvFn(i, j));
+      }
+    for (let i = 0; i < cols; i++)
+      for (let j = 0; j < rows; j++) {
+        const a = base + i * (rows + 1) + j, b = a + rows + 1;
+        flip ? into.push(a, a + 1, b, b, a + 1, b + 1) : into.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+  };
+  const wallY = (t: number, j: number, inset: number) => {
+    const top = at(t, ROLL_LEN / 2, inset, true)[1];
+    return -ROLL_LEN / 2 + (top + ROLL_LEN / 2) * (j / NY);
+  };
+  const tOf = (i: number) => (i / NT) * THETA;
+  for (const [inset, flip] of [[0, false], [spec.thick, true]] as const)
+    gridRun(NT, NY, (i, j) => at(tOf(i), wallY(tOf(i), j, inset), inset, j === NY), (i, j) => [tOf(i) / TAU, j / NY], skin, flip);
+  // The cut: a strip across the band's thickness.
+  gridRun(NT, 1, (i, j) => at(tOf(i), 0, j * spec.thick, true), (i, j) => [tOf(i) / TAU * 3, j], section);
+  // The two ends of the band: the flap on the outside and the tucked-in end.
+  for (const t of [0, THETA]) gridRun(1, NY, (i, j) => at(t, wallY(t, j, i * spec.thick), i * spec.thick, j === NY), (i, j) => [i, j / NY], section, t > 0);
+  const g = kit.add(new T.BufferGeometry());
+  g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));
+  g.setIndex([...skin, ...section]);
+  g.addGroup(0, skin.length, 0);
+  g.addGroup(skin.length, section.length, 1);
+  g.computeVertexNormals();
+  // Where the filling ends at each angle: the inside of the innermost turn of bread there.
+  const fillR = (a: number) => {
+    let t = ((a % TAU) + TAU) % TAU;
+    while (t + TAU <= THETA) t += TAU;
+    return (rAt(t) - spec.thick) * bulge(t, ROLL_LEN / 2);
+  };
+  // The gap between the outer turn and the one inside it, where sauce shows.
+  const gapR = (a: number) => {
+    const t = ((a % TAU) + TAU) % TAU;
+    return t + TAU <= THETA ? [(rAt(t + TAU)) * bulge(t, ROLL_LEN / 2), (rAt(t) - spec.thick) * bulge(t, ROLL_LEN / 2)] : null;
+  };
+  return { geo: g, fillR, gapR, THETA };
+}
+
+/** The filling's bed at the cut: a lumpy disc of sauce and crumbs that fills the bread's spiral, just under the cut. */
+function fillingBed(T: typeof THREE, kit: Kit, fillR: (a: number) => number, gapR: (a: number) => number[] | null, THETA: number) {
+  const NA = 120, NR = 5;
+  const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+  const lump = (x: number, z: number) => (fbm(x * 18, z * 18, 3, 3, 12) - 0.5) * 0.014;
+  pos.push(0, cutY(0) - 0.008, 0);
+  uv.push(0.5, 0.5);
+  for (let k = 1; k <= NR; k++)
+    for (let a = 0; a < NA; a++) {
+      const ang = (a / NA) * TAU;
+      const r = fillR(ang) * (k / NR) * (k === NR ? 1.02 : 1);
+      const x = Math.cos(ang) * r, z = Math.sin(ang) * r;
+      pos.push(x, cutY(x) - 0.008 + (k === NR ? -0.006 : lump(x, z)), z);
+      uv.push(0.5 + x * 2, 0.5 + z * 2);
+    }
+  for (let a = 0; a < NA; a++) idx.push(0, 1 + ((a + 1) % NA), 1 + a);
+  for (let k = 1; k < NR; k++)
+    for (let a = 0; a < NA; a++) {
+      const p = 1 + (k - 1) * NA, q = 1 + k * NA, a1 = (a + 1) % NA;
+      idx.push(p + a, p + a1, q + a, p + a1, q + a1, q + a);
+    }
+  // Sauce sunk a little way into the gap between the turns of bread.
+  const gapBase = pos.length / 3;
+  let run = 0;
+  for (let a = 0; a <= NA; a++) {
+    const ang = (a / NA) * (THETA - TAU);
+    const g = gapR(ang);
+    if (!g) break;
+    for (const r of g) {
+      const x = Math.cos(ang) * r, z = Math.sin(ang) * r;
+      pos.push(x, cutY(x) - 0.02, z);
+      uv.push(0.5 + x * 2, 0.5 + z * 2);
+    }
+    run++;
+  }
+  for (let a = 0; a < run - 1; a++) {
+    const p = gapBase + a * 2;
+    idx.push(p, p + 2, p + 1, p + 1, p + 2, p + 3);
+  }
+  const g = kit.add(new T.BufferGeometry());
+  g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Greaseproof paper round the bottom of each half, crinkled, torn unevenly along the top and printed with the name. */
+function paperWrap(T: typeof THREE, kit: Kit, ink: string, seed: number) {
+  const H = ROLL_LEN * 0.34, N = 96, NY = 10;
+  const g = kit.add(new T.CylinderGeometry(ROLL_R * 1.08, ROLL_R * 1.05, H, N, NY, true));
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const a = Math.atan2(z, x);
+    const up = (y + H / 2) / H;
+    // Pleats where the paper was gathered round the roll, deeper towards the top, and a crumple over everything.
+    const pleat = Math.sin(a * 14 + fbm(a, y * 8, 0, 2, seed) * 5) * 0.006 * up;
+    const crumple = (fbm(x * 30, y * 30, z * 30, 3, seed + 2) - 0.5) * 0.012;
+    const k = 1 + (pleat + crumple) / ROLL_R + up * 0.03;
+    const tear = y > H / 2 - 0.001 ? (fbm(a * 3, 0, 0, 3, seed + 5) - 0.5) * 0.07 + Math.sin(a) * 0.03 : 0;
+    p.setXYZ(i, x * k, y + tear, z * k);
+  }
+  g.computeVertexNormals();
+  const map = draw(T, kit, 1024, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#f2eadb';
+    ctx.fillRect(0, 0, w, h);
+    const R = rng(seed);
+    // Grease has soaked through in places.
+    for (let k = 0; k < 18; k++) {
+      const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 30 + R() * 60);
+      gr.addColorStop(0, 'rgba(196,150,80,0.28)');
+      gr.addColorStop(1, 'rgba(196,150,80,0)');
+      ctx.save();
+      ctx.translate(R() * w, R() * h);
+      ctx.fillStyle = gr;
+      ctx.fillRect(-100, -100, 200, 200);
+      ctx.restore();
+    }
+    ctx.fillStyle = ink;
+    ctx.fillRect(0, h * 0.14, w, 10);
+    ctx.textAlign = 'center';
+    ctx.font = 'italic bold 58px Georgia, serif';
+    for (let q = 0; q < 4; q++) ctx.fillText('brewns', q * 256 + 128, h * 0.62);
+  });
+  map.wrapS = T.RepeatWrapping;
+  const mesh = new T.Mesh(g, kit.add(new T.MeshPhysicalMaterial({ map, roughness: 0.62, sheen: 0.3, sheenColor: new T.Color(0xffffff), side: T.DoubleSide })));
+  mesh.position.y = -ROLL_LEN / 2 + H / 2 - 0.004;
+  return mesh;
+}
+
+/** What goes in each roll: chunk geometry and its look, plus the herbs and the chutney that go over it. */
+function fillingParts(T: typeof THREE, kit: Kit, id: string) {
+  const glossy = (color: number, roughness = 0.3) => kit.add(new T.MeshPhysicalMaterial({ color, roughness, clearcoat: 0.6, clearcoatRoughness: 0.25 }));
+  const onion = kit.add(new T.MeshPhysicalMaterial({ color: id === 'behari-roll' ? 0xf2e6e8 : 0xe7c3d6, roughness: 0.28, clearcoat: 0.5, sheen: 0.5, sheenColor: new T.Color(0xffffff) }));
+  const herb = kit.add(new T.MeshStandardMaterial({ color: 0x3f8a2c, roughness: 0.45, side: T.DoubleSide }));
+  if (id === 'crispy-wrap')
+    return {
+      chunk: friedCrust(T, kit, 5),
+      chunkShape: [0.07, 0.026, 0.028],
+      extras: [
+        { geo: ruffle(T, kit, 0.05, { waves: 5, amp: 0.018, seed: 2, seg: 24 }), mat: kit.add(new T.MeshStandardMaterial({ color: 0x86c14a, roughness: 0.5, side: T.DoubleSide })), count: 7, lift: 0.012, scale: [1, 1, 0.8] },
+        { geo: roundBox(T, kit, 0.034, 0.024, 0.034, 0.006, 4), mat: glossy(0xd0341f, 0.25), count: 6, lift: 0.018, scale: [1, 1, 1] },
+      ],
+      drizzle: glossy(0xf4eedb, 0.22),
+    };
+  const meat =
+    id === 'behari-roll'
+      ? surface(T, kit, paint(T, kit, 128, 128, (u, v) => {
+          const n = fbm(u * 9, v * 9, 3, 3, 7);
+          const char = smoothstep(0.62, 0.78, fbm(u * 16, v * 16, 1, 2, 2));
+          let c = mix([118, 58, 26], [82, 36, 14], n);
+          c = mix(c, [40, 18, 8], char * 0.8);
+          return [c[0], c[1], c[2], 0.3 + n * 0.5 + char * 0.2];
+        }), { physical: true, roughness: 0.42, clearcoat: 0.45, clearcoatRoughness: 0.3, bumpScale: 4 })
+      : surface(T, kit, paint(T, kit, 128, 128, (u, v) => {
+          const n = fbm(u * 9, v * 9, 4, 3, 2);
+          const char = smoothstep(0.64, 0.8, fbm(u * 14, v * 14, 6, 2, 5));
+          let c = mix([196, 92, 38], [158, 62, 24], n);
+          c = mix(c, [226, 142, 76], smoothstep(0.55, 0.3, n) * 0.35);
+          c = mix(c, [52, 22, 10], char * 0.9);
+          return [c[0], c[1], c[2], 0.3 + n * 0.4 + char * 0.3];
+        }), { physical: true, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.35, bumpScale: 4 });
+  const arc = kit.add(new T.TorusGeometry(0.034, 0.0055, 6, 18, Math.PI * 1.1));
+  arc.rotateX(Math.PI / 2);
+  return {
+    chunk: meat,
+    chunkShape: id === 'behari-roll' ? [0.07, 0.018, 0.024] : [0.042, 0.028, 0.036],
+    extras: [
+      { geo: arc, mat: onion, count: 8, lift: 0.016, scale: [1, 1, 1] },
+      { geo: leaf(T, kit, 0.036, 0.026, 0.25), mat: herb, count: 8, lift: 0.03, scale: [1, 1, 1] },
+    ],
+    drizzle: glossy(id === 'behari-roll' ? 0x5c2610 : 0x69a534, 0.22),
+  };
+}
+
+/** Cheese melted over the filling: a thin sheet with a ragged edge, sagging between the pieces under it. */
+function meltedSheet(T: typeof THREE, kit: Kit, fillR: (a: number) => number, seed: number) {
+  const g = kit.add(new T.CircleGeometry(1, 72, 0, TAU));
+  g.rotateX(-Math.PI / 2);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i);
+    const r = Math.hypot(x, z), a = Math.atan2(z, x);
+    const edge = fillR(a) * (0.55 + fbm(Math.cos(a) * 2, Math.sin(a) * 2, 0, 3, seed) * 0.55);
+    const X = Math.cos(a) * r * edge, Z = Math.sin(a) * r * edge;
+    p.setXYZ(i, X, (fbm(X * 22, Z * 22, 1, 2, seed + 4) - 0.5) * 0.02 - r * r * 0.012, Z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
 
 export function createRollModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
   const kit = new Kit();
   const inner = new T.Group();
-  const tortilla = id === 'crispy-wrap';
+  const spec = ROLLS[id] || ROLLS['tikka-roll'];
 
   const slab = woodBoard(T, kit, 0.8, 0.05, { rect: [1.6, 1.0], tone: [58, 54, 50] });
   inner.add(slab);
-  const wrapMat = rollWrapper(T, kit, tortilla);
-  wrapMat.side = T.DoubleSide;
-  const fillTex = rollFilling(T, kit, id);
-  const fillMat = kit.add(new T.MeshStandardMaterial({ map: fillTex, bumpMap: fillTex, bumpScale: 2, roughness: 0.5 }));
-  const paperMat = kit.add(new T.MeshStandardMaterial({ color: 0xc9a878, roughness: 0.92, side: T.DoubleSide }));
-
-  const len = 0.6, rad = 0.19, slope = 0.55;
-  const chilliGeo = kit.add(new T.TorusGeometry(0.022, 0.006, 6, 12));
+  const skinMat = breadSkin(T, kit, spec);
+  const sectionMat = breadSection(T, kit, spec);
+  const bedMat = surface(
+    T,
+    kit,
+    paint(T, kit, 256, 256, (u, v) => {
+      const n = fbm(u * 14, v * 14, 1, 3, 3);
+      const bit = smoothstep(0.7, 0.8, fbm(u * 40, v * 40, 2, 2, 8));
+      let c = mix(spec.base[0], spec.base[1], n);
+      c = mix(c, id === 'crispy-wrap' ? [110, 170, 70] : [70, 120, 44], bit * 0.5);
+      return [c[0], c[1], c[2], n];
+    }),
+    { physical: true, roughness: 0.35, clearcoat: 0.5, clearcoatRoughness: 0.3, bumpScale: 3 },
+  );
+  const parts = fillingParts(T, kit, id);
+  // Cut meat has faces and edges: rounded boxes, roughened, rather than balls.
+  const chunkGeos = [0, 1].map((k) => {
+    const [w, h, d] = parts.chunkShape;
+    const g = roundBox(T, kit, w * 2, h * 2, d * 2, Math.min(w, h, d) * 0.55, 8);
+    return displace(g, Math.min(w, h, d) * 0.22, 34, 3 + k * 5);
+  });
+  const chilliGeo = kit.add(new T.TorusGeometry(0.014, 0.0055, 8, 16));
   chilliGeo.rotateX(Math.PI / 2);
-  const chilliMat = kit.add(new T.MeshStandardMaterial({ color: 0x3e8a2a, roughness: 0.4 }));
-  const cheeseMat = kit.add(new T.MeshPhysicalMaterial({ color: 0xf6c95a, roughness: 0.3, clearcoat: 0.6 }));
-  const halves: { chilli: THREE.InstancedMesh; cheese: THREE.Object3D }[] = [];
+  const chilliMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x3f8a22, roughness: 0.3, clearcoat: 0.6 }));
+  const cheeseMat = kit.add(new T.MeshPhysicalMaterial({ color: 0xf3d77e, roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.3, sheen: 0.4, sheenColor: new T.Color(0xfff0c0), side: T.DoubleSide }));
 
-  const half = (flip: number) => {
+  // The cut's surface: turn things lying flat so they lie on the slant instead.
+  const n = V(T, -ROLL_SLOPE, 1, 0).normalize();
+  const tilt = new T.Quaternion().setFromAxisAngle(V(T, 0, 0, 1), Math.atan(ROLL_SLOPE));
+  const onCut = (x: number, z: number, lift: number, e: number[] = [0, 0, 0]) => ({
+    pos: [x + n.x * lift, cutY(x) + n.y * lift, z + n.z * lift],
+    quat: tilt.clone().multiply(new T.Quaternion().setFromEuler(new T.Euler(e[0], e[1], e[2]))),
+  });
+  const inDisc = (r: () => number, fillR: (a: number) => number, k = 0.82) => {
+    const a = r() * TAU, d = Math.sqrt(r()) * k;
+    return [Math.cos(a) * fillR(a) * d, Math.sin(a) * fillR(a) * d];
+  };
+
+  const halves: { chilli: THREE.InstancedMesh; cheese: THREE.Object3D }[] = [];
+  const half = (seed: number) => {
     const g = new T.Group();
-    const tube = kit.add(new T.CylinderGeometry(rad, rad, len, 44, 10, true));
-    const p = tube.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i), z = p.getZ(i), y = p.getY(i);
-      const bulge = 1 + fbm(x * 6, y * 6, z * 6, 2, 5) * 0.06;
-      p.setXYZ(i, x * bulge, y + (y > 0 ? x * slope : 0), z * bulge);
+    const bread = breadGeometry(T, kit, spec, seed);
+    g.add(new T.Mesh(bread.geo, [skinMat, sectionMat]));
+    g.add(new T.Mesh(fillingBed(T, kit, bread.fillR, bread.gapR, bread.THETA), bedMat));
+    // The filling, standing proud of the cut, and a piece or two slumped over the low edge.
+    chunkGeos.forEach((geo, k) =>
+      scatter(T, kit, g, geo, parts.chunk, 6, (i, r) => {
+        const spill = i === 0 && k === 0;
+        const [x, z] = spill ? [-bread.fillR(Math.PI) * 0.95, (r() - 0.5) * 0.08] : inDisc(r, bread.fillR);
+        const s = 0.8 + r() * 0.4;
+        return { ...onCut(x, z, parts.chunkShape[1] * (spill ? -0.2 : 0.35), [(r() - 0.5) * 0.5, r() * TAU, (r() - 0.5) * 0.5 + (spill ? 0.5 : 0)]), scale: [s, 0.85 + r() * 0.3, s] };
+      }, seed + k * 13),
+    );
+    parts.extras.forEach((x, k) =>
+      scatter(T, kit, g, x.geo, x.mat, x.count, (i, r) => {
+        const [px, pz] = inDisc(r, bread.fillR, 0.88);
+        const s = 0.75 + r() * 0.5;
+        return { ...onCut(px, pz, x.lift, [(r() - 0.5) * 0.6, r() * TAU, (r() - 0.5) * 0.6]), scale: [x.scale[0] * s, x.scale[1] * s, x.scale[2] * s] };
+      }, seed + 30 + k * 7),
+    );
+    // A zigzag of chutney or mayo across the top.
+    const R = rng(seed + 50);
+    const pts = [];
+    for (let k = 0; k < 7; k++) {
+      const along = (k / 6 - 0.5) * 1.5 * bread.fillR(Math.PI / 2);
+      const across = (k % 2 ? 1 : -1) * bread.fillR(0) * (0.45 + R() * 0.25);
+      const p = onCut(across, along, 0.028 + R() * 0.006).pos;
+      pts.push(V(T, p[0], p[1], p[2]));
     }
-    tube.computeVertexNormals();
-    g.add(new T.Mesh(tube, wrapMat));
-    // The cut face, following the slanted cut.
-    const cap = kit.add(new T.CircleGeometry(rad * 0.985, 44));
-    cap.rotateX(-Math.PI / 2);
-    const cp = cap.attributes.position;
-    for (let i = 0; i < cp.count; i++) cp.setY(i, len / 2 + cp.getX(i) * slope);
-    cap.computeVertexNormals();
-    g.add(new T.Mesh(cap, fillMat));
-    // A short paper sleeve round the base, torn along its top edge.
-    const sleeveGeo = kit.add(new T.CylinderGeometry(rad * 1.07, rad * 1.07, len * 0.26, 44, 4, true));
-    const sp = sleeveGeo.attributes.position;
-    for (let i = 0; i < sp.count; i++) if (sp.getY(i) > 0) sp.setY(i, sp.getY(i) + (fbm(sp.getX(i) * 9, sp.getZ(i) * 9, 0, 2, 4) - 0.4) * 0.05);
-    sleeveGeo.computeVertexNormals();
-    const sleeve = new T.Mesh(sleeveGeo, paperMat);
-    sleeve.position.y = -len / 2 + len * 0.13;
-    g.add(sleeve);
-    // Green chilli and melted cheese sit on the cut face.
-    const chilli = scatter(T, kit, g, chilliGeo, chilliMat, 5, (i, r) => {
-      const x = (r() - 0.5) * rad * 1.1, z = (r() - 0.5) * rad * 1.1;
-      return { pos: [x, len / 2 + x * slope + 0.012, z], rot: [0, r() * 3, -Math.atan(slope) * 0.9], scale: 1 };
-    }, 8 + Math.round(flip * 3));
-    const cheese = new T.Mesh(blob(T, kit, 0.11, 0.022, 0.09, { amp: 0.008, freq: 10, seed: 6 }), cheeseMat);
-    cheese.position.set(0, len / 2 + 0.02, 0);
-    cheese.rotation.z = -Math.atan(slope) * 0.9;
+    g.add(new T.Mesh(sweep(T, kit, new T.CatmullRomCurve3(pts), { width: 0.016, thick: 0.006, segs: 120 }), parts.drizzle));
+    // Green chilli rings on top, by spice level.
+    const chilli = scatter(T, kit, g, chilliGeo, chilliMat, 6, (i, r) => {
+      const [x, z] = inDisc(r, bread.fillR, 0.75);
+      return { ...onCut(x, z, 0.036, [(r() - 0.5) * 0.5, 0, (r() - 0.5) * 0.5]), scale: 0.8 + r() * 0.4 };
+    }, seed + 70);
+    // Cheese melted over the filling, when asked for.
+    const cheese = new T.Mesh(meltedSheet(T, kit, bread.fillR, seed), cheeseMat);
+    const c = onCut(0, 0, 0.026);
+    cheese.position.set(c.pos[0], c.pos[1], c.pos[2]);
+    cheese.quaternion.copy(c.quat);
     g.add(cheese);
     halves.push({ chilli, cheese });
-    g.position.y = len / 2 + 0.06;
-    g.rotation.y = flip;
+    g.add(paperWrap(T, kit, spec.paper, seed));
+    g.position.y = ROLL_LEN / 2 + 0.058;
     return g;
   };
-  const a = half(0.5);
-  a.position.set(-0.3, a.position.y, -0.04);
-  a.rotation.z = -0.04;
-  const b = half(-2.5);
-  b.position.set(0.28, b.position.y, 0.1);
-  b.rotation.z = 0.05;
+  // Stood side by side, each cut turned out to the front so both show.
+  const a = half(3);
+  a.position.set(-0.3, a.position.y, -0.02);
+  a.rotation.set(0, Math.PI / 2 - 0.55, -0.03);
+  const b = half(9);
+  b.position.set(0.3, b.position.y, 0.08);
+  b.rotation.set(0, Math.PI / 2 + 0.55, 0.04);
   inner.add(a, b);
+
+  // On the board: a pot of the roll's chutney and a few rings of onion.
+  const dip = dipCup(T, kit, parts.drizzle.color.getHex(), 0.1);
+  dip.group.position.set(0.6, 0.058, 0.3);
+  inner.add(dip.group);
+  // Onion sliced across: each slice is a few rings one inside the other, lying where they fell.
+  const ringGeo = kit.add(new T.TorusGeometry(1, 0.16, 8, 40));
+  ringGeo.rotateX(Math.PI / 2);
+  ringGeo.scale(1, 0.55, 1);
+  const slices = [[-0.56, 0.3, 0.058], [-0.44, 0.36, 0.05], [-0.62, 0.18, 0.046]];
+  scatter(T, kit, inner, ringGeo, kit.add(new T.MeshPhysicalMaterial({ color: 0xf0dde6, roughness: 0.25, clearcoat: 0.6, sheen: 0.5, sheenColor: new T.Color(0xc9a0c0) })), 9, (i, r) => {
+    const [x, z, big] = slices[Math.floor(i / 3)];
+    const k = i % 3;
+    const rad = big * (1 - k * 0.3);
+    return { pos: [x + (r() - 0.5) * 0.01, 0.06 + rad * 0.09 + (k === 2 ? 0.006 : 0), z + (r() - 0.5) * 0.01], rot: [(r() - 0.5) * 0.08, 0, (r() - 0.5) * 0.08], scale: [rad * (1 + (r() - 0.5) * 0.1), rad * 0.9, rad] };
+  }, 21);
 
   const apply = (s: Sel) => {
     halves.forEach((h) => {
-      h.chilli.count = [0, 2, 5][s.spice ?? 1] ?? 2;
+      h.chilli.count = [0, 3, 6][s.spice ?? 1] ?? 3;
       h.cheese.visible = s.cheese === 1;
     });
   };

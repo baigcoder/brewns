@@ -40,6 +40,7 @@ import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TI
 import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 import { initVoiceCalling } from './voiceCalling';
+import { createViewerFX, lightProduct, makeStudio, setupRenderer, shadowPiece } from './viewerStage';
 
 export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
   if (cafeRecording !== null) setCafeRecording(cafeRecording);
@@ -5015,55 +5016,6 @@ const loadProductAssets = () =>
       }),
   ));
 
-/* A photo studio to reflect: a big softbox front-left, a strip light on the right, a rim light behind and a warm bounce
-   from below, on a mid-grey room. Glass, glaze, sauce and metal pick these up as the soft window highlights a product
-   photograph has; the old blocky "room" gave them nothing believable to show. */
-const studioEnvironment = (T, pmrem) => {
-  const room = new T.Scene();
-  room.add(new T.Mesh(new T.SphereGeometry(30, 32, 16), new T.MeshBasicMaterial({ color: new T.Color(0.42, 0.42, 0.44), side: T.BackSide })));
-  const panel = (w, h, pos, k, tint = [1, 1, 1]) => {
-    const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ color: new T.Color(tint[0] * k, tint[1] * k, tint[2] * k), side: T.DoubleSide }));
-    m.position.set(...pos);
-    m.lookAt(0, 0, 0);
-    room.add(m);
-  };
-  panel(12, 8, [-9, 7, 8], 9);
-  panel(4, 14, [10, 3, 6], 5, [0.95, 0.98, 1]);
-  panel(14, 4, [0, 10, -8], 7);
-  panel(16, 4, [0, -6, 8], 1.2, [1, 0.92, 0.82]);
-  const env = pmrem.fromScene(room, 0.02);
-  room.traverse((o) => {
-    o.geometry?.dispose();
-    o.material?.dispose();
-  });
-  return env;
-};
-
-const makeStudio = (T, renderer) => {
-  const scene = new T.Scene();
-  const pmrem = new T.PMREMGenerator(renderer);
-  const env = studioEnvironment(T, pmrem);
-  pmrem.dispose();
-  scene.environment = env.texture;
-  scene.environmentIntensity = 0.6;
-  const amb = new T.AmbientLight(0xffffff, 0.85);
-  scene.add(amb);
-  for (const [position, intensity] of [[[-4.2, 3, 3.4], 3.2], [[3.9, 2.5, 2.3], 1.4], [[0.6, 3, -3.2], 1.1]]) {
-    const light = new T.DirectionalLight(0xfcfff9, intensity);
-    light.position.set(...position);
-    scene.add(light);
-  }
-  return { scene, env };
-};
-
-const setupRenderer = (T, renderer) => {
-  renderer.setClearAlpha(0);
-  renderer.outputColorSpace = T.SRGBColorSpace;
-  renderer.toneMapping = T.NeutralToneMapping;
-  renderer.toneMappingExposure = 1.16;
-};
-
-
 /* Distance at which a unit-tall piece fills `fill` of the frame's shorter side. */
 const fitDistance = (camera, fill) => {
   const vertical = (camera.fov * Math.PI) / 180;
@@ -5152,54 +5104,18 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   const turn = new T.Group();
   let variantEngine = null;
   let piece = null;
-  // Food is lit like a photograph: a slightly lower exposure so colour holds, and real soft shadows from the key light
-  // (toppings shade the cheese, the dish shades the board) instead of only a blob under the plate.
-  const isFood = product && ["kitchen", "bakery"].includes(product.cat);
-  if (product) {
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = T.PCFSoftShadowMap;
-    if (isFood) {
-      renderer.toneMappingExposure = 0.9;
-      scene.environmentIntensity = 0.45;
-    }
-    const key = scene.children.find((o) => o.isDirectionalLight);
-    if (key) {
-      key.castShadow = true;
-      key.shadow.mapSize.set(2048, 2048);
-      const cam = key.shadow.camera;
-      cam.left = cam.bottom = -1.3;
-      cam.right = cam.top = 1.3;
-      cam.near = 1;
-      cam.far = 12;
-      key.shadow.bias = -0.0004;
-      key.shadow.normalBias = 0.012;
-      key.shadow.radius = 5;
-    }
-  }
+  // Ambient occlusion and multisampling on desktop screens; phones keep the plain, cheaper render.
+  const wantsAO = !!product && window.innerWidth >= 768 && !window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+  if (product) lightProduct(T, renderer, scene, ["kitchen", "bakery"].includes(product.cat), wantsAO);
   variantEngine = createProduct3DModel(T, gltf, product, initialSel, kind, shopModel);
   piece = variantEngine.group;
-  // Models that do not bring their own get real shadows too: every solid part casts and receives the key light's shadow,
-  // and a catcher under the piece shows only what falls on the floor.
-  if (product && !piece.userData.hasCatcher) {
-    piece.traverse((m) => {
-      if (!m.isMesh) return;
-      const mat = Array.isArray(m.material) ? m.material[0] : m.material;
-      m.castShadow = !(m.userData.noShadow || mat?.transmission > 0 || (mat?.transparent && mat.opacity < 0.9));
-      m.receiveShadow = true;
-    });
-    const box = new T.Box3().setFromObject(piece);
-    if (Number.isFinite(box.min.y)) {
-      const catcher = new T.Mesh(new T.CircleGeometry(1.4, 48), new T.ShadowMaterial({ opacity: 0.26 }));
-      catcher.rotation.x = -Math.PI / 2;
-      catcher.position.y = box.min.y - 0.003;
-      catcher.receiveShadow = true;
-      turn.add(catcher);
-    }
-  }
+  const catcher = product ? shadowPiece(T, piece) : null;
+  if (catcher) turn.add(catcher);
 
   turn.add(piece);
   scene.add(turn);
   const camera = new T.PerspectiveCamera(22, 1, 0.1, 100);
+  const fx = createViewerFX(T, renderer, scene, camera, { ao: wantsAO });
 
   const isBakery = product?.cat === 'bakery' || kind === 'bakery' || product?.cat === 'kitchen';
   const isCupWithArt = product?.id === 'cortado';
@@ -5209,7 +5125,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   const resize = () => {
     const w = container.clientWidth, h = container.clientHeight;
     if (!w || !h) return;
-    renderer.setSize(w, h, false);
+    fx.setSize(w, h);
     camera.aspect = w / h;
     distance = fitDistance(camera, 0.7);
     camera.near = distance / 30;
@@ -5306,7 +5222,7 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
     turn.position.y = -(1 - arrived) * 0.4;
     camera.position.set(0, 0, distance * view.zoom);
     camera.lookAt(0, 0, 0);
-    renderer.render(scene, camera);
+    fx.render();
   });
 
   return {
@@ -5314,6 +5230,9 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
       stop();
       observer.disconnect();
       variantEngine?.dispose();
+      fx.dispose();
+      catcher?.geometry.dispose();
+      catcher?.material.dispose();
       env.texture.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
