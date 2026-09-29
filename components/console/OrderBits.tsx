@@ -274,7 +274,15 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
                 disabled={busy}
                 onClick={() => {
                   const reason = window.prompt('Why is it cancelled? The customer sees this.', 'Sorry, we’ve run out of something in your order.');
-                  if (reason !== null) step({ type: 'cancel', reason }, 'Cancelled.');
+                  if (reason === null) return;
+                  // Money already taken is owed back: full by default, or less (0 for none) if you say so.
+                  let refundAmount: number | undefined;
+                  if (o.paid) {
+                    const answer = window.prompt(`This order was paid (${rs(t.total)}). How much do you refund? 0 for none.`, String(t.total));
+                    if (answer === null) return;
+                    refundAmount = Number(answer);
+                  }
+                  step({ type: 'cancel', reason, refundAmount }, refundAmount ? `Cancelled. Refund of ${rs(refundAmount)} is on the Refunds screen.` : 'Cancelled.');
                 }}
               >
                 Cancel order
@@ -282,6 +290,25 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
             </div>
           )}
           {o.status === 'cancelled' && <p className="cx-small" style={{ color: 'var(--cx-late)' }}>Cancelled: {o.cancelReason}</p>}
+          {o.refund && (
+            <p className="cx-small" style={{ color: o.refund.state === 'pending' ? 'var(--cx-late)' : undefined }}>
+              Refund {rs(o.refund.amount)} · {o.refund.state === 'pending' ? 'still to send' : `sent${o.refund.ref && o.refund.ref !== 'CASH' ? ` (${o.refund.ref})` : ''}`}. {o.refund.reason}
+            </p>
+          )}
+          {o.paid && !o.refund && o.status !== 'cancelled' && can('orders.pay') && (
+            <button
+              className="cx-btn sm"
+              disabled={busy}
+              onClick={() => {
+                const amount = window.prompt(`Refund how much? (paid ${rs(t.total)})`);
+                if (amount === null) return;
+                const reason = window.prompt('Why? The customer sees this.', 'Something was missing from your order.');
+                if (reason !== null) step({ type: 'refund', amount: Number(amount), reason }, 'Refund recorded on the Refunds screen.');
+              }}
+            >
+              Refund part or all
+            </button>
+          )}
         </div>
 
         {(o.messages.length > 0 || (o.source === 'online' && canAny('messages.reply'))) && (

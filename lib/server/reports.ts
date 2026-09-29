@@ -39,9 +39,14 @@ function kpis(orders: ServerOrder[]) {
   // On time: ready (or delivered) no more than five minutes after the time the customer was given.
   const timed = sold.filter((o) => doneAt(o) || readyAt(o));
   const onTime = timed.filter((o) => ((o.mode === 'delivery' ? doneAt(o) : readyAt(o)) || Infinity) <= o.target + 5 * 60000).length;
+  // Money owed back: on a cancelled order it was never sales, on a kept order (a missing item) it comes off them.
+  const refunded = orders.reduce((s, o) => s + (o.refund?.amount || 0), 0);
+  const refundedFromSales = sold.reduce((s, o) => s + (o.refund?.amount || 0), 0);
   return {
     gross,
-    net: gross - tax - fees,
+    net: gross - tax - fees - refundedFromSales,
+    refunded,
+    refundsPending: orders.reduce((s, o) => s + (o.refund?.state === 'pending' ? o.refund.amount : 0), 0),
     tax,
     fees,
     discount,

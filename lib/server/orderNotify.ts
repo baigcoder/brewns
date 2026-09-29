@@ -20,7 +20,7 @@ export const payUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/p
 export const reviewUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/review/${o.number}?k=${o.key}`;
 
 /** What to say when an order reaches `status`, or null when that step is silent. */
-export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' | 'name' | 'loc' | 'target' | 'rider' | 'cancelReason' | 'table'> & { key?: string; hold?: ServerOrder['hold'] }, status: Status = o.status): { subject: string; text: string } | null {
+export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' | 'name' | 'loc' | 'target' | 'rider' | 'cancelReason' | 'table'> & { key?: string; hold?: ServerOrder['hold']; refund?: ServerOrder['refund'] }, status: Status = o.status): { subject: string; text: string } | null {
   if (!NOTIFY_ON.includes(status)) return null;
   const no = orderNo(o.number);
   const first = o.name.split(' ')[0] || 'there';
@@ -51,7 +51,7 @@ export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' |
       text = `Thanks ${first}, order ${no} is collected. See you again soon.${rate}`;
       break;
     default:
-      text = `Order ${no} was cancelled${o.cancelReason ? `: ${o.cancelReason}` : ''}. If that's a surprise, please call brewns ${shop}.`;
+      text = `Order ${no} was cancelled${o.cancelReason ? `: ${o.cancelReason}` : ''}.${o.refund ? ` Your refund of Rs ${o.refund.amount.toLocaleString('en-US')} is on its way.` : ''} If that's a surprise, please call brewns ${shop}.`;
   }
   const track = link && !o.hold && ['received', 'ready', 'onway'].includes(status) ? ` Track it: ${link}` : '';
   return { subject: `brewns · order ${no}`, text: `☕ brewns · ${text}${track}` };
@@ -101,11 +101,38 @@ export async function notifyOrder(o: ServerOrder, before?: Status, status: Statu
   try {
     if (o.demo || (before && before === o.status)) return;
     const msg = orderMessage(o, status);
-    if (!msg) return;
-    if (!(await kv.set(`notified:${o.number}:${status}`, 1, { nx: true, ttlSec: 7 * 86400 }))) return;
-    const [wa, mail] = await Promise.all([whatsapp(o.phone, msg.text).catch(() => false), o.email ? email(o.email, msg.subject, msg.text).catch(() => false) : false]);
-    await kv.push('order_notifications', { t: Date.now(), order: o.number, status, phone: o.phone, email: o.email, whatsapp: wa, mail, text: msg.text }, 200);
+    if (msg) await deliver(o, status, msg);
   } catch (e) {
     console.warn('[order notify]', e);
   }
+}
+
+/** What to tell a customer about their refund: it is owed, or it has been sent. */
+export function refundMessage(o: Pick<ServerOrder, 'number' | 'refund'>, stage: 'due' | 'paid'): { subject: string; text: string } | null {
+  const r = o.refund;
+  if (!r) return null;
+  const no = orderNo(o.number);
+  const amount = `Rs ${r.amount.toLocaleString('en-US')}`;
+  const text =
+    stage === 'due'
+      ? `We are refunding ${amount} for order ${no}${r.reason ? ` (${r.reason.replace(/[.\s]+$/, '')})` : ''}. It will go back the way you paid, shortly.`
+      : `Your refund of ${amount} for order ${no} has been sent${r.ref && r.ref !== 'CASH' ? ` (reference ${r.ref})` : ''}. Sorry again, and thank you for your patience.`;
+  return { subject: `brewns · refund for order ${no}`, text: `☕ brewns · ${text}` };
+}
+
+/** Tells the customer their refund is owed (`due`) or sent (`paid`), once each. */
+export async function notifyRefund(o: ServerOrder, stage: 'due' | 'paid') {
+  try {
+    if (o.demo) return;
+    const msg = refundMessage(o, stage);
+    if (msg) await deliver(o, `refund-${stage}`, msg);
+  } catch (e) {
+    console.warn('[refund notify]', e);
+  }
+}
+
+async function deliver(o: ServerOrder, key: string, msg: { subject: string; text: string }) {
+  if (!(await kv.set(`notified:${o.number}:${key}`, 1, { nx: true, ttlSec: 7 * 86400 }))) return;
+  const [wa, mail] = await Promise.all([whatsapp(o.phone, msg.text).catch(() => false), o.email ? email(o.email, msg.subject, msg.text).catch(() => false) : false]);
+  await kv.push('order_notifications', { t: Date.now(), order: o.number, status: key, phone: o.phone, email: o.email, whatsapp: wa, mail, text: msg.text }, 200);
 }

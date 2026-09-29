@@ -20,6 +20,7 @@ export type LiveData = {
   upcomingBookings?: number;
   soldOut: string[];
   stock: Record<string, number>;
+  refundsDue: number;
   prepay: { minTotal: number | null; holdMin: number; payTo: string };
   shops: ShopSettings[];
   me?: { id: string; name: string; email: string; role: Role; shops: number[]; active?: boolean };

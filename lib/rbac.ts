@@ -104,6 +104,7 @@ export const SECTIONS: Section[] = [
   { key: 'floor', href: '/dashboard/floor', label: 'Floor', any: ['floor.tables'], group: 'Run' },
   { key: 'bookings', href: '/dashboard/bookings', label: 'Bookings & AI calls', any: ['reports.view', 'floor.tables', 'orders.view'], group: 'Run' },
   { key: 'deliveries', href: '/dashboard/deliveries', label: 'Deliveries', any: ['delivery.ride', 'delivery.assign'], group: 'Run' },
+  { key: 'refunds', href: '/dashboard/refunds', label: 'Refunds', any: ['orders.pay'], group: 'Run' },
   { key: 'menu', href: '/dashboard/menu', label: 'Menu', any: ['menu.availability', 'menu.promos'], group: 'Manage' },
   { key: 'shops', href: '/dashboard/shops', label: 'Shops', any: ['shops.manage'], group: 'Manage' },
   { key: 'staff', href: '/dashboard/staff', label: 'Team', any: ['staff.view'], group: 'Manage' },

@@ -11,7 +11,7 @@ import { useMe } from './Shell';
 import { useRun } from './Toasts';
 import { ZReportModal, type ZReportData } from './ZReportModal';
 
-type K = { gross: number; net: number; tax: number; fees: number; discount: number; orders: number; avg: number; items: number; cancelled: number; unpaid: number; customers: number; prepMin: number; onTimePct: number };
+type K = { gross: number; net: number; tax: number; fees: number; discount: number; orders: number; avg: number; items: number; cancelled: number; unpaid: number; refunded: number; refundsPending: number; customers: number; prepMin: number; onTimePct: number };
 type Report = {
   range: string;
   days: string[];
@@ -360,7 +360,7 @@ export function OverviewScreen() {
             </div>
           </div>
           <p className="cx-small cx-faint" style={{ marginTop: -6 }}>
-            Changes are {COMPARE[r.range]}. Sales include tax and delivery; net of both: {rs(k.net)}. {k.cancelled ? `${k.cancelled} cancelled.` : ''} {k.unpaid ? `${rs(k.unpaid)} not yet marked paid.` : ''}
+            Changes are {COMPARE[r.range]}. Sales include tax and delivery; net of both: {rs(k.net)}. {k.cancelled ? `${k.cancelled} cancelled.` : ''} {k.unpaid ? `${rs(k.unpaid)} not yet marked paid.` : ''} {k.refunded ? `${rs(k.refunded)} refunded${k.refundsPending ? `, ${rs(k.refundsPending)} still to send` : ''}.` : ''}
           </p>
 
           <div className="cx-grid two">

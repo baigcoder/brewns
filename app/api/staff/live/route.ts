@@ -1,7 +1,7 @@
 import { canAny } from '@/lib/rbac';
 import { allUsers, requireStaff, worksAt } from '@/lib/server/auth';
 import { json, route } from '@/lib/server/http';
-import { activeOrders, expireHolds, liveVersion, openCalls, staffView, visibleTo } from '@/lib/server/orders';
+import { activeOrders, expireHolds, liveVersion, openCalls, refundList, staffView, visibleTo } from '@/lib/server/orders';
 import { isLive, recentVoiceCalls } from '@/lib/server/voiceLog';
 import { countPendingMoments } from '@/lib/server/moments';
 import { kv } from '@/lib/server/store';
@@ -58,6 +58,8 @@ export const GET = route(async (req) => {
     soldOut: ctx.settings.soldOut,
     stock: ctx.settings.stock,
     prepay: ctx.settings.prepay,
+    // Refunds still owed, for the nav badge.
+    refundsDue: canAny(p, 'orders.pay') ? (await refundList(ctx)).pending.length : 0,
     shops: ctx.settings.shops,
     // Dynamic realtime RBAC details
     me: {

@@ -250,3 +250,89 @@ describe('pay-first delivery', () => {
     expect(text).not.toContain('Track it');
   });
 });
+
+describe('refunds', () => {
+  const delivery = { ...base, mode: 'delivery' as const, area: 0, address: 'House 12, Street 4, Block B' };
+  const staff = (role: 'cashier' | 'barista') =>
+    ({ user: { id: `u-${role}`, name: role, role, shops: [] }, role, perms: DEFAULT_ROLE_PERMS[role], settings: {} }) as never;
+  const paidOrder = async (qty = 4) => {
+    const s = await settings.getSettings();
+    await store.kv.set('settings', { ...s, prepay: { minTotal: 500, holdMin: 10, payTo: 'Raast ID: test@bank' }, soldOut: [], stock: {} });
+    const { order } = await orders.placeOrder({ ...delivery, pay: 2, items: [americano(qty)] }, guest);
+    await orders.customerAct(order.number, order.key, { type: 'payref', text: 'TXN123456' });
+    return orders.staffAct(order.number, { type: 'confirmpay' }, staff('cashier'));
+  };
+
+  it('opens a full refund when a paid order is cancelled, and keeps the customer’s transaction ID', async () => {
+    const paid = await paidOrder();
+    expect(paid.payRef).toBe('TXN123456');
+    const done = await orders.staffAct(paid.number, { type: 'cancel', reason: 'Out of milk' }, staff('cashier'));
+    expect(done.status).toBe('cancelled');
+    expect(done.refund).toMatchObject({ amount: paid.totals.total, state: 'pending', method: 2 });
+    const list = await orders.refundList(staff('cashier'));
+    expect(list.pending.find((r) => r.number === paid.number)).toMatchObject({ payRef: 'TXN123456', amount: paid.totals.total });
+    expect(list.owed).toBeGreaterThanOrEqual(paid.totals.total);
+  });
+
+  it('lets the cashier refund less, or nothing, when cancelling', async () => {
+    const a = await paidOrder();
+    const part = await orders.staffAct(a.number, { type: 'cancel', reason: 'Rider fell ill', refundAmount: 1000 }, staff('cashier'));
+    expect(part.refund?.amount).toBe(1000);
+    const b = await paidOrder();
+    const none = await orders.staffAct(b.number, { type: 'cancel', reason: 'Prank', refundAmount: 0 }, staff('cashier'));
+    expect(none.refund).toBeUndefined();
+    const c = await paidOrder();
+    await rejects(orders.staffAct(c.number, { type: 'cancel', reason: 'x', refundAmount: c.totals.total + 1 }, staff('cashier')), 400);
+  });
+
+  it('never refunds an order nobody paid for', async () => {
+    const s = await settings.getSettings();
+    await store.kv.set('settings', { ...s, prepay: { minTotal: null, holdMin: 10, payTo: 'x' } });
+    const { order } = await orders.placeOrder({ ...base, mode: 'pickup', items: [americano()] }, guest);
+    const done = await orders.staffAct(order.number, { type: 'cancel', reason: 'Changed mind' }, staff('cashier'));
+    expect(done.refund).toBeUndefined();
+    await rejects(orders.staffAct(order.number, { type: 'refund', amount: 100, reason: 'nothing paid' }, staff('cashier')), 409);
+  });
+
+  it('records a part refund on a kept order, once, for the cashier only', async () => {
+    const paid = await paidOrder();
+    await rejects(orders.staffAct(paid.number, { type: 'refund', amount: 200, reason: 'One item missing' }, staff('barista')), 403);
+    await rejects(orders.staffAct(paid.number, { type: 'refund', amount: 0, reason: 'One item missing' }, staff('cashier')), 400);
+    await rejects(orders.staffAct(paid.number, { type: 'refund', amount: 200, reason: '' }, staff('cashier')), 400);
+    const r = await orders.staffAct(paid.number, { type: 'refund', amount: 200, reason: 'One item missing' }, staff('cashier'));
+    expect(r.refund).toMatchObject({ amount: 200, state: 'pending' });
+    expect(r.status).toBe('accepted'); // the order carries on
+    await rejects(orders.staffAct(paid.number, { type: 'refund', amount: 100, reason: 'Again' }, staff('cashier')), 409);
+  });
+
+  it('marks a refund sent with its transaction ID, once', async () => {
+    const paid = await paidOrder();
+    await orders.staffAct(paid.number, { type: 'cancel', reason: 'Out of milk' }, staff('cashier'));
+    await rejects(orders.staffAct(paid.number, { type: 'refundpaid', ref: '' }, staff('cashier')), 400); // wallet refunds need a reference
+    await rejects(orders.staffAct(paid.number, { type: 'refundpaid', ref: 'RF998877' }, staff('barista')), 403);
+    const done = await orders.staffAct(paid.number, { type: 'refundpaid', ref: 'RF998877' }, staff('cashier'));
+    expect(done.refund).toMatchObject({ state: 'paid', ref: 'RF998877', paidBy: 'cashier' });
+    await rejects(orders.staffAct(paid.number, { type: 'refundpaid', ref: 'RF998877' }, staff('cashier')), 409);
+    const list = await orders.refundList(staff('cashier'));
+    expect(list.pending.find((r) => r.number === paid.number)).toBeUndefined();
+    expect(list.paid.find((r) => r.number === paid.number)?.ref).toBe('RF998877');
+  });
+
+  it('refunds a paid order the customer cancels themselves', async () => {
+    const s = await settings.getSettings();
+    await store.kv.set('settings', { ...s, prepay: { minTotal: 500, holdMin: 10, payTo: 'x' } });
+    const { order } = await orders.placeOrder({ ...delivery, pay: 2, items: [americano(4)] }, guest);
+    await orders.staffAct(order.number, { type: 'confirmpay' }, staff('cashier'));
+    const done = await orders.customerAct(order.number, order.key, { type: 'cancel' });
+    expect(done.refund).toMatchObject({ amount: order.totals.total, state: 'pending' });
+  });
+
+  it('words the refund messages', () => {
+    const o = { number: 9, paid: { t: 1, by: 'x', method: 2 }, refund: { amount: 3360, state: 'pending' as const, reason: 'Out of milk.', at: 1, by: 'x', method: 2 } };
+    expect(notify.refundMessage(o, 'due')?.text).toContain('Rs 3,360');
+    expect(notify.refundMessage(o, 'due')?.text).toContain('Out of milk');
+    expect(notify.refundMessage({ ...o, refund: { ...o.refund, ref: 'RF1234', state: 'paid' as const } }, 'paid')?.text).toContain('RF1234');
+    expect(notify.refundMessage({ number: 9 } as never, 'due')).toBeNull();
+    expect(notify.orderMessage({ number: 9, mode: 'delivery', status: 'cancelled', name: 'Sara', loc: 0, target: 0, rider: null, table: null, refund: o.refund })?.text).toContain('refund of Rs 3,360');
+  });
+});

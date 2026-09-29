@@ -22,6 +22,7 @@ import {
   STATUS_LABEL,
   type Mode,
   type OrderLine,
+  type Refund,
   type ServerOrder,
   type Station,
   type Status,
@@ -34,7 +35,7 @@ import { allUsers, randomToken, worksAt, type StaffContext, type User } from './
 import { addCustomerOrder, creditOrder, reverseCredit } from './customers';
 import { fail, safeEqual } from './http';
 import { getSettings, releaseStock, reserveStock, type Settings } from './settings';
-import { notifyOrder } from './orderNotify';
+import { notifyOrder, notifyRefund } from './orderNotify';
 import { kv, withLock } from './store';
 
 const dayKey = (day: string) => `orders:day:${day}`;
@@ -56,6 +57,7 @@ export async function saveOrder(o: ServerOrder) {
   o.messages = o.messages.slice(-120);
   await kv.hset(dayKey(o.day), o.number, o);
   // A small index of unpaid holds, so the expiry sweep is one tiny read.
+  if (o.refund) await kv.hset('refunds', o.number, refundRow(o));
   if (o.hold && o.status === 'received') await kv.hset('orders:holds', o.number, o.hold.until);
   else await kv.hdel('orders:holds', o.number);
   if (staysActive(o)) await kv.hset('orders:active', o.number, o);
@@ -318,7 +320,9 @@ export type Action =
   | { type: 'arriving' }
   | { type: 'delivered' }
   | { type: 'delay'; min: number }
-  | { type: 'cancel'; reason: string }
+  | { type: 'cancel'; reason: string; refundAmount?: number }
+  | { type: 'refund'; amount: number; reason: string }
+  | { type: 'refundpaid'; ref?: string }
   | { type: 'message'; text: string }
   | { type: 'read' };
 
@@ -350,6 +354,7 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
       case 'confirmpay': {
         need('orders.pay');
         when(!!o.hold && o.status === 'received', o.status === 'cancelled' ? 'This order was cancelled when the time ran out.' : 'No payment is being waited for.');
+        o.payRef = o.hold?.ref || undefined;
         delete o.hold;
         o.paid = { t: Date.now(), by: ctx.user.name, method: 2 };
         move(Object.keys(o.stations).length ? 'accepted' : 'ready', 'accepted');
@@ -471,6 +476,37 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
         if (o.customerId && o.club) await reverseCredit(o.customerId, o.number, o.club.stamps, o.club.used && o.club.verified);
         await releaseStock(o.items);
         log = `Cancelled · ${o.cancelReason}`;
+        // Money already taken is owed back in full unless the cashier says otherwise.
+        if (o.paid) {
+          const owed = action.refundAmount === undefined ? o.totals.total : Number(action.refundAmount);
+          if (!Number.isInteger(owed) || owed < 0 || owed > o.totals.total) fail(400, `Refund a whole number from 0 to ${o.totals.total}.`);
+          if (owed > 0) {
+            openRefund(o, owed, o.cancelReason, ctx.user.name);
+            log += ` · refund Rs ${owed} due`;
+          }
+        }
+        break;
+      }
+      case 'refund': {
+        need('orders.pay');
+        when(!!o.paid, 'Nothing was paid on this order, so there is nothing to refund.');
+        when(!o.refund, 'This order already has a refund.');
+        const amount = Number(action.amount);
+        if (!Number.isInteger(amount) || amount < 1 || amount > o.totals.total) fail(400, `Refund a whole number from 1 to ${o.totals.total}.`);
+        const reason = String(action.reason || '').trim().slice(0, 140);
+        if (reason.length < 3) fail(400, 'Say why, so the customer and the books know.');
+        openRefund(o, amount, reason, ctx.user.name);
+        log = `Refund Rs ${amount} due · ${reason}`;
+        break;
+      }
+      case 'refundpaid': {
+        need('orders.pay');
+        when(o.refund?.state === 'pending', o.refund ? 'That refund has already been sent.' : 'There is no refund on this order.');
+        const ref = String(action.ref || '').trim() || (o.refund!.method === 0 ? 'CASH' : '');
+        if (!/^[A-Za-z0-9-]{4,30}$/.test(ref)) fail(400, 'Enter the transaction ID of the refund you sent (4 to 30 letters and numbers).');
+        Object.assign(o.refund!, { state: 'paid', ref, paidAt: Date.now(), paidBy: ctx.user.name });
+        note(`refund-paid:${ref}`);
+        log = `Sent refund Rs ${o.refund!.amount} · ${ref}`;
         break;
       }
       case 'message': {
@@ -490,6 +526,8 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
     }
     await saveOrder(o);
     await notifyOrder(o, before);
+    if (action.type === 'refund') await notifyRefund(o, 'due');
+    if (action.type === 'refundpaid') await notifyRefund(o, 'paid');
     if (log) await audit(actor, `${log} · #${o.number}`, o.mode === 'dinein' ? `Table ${o.table} · ${o.name}` : o.name);
     return o;
   });
@@ -512,6 +550,7 @@ export async function customerAct(number: number, key: string, action: { type: '
       o.events.push({ t, what: 'cancelled', status: 'cancelled', by: 'Customer' });
       if (o.customerId && o.club) await reverseCredit(o.customerId, o.number, o.club.stamps, o.club.used && o.club.verified);
       await releaseStock(o.items);
+      if (o.paid) openRefund(o, o.totals.total, 'Cancelled by the customer', 'Customer');
     } else if (action.type === 'payref') {
       if (!o.hold || o.status !== 'received') fail(409, 'This order is not waiting for payment.');
       const ref = String(action.text || '').trim();
@@ -532,6 +571,26 @@ export async function customerAct(number: number, key: string, action: { type: '
     await notifyOrder(o, before);
     return o;
   });
+}
+
+/* ── refunds ── */
+
+function openRefund(o: ServerOrder, amount: number, reason: string, by: string) {
+  const refund: Refund = { amount, state: 'pending', reason, at: Date.now(), by, method: o.paid!.method };
+  o.refund = refund;
+  o.events.push({ t: refund.at, what: `refund:${amount}`, by });
+}
+
+/** What the refunds list needs to know about an order, kept in its own small hash. */
+export type RefundRow = Refund & { number: number; loc: number; name: string; phone: string; total: number; payRef: string; day: string };
+const refundRow = (o: ServerOrder): RefundRow => ({ ...o.refund!, number: o.number, loc: o.loc, name: o.name, phone: o.phone, total: o.totals.total, payRef: o.payRef || '', day: o.day });
+
+/** Refunds at the shops this person works at: money still owed first, then what has been sent. */
+export async function refundList(ctx: StaffContext) {
+  const rows = Object.values(await kv.hall<RefundRow>('refunds')).filter((r) => worksAt(ctx.user, r.loc));
+  const pending = rows.filter((r) => r.state === 'pending').sort((a, b) => a.at - b.at);
+  const paid = rows.filter((r) => r.state === 'paid').sort((a, b) => (b.paidAt || 0) - (a.paidAt || 0));
+  return { pending, paid: paid.slice(0, 50), owed: pending.reduce((s, r) => s + r.amount, 0) };
 }
 
 /* ── waiter calls from tables ── */

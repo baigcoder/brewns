@@ -48,6 +48,9 @@ export type OrderLine = { id: string; qty: number; sel: Record<string, number>; 
 export type OrderEvent = { t: number; what: string; status?: Status; by?: string; role?: string };
 export type OrderMessage = { id: string; from: 'you' | 'cafe' | 'rider'; text: string; t: number; by?: string };
 
+/** Money owed back to the customer for a paid order that was cancelled, or a part of it. `pending` until the café has sent it. */
+export type Refund = { amount: number; state: 'pending' | 'paid'; reason: string; at: number; by: string; method: number; ref?: string; paidAt?: number; paidBy?: string };
+
 export type ServerOrder = {
   number: number;
   day: string;
@@ -84,6 +87,9 @@ export type ServerOrder = {
   cancelReason?: string;
   /** Waiting for the customer's advance payment: the kitchen doesn't see the order until the café confirms it. `ref` is the transaction ID they sent. */
   hold?: { until: number; ref: string };
+  /** The transaction ID the customer sent when they paid in advance. */
+  payRef?: string;
+  refund?: Refund;
   demo?: boolean;
 };
 
