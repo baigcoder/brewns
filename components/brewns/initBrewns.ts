@@ -2295,6 +2295,8 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
     .then((s) => {
       if (!s) return;
       if (s.shops) s.shops.forEach((x, i) => shopState[i] && Object.assign(shopState[i], x));
+      // Pay-first delivery: read again at checkout.
+      window.__brewnsPrepay = s.prepay || null;
       if (Array.isArray(s.soldOut)) {
         soldOutIds = new Set(s.soldOut);
         soldOutIds.forEach((id) => {
@@ -6474,6 +6476,18 @@ function placeOrder() {
     return;
   }
   if (co.placing) return;
+  // Big delivery orders are paid in advance by wallet or Raast: switch to it and let the customer check the new total.
+  const prepayRule = window.__brewnsPrepay;
+  if (prepayRule && isDelivery() && co.pay !== 2) {
+    const t = orderTotals();
+    if (t.sub - t.discount >= prepayRule.minTotal) {
+      co.pay = 2;
+      renderCheckout({ animate: false });
+      toast(`DELIVERY ORDERS OF RS ${prepayRule.minTotal.toLocaleString("en-US")} OR MORE ARE PAID IN ADVANCE. WE SWITCHED YOU TO JAZZCASH / RAAST. CHECK THE TOTAL AND PLACE IT AGAIN.`);
+      triggerHaptic(30);
+      return;
+    }
+  }
   co.phone = pkMobile(co.phone);
   writeStore("brewns-details", { name: co.name.trim(), phone: co.phone, email: co.email.trim(), loc: co.loc, mode: co.mode, area: co.area, address: co.address.trim() });
   const number = readStore("brewns-order-seq", 25) + 1;
@@ -6509,6 +6523,7 @@ function placeOrder() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         applyServer(order, data.order, data.key);
+        if (data.order?.hold) order.payUrl = `/pay/${data.order.number}?k=${encodeURIComponent(data.key)}`;
         return "server";
       }
       if (res.status === 503 && /not switched on/i.test(data.error || "")) return "preview";
@@ -6528,6 +6543,12 @@ function placeOrder() {
     order.email = email;
     order.club = creditClub(order);
     writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
+    // A pay-first order waits on its own page for the payment.
+    if (order.payUrl) {
+      cart.clear();
+      window.location.assign(order.payUrl);
+      return;
+    }
     setTimeout(() => {
       if (!co) return;
       co.placing = false;

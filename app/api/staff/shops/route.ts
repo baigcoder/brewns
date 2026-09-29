@@ -1,7 +1,7 @@
 import { LOC_TITLES, SHOP_COUNT } from '@/lib/catalog';
 import { requireStaff, worksAt } from '@/lib/server/auth';
 import { audit } from '@/lib/server/audit';
-import { fail, int, json, readBody, route } from '@/lib/server/http';
+import { fail, int, json, readBody, route, str } from '@/lib/server/http';
 import { bumpLive } from '@/lib/server/orders';
 import { updateSettings } from '@/lib/server/settings';
 
@@ -16,6 +16,19 @@ export const POST = route(async (req) => {
     await bumpLive();
     await audit(actor, b.online ? 'Switched on orders through the console' : 'Switched off orders through the console');
     return json({ settings: { online: s.online, shops: s.shops } });
+  }
+  if (b.prepay && typeof b.prepay === 'object') {
+    const p = b.prepay as Record<string, unknown>;
+    const min = p.minTotal === null ? null : int(p.minTotal, 100, 100000);
+    const hold = int(p.holdMin, 3, 60);
+    if (p.minTotal !== null && min === null) fail(400, 'The minimum is Rs 100 to Rs 100,000, or off.');
+    if (hold === null) fail(400, 'Hold the order for 3 to 60 minutes.');
+    const payTo = str(p.payTo, 200);
+    if (payTo.length < 5) fail(400, 'Say where customers send the money (a Raast ID or a wallet number).');
+    const s = await updateSettings((s) => void (s.prepay = { minTotal: min, holdMin: hold!, payTo }));
+    await bumpLive();
+    await audit(actor, min === null ? 'Switched off pay-first delivery' : `Pay-first delivery from Rs ${min}, held ${hold} min`);
+    return json({ settings: { online: s.online, shops: s.shops, prepay: s.prepay } });
   }
   const loc = int(b.loc, 0, SHOP_COUNT - 1);
   if (loc === null) return fail(400, 'Which shop?');

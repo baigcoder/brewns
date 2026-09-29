@@ -1,7 +1,7 @@
 import { canAny } from '@/lib/rbac';
 import { allUsers, requireStaff, worksAt } from '@/lib/server/auth';
 import { json, route } from '@/lib/server/http';
-import { activeOrders, liveVersion, openCalls, staffView, visibleTo } from '@/lib/server/orders';
+import { activeOrders, expireHolds, liveVersion, openCalls, staffView, visibleTo } from '@/lib/server/orders';
 import { isLive, recentVoiceCalls } from '@/lib/server/voiceLog';
 import { countPendingMoments } from '@/lib/server/moments';
 import { kv } from '@/lib/server/store';
@@ -13,6 +13,7 @@ import { kv } from '@/lib/server/store';
  */
 export const GET = route(async (req) => {
   const ctx = await requireStaff();
+  await expireHolds();
   const v = await liveVersion();
   const url = new URL(req.url);
   const clientV = url.searchParams.get('v');
@@ -56,6 +57,7 @@ export const GET = route(async (req) => {
     upcomingBookings,
     soldOut: ctx.settings.soldOut,
     stock: ctx.settings.stock,
+    prepay: ctx.settings.prepay,
     shops: ctx.settings.shops,
     // Dynamic realtime RBAC details
     me: {

@@ -55,6 +55,9 @@ export async function saveOrder(o: ServerOrder) {
   o.events = o.events.slice(-80);
   o.messages = o.messages.slice(-120);
   await kv.hset(dayKey(o.day), o.number, o);
+  // A small index of unpaid holds, so the expiry sweep is one tiny read.
+  if (o.hold && o.status === 'received') await kv.hset('orders:holds', o.number, o.hold.until);
+  else await kv.hdel('orders:holds', o.number);
   if (staysActive(o)) await kv.hset('orders:active', o.number, o);
   else await kv.hdel('orders:active', o.number);
   await bumpLive();
@@ -167,11 +170,15 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   const totals = priceOrder(items, { mode, area: input.area, pay, promoPct: promo ? promo.pct / 100 : 0, useReward });
   if (mode === 'delivery' && online && totals.sub - totals.discount < DELIVERY.min) fail(400, `Delivery starts at Rs ${DELIVERY.min.toLocaleString('en-US')}.`);
 
+  // Pay first: a big delivery order waits for the customer's payment before the kitchen sees it.
+  const prepay = settings.prepay;
+  const needsPrepay = online && mode === 'delivery' && prepay.minTotal !== null && totals.sub - totals.discount >= prepay.minTotal;
+  if (needsPrepay && pay !== 2) fail(400, `Delivery orders of Rs ${prepay.minTotal!.toLocaleString('en-US')} or more are paid in advance. Choose JazzCash / Easypaisa / Raast at checkout.`);
   await reserveStock(items);
   const number = await nextNumber();
   const stations = Object.fromEntries(stationsOf(items).map((s) => [s, 'queued'])) as ServerOrder['stations'];
   const staffActor = by.kind === 'staff' ? by.ctx.user : null;
-  const auto = shop.autoAccept || by.kind === 'staff';
+  const auto = (shop.autoAccept || by.kind === 'staff') && !needsPrepay;
   const o: ServerOrder = {
     number,
     day: pkDay(now),
@@ -203,6 +210,7 @@ export async function placeOrder(input: OrderInput, by: Placer) {
     customerId: customer?.id || null,
     key: randomToken(16),
     club: useReward ? { stamps: 0, used: true, verified } : null,
+    ...(needsPrepay ? { hold: { until: now + prepay.holdMin * 60000, ref: '' } } : {}),
   };
   if (auto) {
     // Straight to the stations; beans, merch and gift cards alone are ready to hand over.
@@ -260,6 +268,7 @@ export const publicOrder = (o: ServerOrder) => ({
   messages: o.messages,
   cancelled: o.status === 'cancelled' ? { t: o.events.findLast((e) => e.status === 'cancelled')?.t || Date.now(), reason: o.cancelReason || '' } : null,
   paid: !!o.paid,
+  hold: o.hold ? { until: o.hold.until, ref: o.hold.ref } : null,
   totals: o.totals,
   items: o.items.map(({ id, qty, sel, name, opts, unit, total }) => ({ id, qty, sel, name, opts, unit, total })),
 });
@@ -283,6 +292,8 @@ export function staffView(o: ServerOrder, ctx: StaffContext) {
 export function visibleTo(o: ServerOrder, ctx: StaffContext) {
   if (!worksAt(ctx.user, o.loc)) return false;
   const p = ctx.perms;
+  // A held order is the cashier's business until it is paid.
+  if (o.hold && !canAny(p, 'orders.view', 'orders.manage', 'orders.pay')) return false;
   if (canAny(p, 'orders.view', 'orders.manage', 'delivery.assign')) return true;
   if (canAny(p, 'kitchen.bar', 'kitchen.food') && Object.keys(o.stations).length) return true;
   if (can(p, 'floor.tables') && (o.mode === 'dinein' || o.status === 'ready')) return true;
@@ -294,6 +305,7 @@ export function visibleTo(o: ServerOrder, ctx: StaffContext) {
 
 export type Action =
   | { type: 'accept' }
+  | { type: 'confirmpay' }
   | { type: 'station'; station: Station; state: 'queued' | 'making' | 'done' }
   | { type: 'line'; index: number; done: boolean }
   | { type: 'ready' }
@@ -332,8 +344,18 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
     };
     const note = (what: string) => o.events.push({ t: Date.now(), what, by: ctx.user.name, role: ctx.role });
     let log = '';
+    if (o.hold && !['confirmpay', 'cancel', 'message', 'read', 'delay'].includes(action.type)) fail(409, 'Waiting for the customer’s payment. Confirm it first, or cancel the order.');
 
     switch (action.type) {
+      case 'confirmpay': {
+        need('orders.pay');
+        when(!!o.hold && o.status === 'received', o.status === 'cancelled' ? 'This order was cancelled when the time ran out.' : 'No payment is being waited for.');
+        delete o.hold;
+        o.paid = { t: Date.now(), by: ctx.user.name, method: 2 };
+        move(Object.keys(o.stations).length ? 'accepted' : 'ready', 'accepted');
+        log = `Confirmed advance payment · Rs ${o.totals.total}`;
+        break;
+      }
       case 'accept':
         need('orders.manage');
         when(o.status === 'received');
@@ -444,6 +466,7 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
         need('orders.manage');
         when(isOpen(o.status), 'It has already been handed over.');
         o.cancelReason = String(action.reason || '').trim().slice(0, 140) || 'Cancelled by the café';
+        delete o.hold;
         move('cancelled');
         if (o.customerId && o.club) await reverseCredit(o.customerId, o.number, o.club.stamps, o.club.used && o.club.verified);
         await releaseStock(o.items);
@@ -474,7 +497,7 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
 
 /* ── what the customer can do ── */
 
-export async function customerAct(number: number, key: string, action: { type: 'cancel' | 'collected' | 'message'; text?: string }) {
+export async function customerAct(number: number, key: string, action: { type: 'cancel' | 'collected' | 'message' | 'payref'; text?: string }) {
   return withLock(`order:${number}`, async () => {
     const o = await getOrder(number);
     if (!o || !safeEqual(o.key, key)) return fail(404, 'No such order.') as never;
@@ -483,11 +506,18 @@ export async function customerAct(number: number, key: string, action: { type: '
     if (action.type === 'cancel') {
       if (!['received', 'accepted'].includes(o.status) || Object.values(o.stations).some((s) => s !== 'queued'))
         fail(409, "It's already being made, so it can't be cancelled here. Call the shop if something's wrong.");
+      delete o.hold;
       o.status = 'cancelled';
       o.cancelReason = 'Cancelled by the customer';
       o.events.push({ t, what: 'cancelled', status: 'cancelled', by: 'Customer' });
       if (o.customerId && o.club) await reverseCredit(o.customerId, o.number, o.club.stamps, o.club.used && o.club.verified);
       await releaseStock(o.items);
+    } else if (action.type === 'payref') {
+      if (!o.hold || o.status !== 'received') fail(409, 'This order is not waiting for payment.');
+      const ref = String(action.text || '').trim();
+      if (!/^[A-Za-z0-9-]{6,30}$/.test(ref)) fail(400, 'Enter the transaction ID from your payment receipt (6 to 30 letters and numbers).');
+      o.hold!.ref = ref;
+      o.events.push({ t, what: 'payref', by: 'Customer' });
     } else if (action.type === 'collected') {
       if (o.mode !== 'pickup' || o.status !== 'ready') fail(409, 'It isn’t ready yet.');
       o.status = 'collected';
@@ -526,4 +556,35 @@ export async function answerCall(id: string, ctx: StaffContext) {
   if (!worksAt(ctx.user, call.loc)) fail(403, "That table is at a shop you don't work at.");
   await kv.hdel('calls', id);
   await bumpLive();
+}
+
+/* ── held orders that were never paid ── */
+
+/** Cancels held orders whose time ran out, gives their stock back and tells the customer. Returns how many. Cheap when nothing is held. */
+export async function expireHolds() {
+  const now = Date.now();
+  const late = Object.entries(await kv.hall<number>('orders:holds')).filter(([, until]) => until < now);
+  let n = 0;
+  for (const [number] of late) {
+    const done = await withLock(`order:${number}`, async () => {
+      const o = await getOrder(Number(number));
+      if (!o || !o.hold || o.hold.until >= Date.now() || o.status !== 'received') {
+        if (o && !o.hold) await kv.hdel('orders:holds', o.number);
+        return null;
+      }
+      delete o.hold;
+      o.status = 'cancelled';
+      o.cancelReason = 'Payment not received in time';
+      o.events.push({ t: Date.now(), what: 'cancelled', status: 'cancelled', by: 'Auto' });
+      if (o.customerId && o.club) await reverseCredit(o.customerId, o.number, o.club.stamps, o.club.used && o.club.verified);
+      await releaseStock(o.items);
+      await saveOrder(o);
+      return o;
+    });
+    if (done) {
+      n++;
+      await notifyOrder(done, 'received');
+    }
+  }
+  return n;
 }

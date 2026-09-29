@@ -16,10 +16,11 @@ import { kv } from './store';
 export const NOTIFY_ON: readonly Status[] = ['received', 'ready', 'onway', 'delivered', 'collected', 'cancelled'];
 
 export const trackUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/?track=${o.number}&k=${o.key}`;
+export const payUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/pay/${o.number}?k=${o.key}`;
 export const reviewUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/review/${o.number}?k=${o.key}`;
 
 /** What to say when an order reaches `status`, or null when that step is silent. */
-export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' | 'name' | 'loc' | 'target' | 'rider' | 'cancelReason' | 'table'> & { key?: string }, status: Status = o.status): { subject: string; text: string } | null {
+export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' | 'name' | 'loc' | 'target' | 'rider' | 'cancelReason' | 'table'> & { key?: string; hold?: ServerOrder['hold'] }, status: Status = o.status): { subject: string; text: string } | null {
   if (!NOTIFY_ON.includes(status)) return null;
   const no = orderNo(o.number);
   const first = o.name.split(' ')[0] || 'there';
@@ -29,6 +30,11 @@ export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' |
   let text: string;
   switch (status) {
     case 'received':
+      if (o.hold) {
+        text = `Thanks ${first}, we have order ${no}. To confirm it, pay in advance and enter your transaction ID within ${Math.max(1, Math.round((o.hold.until - Date.now()) / 60000))} minutes.`;
+        if (o.key) text += ` Pay here: ${payUrl({ number: o.number, key: o.key })}`;
+        break;
+      }
       text = `Thanks ${first}, we have order ${no}. ${o.mode === 'dinein' ? `It's coming to table ${o.table}.` : `It should be ${o.mode === 'delivery' ? 'with you' : 'ready'} around ${clock(o.target)}.`}`;
       break;
     case 'ready':
@@ -47,7 +53,7 @@ export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' |
     default:
       text = `Order ${no} was cancelled${o.cancelReason ? `: ${o.cancelReason}` : ''}. If that's a surprise, please call brewns ${shop}.`;
   }
-  const track = link && ['received', 'ready', 'onway'].includes(status) ? ` Track it: ${link}` : '';
+  const track = link && !o.hold && ['received', 'ready', 'onway'].includes(status) ? ` Track it: ${link}` : '';
   return { subject: `brewns · order ${no}`, text: `☕ brewns · ${text}${track}` };
 }
 

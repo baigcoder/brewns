@@ -13,6 +13,9 @@ export const GET = route(async () => {
     live: live && s.online,
     soldOut: s.soldOut,
     shops: s.shops.map(({ paused, extraMin, tables }) => ({ paused, extraMin, tables })),
+    // Pay-first delivery: the site switches to the wallet option and sends the customer to the payment page.
+    prepay: s.prepay.minTotal === null ? null : { minTotal: s.prepay.minTotal },
+    payTo: s.prepay.payTo,
     promoHint: s.promos.find((p) => p.active)?.code || '',
   });
 });

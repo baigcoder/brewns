@@ -17,6 +17,9 @@ export type ShopSettings = {
   tables: number;
 };
 
+export type Prepay = { minTotal: number | null; holdMin: number; payTo: string };
+export const DEFAULT_PREPAY: Prepay = { minTotal: null, holdMin: 10, payTo: 'Raast ID: brewns@habibbank (JazzCash and Easypaisa work too)' };
+
 export type Promo = { code: string; pct: number; active: boolean; uses: number; createdAt: number; note?: string };
 
 export type Settings = {
@@ -26,6 +29,8 @@ export type Settings = {
   soldOut: string[];
   /** Units left of the items the café counts. An item at zero is sold out on its own; items not listed are unlimited. */
   stock: Record<string, number>;
+  /** Pay-first for delivery: orders of at least `minTotal` (before tax and fees) are held until the café confirms the payment. `minTotal: null` switches it off. */
+  prepay: Prepay;
   promos: Promo[];
   rolePerms: RolePerms;
   updatedAt: number;
@@ -38,6 +43,7 @@ export const defaultSettings = (): Settings => ({
   shops: Array.from({ length: SHOP_COUNT }, (_, i) => ({ ...DEFAULT_SHOP, tables: [14, 10, 12][i] ?? 10 })),
   soldOut: [],
   stock: {},
+  prepay: { ...DEFAULT_PREPAY },
   promos: [{ code: 'BREWNS10', pct: 10, active: true, uses: 0, createdAt: 0, note: 'The code the checkout suggests' }],
   rolePerms: normaliseRolePerms(null),
   updatedAt: 0,
@@ -52,6 +58,7 @@ export async function getSettings(): Promise<Settings> {
     shops: base.shops.map((s, i) => ({ ...s, ...(raw.shops?.[i] || {}) })),
     soldOut: Array.isArray(raw.soldOut) ? raw.soldOut : [],
     stock: raw.stock && typeof raw.stock === 'object' ? raw.stock : {},
+    prepay: { ...DEFAULT_PREPAY, ...(raw.prepay || {}) },
     promos: Array.isArray(raw.promos) ? raw.promos : base.promos,
     rolePerms: normaliseRolePerms(raw.rolePerms),
     updatedAt: raw.updatedAt || 0,

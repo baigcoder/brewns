@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { DELIVERY, LOC_TITLES, PAY } from '@/lib/catalog';
-import { isOpen, MODE_LABEL, orderNo, STATUS_LABEL, type Status } from '@/lib/orderFlow';
+import { clock, isOpen, MODE_LABEL, orderNo, STATUS_LABEL, type Status } from '@/lib/orderFlow';
 import { ago, pkTime, rs, useNow } from './api';
 import { useLive, type StaffOrder } from './Live';
 import { useMe } from './Shell';
@@ -105,7 +105,7 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
         <div className="cx-row">
           <StatusPill status={o.status} late={late} />
           <ModeTag o={o} />
-          <span className={`cx-pill plain${o.paid ? ' ready' : ''}`}>{o.paid ? `Paid · ${PAY[o.paid.method][0]}` : `Unpaid · ${PAY[o.pay][0]}`}</span>
+          <span className={`cx-pill plain${o.paid ? ' ready' : ''}`}>{o.paid ? `Paid · ${PAY[o.paid.method][0]}` : o.hold ? 'Awaiting payment' : `Unpaid · ${PAY[o.pay][0]}`}</span>
         </div>
 
         <div className="cx-card cx-stack" style={{ gap: 6 }}>
@@ -183,7 +183,27 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
 
         {/* The next step, big; then the rest. */}
         <div className="cx-stack">
-          {o.status === 'received' && can('orders.manage') && (
+          {o.hold && (
+            <div className="cx-stack" style={{ gap: 8, padding: 12, border: '1px solid var(--cx-line)', borderRadius: 10 }}>
+              <p style={{ fontWeight: 600 }}>Waiting for the customer’s payment · {rs(t.total)}</p>
+              <p className="cx-small cx-muted">
+                {o.hold.ref ? (
+                  <>
+                    Transaction ID sent: <b className="cx-mono">{o.hold.ref}</b>. Check it in your Raast / JazzCash app, then confirm.
+                  </>
+                ) : (
+                  'No transaction ID yet.'
+                )}{' '}
+                It cancels by itself at {clock(o.hold.until)} if unpaid.
+              </p>
+              {can('orders.pay') && (
+                <button className="cx-btn go big" disabled={busy} onClick={() => step({ type: 'confirmpay' }, 'Payment confirmed: it’s on the kitchen screen.')}>
+                  Payment received · start the order
+                </button>
+              )}
+            </div>
+          )}
+          {o.status === 'received' && !o.hold && can('orders.manage') && (
             <button className="cx-btn primary big" disabled={busy} onClick={() => step({ type: 'accept' }, 'Accepted: it’s on the kitchen screen.')}>
               Accept order
             </button>
@@ -227,7 +247,7 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
               Delivered
             </button>
           )}
-          {!o.paid && o.status !== 'cancelled' && can('orders.pay') && (
+          {!o.paid && !o.hold && o.status !== 'cancelled' && can('orders.pay') && (
             <div className="cx-row">
               <select className="cx-select" value={method ?? o.pay} onChange={(e) => setMethod(+e.target.value)} aria-label="Paid by">
                 {PAY.map((p, i) => (

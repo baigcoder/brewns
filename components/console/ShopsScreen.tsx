@@ -55,6 +55,8 @@ export function ShopsScreen() {
         </section>
       )}
 
+      {data?.prepay && <PrepayCard prepay={data.prepay} save={save} />}
+
       <div className="cx-grid three cx-noprint">
         {shops.map((i) => {
           const s = data?.shops[i];
@@ -147,6 +149,52 @@ function QrSheet({ loc, tables, origin, onClose }: { loc: number; tables: number
             <small>SCAN TO ORDER · CALL A WAITER</small>
           </figure>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/** Pay-first delivery: big delivery orders wait for the customer's payment before the kitchen sees them. */
+function PrepayCard({ prepay, save }: { prepay: { minTotal: number | null; holdMin: number; payTo: string }; save: (body: Record<string, unknown>, done?: string) => Promise<unknown> }) {
+  const { can } = useMe();
+  const [min, setMin] = useState(String(prepay.minTotal ?? 2000));
+  const [hold, setHold] = useState(String(prepay.holdMin));
+  const [payTo, setPayTo] = useState(prepay.payTo);
+  const on = prepay.minTotal !== null;
+  const send = (minTotal: number | null, done: string) => save({ prepay: { minTotal, holdMin: Number(hold), payTo } }, done);
+  if (!can('shops.manage')) return null;
+  return (
+    <section className="cx-card cx-stack cx-noprint" style={{ marginBottom: 16, gap: 12 }}>
+      <div className="cx-row between" style={{ flexWrap: 'nowrap' }}>
+        <div className="cx-stack" style={{ gap: 4 }}>
+          <p className="cx-h2">Pay first for delivery</p>
+          <p className="cx-small cx-muted">
+            Delivery orders at or above the minimum are held until the customer pays by Raast, JazzCash or Easypaisa and you confirm it. Unpaid orders cancel themselves and their stock comes back.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          className="cx-switch"
+          aria-checked={on}
+          aria-label="Pay first for delivery"
+          onClick={() => send(on ? null : Number(min) || 2000, on ? 'Delivery orders are no longer paid in advance.' : 'Big delivery orders are now paid in advance.')}
+        />
+      </div>
+      <div className="cx-row">
+        <label className="cx-row cx-small">
+          From Rs
+          <input className="cx-input" style={{ width: 100 }} type="number" min={100} value={min} onChange={(e) => setMin(e.target.value)} />
+        </label>
+        <label className="cx-row cx-small">
+          Hold for
+          <input className="cx-input" style={{ width: 70 }} type="number" min={3} max={60} value={hold} onChange={(e) => setHold(e.target.value)} />
+          min
+        </label>
+        <input className="cx-input" style={{ flex: 1, minWidth: 240 }} value={payTo} onChange={(e) => setPayTo(e.target.value)} placeholder="Where to send the money" aria-label="Where customers send the money" maxLength={200} />
+        <button type="button" className="cx-btn" onClick={() => send(on ? Number(min) : null, 'Saved.')}>
+          Save
+        </button>
       </div>
     </section>
   );

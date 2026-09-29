@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { catalogItem, defaultSel } from '@/lib/catalog';
+import { DEFAULT_ROLE_PERMS } from '@/lib/rbac';
 
 const dir = mkdtempSync(path.join(tmpdir(), 'brewns-test-'));
 process.env.BREWNS_DATA_FILE = path.join(dir, 'data.json');
@@ -174,5 +175,78 @@ describe('links and verified reviews', () => {
     expect((await call(route.POST, order.number, order.key, { stars: 4, quote: 'Again' })).status).toBe(409);
     const info = (await (await call(route.GET, order.number, order.key)).json()) as { reason: string };
     expect(info.reason).toBe('already');
+  });
+});
+
+describe('pay-first delivery', () => {
+  const delivery = { ...base, mode: 'delivery' as const, area: 0, address: 'House 12, Street 4, Block B' };
+  const staff = (role: 'cashier' | 'barista') =>
+    ({ user: { id: `u-${role}`, name: role, role, shops: [] }, role, perms: DEFAULT_ROLE_PERMS[role], settings: {} }) as never;
+  const turnOn = async (minTotal: number | null = 500) => {
+    const s = await settings.getSettings();
+    await store.kv.set('settings', { ...s, prepay: { minTotal, holdMin: 10, payTo: 'Raast ID: test@bank' }, soldOut: [], stock: {} });
+  };
+  const place = (pay: number, qty = 4) => orders.placeOrder({ ...delivery, pay, items: [americano(qty)] }, guest);
+
+  it('is off by default and only asks big delivery orders to pay first', async () => {
+    await turnOn(null);
+    expect((await place(0)).order.hold).toBeUndefined();
+    await turnOn(50000);
+    expect((await place(0)).order.hold).toBeUndefined(); // under the minimum
+    await turnOn(500);
+    await rejects(place(0), 400); // must choose the wallet
+    const pickup = await orders.placeOrder({ ...base, mode: 'pickup', items: [americano(4)] }, guest);
+    expect(pickup.order.hold).toBeUndefined(); // pickup is never held
+  });
+
+  it('holds the order away from the kitchen until the cashier confirms payment', async () => {
+    await turnOn();
+    const { order } = await place(2);
+    expect(order.status).toBe('received');
+    expect(order.hold?.until).toBeGreaterThan(Date.now());
+    expect(orders.visibleTo(order, staff('barista'))).toBe(false);
+    expect(orders.visibleTo(order, staff('cashier'))).toBe(true);
+    await rejects(orders.staffAct(order.number, { type: 'accept' }, staff('cashier')), 409);
+    await rejects(orders.staffAct(order.number, { type: 'confirmpay' }, staff('barista')), 403);
+    const done = await orders.staffAct(order.number, { type: 'confirmpay' }, staff('cashier'));
+    expect(done.hold).toBeUndefined();
+    expect(done.status).toBe('accepted');
+    expect(done.paid?.method).toBe(2);
+    expect(orders.visibleTo(done, staff('barista'))).toBe(true);
+  });
+
+  it('takes a transaction ID from the key holder only, and only while held', async () => {
+    await turnOn();
+    const { order } = await place(2);
+    await rejects(orders.customerAct(order.number, 'wrong', { type: 'payref', text: '3847291056' }), 404);
+    await rejects(orders.customerAct(order.number, order.key, { type: 'payref', text: 'x y' }), 400);
+    const held = await orders.customerAct(order.number, order.key, { type: 'payref', text: '3847291056' });
+    expect(held.hold?.ref).toBe('3847291056');
+    expect(orders.publicOrder(held).hold?.ref).toBe('3847291056');
+    await orders.staffAct(order.number, { type: 'confirmpay' }, staff('cashier'));
+    await rejects(orders.customerAct(order.number, order.key, { type: 'payref', text: '3847291056' }), 409);
+  });
+
+  it('cancels unpaid orders when the time runs out and gives the stock back', async () => {
+    await turnOn();
+    await settings.setStock('americano', 10);
+    const { order } = await place(2, 4);
+    expect((await settings.getSettings()).stock.americano).toBe(6);
+    expect(await orders.expireHolds()).toBe(0); // still inside the window
+    setSystemTime(new Date('2026-03-04T07:11:00Z'));
+    expect(await orders.expireHolds()).toBe(1);
+    const gone = await orders.getOrder(order.number);
+    expect(gone?.status).toBe('cancelled');
+    expect(gone?.cancelReason).toMatch(/payment/i);
+    expect((await settings.getSettings()).stock.americano).toBe(10);
+    await rejects(orders.staffAct(order.number, { type: 'confirmpay' }, staff('cashier')), 409);
+    expect(await orders.expireHolds()).toBe(0);
+  });
+
+  it('tells the customer where to pay', () => {
+    const o = { number: 7, key: 'k1', mode: 'delivery' as const, status: 'received' as const, name: 'Sara', loc: 0, target: Date.now() + 3600000, rider: null, table: null, hold: { until: Date.now() + 600000, ref: '' } };
+    const text = notify.orderMessage(o)?.text || '';
+    expect(text).toContain('/pay/7?k=k1');
+    expect(text).not.toContain('Track it');
   });
 });

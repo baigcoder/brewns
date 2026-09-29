@@ -82,6 +82,8 @@ export type ServerOrder = {
   key: string;
   club: { stamps: number; used: boolean; verified: boolean } | null;
   cancelReason?: string;
+  /** Waiting for the customer's advance payment: the kitchen doesn't see the order until the café confirms it. `ref` is the transaction ID they sent. */
+  hold?: { until: number; ref: string };
   demo?: boolean;
 };
 
