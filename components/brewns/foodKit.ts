@@ -345,7 +345,9 @@ export function dipCup(T: typeof THREE, kit: Kit, sauce: number, r = 0.11) {
   g.add(cup);
   const fill = new T.Mesh(
     displace(kit.add(new T.CylinderGeometry(r * 0.94, r * 0.7, 0.02, 40, 3)), 0.004, 12, 3),
-    kit.add(new T.MeshPhysicalMaterial({ color: sauce, roughness: 0.18, clearcoat: 0.9, clearcoatRoughness: 0.1 })),
+    // Glossy, but not a mirror: a flat pool seen from the front would reflect the studio's back softbox and wash the
+    // sauce's colour out to white.
+    kit.add(new T.MeshPhysicalMaterial({ color: sauce, roughness: 0.3, clearcoat: 0.35, clearcoatRoughness: 0.25, specularIntensity: 0.4 })),
   );
   fill.position.y = r * 0.78;
   g.add(fill);

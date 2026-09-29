@@ -26,16 +26,16 @@ export const friedCrust = (T: typeof THREE, kit: Kit, seed = 3) =>
       const big = fbm(u * 7, v * 7, seed, 4, seed);
       const crag = Math.abs(fbm(u * 22, v * 22, seed + 4, 3, seed + 2) - 0.5) * 2;
       const t = clamp01(big * 1.25 - 0.1);
-      let c = mix([160, 90, 32], [214, 150, 66], t);
-      c = mix(c, [238, 198, 120], clamp01((crag - 0.5) * 2.2) * 0.8);
-      c = mix(c, [104, 52, 16], clamp01((0.34 - big) * 3) * 0.75);
+      let c = mix([146, 88, 38], [204, 146, 76], t);
+      c = mix(c, [236, 202, 142], clamp01((crag - 0.5) * 2.2) * 0.8);
+      c = mix(c, [96, 52, 20], clamp01((0.34 - big) * 3) * 0.75);
       return [c[0], c[1], c[2], 0.3 + big * 0.35 + crag * 0.45];
     }),
     { roughness: 0.6, bumpScale: 8 },
   );
 
 /** A paper carton of fries, with an optional dusting of parmesan and rosemary. */
-export function friesCarton(T: typeof THREE, kit: Kit, o: { truffle?: boolean; seed?: number } = {}) {
+export function friesCarton(T: typeof THREE, kit: Kit, o: { truffle?: boolean; seed?: number; bare?: boolean } = {}) {
   const g = new T.Group();
   const label = draw(T, kit, 1024, 256, (ctx, w, h) => {
     ctx.fillStyle = '#171514';
@@ -55,7 +55,8 @@ export function friesCarton(T: typeof THREE, kit: Kit, o: { truffle?: boolean; s
   cartonGeo.rotateY(Math.PI / 4);
   const carton = new T.Mesh(cartonGeo, kit.add(new T.MeshStandardMaterial({ map: label, roughness: 0.8, side: T.DoubleSide })));
   carton.position.y = 0.21;
-  g.add(carton);
+  // Bare: the fries alone, for a basket that brings its own lining.
+  if (!o.bare) g.add(carton);
 
   const fryGeo = kit.add(new T.BoxGeometry(0.034, 0.034, 0.36));
   const tex = paint(T, kit, 64, 64, (u, v) => {
@@ -73,10 +74,10 @@ export function friesCarton(T: typeof THREE, kit: Kit, o: { truffle?: boolean; s
   }, o.seed ?? 4);
   if (o.truffle) {
     const flake = kit.add(new T.BoxGeometry(0.03, 0.006, 0.02));
-    scatter(T, kit, g, flake, kit.add(new T.MeshStandardMaterial({ color: 0xf6eed8, roughness: 0.7 })), 34, (i, r) => {
+    scatter(T, kit, g, flake, kit.add(new T.MeshStandardMaterial({ color: 0xf6eed8, roughness: 0.7 })), 60, (i, r) => {
       const a = r() * TAU;
       const rad = Math.sqrt(r()) * 0.2;
-      return { pos: [Math.cos(a) * rad, 0.5 + r() * 0.05, Math.sin(a) * rad], rot: [r() * 3, r() * 3, r() * 3], scale: 0.7 + r() * 0.9 };
+      return { pos: [Math.cos(a) * rad, 0.5 + r() * 0.05, Math.sin(a) * rad], rot: [r() * 3, r() * 3, r() * 3], scale: 0.35 + r() * 0.45 };
     }, 9);
     // A sprig of rosemary laid across the top.
     const stem = new T.Mesh(kit.add(new T.CylinderGeometry(0.004, 0.005, 0.24, 6)), kit.add(new T.MeshStandardMaterial({ color: 0x5a4a2c, roughness: 0.8 })));
