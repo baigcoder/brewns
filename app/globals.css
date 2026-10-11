@@ -4846,3 +4846,49 @@ body:has(#pre) .voice-call-floating {
 @keyframes heroHelloIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .hero-hello:not([hidden]) { opacity: 0; animation: heroHelloIn 700ms cubic-bezier(0.16, 1, 0.3, 1) 2.6s forwards; }
 @media (prefers-reduced-motion: reduce) { .hero-hello:not([hidden]) { animation: none; opacity: 1; } }
+
+/* ══════════════ menu and shop, split by purpose ══════════════
+   Menu: every drink and dish, a grid that grows. Shop: only what you take home. */
+.menu .menu-nav-ctrls, .shop .shop-bar { display: none; }
+.menu-more { display: flex; justify-content: center; margin-top: 0.5rem; }
+.menu-more[hidden] { display: none; }
+.menu-more-btn { font-family: var(--font-space-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; height: 2.75rem; padding: 0 1.5rem; border: 1px solid var(--foreground-inverse); background: transparent; color: var(--foreground-inverse); cursor: pointer; transition: background-color 180ms ease, color 180ms ease; }
+.menu-more-btn:hover { background: var(--foreground-inverse); color: var(--surface-inverse); }
+.menu-more-btn:focus-visible, .menu-tab:focus-visible { outline: 2px solid var(--accent, #c99355); outline-offset: 3px; }
+.card .fav { position: absolute; z-index: 3; top: 0.6rem; right: 0.6rem; display: grid; place-items: center; width: 2.125rem; height: 2.125rem; border-radius: 9999px; border: 1px solid rgb(7 7 7 / 0.16); background: rgb(255 255 255 / 0.8); color: #070707; cursor: pointer; transition: transform 160ms ease, background-color 160ms ease; }
+.card .fav:hover { transform: scale(1.08); }
+.card .fav:focus-visible { outline: 2px solid var(--accent, #c99355); outline-offset: 2px; }
+.card .fav[aria-pressed="true"] { background: var(--accent, #c99355); border-color: var(--accent, #c99355); }
+.card .fav[aria-pressed="true"] path { fill: currentColor; }
+/* a heart must not sit on the "view product" hint of a shop card */
+.pcard:hover .pcard-view, .pcard:focus-visible .pcard-view { right: 3.75rem; }
+
+@media (min-width: 1024px) {
+  .light.menu { height: auto; min-height: 0; }
+  .menu .menu-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 2.5rem; row-gap: 2rem; padding: 7.5rem 2.5rem 5rem; top: auto; }
+  .menu .menu-intro { position: static; width: auto; grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 21rem; align-items: end; column-gap: 2.5rem; row-gap: 1rem; }
+  .menu .menu-intro .t-eyebrow { grid-column: 1 / -1; }
+  .menu .menu-lede { position: static; width: auto; max-width: 21rem; }
+  .menu .menu-nav-bar { position: static; height: auto; grid-column: 1; }
+  .menu .menu-cta { position: static; grid-column: 2; align-self: center; }
+  .menu .cards { position: static; grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+  .menu .card { height: 19rem; }
+  .menu .menu-more { grid-column: 1 / -1; }
+  .menu .menu-tabs { flex-wrap: wrap; overflow: visible; }
+}
+@media (min-width: 1280px) { .menu .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 640px) and (max-width: 1023.98px) { .menu .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .menu .card { height: 18rem; } .menu .menu-more { grid-column: span 2 / span 2; } .menu .menu-tabs { flex-wrap: wrap; overflow: visible; } }
+@media (max-width: 639.98px) {
+  .menu .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .menu .card { height: 15rem; padding: 0.5rem; }
+  .menu .card-foot { flex-direction: column; gap: 0.35rem; min-height: 0; }
+  .menu .card-foot > div { width: 100%; }
+  .menu .card .fav { top: 0.4rem; right: 0.4rem; width: 1.9rem; height: 1.9rem; }
+}
+
+/* With exactly four things to take home the grid fills edge to edge, with no empty cells: the bestseller takes the left
+   half, the second coffee and the tumbler sit side by side beside it, and the gift card runs full width underneath
+   them. On a tablet it is a tidy 2 by 2, on a phone the gift card runs full width. (Add a fifth and the grid goes back
+   to its general layout.) */
+@media (max-width: 639.98px) { .shop-grid:has(> li:nth-child(4):last-child) > li:nth-child(4) { grid-column: 1 / -1; } }
+@media (min-width: 1024px) { .shop-grid:has(> li:nth-child(4):last-child) > li:nth-child(3) { grid-column: span 1; } }

@@ -1025,12 +1025,12 @@ const ALL_MENU_CARDS = [
   ...KITCHEN.map((k) => ({ shot: true, id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: cldProductUrl(k.photo), size: [1000, 1000], frame: [225, 225, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
 ];
 
-const cardHTML = (c, o) => {
+const cardHTML = (c, o, n = o) => {
   const [w, h, bottom, offsetX] = c.frame;
   const [top, left, width, height] = c.crop;
   return `<li><div class="lean"><div><article class="card" data-iv="rise" data-y="28" data-c="80,26" data-d="${o * 90}" data-menu-id="${c.id}">
     <div aria-hidden="true" class="card-range"></div>
-    <p class="card-idx"><span data-dr data-d="${o * 90 + 160}">0${o + 1}</span></p>
+    <p class="card-idx"><span data-dr data-d="${o * 90 + 160}">${String(n + 1).padStart(2, "0")}</span></p>
     <div class="card-media${c.clip ? " clip" : ""}${c.shot ? " shot" : ""}"><span><span class="card-par">
       <div class="still" style="width: calc(${w / 16}rem * var(--size-menu-still-scale)); max-width: var(--size-menu-still-max); aspect-ratio: ${w} / ${h}; bottom: calc(${bottom / 16}rem + var(--size-menu-still-lift)); margin-left: ${offsetX / 16}rem">
         <img loading="lazy" decoding="async" ${c.snap ? `data-snap="${c.snap}" data-snap-product="${c.id}"` : `src="${c.art || `${ASSET_BASE_URL}menu/${c.file}?v=${ASSET_CACHE_VERSION}`}"`} alt="${c.alt}" width="${c.size[0]}" height="${c.size[1]}" style="top: ${top}; left: ${left}; width: ${width}; height: ${height};${c.cover ? " object-fit: cover;" : ""}">
@@ -1046,7 +1046,7 @@ const cardHTML = (c, o) => {
   </article></div></div></li>`;
 };
 
-$("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map(cardHTML).join("");
+$("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map((c, i) => cardHTML(c, i)).join("");
 
 /* The shop prints a receipt for every order, so a review arrives the same way:
    on a slip, in the same mono, torn off at the bottom. What someone ordered is
@@ -4489,19 +4489,18 @@ const saveFavsLocal = () => {
 };
 const heartHTML = (p) =>
   `<button type="button" class="fav" data-fav="${p.id}" data-name="${esc(p.name)}" aria-pressed="false" aria-label="Save ${esc(p.name)} to favourites"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>`;
-const paintFavs = () => {
+const paintHearts = () =>
   $$("[data-fav]").forEach((b) => {
     const on = favs.has(b.dataset.fav);
     b.setAttribute("aria-pressed", String(on));
     b.setAttribute("aria-label", `${on ? "Remove" : "Save"} ${b.dataset.name || "this"} ${on ? "from" : "to"} favourites`);
   });
-  const tab = $('.shop-tab[data-cat="favs"]');
-  if (tab) {
-    tab.hidden = favs.size === 0;
-    const n = tab.querySelector("sup");
-    if (n) n.textContent = String(favs.size).padStart(2, "0");
-  }
-  if (typeof shopFilter !== "undefined" && shopFilter === "favs" && !favs.size) setFilter("all");
+const paintFavs = () => {
+  paintHearts();
+  const chip = $('.menu-tab[data-cat="favs"]');
+  if (chip) chip.hidden = favs.size === 0;
+  // Looking at favourites while one is removed: the list follows.
+  if (menuCat === "favs") (favs.size ? updateMenuDisplay(true) : setMenuCat("all"));
 };
 const toggleFav = (id) => {
   const p = productById(id);
@@ -4555,7 +4554,11 @@ const tabInd = $("#shop-tab-ind");
 const shopCountEl = $("#shop-count");
 let shopFilter = "all";
 
-shopGrid.innerHTML = PRODUCTS.map((p, i) => {
+/* The shop is what you take home: beans, gear, merch and gifts. Every drink and dish is on the menu above, so
+   nothing is shown twice. */
+const SHOP_CATS = new Set(["beans", "merch", "gifts"]);
+const SHOP_PRODUCTS = PRODUCTS.filter((p) => SHOP_CATS.has(p.cat));
+shopGrid.innerHTML = SHOP_PRODUCTS.map((p, i) => {
   const media = p.gift
     ? giftcardHTML(money(p.price))
     : p.photo && p.cutout
@@ -4574,7 +4577,7 @@ shopGrid.innerHTML = PRODUCTS.map((p, i) => {
       </div>
     </article></div></div></li>`;
 }).join("");
-shopCountEl.textContent = String(PRODUCTS.length).padStart(2, "0");
+shopCountEl.textContent = String(SHOP_PRODUCTS.length).padStart(2, "0");
 fillSnaps(shopGrid);
 fillSnaps($("#cards")); // the menu cards were built before fillSnaps existed
 $$(".lean", shopGrid).forEach((outer) => lean(outer.firstElementChild, outer, 6));
@@ -4583,11 +4586,12 @@ $$(".pcard", shopGrid).forEach((card, i) => inview(card, { opacity: 0, y: 28 }, 
 shopTabs.insertAdjacentHTML(
   "afterbegin",
   Object.entries(CAT_LABEL)
+    .filter(([key]) => key === "all" || SHOP_CATS.has(key))
     .map(([key, label]) => {
-      const n = key === "all" ? PRODUCTS.length : PRODUCTS.filter((p) => p.cat === key).length;
+      const n = key === "all" ? SHOP_PRODUCTS.length : SHOP_PRODUCTS.filter((p) => p.cat === key).length;
       return `<button type="button" class="shop-tab" role="tab" aria-selected="${key === "all"}" data-cat="${key}">${label}<sup>${String(n).padStart(2, "0")}</sup></button>`;
     })
-    .join("") + '<button type="button" class="shop-tab" role="tab" aria-selected="false" data-cat="favs" hidden>♥ FAVOURITES<sup>00</sup></button>',
+    .join(""),
 );
 const tabSpring = new Spring({ x: 0, w: 0 }, (o) => (tabInd.style.transform = `translateX(${o.x}px) scaleX(${o.w})`));
 const placeTabInd = (immediate) => {
@@ -4605,7 +4609,7 @@ const setFilter = (cat) => { playSoftClick();
   placeTabInd(false);
   let shown = 0;
   $$("#shop-grid > li").forEach((li) => {
-    const match = cat === "all" || (cat === "favs" ? favs.has(li.querySelector("[data-product]")?.dataset.product) : li.dataset.cat === cat);
+    const match = cat === "all" || li.dataset.cat === cat;
     li.hidden = !match;
     if (!match || REDUCED) return;
     let s = itemSprings.get(li);
@@ -4620,8 +4624,6 @@ shopTabs.addEventListener("click", (e) => {
   const b = e.target.closest(".shop-tab");
   if (b) setFilter(b.dataset.cat);
 });
-
-paintFavs();
 
 const quickAdd = (id, btn) => { if (btn) flyLiquidDrop(btn); else playPourDrop();
   const p = productById(id);
@@ -4651,114 +4653,126 @@ shopGrid.addEventListener("keydown", (e) => {
   }
 });
 
-/* ═══════════ Menu Section Category & Carousel Controls ═══════════ */
+/* ═══════════ Menu: every drink and dish, in a grid that grows ═══════════
+   All of it is on the page: eight at a time (six on a phone), "show more" for the rest, one category bar, a heart on
+   every card. The old four-at-a-time carousel hid most of the menu behind arrows. */
 let menuCat = "all";
-let menuPage = 0;
+let menuShown = 0;
 const menuCardsTrack = $("#cards");
 const menuTabsEl = $("#menu-tabs");
-const menuPrevBtn = $("#menu-prev");
-const menuNextBtn = $("#menu-next");
-const menuPageEl = $("#menu-page");
+const menuStep = () => (window.innerWidth < 640 ? 6 : 8);
+const menuFiltered = () =>
+  menuCat === "favs" ? ALL_MENU_CARDS.filter((c) => favs.has(c.id)) : menuCat === "all" ? ALL_MENU_CARDS.filter((c) => c.cat !== "beans") : ALL_MENU_CARDS.filter((c) => c.cat === menuCat);
+
+menuCardsTrack.insertAdjacentHTML("afterend", '<div class="menu-more" id="menu-more-wrap" hidden><button type="button" class="menu-more-btn" id="menu-more"></button></div>');
+const menuMoreWrap = $("#menu-more-wrap");
+const menuMoreBtn = $("#menu-more");
 
 const wireMenuCardEvents = () => {
-  $$("#cards .card").forEach((card) => {
+  $$("#cards .card:not([data-wired])").forEach((card) => {
+    card.dataset.wired = "1";
     card.style.cursor = "pointer";
     card.tabIndex = 0;
     card.setAttribute("role", "link");
     const id = card.dataset.menuId;
     const p = id ? productById(id) : null;
-    if (p) card.setAttribute("aria-label", `View ${p.name}`);
+    if (p) {
+      card.setAttribute("aria-label", `View ${p.name}`);
+      card.insertAdjacentHTML("afterbegin", heartHTML(p));
+    }
     card.onclick = (e) => {
+      const heart = (e.target as HTMLElement).closest("[data-fav]") as HTMLElement | null;
+      if (heart) return toggleFav(heart.dataset.fav);
       if ((e.target as HTMLElement).closest(".card-quick-add")) return;
       if (id) openProduct(id);
     };
     card.onkeydown = (e) => {
-      if (e.key === "Enter" && !(e.target as HTMLElement).closest(".card-quick-add")) {
+      if (e.key === "Enter" && !(e.target as HTMLElement).closest(".card-quick-add, [data-fav]")) {
         e.preventDefault();
         if (id) openProduct(id);
       }
     };
   });
-  $$("#cards .card-quick-add").forEach((btn) => {
+  $$("#cards .card-quick-add:not([data-wired])").forEach((btn) => {
+    btn.dataset.wired = "1";
     btn.onclick = (e) => {
       e.stopPropagation();
       const id = btn.dataset.cardAdd;
       if (id) quickAdd(id, btn);
     };
   });
-  $$(".lean", menuCardsTrack).forEach((outer) => lean(outer.firstElementChild, outer));
+  $$("#cards .lean:not([data-wired])").forEach((outer) => {
+    outer.dataset.wired = "1";
+    lean(outer.firstElementChild, outer);
+  });
+  paintHearts();
 };
 
-const updateMenuDisplay = (immediate = false) => {
-  const filtered = menuCat === "all" ? ALL_MENU_CARDS : ALL_MENU_CARDS.filter((c) => c.cat === menuCat);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / 4));
-  if (menuPage >= totalPages) menuPage = totalPages - 1;
-  if (menuPage < 0) menuPage = 0;
-
-  const slice = filtered.slice(menuPage * 4, menuPage * 4 + 4);
-  menuCardsTrack.innerHTML = slice.map((c, idx) => cardHTML(c, idx)).join("");
+/** Draws the cards for the chosen category: from the start, or (`more`) the next batch added below. */
+const updateMenuDisplay = (immediate = false, more = false) => {
+  const list = menuFiltered();
+  const from = more ? menuCardsTrack.children.length : 0;
+  menuShown = more ? Math.min(list.length, menuShown + menuStep()) : Math.min(list.length, menuStep());
+  if (!more) menuCardsTrack.innerHTML = "";
+  menuCardsTrack.insertAdjacentHTML("beforeend", list.slice(from, menuShown).map((c, i) => cardHTML(c, i, from + i)).join(""));
   fillSnaps(menuCardsTrack);
   wireMenuCardEvents();
-  // Freshly drawn cards never pass through the page's in-view reveal, so their
-  // names would stay clipped; reveal them here.
-  $$("[data-iv]", menuCardsTrack).forEach((el, i) => {
-    const [from, to] = PRESET[el.dataset.iv](el);
-    const reveal = new Spring(from, styler(el));
+  // New cards never pass through the page's in-view reveal, so their names would stay clipped; reveal them here.
+  const fresh = [...menuCardsTrack.children].slice(from);
+  fresh.flatMap((li) => [...li.querySelectorAll("[data-iv]")]).forEach((el, i) => {
+    const [fromState, to] = PRESET[el.dataset.iv](el);
+    const reveal = new Spring(fromState, styler(el));
     if (immediate || REDUCED) reveal.set(to);
-    else reveal.start(to, { config: { duration: 700, easing: easeOutCubic }, delay: 120 + i * 45 });
+    else reveal.start(to, { config: { duration: 700, easing: easeOutCubic }, delay: 120 + i * 30 });
   });
-
-  if (menuPageEl) menuPageEl.textContent = `${String(menuPage + 1).padStart(2, "0")} / ${String(totalPages).padStart(2, "0")}`;
-  if (menuPrevBtn) (menuPrevBtn as HTMLButtonElement).disabled = menuPage === 0;
-  if (menuNextBtn) (menuNextBtn as HTMLButtonElement).disabled = menuPage >= totalPages - 1;
-
-  if (!immediate && !REDUCED) {
-    $$("#cards .card").forEach((card, i) => {
+  if (!immediate && !REDUCED)
+    fresh.forEach((li, i) => {
+      const card = li.querySelector(".card");
+      if (!card) return;
       const s = new Spring({ opacity: 0, y: 18 }, styler(card));
       s.start({ opacity: 1, y: 0 }, { config: C(120, 24), delay: i * 45 });
     });
-  }
+  else fresh.forEach((li) => li.querySelector(".card") && (li.querySelector(".card").style.opacity = "1"));
+  const left = list.length - menuShown;
+  menuMoreWrap.hidden = left <= 0;
+  menuMoreBtn.textContent = `SHOW ${Math.min(menuStep(), left)} MORE · ${left} LEFT`;
 };
 
-wireMenuCardEvents();
+const setMenuCat = (cat) => {
+  menuCat = cat;
+  $$(".menu-tab", menuTabsEl).forEach((b) => {
+    const active = b.dataset.cat === cat;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", String(active));
+  });
+  updateMenuDisplay(true);
+};
+/** From a product's category link: the menu shows drinks and dishes, the shop shows what you take home. */
+const MENU_CAT_OF = { drinks: "coffee", coolers: "drinks", bakery: "bakery", kitchen: "all", coffee: "coffee", specialty: "specialty", burgers: "burgers", pizza: "pizza", pasta: "pasta", rolls: "rolls" };
+const openCategory = (cat, { immediate = false } = {}) => {
+  if (cat === "all" || SHOP_CATS.has(cat)) {
+    setFilter(cat);
+    return immediate ? lenis.scrollTo("#shop", { force: true, immediate: true }) : lenis.scrollTo("#shop", { duration: 1.2 });
+  }
+  setMenuCat(MENU_CAT_OF[cat] || "all");
+  return immediate ? lenis.scrollTo("#menu", { force: true, immediate: true }) : lenis.scrollTo("#menu", { duration: 1.2 });
+};
 
 if (menuTabsEl) {
   menuTabsEl.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest(".menu-tab") as HTMLButtonElement;
     if (!btn) return;
     playSoftClick();
-    menuCat = btn.dataset.cat || "all";
-    menuPage = 0;
-    $$(".menu-tab", menuTabsEl).forEach((b) => {
-      const active = b === btn;
-      b.classList.toggle("active", active);
-      b.setAttribute("aria-selected", String(active));
-    });
-    updateMenuDisplay();
+    setMenuCat(btn.dataset.cat || "all");
   });
 }
+menuMoreBtn.addEventListener("click", () => {
+  playSoftClick();
+  updateMenuDisplay(false, true);
+});
 
-if (menuPrevBtn) {
-  menuPrevBtn.addEventListener("click", () => {
-    if (menuPage > 0) {
-      playSoftClick();
-      menuPage--;
-      updateMenuDisplay();
-    }
-  });
-}
-
-if (menuNextBtn) {
-  menuNextBtn.addEventListener("click", () => {
-    const filtered = menuCat === "all" ? ALL_MENU_CARDS : ALL_MENU_CARDS.filter((c) => c.cat === menuCat);
-    const totalPages = Math.ceil(filtered.length / 4);
-    if (menuPage < totalPages - 1) {
-      playSoftClick();
-      menuPage++;
-      updateMenuDisplay();
-    }
-  });
-}
+updateMenuDisplay(true);
+paintFavs();
 
 $("#menu-cta").addEventListener("click", (e) => {
   e.preventDefault();
@@ -5270,8 +5284,7 @@ pdpEl.addEventListener("click", (e) => {
   const crumb = t.closest("[data-crumb]");
   if (crumb) {
     closeProduct();
-    setFilter(crumb.dataset.crumb);
-    return setTimeout(() => lenis.scrollTo("#shop", { force: true, immediate: true }), 60);
+    return setTimeout(() => openCategory(crumb.dataset.crumb, { immediate: true }), 60);
   }
   const reqToggle = t.closest("[data-req-toggle]");
   if (reqToggle) {
@@ -8147,10 +8160,7 @@ coEl.addEventListener("submit", (e) => {
     if (!a) return;
     e.preventDefault();
     const [kind, arg, extra] = a.dataset.go.split(":");
-    if (kind === "shop") {
-      setFilter(arg);
-      return lenis.scrollTo("#shop", { duration: 1.2 });
-    }
+    if (kind === "shop") return openCategory(arg);
     if (kind === "menu") {
       $(`.menu-tab[data-cat="${arg}"]`)?.click();
       return lenis.scrollTo("#menu", { duration: 1.2 });
