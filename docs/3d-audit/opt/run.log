@@ -1,0 +1,76 @@
+smash-burger       meal     all values differ
+smash-burger       extra    all values differ
+zinger-burger      meal     all values differ
+zinger-burger      spice    NO VISIBLE CHANGE
+bbq-burger         meal     all values differ
+alfredo-pasta      protein  all values differ
+arrabbiata-pasta   spice    NO VISIBLE CHANGE
+arrabbiata-pasta   add      all values differ
+pesto-pasta        protein  all values differ
+tikka-roll         spice    some values look the same: MEDIUM
+tikka-roll         cheese   all values differ
+behari-roll        spice    some values look the same: MEDIUM
+crispy-wrap        spice    some values look the same: MEDIUM
+margherita-pizza   size     all values differ
+fajita-pizza       size     all values differ
+fajita-pizza       crust    all values differ
+pepperoni-pizza    size     all values differ
+pepperoni-pizza    crust    all values differ
+mint-margarita     size     all values differ
+peach-iced-tea     size     all values differ
+peach-iced-tea     sweet    some values look the same: REGULAR
+mango-smoothie     size     all values differ
+mango-smoothie     milk     NO VISIBLE CHANGE
+lime-soda          style    NO VISIBLE CHANGE
+truffle-fries      dip      all values differ
+chicken-tenders    spice    NO VISIBLE CHANGE
+chicken-tenders    dip      all values differ
+garlic-bread       cheese   all values differ
+slow-roast         size     all values differ
+slow-roast         grind    NO VISIBLE CHANGE
+slow-roast         plan     NO VISIBLE CHANGE
+single-origin      size     all values differ
+single-origin      grind    NO VISIBLE CHANGE
+single-origin      plan     NO VISIBLE CHANGE
+latte              size     all values differ
+latte              milk     NO VISIBLE CHANGE
+latte              temp     NO VISIBLE CHANGE
+espresso           shots    NO VISIBLE CHANGE
+espresso           style    NO VISIBLE CHANGE
+cortado            shots    all values differ
+cortado            milk     NO VISIBLE CHANGE
+cortado            temp     NO VISIBLE CHANGE
+nitro-cold-brew    size     NO VISIBLE CHANGE
+nitro-cold-brew    style    all values differ
+iced-matcha        size     all values differ
+iced-matcha        milk     NO VISIBLE CHANGE
+iced-matcha        sweet    NO VISIBLE CHANGE
+iced-latte         size     all values differ
+iced-latte         milk     NO VISIBLE CHANGE
+iced-latte         shots    all values differ
+cappuccino         size     all values differ
+cappuccino         milk     some values look the same: OAT
+cappuccino         temp     all values differ
+spanish-latte      size     all values differ
+spanish-latte      temp     all values differ
+spanish-latte      sweet    all values differ
+americano          size     all values differ
+americano          temp     all values differ
+americano          shots    all values differ
+flat-white         milk     NO VISIBLE CHANGE
+flat-white         temp     NO VISIBLE CHANGE
+mocha              size     all values differ
+mocha              milk     all values differ
+mocha              temp     all values differ
+cardamom-bun       serve    all values differ
+cinnamon-roll      warm     all values differ
+cinnamon-roll      glaze    all values differ
+matcha-financier   serve    all values differ
+butter-croissant   serve    all values differ
+almond-croissant   serve    all values differ
+san-sebastian      serve    all values differ
+fudge-brownie      serve    all values differ
+tiramisu           portion  all values differ
+ceramic-tumbler    color    all values differ
+ceramic-tumbler    lid      NO VISIBLE CHANGE
+finished

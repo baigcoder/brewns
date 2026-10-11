@@ -1,0 +1,23 @@
+noWebGL    single-origin      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"ETHIOPIA YIRGACHEFFE","back":true}
+noWebGL    smash-burger       pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CLASSIC SMASH BURGER","back":true}
+noWebGL    zinger-burger      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CRISPY ZINGER BURGER","back":true}
+noWebGL    bbq-burger         pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"SMOKY BBQ BEEF BURGER","back":true}
+noWebGL    butter-croissant   pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"FRENCH BUTTER CROISSANT","back":true}
+noWebGL    almond-croissant   pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"ALMOND CROISSANT","back":true}
+noWebGL    garlic-bread       pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CHEESY GARLIC BREAD","back":true}
+noWebGL    lime-soda          pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"FRESH LIME SODA","back":true}
+noWebGL    ceramic-tumbler    pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CERAMIC TRAVEL TUMBLER","back":true}
+noWebGL    chicken-tenders    pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CRISPY BUTTERMILK TENDERS","back":true}
+noWebGL    arrabbiata-pasta   pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"PENNE ARRABBIATA","back":true}
+glbBlocked single-origin      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"ETHIOPIA YIRGACHEFFE","back":true}
+glbBlocked smash-burger       pass {"canvas":true,"photo":false,"status":null,"name":"CLASSIC SMASH BURGER","back":true}
+glbBlocked zinger-burger      pass {"canvas":true,"photo":false,"status":null,"name":"CRISPY ZINGER BURGER","back":true}
+glbBlocked bbq-burger         pass {"canvas":true,"photo":false,"status":null,"name":"SMOKY BBQ BEEF BURGER","back":true}
+glbBlocked butter-croissant   pass {"canvas":true,"photo":false,"status":null,"name":"FRENCH BUTTER CROISSANT","back":true}
+glbBlocked almond-croissant   pass {"canvas":true,"photo":false,"status":null,"name":"ALMOND CROISSANT","back":true}
+glbBlocked garlic-bread       pass {"canvas":true,"photo":false,"status":null,"name":"CHEESY GARLIC BREAD","back":true}
+glbBlocked lime-soda          pass {"canvas":true,"photo":false,"status":null,"name":"FRESH LIME SODA","back":true}
+glbBlocked ceramic-tumbler    pass {"canvas":true,"photo":false,"status":null,"name":"CERAMIC TRAVEL TUMBLER","back":true}
+glbBlocked chicken-tenders    pass {"canvas":true,"photo":false,"status":null,"name":"CRISPY BUTTERMILK TENDERS","back":true}
+glbBlocked arrabbiata-pasta   pass {"canvas":true,"photo":false,"status":null,"name":"PENNE ARRABBIATA","back":true}
+all done

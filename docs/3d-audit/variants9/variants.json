@@ -1,0 +1,402 @@
+[
+ {
+  "id": "mint-margarita",
+  "shot": "mint-margarita-default",
+  "selected": [
+   "REGULAR"
+  ]
+ },
+ {
+  "id": "mint-margarita",
+  "shot": "mint-margarita-size-0",
+  "option": "size",
+  "clicked": "REGULAR",
+  "selected": "REGULAR",
+  "canvases": 1
+ },
+ {
+  "id": "mint-margarita",
+  "shot": "mint-margarita-size-1",
+  "option": "size",
+  "clicked": "LARGE",
+  "selected": "LARGE",
+  "canvases": 1
+ },
+ {
+  "id": "peach-iced-tea",
+  "shot": "peach-iced-tea-default",
+  "selected": [
+   "REGULAR",
+   "REGULAR"
+  ]
+ },
+ {
+  "id": "peach-iced-tea",
+  "shot": "peach-iced-tea-size-0",
+  "option": "size",
+  "clicked": "REGULAR",
+  "selected": "REGULAR",
+  "canvases": 1
+ },
+ {
+  "id": "peach-iced-tea",
+  "shot": "peach-iced-tea-size-1",
+  "option": "size",
+  "clicked": "LARGE",
+  "selected": "LARGE",
+  "canvases": 1
+ },
+ {
+  "id": "peach-iced-tea",
+  "shot": "peach-iced-tea-sweet-0",
+  "option": "sweet",
+  "clicked": "LESS",
+  "selected": "LESS",
+  "canvases": 1
+ },
+ {
+  "id": "peach-iced-tea",
+  "shot": "peach-iced-tea-sweet-1",
+  "option": "sweet",
+  "clicked": "REGULAR",
+  "selected": "REGULAR",
+  "canvases": 1
+ },
+ {
+  "id": "peach-iced-tea",
+  "shot": "peach-iced-tea-sweet-2",
+  "option": "sweet",
+  "clicked": "EXTRA",
+  "selected": "EXTRA",
+  "canvases": 1
+ },
+ {
+  "id": "mango-smoothie",
+  "shot": "mango-smoothie-default",
+  "selected": [
+   "REGULAR",
+   "YOGURT"
+  ]
+ },
+ {
+  "id": "mango-smoothie",
+  "shot": "mango-smoothie-size-0",
+  "option": "size",
+  "clicked": "REGULAR",
+  "selected": "REGULAR",
+  "canvases": 1
+ },
+ {
+  "id": "mango-smoothie",
+  "shot": "mango-smoothie-size-1",
+  "option": "size",
+  "clicked": "LARGE",
+  "selected": "LARGE",
+  "canvases": 1
+ },
+ {
+  "id": "mango-smoothie",
+  "shot": "mango-smoothie-milk-0",
+  "option": "milk",
+  "clicked": "YOGURT",
+  "selected": "YOGURT",
+  "canvases": 1
+ },
+ {
+  "id": "mango-smoothie",
+  "shot": "mango-smoothie-milk-1",
+  "option": "milk",
+  "clicked": "OAT MILK",
+  "selected": "OAT MILK",
+  "canvases": 1
+ },
+ {
+  "id": "lime-soda",
+  "shot": "lime-soda-default",
+  "selected": [
+   "SWEET"
+  ]
+ },
+ {
+  "id": "lime-soda",
+  "shot": "lime-soda-style-0",
+  "option": "style",
+  "clicked": "SWEET",
+  "selected": "SWEET",
+  "canvases": 1
+ },
+ {
+  "id": "lime-soda",
+  "shot": "lime-soda-style-1",
+  "option": "style",
+  "clicked": "SALTED",
+  "selected": "SALTED",
+  "canvases": 1
+ },
+ {
+  "id": "lime-soda",
+  "shot": "lime-soda-style-2",
+  "option": "style",
+  "clicked": "MIXED",
+  "selected": "MIXED",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-default",
+  "selected": [
+   "DOUBLE",
+   "WHOLE",
+   "WARM (57°C)"
+  ]
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-shots-0",
+  "option": "shots",
+  "clicked": "DOUBLE",
+  "selected": "DOUBLE",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-shots-1",
+  "option": "shots",
+  "clicked": "TRIPLE",
+  "selected": "TRIPLE",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-milk-0",
+  "option": "milk",
+  "clicked": "WHOLE",
+  "selected": "WHOLE",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-milk-1",
+  "option": "milk",
+  "clicked": "OAT",
+  "selected": "OAT",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-milk-2",
+  "option": "milk",
+  "clicked": "ALMOND",
+  "selected": "ALMOND",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-temp-0",
+  "option": "temp",
+  "clicked": "WARM (57°C)",
+  "selected": "WARM (57°C)",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-temp-1",
+  "option": "temp",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-default",
+  "selected": [
+   "12 OZ",
+   "STRAIGHT NITRO"
+  ]
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-size-0",
+  "option": "size",
+  "clicked": "12 OZ",
+  "selected": "12 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-size-1",
+  "option": "size",
+  "clicked": "16 OZ",
+  "selected": "16 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-style-0",
+  "option": "style",
+  "clicked": "STRAIGHT NITRO",
+  "selected": "STRAIGHT NITRO",
+  "canvases": 1
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-style-1",
+  "option": "style",
+  "clicked": "VANILLA SWEET CREAM",
+  "selected": "VANILLA SWEET CREAM",
+  "canvases": 1
+ },
+ {
+  "id": "flat-white",
+  "shot": "flat-white-default",
+  "selected": [
+   "WHOLE",
+   "HOT (62°C)"
+  ]
+ },
+ {
+  "id": "flat-white",
+  "shot": "flat-white-milk-0",
+  "option": "milk",
+  "clicked": "WHOLE",
+  "selected": "WHOLE",
+  "canvases": 1
+ },
+ {
+  "id": "flat-white",
+  "shot": "flat-white-milk-1",
+  "option": "milk",
+  "clicked": "OAT",
+  "selected": "OAT",
+  "canvases": 1
+ },
+ {
+  "id": "flat-white",
+  "shot": "flat-white-milk-2",
+  "option": "milk",
+  "clicked": "ALMOND",
+  "selected": "ALMOND",
+  "canvases": 1
+ },
+ {
+  "id": "flat-white",
+  "shot": "flat-white-temp-0",
+  "option": "temp",
+  "clicked": "HOT (62°C)",
+  "selected": "HOT (62°C)",
+  "canvases": 1
+ },
+ {
+  "id": "mocha",
+  "shot": "mocha-default",
+  "selected": [
+   "12 OZ",
+   "WHOLE",
+   "HOT"
+  ]
+ },
+ {
+  "id": "mocha",
+  "shot": "mocha-size-0",
+  "option": "size",
+  "clicked": "12 OZ",
+  "selected": "12 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "mocha",
+  "shot": "mocha-size-1",
+  "option": "size",
+  "clicked": "16 OZ",
+  "selected": "16 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "mocha",
+  "shot": "mocha-milk-0",
+  "option": "milk",
+  "clicked": "WHOLE",
+  "selected": "WHOLE",
+  "canvases": 1
+ },
+ {
+  "id": "mocha",
+  "shot": "mocha-milk-1",
+  "option": "milk",
+  "clicked": "OAT",
+  "selected": "OAT",
+  "canvases": 1
+ },
+ {
+  "id": "mocha",
+  "shot": "mocha-milk-2",
+  "option": "milk",
+  "clicked": "ALMOND",
+  "selected": "ALMOND",
+  "canvases": 1
+ },
+ {
+  "id": "mocha",
+  "shot": "mocha-temp-0",
+  "option": "temp",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "mocha",
+  "shot": "mocha-temp-1",
+  "option": "temp",
+  "clicked": "ICED",
+  "selected": "ICED",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-default",
+  "selected": [
+   "MATTE CHARCOAL",
+   "SLIDE LOCK"
+  ]
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-0",
+  "option": "color",
+  "clicked": "MATTE CHARCOAL",
+  "selected": "MATTE CHARCOAL",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-1",
+  "option": "color",
+  "clicked": "RAW OAT",
+  "selected": "RAW OAT",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-2",
+  "option": "color",
+  "clicked": "AMBER CREMA",
+  "selected": "AMBER CREMA",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-lid-0",
+  "option": "lid",
+  "clicked": "SLIDE LOCK",
+  "selected": "SLIDE LOCK",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-lid-1",
+  "option": "lid",
+  "clicked": "360° SIP LID",
+  "selected": "360° SIP LID",
+  "canvases": 1
+ }
+]

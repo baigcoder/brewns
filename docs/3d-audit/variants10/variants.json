@@ -1,0 +1,356 @@
+[
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-default",
+  "selected": [
+   "JUST THE BURGER",
+   "NONE"
+  ]
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-0",
+  "option": "extra",
+  "clicked": "NONE",
+  "selected": "NONE",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-1",
+  "option": "extra",
+  "clicked": "+ CHEESE",
+  "selected": "+ CHEESE",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-2",
+  "option": "extra",
+  "clicked": "+ PATTY",
+  "selected": "+ PATTY",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-default",
+  "selected": [
+   "JUST THE BURGER",
+   "MEDIUM"
+  ]
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-default",
+  "selected": [
+   "JUST THE BURGER"
+  ]
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "tikka-roll",
+  "shot": "tikka-roll-default",
+  "selected": [
+   "MEDIUM",
+   "NO"
+  ]
+ },
+ {
+  "id": "tikka-roll",
+  "shot": "tikka-roll-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "tikka-roll",
+  "shot": "tikka-roll-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "tikka-roll",
+  "shot": "tikka-roll-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "tikka-roll",
+  "shot": "tikka-roll-cheese-0",
+  "option": "cheese",
+  "clicked": "NO",
+  "selected": "NO",
+  "canvases": 1
+ },
+ {
+  "id": "tikka-roll",
+  "shot": "tikka-roll-cheese-1",
+  "option": "cheese",
+  "clicked": "YES",
+  "selected": "YES",
+  "canvases": 1
+ },
+ {
+  "id": "behari-roll",
+  "shot": "behari-roll-default",
+  "selected": [
+   "MEDIUM"
+  ]
+ },
+ {
+  "id": "behari-roll",
+  "shot": "behari-roll-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "behari-roll",
+  "shot": "behari-roll-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "behari-roll",
+  "shot": "behari-roll-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "crispy-wrap",
+  "shot": "crispy-wrap-default",
+  "selected": [
+   "MEDIUM"
+  ]
+ },
+ {
+  "id": "crispy-wrap",
+  "shot": "crispy-wrap-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "crispy-wrap",
+  "shot": "crispy-wrap-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "crispy-wrap",
+  "shot": "crispy-wrap-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "truffle-fries",
+  "shot": "truffle-fries-default",
+  "selected": [
+   "TRUFFLE AIOLI"
+  ]
+ },
+ {
+  "id": "truffle-fries",
+  "shot": "truffle-fries-dip-0",
+  "option": "dip",
+  "clicked": "TRUFFLE AIOLI",
+  "selected": "TRUFFLE AIOLI",
+  "canvases": 1
+ },
+ {
+  "id": "truffle-fries",
+  "shot": "truffle-fries-dip-1",
+  "option": "dip",
+  "clicked": "SPICY MAYO",
+  "selected": "SPICY MAYO",
+  "canvases": 1
+ },
+ {
+  "id": "truffle-fries",
+  "shot": "truffle-fries-dip-2",
+  "option": "dip",
+  "clicked": "EXTRA TRUFFLE AIOLI",
+  "selected": "EXTRA TRUFFLE AIOLI",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-default",
+  "selected": [
+   "MEDIUM",
+   "HONEY MUSTARD & BBQ"
+  ]
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-dip-0",
+  "option": "dip",
+  "clicked": "HONEY MUSTARD & BBQ",
+  "selected": "HONEY MUSTARD & BBQ",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-dip-1",
+  "option": "dip",
+  "clicked": "SMOKY RANCH & CHILLI",
+  "selected": "SMOKY RANCH & CHILLI",
+  "canvases": 1
+ },
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-default",
+  "selected": [
+   "STANDARD MOZZARELLA"
+  ]
+ },
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-cheese-0",
+  "option": "cheese",
+  "clicked": "STANDARD MOZZARELLA",
+  "selected": "STANDARD MOZZARELLA",
+  "canvases": 1
+ },
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-cheese-1",
+  "option": "cheese",
+  "clicked": "EXTRA CHEESE",
+  "selected": "EXTRA CHEESE",
+  "canvases": 1
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-default",
+  "selected": [
+   "AS IT IS"
+  ]
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-serve-0",
+  "option": "serve",
+  "clicked": "AS IT IS",
+  "selected": "AS IT IS",
+  "canvases": 1
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-serve-1",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ }
+]

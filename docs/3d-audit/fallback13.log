@@ -1,0 +1,27 @@
+noWebGL    margherita-pizza   pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"MARGHERITA PIZZA","back":true}
+noWebGL    pepperoni-pizza    pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"BEEF PEPPERONI PIZZA","back":true}
+noWebGL    fajita-pizza       pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CHICKEN FAJITA PIZZA","back":true}
+noWebGL    alfredo-pasta      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CHICKEN ALFREDO FETTUCCINE","back":true}
+noWebGL    arrabbiata-pasta   pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"PENNE ARRABBIATA","back":true}
+noWebGL    pesto-pasta        pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"PESTO CHICKEN FUSILLI","back":true}
+noWebGL    cardamom-bun       pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CARDAMOM BUN","back":true}
+noWebGL    cinnamon-roll      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CINNAMON ROLL","back":true}
+noWebGL    matcha-financier   pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"MATCHA FINANCIER","back":true}
+noWebGL    almond-croissant   pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"ALMOND CROISSANT","back":true}
+noWebGL    san-sebastian      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"SAN SEBASTIAN CHEESECAKE","back":true}
+noWebGL    fudge-brownie      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"WARM FUDGE BROWNIE","back":true}
+noWebGL    tiramisu           pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"CLASSIC ESPRESSO TIRAMISU","back":true}
+glbBlocked margherita-pizza   pass {"canvas":true,"photo":false,"status":null,"name":"MARGHERITA PIZZA","back":true}
+glbBlocked pepperoni-pizza    pass {"canvas":true,"photo":false,"status":null,"name":"BEEF PEPPERONI PIZZA","back":true}
+glbBlocked fajita-pizza       pass {"canvas":true,"photo":false,"status":null,"name":"CHICKEN FAJITA PIZZA","back":true}
+glbBlocked alfredo-pasta      pass {"canvas":true,"photo":false,"status":null,"name":"CHICKEN ALFREDO FETTUCCINE","back":true}
+glbBlocked arrabbiata-pasta   pass {"canvas":true,"photo":false,"status":null,"name":"PENNE ARRABBIATA","back":true}
+glbBlocked pesto-pasta        pass {"canvas":true,"photo":false,"status":null,"name":"PESTO CHICKEN FUSILLI","back":true}
+glbBlocked cardamom-bun       pass {"canvas":true,"photo":false,"status":null,"name":"CARDAMOM BUN","back":true}
+glbBlocked cinnamon-roll      pass {"canvas":true,"photo":false,"status":null,"name":"CINNAMON ROLL","back":true}
+glbBlocked matcha-financier   pass {"canvas":true,"photo":false,"status":null,"name":"MATCHA FINANCIER","back":true}
+glbBlocked almond-croissant   pass {"canvas":true,"photo":false,"status":null,"name":"ALMOND CROISSANT","back":true}
+glbBlocked san-sebastian      pass {"canvas":true,"photo":false,"status":null,"name":"SAN SEBASTIAN CHEESECAKE","back":true}
+glbBlocked fudge-brownie      pass {"canvas":true,"photo":false,"status":null,"name":"WARM FUDGE BROWNIE","back":true}
+glbBlocked tiramisu           pass {"canvas":true,"photo":false,"status":null,"name":"CLASSIC ESPRESSO TIRAMISU","back":true}
+all done

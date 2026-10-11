@@ -1,0 +1,50 @@
+[
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-default",
+  "selected": [
+   "MATTE CHARCOAL",
+   "SLIDE LOCK"
+  ]
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-0",
+  "option": "color",
+  "clicked": "MATTE CHARCOAL",
+  "selected": "MATTE CHARCOAL",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-1",
+  "option": "color",
+  "clicked": "RAW OAT",
+  "selected": "RAW OAT",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-2",
+  "option": "color",
+  "clicked": "AMBER CREMA",
+  "selected": "AMBER CREMA",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-lid-0",
+  "option": "lid",
+  "clicked": "SLIDE LOCK",
+  "selected": "SLIDE LOCK",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-lid-1",
+  "option": "lid",
+  "clicked": "360° SIP LID",
+  "selected": "360° SIP LID",
+  "canvases": 1
+ }
+]

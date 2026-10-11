@@ -1,0 +1,13 @@
+single-origin ok size,grind,plan
+slow-roast ok size,grind,plan
+smash-burger ok meal,extra
+zinger-burger ok meal,spice
+bbq-burger ok meal
+butter-croissant ok serve
+almond-croissant ok serve
+cardamom-bun ok serve
+alfredo-pasta ok protein
+pesto-pasta ok protein
+cinnamon-roll ok warm,glaze
+cortado ok shots,milk,temp
+nitro-cold-brew ok size,style

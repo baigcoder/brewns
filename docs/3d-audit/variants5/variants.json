@@ -1,0 +1,567 @@
+[
+ {
+  "id": "single-origin",
+  "shot": "single-origin-default",
+  "selected": [
+   "250 G",
+   "WHOLE BEAN",
+   "ONE-TIME"
+  ]
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-size-0",
+  "option": "size",
+  "clicked": "250 G",
+  "selected": "250 G",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-size-1",
+  "option": "size",
+  "clicked": "500 G",
+  "selected": "500 G",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-size-2",
+  "option": "size",
+  "clicked": "1 KG",
+  "selected": "1 KG",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-grind-0",
+  "option": "grind",
+  "clicked": "WHOLE BEAN",
+  "selected": "WHOLE BEAN",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-grind-1",
+  "option": "grind",
+  "clicked": "FILTER",
+  "selected": "FILTER",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-grind-2",
+  "option": "grind",
+  "clicked": "ESPRESSO",
+  "selected": "ESPRESSO",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-grind-3",
+  "option": "grind",
+  "clicked": "FRENCH PRESS",
+  "selected": "FRENCH PRESS",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-plan-0",
+  "option": "plan",
+  "clicked": "ONE-TIME",
+  "selected": "ONE-TIME",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-plan-1",
+  "option": "plan",
+  "clicked": "EVERY 2 WK",
+  "selected": "EVERY 2 WK",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-plan-2",
+  "option": "plan",
+  "clicked": "EVERY 4 WK",
+  "selected": "EVERY 4 WK",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-default",
+  "selected": [
+   "250 G",
+   "WHOLE BEAN",
+   "ONE-TIME"
+  ]
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-size-0",
+  "option": "size",
+  "clicked": "250 G",
+  "selected": "250 G",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-size-1",
+  "option": "size",
+  "clicked": "500 G",
+  "selected": "500 G",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-size-2",
+  "option": "size",
+  "clicked": "1 KG",
+  "selected": "1 KG",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-grind-0",
+  "option": "grind",
+  "clicked": "WHOLE BEAN",
+  "selected": "WHOLE BEAN",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-grind-1",
+  "option": "grind",
+  "clicked": "ESPRESSO",
+  "selected": "ESPRESSO",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-grind-2",
+  "option": "grind",
+  "clicked": "FILTER",
+  "selected": "FILTER",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-grind-3",
+  "option": "grind",
+  "clicked": "FRENCH PRESS",
+  "selected": "FRENCH PRESS",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-plan-0",
+  "option": "plan",
+  "clicked": "ONE-TIME",
+  "selected": "ONE-TIME",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-plan-1",
+  "option": "plan",
+  "clicked": "EVERY 2 WK",
+  "selected": "EVERY 2 WK",
+  "canvases": 1
+ },
+ {
+  "id": "slow-roast",
+  "shot": "slow-roast-plan-2",
+  "option": "plan",
+  "clicked": "EVERY 4 WK",
+  "selected": "EVERY 4 WK",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-default",
+  "selected": [
+   "JUST THE BURGER",
+   "NONE"
+  ]
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-0",
+  "option": "extra",
+  "clicked": "NONE",
+  "selected": "NONE",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-1",
+  "option": "extra",
+  "clicked": "+ CHEESE",
+  "selected": "+ CHEESE",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-2",
+  "option": "extra",
+  "clicked": "+ PATTY",
+  "selected": "+ PATTY",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-default",
+  "selected": [
+   "JUST THE BURGER",
+   "MEDIUM"
+  ]
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-default",
+  "selected": [
+   "JUST THE BURGER"
+  ]
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-default",
+  "selected": [
+   "AS IT IS"
+  ]
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-serve-0",
+  "option": "serve",
+  "clicked": "AS IT IS",
+  "selected": "AS IT IS",
+  "canvases": 1
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-serve-1",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-default",
+  "selected": [
+   "WARMED"
+  ]
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-serve-0",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-serve-1",
+  "option": "serve",
+  "clicked": "ROOM TEMP",
+  "selected": "ROOM TEMP",
+  "canvases": 1
+ },
+ {
+  "id": "cardamom-bun",
+  "shot": "cardamom-bun-default",
+  "selected": [
+   "AS IT IS"
+  ]
+ },
+ {
+  "id": "cardamom-bun",
+  "shot": "cardamom-bun-serve-0",
+  "option": "serve",
+  "clicked": "AS IT IS",
+  "selected": "AS IT IS",
+  "canvases": 1
+ },
+ {
+  "id": "cardamom-bun",
+  "shot": "cardamom-bun-serve-1",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "alfredo-pasta",
+  "shot": "alfredo-pasta-default",
+  "selected": [
+   "CHICKEN"
+  ]
+ },
+ {
+  "id": "alfredo-pasta",
+  "shot": "alfredo-pasta-protein-0",
+  "option": "protein",
+  "clicked": "CHICKEN",
+  "selected": "CHICKEN",
+  "canvases": 1
+ },
+ {
+  "id": "alfredo-pasta",
+  "shot": "alfredo-pasta-protein-1",
+  "option": "protein",
+  "clicked": "MUSHROOM",
+  "selected": "MUSHROOM",
+  "canvases": 1
+ },
+ {
+  "id": "alfredo-pasta",
+  "shot": "alfredo-pasta-protein-2",
+  "option": "protein",
+  "clicked": "PRAWN",
+  "selected": "PRAWN",
+  "canvases": 1
+ },
+ {
+  "id": "pesto-pasta",
+  "shot": "pesto-pasta-default",
+  "selected": [
+   "CHICKEN"
+  ]
+ },
+ {
+  "id": "pesto-pasta",
+  "shot": "pesto-pasta-protein-0",
+  "option": "protein",
+  "clicked": "CHICKEN",
+  "selected": "CHICKEN",
+  "canvases": 1
+ },
+ {
+  "id": "pesto-pasta",
+  "shot": "pesto-pasta-protein-1",
+  "option": "protein",
+  "clicked": "NONE",
+  "selected": "NONE",
+  "canvases": 1
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-default",
+  "selected": [
+   "AS IT IS",
+   "REGULAR"
+  ]
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-warm-0",
+  "option": "warm",
+  "clicked": "AS IT IS",
+  "selected": "AS IT IS",
+  "canvases": 1
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-warm-1",
+  "option": "warm",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-glaze-0",
+  "option": "glaze",
+  "clicked": "REGULAR",
+  "selected": "REGULAR",
+  "canvases": 1
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-glaze-1",
+  "option": "glaze",
+  "clicked": "EXTRA",
+  "selected": "EXTRA",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-default",
+  "selected": [
+   "DOUBLE",
+   "WHOLE",
+   "WARM (57°C)"
+  ]
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-shots-0",
+  "option": "shots",
+  "clicked": "DOUBLE",
+  "selected": "DOUBLE",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-shots-1",
+  "option": "shots",
+  "clicked": "TRIPLE",
+  "selected": "TRIPLE",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-milk-0",
+  "option": "milk",
+  "clicked": "WHOLE",
+  "selected": "WHOLE",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-milk-1",
+  "option": "milk",
+  "clicked": "OAT",
+  "selected": "OAT",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-milk-2",
+  "option": "milk",
+  "clicked": "ALMOND",
+  "selected": "ALMOND",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-temp-0",
+  "option": "temp",
+  "clicked": "WARM (57°C)",
+  "selected": "WARM (57°C)",
+  "canvases": 1
+ },
+ {
+  "id": "cortado",
+  "shot": "cortado-temp-1",
+  "option": "temp",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-default",
+  "selected": [
+   "12 OZ",
+   "STRAIGHT NITRO"
+  ]
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-size-0",
+  "option": "size",
+  "clicked": "12 OZ",
+  "selected": "12 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-size-1",
+  "option": "size",
+  "clicked": "16 OZ",
+  "selected": "16 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-style-0",
+  "option": "style",
+  "clicked": "STRAIGHT NITRO",
+  "selected": "STRAIGHT NITRO",
+  "canvases": 1
+ },
+ {
+  "id": "nitro-cold-brew",
+  "shot": "nitro-cold-brew-style-1",
+  "option": "style",
+  "clicked": "VANILLA SWEET CREAM",
+  "selected": "VANILLA SWEET CREAM",
+  "canvases": 1
+ }
+]

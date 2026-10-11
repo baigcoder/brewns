@@ -1,0 +1,454 @@
+[
+ {
+  "id": "single-origin",
+  "shot": "single-origin-default",
+  "selected": [
+   "250 G",
+   "WHOLE BEAN",
+   "ONE-TIME"
+  ]
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-size-0",
+  "option": "size",
+  "clicked": "250 G",
+  "selected": "250 G",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-size-1",
+  "option": "size",
+  "clicked": "500 G",
+  "selected": "500 G",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-size-2",
+  "option": "size",
+  "clicked": "1 KG",
+  "selected": "1 KG",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-grind-0",
+  "option": "grind",
+  "clicked": "WHOLE BEAN",
+  "selected": "WHOLE BEAN",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-grind-1",
+  "option": "grind",
+  "clicked": "FILTER",
+  "selected": "FILTER",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-grind-2",
+  "option": "grind",
+  "clicked": "ESPRESSO",
+  "selected": "ESPRESSO",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-grind-3",
+  "option": "grind",
+  "clicked": "FRENCH PRESS",
+  "selected": "FRENCH PRESS",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-plan-0",
+  "option": "plan",
+  "clicked": "ONE-TIME",
+  "selected": "ONE-TIME",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-plan-1",
+  "option": "plan",
+  "clicked": "EVERY 2 WK",
+  "selected": "EVERY 2 WK",
+  "canvases": 1
+ },
+ {
+  "id": "single-origin",
+  "shot": "single-origin-plan-2",
+  "option": "plan",
+  "clicked": "EVERY 4 WK",
+  "selected": "EVERY 4 WK",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-default",
+  "selected": [
+   "JUST THE BURGER",
+   "NONE"
+  ]
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-0",
+  "option": "extra",
+  "clicked": "NONE",
+  "selected": "NONE",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-1",
+  "option": "extra",
+  "clicked": "+ CHEESE",
+  "selected": "+ CHEESE",
+  "canvases": 1
+ },
+ {
+  "id": "smash-burger",
+  "shot": "smash-burger-extra-2",
+  "option": "extra",
+  "clicked": "+ PATTY",
+  "selected": "+ PATTY",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-default",
+  "selected": [
+   "JUST THE BURGER",
+   "MEDIUM"
+  ]
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-default",
+  "selected": [
+   "JUST THE BURGER"
+  ]
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "bbq-burger",
+  "shot": "bbq-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-default",
+  "selected": [
+   "AS IT IS"
+  ]
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-serve-0",
+  "option": "serve",
+  "clicked": "AS IT IS",
+  "selected": "AS IT IS",
+  "canvases": 1
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-serve-1",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-default",
+  "selected": [
+   "WARMED"
+  ]
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-serve-0",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-serve-1",
+  "option": "serve",
+  "clicked": "ROOM TEMP",
+  "selected": "ROOM TEMP",
+  "canvases": 1
+ },
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-default",
+  "selected": [
+   "STANDARD MOZZARELLA"
+  ]
+ },
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-cheese-0",
+  "option": "cheese",
+  "clicked": "STANDARD MOZZARELLA",
+  "selected": "STANDARD MOZZARELLA",
+  "canvases": 1
+ },
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-cheese-1",
+  "option": "cheese",
+  "clicked": "EXTRA CHEESE",
+  "selected": "EXTRA CHEESE",
+  "canvases": 1
+ },
+ {
+  "id": "lime-soda",
+  "shot": "lime-soda-default",
+  "selected": [
+   "SWEET"
+  ]
+ },
+ {
+  "id": "lime-soda",
+  "shot": "lime-soda-style-0",
+  "option": "style",
+  "clicked": "SWEET",
+  "selected": "SWEET",
+  "canvases": 1
+ },
+ {
+  "id": "lime-soda",
+  "shot": "lime-soda-style-1",
+  "option": "style",
+  "clicked": "SALTED",
+  "selected": "SALTED",
+  "canvases": 1
+ },
+ {
+  "id": "lime-soda",
+  "shot": "lime-soda-style-2",
+  "option": "style",
+  "clicked": "MIXED",
+  "selected": "MIXED",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-default",
+  "selected": [
+   "MATTE CHARCOAL",
+   "SLIDE LOCK"
+  ]
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-0",
+  "option": "color",
+  "clicked": "MATTE CHARCOAL",
+  "selected": "MATTE CHARCOAL",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-1",
+  "option": "color",
+  "clicked": "RAW OAT",
+  "selected": "RAW OAT",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-color-2",
+  "option": "color",
+  "clicked": "AMBER CREMA",
+  "selected": "AMBER CREMA",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-lid-0",
+  "option": "lid",
+  "clicked": "SLIDE LOCK",
+  "selected": "SLIDE LOCK",
+  "canvases": 1
+ },
+ {
+  "id": "ceramic-tumbler",
+  "shot": "ceramic-tumbler-lid-1",
+  "option": "lid",
+  "clicked": "360° SIP LID",
+  "selected": "360° SIP LID",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-default",
+  "selected": [
+   "MEDIUM",
+   "HONEY MUSTARD & BBQ"
+  ]
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-dip-0",
+  "option": "dip",
+  "clicked": "HONEY MUSTARD & BBQ",
+  "selected": "HONEY MUSTARD & BBQ",
+  "canvases": 1
+ },
+ {
+  "id": "chicken-tenders",
+  "shot": "chicken-tenders-dip-1",
+  "option": "dip",
+  "clicked": "SMOKY RANCH & CHILLI",
+  "selected": "SMOKY RANCH & CHILLI",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-default",
+  "selected": [
+   "MEDIUM",
+   "NOTHING"
+  ]
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-add-0",
+  "option": "add",
+  "clicked": "NOTHING",
+  "selected": "NOTHING",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-add-1",
+  "option": "add",
+  "clicked": "+ CHICKEN",
+  "selected": "+ CHICKEN",
+  "canvases": 1
+ }
+]

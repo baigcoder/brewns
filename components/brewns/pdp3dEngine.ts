@@ -1358,7 +1358,11 @@ export const PACKAGING_POSE: Record<string, number> = { bag: -0.42, cup: Math.PI
  */
 /* A bag's lower panel, below the curve: its colour and the ink printed on it. */
 type Panel = { colour: string; ink: string; dim: string; accent: string };
-type BagLabel = { script: string[]; notes: string[]; about: string[]; size: string; panel: Panel };
+type BagLabel = {
+  script: string[]; notes: string[]; about: string[]; size: string; panel: Panel;
+  /** An origin bag: its title in copper, ETHIOPIA / SINGLE ORIGIN under an emblem, a mountain landscape over a flat panel. */
+  origin?: { name: string; sub: string };
+};
 /* A product cup wears a coloured sleeve with the drink's name; the house cup
    (hero, story) keeps the plain print. */
 type CupLabel = {
@@ -1369,6 +1373,8 @@ type CupLabel = {
   print?: { ground: string; mark: string; ink: string; dim: string };
   /** The line of small words round the foot. */
   band?: string;
+  /** The photographed cup is clear: below the sleeve the drink shows through, with tapioca pearls in the bottom. */
+  liquid?: { top: string; bottom: string; pearls?: boolean };
 };
 const HOUSE_BAG: BagLabel = {
   script: ['slow', 'roast'],
@@ -1385,12 +1391,19 @@ const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
   },
   'single-origin': {
     bag: {
-      script: ['ethiopia'],
+      // Reconstructed from the product photograph (public/assets/menu/bag-yirgacheffe.webp), which carries the
+      // "slow roast" title, ETHIOPIA / SINGLE ORIGIN, the house copy and its own sand panel.
+      script: ['slow', 'roast'],
+      // Flavour notes come from lib/catalog.ts (the authoritative entry), not from the photograph, which prints the Slow
+      // Roast notes (caramel, brown sugar, roasted almond): that conflict is documented for the owner, not copied.
       notes: ['JASMINE', 'BERGAMOT', 'WHITE PEACH'],
-      about: ['WASHED HEIRLOOM', 'FROM SMALLHOLDERS', 'IN YIRGACHEFFE,', 'GROWN AT 2,100 M.'],
-      size: '',
-      // Sand, with dark type and burnt-orange rules, like the Ethiopia bag's photo.
-      panel: { colour: '#e4d3b2', ink: '#1f1a14', dim: 'rgba(31,26,20,0.78)', accent: '#c45a26' },
+      // Also from the catalogue entry (description and details: washed heirloom varieties, smallholders in Yirgacheffe, 2,100 m).
+      about: ['WASHED HEIRLOOM', 'VARIETIES FROM', 'SMALLHOLDERS IN', 'YIRGACHEFFE, 2,100 M.'],
+      size: '250 G',
+      panel: { colour: '#e4d3b2', ink: '#1f1a14', dim: 'rgba(31,26,20,0.86)', accent: '#c45a26' },
+      // No roasting city is printed: the photograph says Copenhagen, the catalogue says Slow Roast is roasted in Lahore and says
+      // nothing for this coffee, so the claim is left off until the owner confirms it (docs/3d-product-audit.md).
+      origin: { name: 'ETHIOPIA', sub: 'SINGLE ORIGIN' },
     },
   },
   // The latte: a milky, latte-coloured cup, navy print and a navy sleeve.
@@ -1401,6 +1414,7 @@ const PACKAGING_LABELS: Record<string, { bag?: BagLabel; cup?: CupLabel }> = {
       sleeve: { colour: '#2e3a4b', ink: '#f1e6d2', accent: '#c9b597', size: 92 },
       print: { ground: '#d9c5a6', mark: '#26303f', ink: '#26303f', dim: 'rgba(38,48,63,0.78)' },
       band: '100% COFFEE · NO ARTIFICIAL · ',
+      liquid: { top: '#d2b284', bottom: '#97693e', pearls: true },
     },
   },
   // The espresso: black, with terracotta print and a terracotta sleeve.
@@ -1489,56 +1503,130 @@ function rule(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number,
   ctx.stroke();
 }
 
-/** The last Monday roast at least three days back, as DD/MM/YY in Lahore: the bag always reads fresh. */
-function roastDate(now = Date.now()) {
-  const d = new Date(now + 5 * 3600000 - 3 * 86400000);
-  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCFullYear()).slice(2)}`;
+/*
+ * No roast date is printed on the bag artwork. The product photographs carry "12/06/24", which is one old batch; showing it
+ * would present stale batch information as current, and a date made from the clock would invent a roast. The ROAST DATE
+ * field is kept as an empty stamp line, as on a pack whose date is applied per batch. A real value must come from batch data
+ * (none exists in this repository).
+ */
+
+/** The origin bag's landscape, redrawn from the photograph: layered copper and umber ridges, a pale sun and an acacia. */
+function drawHighlands(ctx: CanvasRenderingContext2D) {
+  const ridge = (colour: string, pts: number[][]) => {
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.moveTo(-20, 990);
+    pts.forEach(([x, y]) => ctx.lineTo(x, y));
+    ctx.lineTo(790, 990);
+    ctx.closePath();
+    ctx.fill();
+  };
+  ctx.fillStyle = '#efe1c4';
+  ctx.beginPath();
+  ctx.arc(600, 940, 58, Math.PI, 0);
+  ctx.fill();
+  ridge('#c4682e', [[-20, 960], [60, 930], [150, 905], [250, 940], [330, 925], [430, 950], [560, 930], [680, 945], [790, 935]]);
+  ridge('#9c4a22', [[-20, 975], [90, 950], [210, 962], [340, 944], [470, 968], [610, 952], [790, 962]]);
+  ridge('#5e2f1a', [[-20, 988], [120, 972], [260, 984], [420, 970], [560, 984], [700, 974], [790, 982]]);
+  // acacia: a leaning trunk and a broad, flat canopy of overlapping lobes
+  ctx.fillStyle = '#241811';
+  ctx.strokeStyle = '#241811';
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(500, 990);
+  ctx.quadraticCurveTo(508, 960, 520, 944);
+  ctx.stroke();
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(518, 946);
+  ctx.lineTo(470, 934);
+  ctx.moveTo(522, 944);
+  ctx.lineTo(570, 930);
+  ctx.stroke();
+  for (const [cx, cy, rx] of [[462, 932, 26], [500, 925, 30], [540, 926, 32], [578, 932, 24], [520, 920, 28]]) {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function drawBagFace(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, size: string) {
   // Below the curve, the panel: its own colour, and its own ink (the surface map keeps it matte).
   const surface = p === SURFACE;
   const pn: Panel = surface ? { colour: SURFACE.ground, ink: SURFACE.cream, dim: SURFACE.dim, accent: SURFACE.gold } : label.panel;
+  const og = label.origin;
   ctx.fillStyle = pn.colour;
   ctx.beginPath();
-  ctx.moveTo(-20, 815);
-  ctx.quadraticCurveTo(385, 905, 790, 815);
+  if (og) {
+    // an origin bag's panel is flat-topped, with the landscape standing on it
+    ctx.moveTo(-20, 985);
+    ctx.lineTo(790, 985);
+  } else {
+    ctx.moveTo(-20, 815);
+    ctx.quadraticCurveTo(385, 905, 790, 815);
+  }
   ctx.lineTo(790, 1320);
   ctx.lineTo(-20, 1320);
   ctx.closePath();
   ctx.fill();
+  if (og && !surface) drawHighlands(ctx);
 
   text(ctx, 'ROAST DATE', 125, 112, p.gold, 24, 2);
-  text(ctx, roastDate(), 660, 112, p.cream, 28, 2, 'right');
   rule(ctx, 125, 142, 660, 142, p.gold);
 
-  drawWordmark(ctx, p.gold, 150, 330, 470);
+  drawWordmark(ctx, og && !surface ? p.cream : p.gold, 150, 330, 470);
   text(ctx, 'COFFEE HOUSE', 385, 500, p.cream, 32, 12, 'center');
   rule(ctx, 345, 542, 425, 542, p.gold, 3);
 
   ctx.save();
-  ctx.fillStyle = p.cream;
-  ctx.font = `${label.script.length > 1 ? 196 : 220}px Allura, cursive`;
+  // origin bags carry the title in copper, as photographed
+  ctx.fillStyle = og && !surface ? p.gold : p.cream;
+  ctx.font = `${og ? 168 : label.script.length > 1 ? 196 : 220}px Allura, cursive`;
   ctx.rotate(-0.06);
-  if (label.script.length > 1) {
+  if (og) {
+    ctx.fillText(label.script[0], 95, 660);
+    ctx.fillText(label.script[1], 225, 752);
+  } else if (label.script.length > 1) {
     ctx.fillText(label.script[0], 95, 680);
     ctx.fillText(label.script[1], 235, 790);
   } else ctx.fillText(label.script[0], 60, 750);
   ctx.restore();
+  if (og) {
+    // a small round emblem, then the origin and its descriptor
+    ctx.save();
+    ctx.strokeStyle = p.gold;
+    ctx.lineWidth = 3;
+    ctx.translate(385, 800);
+    ctx.beginPath();
+    ctx.arc(0, 0, 24, 0, Math.PI * 2);
+    ctx.stroke();
+    for (let k = 0; k < 8; k++) {
+      ctx.beginPath();
+      ctx.moveTo(Math.cos((k * Math.PI) / 4) * 8, Math.sin((k * Math.PI) / 4) * 8);
+      ctx.lineTo(Math.cos((k * Math.PI) / 4) * 22, Math.sin((k * Math.PI) / 4) * 22);
+      ctx.stroke();
+    }
+    ctx.restore();
+    text(ctx, og.name, 385, 866, p.cream, 30, 5, 'center');
+    text(ctx, og.sub, 385, 894, p.cream, 15, 3, 'center');
+  }
 
-  label.about.forEach((line, i) => text(ctx, line, 122, 945 + i * 34, pn.dim, 21));
-  text(ctx, 'FLAVOR NOTES', 460, 945, pn.accent, 21, 1);
-  rule(ctx, 460, 962, 675, 962, pn.accent);
-  label.notes.forEach((note, i) => text(ctx, note, 460, 1005 + i * 34, pn.ink, 21));
+  const ay = og ? 1018 : 945, ny = og ? 1018 : 945, step = og ? 28 : 34;
+  label.about.forEach((line, i) => text(ctx, line, 122, ay + i * step, pn.dim, og ? 19 : 21));
+  text(ctx, 'FLAVOR NOTES', 460, ny, pn.accent, 21, 1);
+  rule(ctx, 460, ny + 17, 675, ny + 17, pn.accent);
+  label.notes.forEach((note, i) => text(ctx, note, 460, og ? ny + 42 + i * 25 : ny + 60 + i * step, pn.ink, og ? 19 : 21));
 
   rule(ctx, 120, 1120, 675, 1120, pn.accent);
   rule(ctx, 240, 1142, 240, 1210, pn.accent);
-  rule(ctx, 445, 1142, 445, 1210, pn.accent);
+  if (!og) rule(ctx, 445, 1142, 445, 1210, pn.accent);
   text(ctx, size, 132, 1185, pn.ink, 22);
   text(ctx, 'WHOLE BEAN', 258, 1185, pn.ink, 22);
-  text(ctx, 'ROASTED IN', 465, 1170, pn.ink, 22);
-  text(ctx, 'LAHORE', 465, 1202, pn.ink, 22);
+  // the house roast says where it is roasted (the catalogue does); the origin bag makes no claim about a city
+  if (!og) {
+    text(ctx, 'ROASTED IN', 465, 1170, pn.ink, 22);
+    text(ctx, 'LAHORE', 465, 1202, pn.ink, 22);
+  }
 }
 
 function paintBag(ctx: CanvasRenderingContext2D, p: Palette, label: BagLabel, sel: Record<string, number>) {
@@ -1575,6 +1663,26 @@ function paintSleevedCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLa
     ctx.fillRect(0, 543, 1536, 5);
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     ctx.fillRect(0, 357, 1536, 2);
+  }
+  // a clear cup: the drink shows through below the sleeve, glossier than paper, with a few pearls resting at the bottom
+  if (label.liquid) {
+    const H = ctx.canvas.height / (ctx.canvas.width / 1536);
+    const g = ctx.createLinearGradient(0, 548, 0, H);
+    g.addColorStop(0, surface ? 'rgb(0,120,0)' : label.liquid.top);
+    g.addColorStop(1, surface ? 'rgb(0,120,0)' : label.liquid.bottom);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 548, 1536, H - 548);
+    if (label.liquid.pearls && !surface) {
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      ctx.fillStyle = 'rgba(40,26,18,0.82)';
+      for (let i = 0; i < 300; i++) {
+        const y = 692 + rnd() * (H - 700);
+        ctx.beginPath();
+        ctx.arc(rnd() * 1536, y, 5 + rnd() * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
   // above the sleeve: wordmark and house line
   drawWordmark(ctx, p.gold, CX - 150, 206, 300);

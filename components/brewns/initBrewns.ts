@@ -44,6 +44,7 @@ import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTH
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 import { initVoiceCalling } from './voiceCalling';
 import { createViewerFX, lightProduct, makeStudio, setupRenderer, shadowPiece } from './viewerStage';
+import { viewMode } from "./viewPolicy";
 import { createPhotoRelief, RELIEF_PITCH, RELIEF_YAW, reliefDepth } from './photoRelief';
 
 export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
@@ -4778,7 +4779,7 @@ const giftAmount = () => (pdpState.p.gift ? pdpState.p.options[0].choices[pdpSta
 function renderProduct() {
   const { p, view } = pdpState;
   const index = PRODUCTS.indexOf(p) + 1;
-  const views = [p.photo && ["photo", "PHOTO"], p.model && ["3d", "3D VIEW"], p.gift && ["card", "CARD"]].filter(Boolean);
+  const views = [p.photo && ["photo", "PHOTO"], p.model && viewMode(p) !== "photo" && ["3d", viewMode(p) === "model" ? "3D VIEW" : "TILT VIEW"], p.gift && ["card", "CARD"]].filter(Boolean);
   const related = [...PRODUCTS.filter((q) => q !== p && q.cat === p.cat), ...PRODUCTS.filter((q) => q !== p && q.cat !== p.cat)].slice(0, 3);
   const options = p.options
     .map(
@@ -4870,7 +4871,8 @@ function mountMedia() {
   $$("[data-view]", pdpEl).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
 
   if (view === "3d") {
-    hint.textContent = noHover() ? "DRAG TO ROTATE · PINCH TO ZOOM" : "DRAG TO ROTATE · SCROLL TO ZOOM";
+    const zoom = noHover() ? "PINCH TO ZOOM" : "SCROLL TO ZOOM";
+    hint.textContent = viewMode(p) === "model" ? `DRAG TO ROTATE · ${zoom}` : `PHOTO IN RELIEF · DRAG TO TILT · ${zoom}`;
     pdpState.viewer = mountViewer(stage, p.model, pdpState.sel, p);
     return;
   }
@@ -5062,6 +5064,13 @@ function getSnapshot(kind, productId) {
   }));
 }
 
+/* WebGL or the model failed: say so, and keep the product's photograph on the stage rather than an empty box. */
+function showViewerFallback(container, product) {
+  container.querySelector("canvas")?.remove();
+  const photo = product?.photo ? `<div class="pdp-photo-wrap"><img class="pdp-photo${product.cutout ? " cutout" : ""}" src="${photoSrc(product.photo)}" alt="${esc(product.alt || product.name)}"></div>` : "";
+  container.insertAdjacentHTML("beforeend", `${photo}<p class="mono-fine" role="status" style="position:absolute;left:0;right:0;bottom:4.5rem;text-align:center">3D VIEW UNAVAILABLE · SHOWING THE PHOTO</p>`);
+}
+
 function mountViewer(container, kind, initialSel = {}, product = null) {
   const spinner = document.createElement("span");
   spinner.className = "pcard-loading";
@@ -5075,12 +5084,14 @@ function mountViewer(container, kind, initialSel = {}, product = null) {
     .then(([{ T, gltf }, shopModel]) => {
       if (destroyed) return;
       spinner.remove();
+      // These are the printed cup and bag in the packaging model: without it the engine would show some other cup.
+      if (!gltf && /^(espresso|latte|slow-roast|single-origin)$/.test(product?.id || "")) return showViewerFallback(container, product);
       viewerInstance = runViewer(T, gltf, container, kind, initialSel, product, shopModel);
     })
     .catch((error) => {
       console.error("viewer", error);
       spinner.remove();
-      container.insertAdjacentHTML("beforeend", '<p class="mono-fine">3D VIEW UNAVAILABLE</p>');
+      showViewerFallback(container, product);
     });
   return {
     destroy() {
@@ -5099,13 +5110,14 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
   canvas.className = "pdp-canvas";
   canvas.tabIndex = 0;
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", `Interactive 3D view of the ${product?.name || kind}. Use the arrow keys to turn it and plus or minus to zoom.`);
+  canvas.setAttribute("aria-label", product && viewMode(product) === "relief" ? `${product.name} photograph in relief, tilting a few degrees. Use the arrow keys to tilt it and plus or minus to zoom.` : `Interactive 3D view of the ${product?.name || kind}. Use the arrow keys to turn it and plus or minus to zoom.`);
   container.append(canvas);
   let renderer;
   try {
     renderer = new T.WebGLRenderer({ canvas, alpha: true, antialias: true });
   } catch {
     canvas.remove();
+    showViewerFallback(container, product);
     return { destroy: () => {}, updateVariant: () => {} };
   }
   setupRenderer(T, renderer);
@@ -5134,7 +5146,8 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
     variantEngine.updateVariant?.(currentSel);
   };
   let currentSel = initialSel;
-  const photoUrl = product?.photo && !product.gift ? photoSrc(product.photo) : null;
+  // Only products without a verified model show their photograph in relief (see viewPolicy.ts).
+  const photoUrl = product?.photo && !product.gift && viewMode(product) === "relief" ? photoSrc(product.photo) : null;
   if (photoUrl) {
     variantEngine = createPhotoRelief(T, photoUrl, { depth: reliefDepth(product), onError: () => !destroyed && fallBackToModel() });
     piece = variantEngine.group;
@@ -5162,7 +5175,11 @@ function runViewer(T, gltf, container, kind, initialSel = {}, product = null, sh
     if (!w || !h) return;
     fx.setSize(w, h);
     camera.aspect = w / h;
-    distance = fitDistance(camera, 0.7);
+    // On a phone, or in a short stage, the hint and the Photo / 3D buttons sit over the bottom of it: frame the piece in what is left.
+    const reserve = w < 640 || h < 640 ? 104 : 0;
+    distance = fitDistance(camera, (0.7 * (h - reserve)) / h);
+    if (reserve) camera.setViewOffset(w, h, 0, reserve / 2, w, h);
+    else camera.clearViewOffset();
     camera.near = distance / 30;
     camera.far = distance * 6;
     camera.updateProjectionMatrix();

@@ -1,0 +1,189 @@
+[
+ {
+  "id": "zinger-burger",
+  "option": "meal",
+  "rows": [
+   {
+    "choice": "JUST THE BURGER",
+    "maxDiffVsOthers": 0.1709,
+    "visible": true
+   },
+   {
+    "choice": "+ FRIES & DRINK",
+    "maxDiffVsOthers": 0.1709,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "zinger-burger",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0054,
+    "visible": true
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.0031,
+    "visible": true
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0054,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "option": "add",
+  "rows": [
+   {
+    "choice": "NOTHING",
+    "maxDiffVsOthers": 0.0098,
+    "visible": true
+   },
+   {
+    "choice": "+ CHICKEN",
+    "maxDiffVsOthers": 0.0098,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "chicken-tenders",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0007,
+    "visible": false
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.0005,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0007,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "chicken-tenders",
+  "option": "dip",
+  "rows": [
+   {
+    "choice": "HONEY MUSTARD & BBQ",
+    "maxDiffVsOthers": 0.0116,
+    "visible": true
+   },
+   {
+    "choice": "SMOKY RANCH & CHILLI",
+    "maxDiffVsOthers": 0.0116,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "lime-soda",
+  "option": "style",
+  "rows": [
+   {
+    "choice": "SWEET",
+    "maxDiffVsOthers": 0.0024,
+    "visible": true
+   },
+   {
+    "choice": "SALTED",
+    "maxDiffVsOthers": 0.0024,
+    "visible": true
+   },
+   {
+    "choice": "MIXED",
+    "maxDiffVsOthers": 0.0024,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "ceramic-tumbler",
+  "option": "color",
+  "rows": [
+   {
+    "choice": "MATTE CHARCOAL",
+    "maxDiffVsOthers": 0.144,
+    "visible": true
+   },
+   {
+    "choice": "RAW OAT",
+    "maxDiffVsOthers": 0.1439,
+    "visible": true
+   },
+   {
+    "choice": "AMBER CREMA",
+    "maxDiffVsOthers": 0.144,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "ceramic-tumbler",
+  "option": "lid",
+  "rows": [
+   {
+    "choice": "SLIDE LOCK",
+    "maxDiffVsOthers": 0.0025,
+    "visible": true
+   },
+   {
+    "choice": "360° SIP LID",
+    "maxDiffVsOthers": 0.0025,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ }
+]
