@@ -639,7 +639,13 @@ address { font-style: normal; }
 .hero-copy { order: 1; display: flex; width: 100%; flex-shrink: 0; flex-direction: column; gap: 1rem; color: var(--foreground); }
 @media (min-width: 640px) { .hero-copy { gap: 1.25rem; margin-block: auto; width: var(--size-hero-copy-tablet); } }
 @media (min-width: 640px) and (max-width: 1023.98px) { .hero-copy { gap: 0.6875rem; margin-bottom: auto; margin-top: 0; } }
-@media (min-width: 1024px) { .hero-copy { position: absolute; margin-block: 0; left: 2.5rem; top: calc(50% - var(--size-hero-copy-rise)); width: var(--size-hero-copy); transform: translateY(-50%); gap: 1.5rem; } }
+/* Desktop: the copy lives in a band reserved between the fixed header (bottom
+   ≈ 2.9rem) and the info bar (top ≈ 4.9rem from the foot), so it can never
+   climb under the nav on a short viewport. It centres inside that band. */
+@media (min-width: 1024px) {
+  .hero { --hero-copy-top: 5.5rem; --hero-copy-bottom: 6.75rem; }
+  .hero-copy { position: absolute; margin-block: 0; left: 2.5rem; top: var(--hero-copy-top); bottom: var(--hero-copy-bottom); width: var(--size-hero-copy); justify-content: safe center; gap: 1.5rem; }
+}
 .hero-grid { display: block; }
 .hero-head { display: flex; flex-direction: column; gap: 0.75rem; text-transform: uppercase; }
 @media (max-width: 639.98px) { .hero-head { gap: 0.625rem; } }
@@ -658,7 +664,10 @@ address { font-style: normal; }
 }
 @media (min-width: 640px) { .hero-h1 { font-size: var(--font-size-display-tablet); } .hero-h1 .hero-h1-row { display: block; } }
 @media (min-width: 640px) and (max-width: 1023.98px) { .hero-h1 { font-size: var(--font-size-display-hero-tablet); } }
-@media (min-width: 1024px) { .hero-h1 { font-size: var(--font-size-display); max-width: 14ch; } }
+/* Four lines at 1.1 leading, sized to what is left of the band once the lede
+   block (~15.5rem) is placed: full size on tall screens, easing down on short
+   ones instead of crowding the nav. */
+@media (min-width: 1024px) { .hero-h1 { font-size: clamp(4.25rem, calc((100lvh - var(--hero-copy-top) - var(--hero-copy-bottom) - 15.5rem) / 4.4), var(--font-size-display)); width: min-content; max-width: 14ch; } }
 .hero-gold {
   color: #e5b378;
   background: linear-gradient(135deg, #fce0b6 0%, #e5b378 45%, #c99355 100%);
@@ -710,6 +719,18 @@ address { font-style: normal; }
 @media (min-width: 768px) and (max-width: 1023.98px) { .hero-media { margin-inline: 0; left: -5rem; right: auto; width: max(64rem, calc(100% + 16rem)); top: 35.5%; margin-bottom: -5.25rem; } }
 @media (min-width: 1024px) { .hero-media { position: absolute; left: calc(100% + var(--size-hero-media-overhang) + var(--size-hero-media-nudge) - var(--size-hero-media-width)); top: var(--size-hero-media-drop); margin-inline: 0; height: var(--size-hero-media-height); min-height: 100%; width: var(--size-hero-media-width); flex: none; } }
 @media (min-width: 1024px) and (max-width: 1439.98px) { .hero-media { left: calc(100% - 2.5rem - 0.847 * var(--size-hero-media-width)); } }
+/* A warm copper pool behind the cup and bag. The black cup otherwise sinks into
+   the espresso canvas; this lifts the backdrop just where the products sit and
+   fades in with them (it lives inside .hero-media). Centre tracks .hero-handle. */
+.hero-media::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 34% 40% at 56% 46%, rgb(201 147 85 / 0.34) 0%, rgb(176 122 69 / 0.16) 48%, transparent 100%),
+    radial-gradient(ellipse 52% 56% at 56% 46%, rgb(122 78 40 / 0.22) 0%, transparent 100%);
+}
 .hero-mount { position: relative; width: 100%; height: 100%; }
 .hero-handle { position: absolute; display: none; left: 27%; right: 15%; top: 5%; bottom: 23%; cursor: grab; touch-action: none; }
 .hero-handle:active { cursor: grabbing; }
@@ -2594,9 +2615,21 @@ nextjs-portal,
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8);
 }
 .moments-lightbox-close {
-  position: absolute;
-  top: -2.5rem;
-  right: 0;
+  /* Pinned to the screen corner, not hung off the photo: above the photo it
+     sat under the header and was clipped. */
+  position: fixed;
+  top: max(1.25rem, env(safe-area-inset-top));
+  right: max(1.25rem, env(safe-area-inset-right));
+  z-index: 2;
+}
+
+/* The lightbox lives inside the Moments section's stacking context, so the
+   fixed header would otherwise paint over it. Step the chrome out of the way. */
+body:has(#moments-lightbox:not([hidden])) .hdr,
+body:has(#moments-lightbox:not([hidden])) .voice-call-floating {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden;
 }
 .moments-lightbox-meta {
   margin-top: 1rem;
@@ -4554,3 +4587,187 @@ body:has(#pre) .voice-call-floating {
   .hero-meta { font-size: 0.625rem; }
   .hero-rating { display: none; }
 }
+
+/* ═══════════ touch targets ═══════════
+   Small links and chips keep their look, but get a 44px-tall hit area on
+   phones through an invisible ::after, so nothing in the layout moves. */
+@media (max-width: 639.98px) {
+  .hdr-sound, .hdr-account, .loc-map-link, .moments-like-btn, .rev-helpful,
+  .inside-cta, .card-quick-add, .ftr .dim-link, .w-menu-cta, .w-order-cta { position: relative; }
+  .hdr-sound::after, .hdr-account::after, .loc-map-link::after, .moments-like-btn::after,
+  .rev-helpful::after, .inside-cta::after, .card-quick-add::after, .ftr .dim-link::after,
+  .w-menu-cta::after, .w-order-cta::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    min-width: 2.75rem;
+    height: max(100%, 2.75rem);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* ═══════════ diet & allergens ═══════════
+   Filter chips on the full menu, small badges on each item, and a panel on the
+   product page. Facts come from lib/diet.ts. */
+.full-menu-diet {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0e0d0c;
+  overflow-x: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.full-menu-diet-label { color: rgba(255, 255, 255, 0.45); letter-spacing: 0.08em; margin-right: 0.25rem; }
+.full-menu-diet-chip {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: var(--font-space-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+.full-menu-diet-chip:hover { border-color: rgba(255, 255, 255, 0.4); color: #fff; }
+.full-menu-diet-chip.active { background: #9fb89a; border-color: #9fb89a; color: #0b0f0a; }
+.full-menu-diet-chip:focus-visible, .full-menu-diet-clear:focus-visible { outline: 2px solid var(--accent, #c99355); outline-offset: 2px; }
+.full-menu-diet-clear { margin-left: auto; padding: 0.4rem 0.2rem; color: var(--accent, #c99355); letter-spacing: 0.08em; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; background: none; }
+.full-menu-diet-empty { padding: 2rem; text-align: center; color: rgba(255, 255, 255, 0.6); font-family: var(--font-space-mono); font-size: 0.75rem; letter-spacing: 0.04em; }
+
+.diet-row { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }
+.diet-tag {
+  padding: 0.12rem 0.4rem;
+  border-radius: 3px;
+  font-family: var(--font-space-mono);
+  font-size: 0.5625rem;
+  line-height: 1.3;
+  letter-spacing: 0.05em;
+}
+.diet-diet { background: rgba(159, 184, 154, 0.16); color: #b9d0b4; border: 1px solid rgba(159, 184, 154, 0.35); }
+.diet-allergen { background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.62); border: 1px solid rgba(255, 255, 255, 0.14); }
+.acc .diet-row { padding-bottom: 0.9rem; margin-top: 0; }
+.acc .diet-tag { font-size: 0.625rem; padding: 0.2rem 0.5rem; }
+.acc .diet-clear, .acc .diet-note { padding-bottom: 0.6rem; font-size: 0.8125rem; font-weight: 500; color: rgb(255 255 255 / 0.62); }
+
+@media (max-width: 639.98px) {
+  .full-menu-diet { padding: 0.5rem 1.25rem; }
+}
+
+/* hero: one-tap reorder for a device that keeps ordering the same thing */
+.hero-usual {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid rgb(201 147 85 / 0.55);
+  color: var(--accent, #c99355);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 200ms ease, border-color 200ms ease;
+}
+.hero-usual b { color: var(--foreground); font-weight: 700; }
+.hero-usual:hover { color: #e0a868; border-color: #e0a868; }
+.hero-usual:focus-visible { outline: 2px solid var(--accent, #c99355); outline-offset: 3px; }
+@media (max-width: 639.98px) { .hero-usual { padding-block: 0.6rem; } }
+
+/* ═══════════ product page: rating, availability, tools, reviews, pairing ═══════════ */
+.pdp-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.25rem 0;
+  font-family: var(--font-space-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: rgb(255 255 255 / 0.6);
+  cursor: pointer;
+  transition: color 180ms ease;
+}
+.pdp-rating b { color: #fff; font-weight: 700; }
+.pdp-rating-star { color: var(--accent, #c99355); }
+.pdp-rating:hover { color: #fff; }
+.pdp-rating:hover span:last-child { text-decoration: underline; text-underline-offset: 3px; }
+.pdp-rating:focus-visible, .pdp-tools button:focus-visible, .pdp-link:focus-visible { outline: 2px solid var(--accent, #c99355); outline-offset: 3px; }
+
+.pdp-avail { display: flex; align-items: center; gap: 0.5rem; margin-top: -0.25rem; color: rgb(255 255 255 / 0.62); letter-spacing: 0.06em; }
+.pdp-avail::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #3ecf8e; flex: none; }
+.pdp-avail.out { color: #f08a7e; }
+.pdp-avail.out::before { background: #e5604f; }
+.pdp-avail.paused { color: #e0a868; }
+.pdp-avail.paused::before { background: #e0a868; }
+
+.pdp-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: -0.25rem; }
+.pdp-tools button {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 9999px;
+  color: rgb(255 255 255 / 0.7);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease;
+}
+.pdp-tools button:hover { border-color: rgb(255 255 255 / 0.6); color: #fff; }
+
+.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
+
+.pdp-revs { display: grid; gap: 1.1rem; }
+.acc .pdp-revs { padding-bottom: 1.25rem; }
+.pdp-rev-q { padding-bottom: 0.4rem !important; font-size: 0.9375rem; line-height: 1.45; }
+.acc .pdp-rev-by { padding-bottom: 0; font-size: 0.6875rem; font-weight: 400; color: rgb(255 255 255 / 0.5); letter-spacing: 0.05em; }
+.pdp-rev-by span { color: var(--accent, #c99355); letter-spacing: 0.1em; }
+.acc .pdp-link { display: inline; font-size: 0.875rem; font-weight: 600; color: var(--accent, #c99355); text-decoration: underline; text-underline-offset: 3px; }
+.acc .pdp-link:hover { color: #e0a868; }
+
+.pdp-pair h3 { margin-bottom: 0.75rem; color: rgb(255 255 255 / 0.5); font-weight: 400; }
+.pdp-pair-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; align-items: stretch; }
+.pdp-pair-item { display: flex; align-items: center; gap: 0.75rem; border: 1px solid rgb(255 255 255 / 0.14); padding: 0.5rem; text-align: left; transition: border-color 200ms; }
+.pdp-pair-item:hover { border-color: rgb(255 255 255 / 0.5); }
+.pdp-pair-item .thumb { width: 3.5rem; flex: none; aspect-ratio: 1; }
+.pdp-pair-item .rel-name { flex: 1; font-family: var(--font-geist); font-weight: 700; font-size: 0.8125rem; line-height: 1.05; text-transform: uppercase; }
+.pdp-pair-item .mono-fine { flex: none; }
+.pdp-pair-add { height: auto; min-height: 3.25rem; font-size: 0.8125rem; }
+@media (max-width: 639.98px) {
+  .pdp-pair-row { grid-template-columns: 1fr; }
+}
+
+/* ═══════════ product page, second pass ═══════════
+   The buy bar is solid, so the total never prints over option buttons scrolling
+   behind it; a short fade above it keeps the edge soft. It also says what you
+   picked (size, milk, ...) so you can confirm without scrolling back up. */
+.pdp-actions { background: #070707; border-top: 1px solid rgb(255 255 255 / 0.12); }
+.pdp-actions::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 1.5rem; background: linear-gradient(to top, #070707, rgb(7 7 7 / 0)); pointer-events: none; }
+.pdp-total { gap: 1rem; align-items: baseline; }
+.pdp-total .pdp-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0.04em; }
+.pdp-total b { flex: none; }
+
+/* small print that people actually need to read: allergens and price changes */
+.seg button small { font-size: max(0.625rem, 11px); opacity: 0.7; }
+.pdp-info .diet-tag, .acc .diet-tag { font-size: max(0.625rem, 11px); padding: 0.2rem 0.5rem; }
+.full-menu-item .diet-tag { font-size: max(0.5625rem, 10.5px); }
+.pdp-info > .diet-row { margin-top: -0.25rem; }
+
+/* a request on this dish */
+.pdp-request { display: grid; gap: 0.75rem; }
+.pdp-request-toggle { justify-self: start; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; color: rgb(255 255 255 / 0.7); letter-spacing: 0.06em; cursor: pointer; transition: color 180ms ease; }
+.pdp-request-toggle:hover { color: #fff; }
+.pdp-request-toggle:focus-visible { outline: 2px solid var(--accent, #c99355); outline-offset: 3px; }
+.pdp-request-body { display: grid; gap: 0.75rem; }
+.pdp-request-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.pdp-request-chips .chip { cursor: pointer; transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease; }
+.pdp-request-chips .chip:hover { border-color: rgb(255 255 255 / 0.6); }
+.pdp-request-chips .chip[aria-pressed="true"] { background: #fff; color: #070707; border-color: #fff; }
+.pdp-request-chips .chip:focus-visible { outline: 2px solid var(--accent, #c99355); outline-offset: 2px; }
+.pdp-request-help { color: rgb(255 255 255 / 0.5); line-height: 1.4; letter-spacing: 0.04em; }
+.pdp-msg { min-height: 4rem; }
+.pdp-total-line .pdp-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0.04em; }
+.pdp-total-line b { flex: none; }

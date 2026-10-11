@@ -145,7 +145,7 @@ function History({ shop, mode, onOpen }: { shop: number | 'all'; mode: Mode | 'a
         o.table ?? '',
         o.name,
         o.phone,
-        o.items.map((i) => `${i.qty} x ${i.name}${i.opts ? ` (${i.opts})` : ''}`).join('; '),
+        o.items.map((i) => `${i.qty} x ${i.name}${i.opts ? ` (${i.opts})` : ''}${i.note ? ` [${i.note}]` : ''}`).join('; '),
         o.totals.sub,
         o.totals.discount,
         o.totals.fee,

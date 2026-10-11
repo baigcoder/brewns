@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Metadata } from 'next';
+import { preload } from 'react-dom';
 import './sections.css';
 import { BrewnsApp } from '@/components/brewns/BrewnsApp';
 import { publicPageMetadata } from '@/lib/siteMetadata';
@@ -76,5 +77,11 @@ function getCafeRecording() {
 }
 
 export default function Home() {
+  // The hero 3D scene needs the model and the Draco decoder as soon as the engine
+  // boots. Start both now so they download alongside the engine chunk instead of
+  // after it. Same-origin fetches, matching how three's loaders request them.
+  for (const href of ['/assets/hero/models.glb', '/draco/gltf/draco_wasm_wrapper.js', '/draco/gltf/draco_decoder.wasm']) {
+    preload(href, { as: 'fetch', crossOrigin: 'anonymous' });
+  }
   return <BrewnsApp kitchenPhotos={kitchenPhotos()} cafeRecording={getCafeRecording()} build={build()} />;
 }

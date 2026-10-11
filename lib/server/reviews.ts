@@ -17,16 +17,38 @@ export interface Review {
   when: string;          // "dd.mm" display date
   stars: number;         // 1–5
   verified: boolean;     // verified order?
+  /** Reviews from a real order's link go live at once; anyone else's wait for the café. Older reviews have no status and count as approved. */
+  status?: 'pending' | 'approved';
   helpful: number;       // upvote count
   createdAt: number;     // epoch ms
 }
 
 const KEY = 'reviews';
 
-/** Get all reviews, newest first. */
+const isLive = (r: Review) => r.status !== 'pending';
+
+/** Reviews the public sees, newest first: approved ones only. */
 export async function listReviews(): Promise<Review[]> {
   const all = await kv.hall<Review>(KEY);
-  return Object.values(all).sort((a, b) => b.createdAt - a.createdAt);
+  return Object.values(all).filter(isLive).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Everything, for the console: what waits for approval, and what is live. */
+export async function reviewsForConsole(): Promise<{ pending: Review[]; live: Review[] }> {
+  const all = Object.values(await kv.hall<Review>(KEY)).sort((a, b) => b.createdAt - a.createdAt);
+  return { pending: all.filter((r) => !isLive(r)), live: all.filter(isLive) };
+}
+
+export async function countPendingReviews(): Promise<number> {
+  return Object.values(await kv.hall<Review>(KEY)).filter((r) => !isLive(r)).length;
+}
+
+/** Puts a waiting review on the site. Returns false if there is no such review. */
+export async function approveReview(id: string): Promise<boolean> {
+  const review = await kv.hget<Review>(KEY, id);
+  if (!review) return false;
+  await kv.hset(KEY, id, { ...review, status: 'approved' });
+  return true;
 }
 
 /** Add a new review. Returns the created review. */
@@ -52,6 +74,7 @@ export async function addReview(data: {
     when: `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}`,
     stars: Math.max(1, Math.min(5, Math.round(data.stars))),
     verified: !!data.verified,
+    status: data.verified ? 'approved' : 'pending',
     helpful: 0,
     createdAt: now.getTime(),
   };
@@ -62,7 +85,7 @@ export async function addReview(data: {
 /** Upvote a review. Returns new helpful count. */
 export async function upvoteReview(id: string): Promise<number | null> {
   const review = await kv.hget<Review>(KEY, id);
-  if (!review) return null;
+  if (!review || !isLive(review)) return null;
   review.helpful += 1;
   await kv.hset(KEY, id, review);
   return review.helpful;

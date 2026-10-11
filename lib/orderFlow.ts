@@ -44,7 +44,18 @@ export const PREP_STATIONS: readonly Station[] = ['bar', 'kitchen'];
 
 export type Totals = { sub: number; discount: number; promo: number; reward: number; fee: number; rate: number; tax: number; total: number };
 
-export type OrderLine = { id: string; qty: number; sel: Record<string, number>; name: string; opts: string; unit: number; total: number; cat: string; station: Station; done?: boolean };
+export type OrderLine = { id: string; qty: number; sel: Record<string, number>; name: string; opts: string; unit: number; total: number; cat: string; station: Station; done?: boolean; note?: string };
+
+/** The longest request a customer can put on one line ("no onions", a gift message). */
+export const NOTE_MAX = 120;
+
+/** A request on one line: control characters dropped, whitespace tidied, kept short. Anything but text becomes empty. */
+export const cleanNote = (v: unknown): string =>
+  typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, NOTE_MAX) : '';
+
+/** Does a request mention an allergy or an ingredient to leave out for health? The kitchen ticket flags these. */
+export const isAllergyNote = (note: string): boolean =>
+  /\b(allerg\w*|anaphyla\w*|coeliac|celiac|intoleran\w*|peanuts?|(no|without|free of)\s+(nuts?|gluten|wheat|dairy|lactose|eggs?|sesame|shellfish|soy)|(nut|gluten|dairy|egg|sesame|soy|lactose)[\s-]?free)\b/i.test(note);
 export type OrderEvent = { t: number; what: string; status?: Status; by?: string; role?: string };
 export type OrderMessage = { id: string; from: 'you' | 'cafe' | 'rider'; text: string; t: number; by?: string };
 
@@ -77,7 +88,8 @@ export type ServerOrder = {
   /** Customer messages the café has read. */
   readByCafe: number;
   rider: { id: string; name: string; plate: string } | null;
-  paid: { t: number; by: string; method: number } | null;
+  /** How and when it was paid, by whom. `tendered`/`change` for cash; `ref` is the card approval code or the wallet transaction ID. */
+  paid: { t: number; by: string; byId?: string; method: number; tendered?: number; change?: number; ref?: string } | null;
   source: 'online' | 'counter' | 'table';
   takenBy: { id: string; name: string } | null;
   customerId: string | null;

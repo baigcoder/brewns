@@ -3,8 +3,20 @@ import { listApprovedMoments, submitMoment, likeMoment, isVideoMedia } from '@/l
 import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { HttpError, clientIp, rateLimit } from '@/lib/server/http';
+import { checkUpload, safeMediaUrl } from '@/lib/server/uploads';
 
 export const maxDuration = 60;
+
+/** A few posts an hour per visitor: the wall is moderated, but nobody should be able to flood it. */
+const limitUpload = (req: Request) => rateLimit(`moment-up:${clientIp(req)}`, 6, 3600, 'That is a lot of moments in an hour. Try again a little later.');
+
+/** One like per visitor per moment per day, and a sane number overall. */
+async function limitLike(req: Request, id: string) {
+  const ip = clientIp(req);
+  await rateLimit(`moment-like:${ip}`, 60, 3600, 'Easy on the likes. Try again a little later.');
+  await rateLimit(`moment-like:${ip}:${id.slice(0, 24)}`, 1, 86400, 'You already liked this one.');
+}
 
 /** GET — return all approved moments for the website gallery */
 export async function GET() {
@@ -25,10 +37,12 @@ export async function POST(req: NextRequest) {
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
       const action = formData.get('action');
+      if (action !== 'like') await limitUpload(req);
 
       if (action === 'like') {
         const id = formData.get('id') as string;
         if (!id) return NextResponse.json({ error: 'Missing moment id' }, { status: 400 });
+        await limitLike(req, id);
         const likes = await likeMoment(id);
         if (likes === null) return NextResponse.json({ error: 'Moment not found' }, { status: 404 });
         return NextResponse.json({ likes });
@@ -41,13 +55,15 @@ export async function POST(req: NextRequest) {
       const caption = (formData.get('caption') as string)?.trim();
       const product = (formData.get('product') as string)?.trim() || '';
 
-      let finalMediaUrl = (formData.get('imageUrl') as string)?.trim() || '';
+      let finalMediaUrl = safeMediaUrl(formData.get('imageUrl')) || '';
       let detectedType: 'image' | 'video' = 'image';
 
       if (file && typeof file === 'object' && 'name' in file && file.size > 0) {
-        const isVid = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|ogg)$/i.test(file.name);
-        detectedType = isVid ? 'video' : 'image';
-        const buffer = Buffer.from(await file.arrayBuffer());
+        const up = await checkUpload(file);
+        if (!up.ok) return NextResponse.json({ error: up.error }, { status: up.status });
+        const { buffer, media } = up;
+        const isVid = media.kind === 'video';
+        detectedType = media.kind;
 
         // Attempt Cloudinary upload first if configured
         try {
@@ -65,13 +81,12 @@ export async function POST(req: NextRequest) {
 
         // Fallback to local storage (only when filesystem is writable) or resilient base64 data URL
         if (!finalMediaUrl) {
-          const mimeType = file.type || (isVid ? 'video/mp4' : 'image/jpeg');
+          const mimeType = media.mime;
           // Only attempt local disk write if NOT on Vercel/serverless
           if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
             try {
-              let ext = path.extname(file.name).toLowerCase().replace('.', '') || (isVid ? 'mp4' : 'jpg');
-              if (ext === 'jpeg') ext = 'jpg';
-              const fileName = `moment_${isVid ? 'vid_' : ''}${Date.now()}_${randomBytes(4).toString('hex')}.${ext}`;
+              // The extension comes from what the file is, never from what it was called.
+              const fileName = `moment_${isVid ? 'vid_' : ''}${Date.now()}_${randomBytes(4).toString('hex')}.${media.ext}`;
               const uploadDir = path.join(process.cwd(), 'public', 'assets', 'uploads', 'moments');
               await mkdir(uploadDir, { recursive: true });
               const filePath = path.join(uploadDir, fileName);
@@ -113,13 +128,15 @@ export async function POST(req: NextRequest) {
 
     if (body.action === 'like') {
       if (!body.id) return NextResponse.json({ error: 'Missing moment id' }, { status: 400 });
+      await limitLike(req, String(body.id));
       const likes = await likeMoment(body.id);
       if (likes === null) return NextResponse.json({ error: 'Moment not found' }, { status: 404 });
       return NextResponse.json({ likes });
     }
 
+    await limitUpload(req);
     let { imageUrl, mediaUrl, mediaType, author, name, location, caption, product } = body;
-    let finalMediaUrl = mediaUrl || imageUrl;
+    let finalMediaUrl = safeMediaUrl(mediaUrl || imageUrl) || '';
     if (!finalMediaUrl || !name || !caption) {
       return NextResponse.json({ error: 'Please provide a photo or video, your name, and a caption.' }, { status: 400 });
     }
@@ -214,6 +231,7 @@ export async function POST(req: NextRequest) {
       message: 'Moment submitted! Once reviewed and approved by our team, it will appear live on the Brewns Moments wall.',
     }, { status: 201 });
   } catch (err: any) {
+    if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: err.message || 'Invalid request' }, { status: 400 });
   }
 }

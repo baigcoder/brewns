@@ -73,7 +73,7 @@ export function BrewnsEngineLoader({ kitchenPhotos, cafeRecording, build }: { ki
       cancelIdleCallback?: (handle: number) => void;
     };
     if (idleWindow.requestIdleCallback) {
-      idleTask = idleWindow.requestIdleCallback(loadEngine, { timeout: 1400 });
+      idleTask = idleWindow.requestIdleCallback(loadEngine, { timeout: 600 });
     } else {
       loadTimer = setTimeout(loadEngine, 300);
     }

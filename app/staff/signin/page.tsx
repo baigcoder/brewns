@@ -7,8 +7,9 @@ import { currentStaff } from '@/lib/server/auth';
 
 export const metadata: Metadata = { title: 'Staff sign-in · brewns', robots: { index: false } };
 
-export default async function StaffSignin() {
+export default async function StaffSignin({ searchParams }: { searchParams: Promise<{ sent?: string }> }) {
   if (await currentStaff()) redirect('/dashboard');
+  const { sent } = await searchParams;
   return (
     <AuthFrame
       title={<>Behind<br />the counter.</>}
@@ -30,7 +31,14 @@ export default async function StaffSignin() {
             <p>
               New here? <Link href="/staff/signup">Join the team · Sign up</Link> or open your invite link.
             </p>
-            <p>Forgot your password? Ask the owner or a manager for a new link.</p>
+            {sent && (
+              <p role="status" className="cx-banner">
+                If that email is on the team, a reset link is on its way. It lasts an hour.
+              </p>
+            )}
+            <p>
+              <Link href="/staff/forgot">Forgot your password?</Link>
+            </p>
             <p>
               The owner? <Link href="/owner/signin">Owner sign-in</Link>
             </p>

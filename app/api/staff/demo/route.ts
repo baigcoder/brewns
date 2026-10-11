@@ -12,7 +12,8 @@ export const GET = route(async () => {
 
 /** `{ action: 'seed' | 'clear' | 'unpause_all' }` */
 export const POST = route(async (req) => {
-  const ctx = await requireStaff(['reports.view']);
+  // These change live data and switch shops back on, so they belong with shop settings, not with reading reports.
+  const ctx = await requireStaff(['shops.manage']);
   const b = await readBody(req);
   const actor = { id: ctx.user.id, name: ctx.user.name, role: ctx.role };
 

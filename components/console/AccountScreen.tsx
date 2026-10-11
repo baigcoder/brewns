@@ -5,6 +5,7 @@ import { LOC_TITLES } from '@/lib/catalog';
 import { ALL_PERMISSIONS, PERMISSIONS, ROLE_INFO } from '@/lib/rbac';
 import { api } from './api';
 import { useMe } from './Shell';
+import { TwoStepCard } from './TwoStepCard';
 import { useRun } from './Toasts';
 
 /**
@@ -95,8 +96,10 @@ export function AccountScreen() {
           </button>
         </section>
 
+        <TwoStepCard />
+
         {/* Real-time RBAC Permissions View */}
-        <section className="cx-card cx-stack" style={{ gap: 14 }}>
+        <section className="cx-card cx-stack" style={{ gap: 14, gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <p className="cx-h2" style={{ margin: 0 }}>

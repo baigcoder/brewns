@@ -1,9 +1,11 @@
-import { currentStaff, requireStaff } from '@/lib/server/auth';
+import { requireStaff } from '@/lib/server/auth';
 import { clientIp, fail, isEmail, json, rateLimit, readBody, route, str, int } from '@/lib/server/http';
 import { kv, withLock } from '@/lib/server/store';
+import { BOOK_AHEAD_DAYS, bookingProblem, uniqueBookingCode, withinBookAhead } from '@/lib/booking';
 import { CLOSE_MIN, OPEN_MIN, pkMobile, SHOP_COUNT, slotMinutes } from '@/lib/catalog';
 import { pkDay, pkMinutes } from '@/lib/orderFlow';
 import { bumpLive } from '@/lib/server/orders';
+import { getSettings } from '@/lib/server/settings';
 import { sendBookingConfirmationEmail } from '@/lib/server/email';
 import { sendBookingWhatsappNotification } from '@/lib/server/smsWhatsapp';
 
@@ -27,8 +29,6 @@ export type Reservation = {
   whatsappSentAt?: number;
   whatsappUrl?: string;
 };
-
-const makeCode = () => `RES-${Math.floor(1000 + Math.random() * 9000)}`;
 
 /** GET /api/reservations: staff view of table bookings (names and numbers, so staff only). */
 export const GET = route(async (req) => {
@@ -78,11 +78,17 @@ export const POST = route(async (req) => {
   if (at === null || at < OPEN_MIN || at > CLOSE_MIN - 60) fail(400, 'Pick a time between 07:00 and 20:00. We close at 21:00.');
   const today = pkDay(Date.now());
   if (date < today) fail(400, 'That date has passed. Pick today or later.');
+  if (!withinBookAhead(date, today)) fail(400, `We take table bookings up to ${BOOK_AHEAD_DAYS} days ahead.`);
   if (date === today && at! < pkMinutes(Date.now()) + 30) fail(400, 'That time has passed or is too soon. Pick a later slot.');
 
+  const tables = (await getSettings()).shops[loc]?.tables ?? 0;
   const res: Reservation = await withLock('reservations', async () => {
+    const all = Object.values((await kv.hall<Reservation>('reservations')) || {});
+    // The same guest twice, or more tables than the shop has for that slot: say so now, not at the door.
+    const problem = bookingProblem(all, { loc, date, time, guests, phone }, tables);
+    if (problem) fail(409, problem);
     const id = `res_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const code = makeCode();
+    const code = uniqueBookingCode('RES', new Set(all.map((r) => r.code)));
     const item: Reservation = {
       id,
       code,
@@ -139,8 +145,7 @@ export const POST = route(async (req) => {
 
 /** PATCH /api/reservations: update reservation status (staff) */
 export const PATCH = route(async (req) => {
-  const ctx = await currentStaff();
-  if (!ctx) fail(401, 'Sign in as staff to manage bookings.');
+  await requireStaff(['floor.tables', 'orders.manage', 'reports.view'], 'any');
 
   const b = await readBody(req);
   const id = str(b.id, 60);

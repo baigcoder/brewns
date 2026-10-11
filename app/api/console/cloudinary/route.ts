@@ -1,16 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { currentStaff } from '@/lib/server/auth';
+import { NextResponse } from 'next/server';
+import { requireStaff } from '@/lib/server/auth';
+import { audit } from '@/lib/server/audit';
+import { route } from '@/lib/server/http';
 import { isCloudinaryConfigured, uploadMediaToCloudinary } from '@/lib/server/cloudinary';
 import { v2 as cloudinary } from 'cloudinary';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 /** GET — check Cloudinary configuration status and stats */
-export async function GET() {
-  const staff = await currentStaff();
-  if (!staff) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+async function handleGet() {
+  const staff = await requireStaff(['shops.manage', 'reports.view'], 'any');
 
   const configured = isCloudinaryConfigured();
   const cfg = cloudinary.config();
@@ -24,12 +23,10 @@ export async function GET() {
 }
 
 /** POST — sync & enhance local product images to Cloudinary */
-export async function POST(req: NextRequest) {
-  const staff = await currentStaff();
-  if (!staff) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+async function handlePost(req: Request) {
+  const staff = await requireStaff(['shops.manage']);
 
+  await audit({ id: staff.user.id, name: staff.user.name, role: staff.role }, 'Started a Cloudinary image sync');
   if (!isCloudinaryConfigured()) {
     return NextResponse.json({
       error: 'Cloudinary is not fully configured. Please ensure CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY are set in .env.local',
@@ -77,3 +74,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message || 'Failed to sync product images to Cloudinary' }, { status: 500 });
   }
 }
+
+export const GET = route(handleGet);
+export const POST = route(handlePost);

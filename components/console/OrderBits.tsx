@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { DELIVERY, LOC_TITLES, PAY } from '@/lib/catalog';
-import { clock, isOpen, MODE_LABEL, orderNo, STATUS_LABEL, type Status } from '@/lib/orderFlow';
+import { clock, isAllergyNote, isOpen, MODE_LABEL, orderNo, STATUS_LABEL, type Status } from '@/lib/orderFlow';
+import { paymentProblem, retax } from '@/lib/payments';
+import { DEFAULT_BUSINESS, receiptHtml } from '@/lib/receipt';
 import { ago, pkTime, rs, useNow } from './api';
 import { useLive, type StaffOrder } from './Live';
+import { printHtml } from './printing';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
 
@@ -60,6 +63,8 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
   const run = useRun();
   const o = data?.orders.find((x) => x.number === number) || fallback;
   const [method, setMethod] = useState<number | null>(null);
+  const [payRef, setPayRef] = useState('');
+  const [given, setGiven] = useState('');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const now = useNow(15000);
@@ -84,6 +89,10 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
   const open = isOpen(o.status);
   const riders = data?.riders || [];
   const t = o.totals;
+  // Paying another way changes the tax (16% cash, 5% card or wallet), so the amount to take follows the way chosen.
+  const payMethod = method ?? o.pay;
+  const payTotal = payMethod > 0 === o.pay > 0 ? t.total : retax(t, payMethod).total;
+  const payProblem = paymentProblem(payMethod === 0 ? { method: 0, tendered: given === '' ? undefined : Number(given) } : { method: payMethod, ref: payRef.trim() }, payTotal);
 
   return (
     <div className="cx-drawer-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -139,6 +148,11 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
               <span>{l.name}</span>
               <span className="cx-mono cx-small">{rs(l.total)}</span>
               {l.opts && <small>{l.opts}</small>}
+              {l.note && (
+                <em className={`cx-line-note${isAllergyNote(l.note) ? ' allergy' : ''}`}>
+                  {isAllergyNote(l.note) ? 'ALLERGY · ' : ''}“{l.note}”
+                </em>
+              )}
             </div>
           ))}
         </div>
@@ -248,18 +262,33 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
             </button>
           )}
           {!o.paid && !o.hold && o.status !== 'cancelled' && can('orders.pay') && (
-            <div className="cx-row">
-              <select className="cx-select" value={method ?? o.pay} onChange={(e) => setMethod(+e.target.value)} aria-label="Paid by">
-                {PAY.map((p, i) => (
-                  <option key={i} value={i}>
-                    {p[0]}
-                  </option>
-                ))}
-              </select>
-              <button className="cx-btn" disabled={busy} onClick={() => step({ type: 'paid', method: method ?? o.pay }, `Paid: ${rs(t.total)}.`)}>
-                Take payment · {rs(t.total)}
+            <div className="cx-stack" style={{ gap: 8 }}>
+              <div className="cx-row">
+                <select className="cx-select" value={payMethod} onChange={(e) => (setMethod(+e.target.value), setPayRef(''), setGiven(''))} aria-label="Paid by">
+                  {PAY.map((p, i) => (
+                    <option key={i} value={i}>
+                      {p[0]}
+                    </option>
+                  ))}
+                </select>
+                {payMethod === 0 ? (
+                  <input className="cx-input" style={{ maxWidth: 150 }} type="number" min={0} inputMode="numeric" placeholder="Cash received" value={given} onChange={(e) => setGiven(e.target.value)} aria-label="Cash received" />
+                ) : (
+                  <input className="cx-input" style={{ maxWidth: 190 }} placeholder={payMethod === 1 ? 'Card approval code' : 'Transaction ID'} value={payRef} onChange={(e) => setPayRef(e.target.value.replace(/[^a-z0-9-]/gi, '').toUpperCase())} aria-label={payMethod === 1 ? 'Card approval code' : 'Transaction ID'} />
+                )}
+              </div>
+              {payMethod === 0 && given !== '' && Number(given) >= payTotal && <p className="cx-small" style={{ color: 'var(--cx-ready)' }}>Give back {rs(Number(given) - payTotal)}</p>}
+              {payProblem && (payMethod > 0 ? payRef.length > 0 : given !== '') && <p className="cx-small" style={{ color: 'var(--cx-late)' }}>{payProblem}</p>}
+              {payTotal !== t.total && <p className="cx-small cx-muted">Tax is {payMethod > 0 ? '5%' : '16%'} when paid this way: the bill becomes {rs(payTotal)}.</p>}
+              <button className="cx-btn" disabled={busy || !!payProblem} onClick={() => step({ type: 'paid', method: payMethod, ...(payMethod === 0 ? (given === '' ? {} : { tendered: Number(given) }) : { ref: payRef.trim() }) }, `Paid: ${rs(payTotal)}.`)}>
+                Take payment · {rs(payTotal)}
               </button>
             </div>
+          )}
+          {o.paid && (
+            <button className="cx-btn" onClick={() => printHtml(receiptHtml(o, data?.business || DEFAULT_BUSINESS, { cashier: me.name, reprint: true }))}>
+              Print bill
+            </button>
           )}
           {open && can('orders.manage') && (
             <div className="cx-row">

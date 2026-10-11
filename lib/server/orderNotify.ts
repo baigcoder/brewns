@@ -9,6 +9,7 @@
 import { LOC_TITLES, pkMobile } from '@/lib/catalog';
 import { clock, orderNo, type ServerOrder, type Status } from '@/lib/orderFlow';
 import { SITE_URL } from '@/lib/site';
+import { sendEmail } from './email';
 import { formatPakistaniMobileForWa } from './smsWhatsapp';
 import { kv } from './store';
 
@@ -71,31 +72,6 @@ async function whatsapp(phone: string, text: string): Promise<boolean> {
   return res.ok;
 }
 
-async function email(to: string, subject: string, text: string): Promise<boolean> {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return false;
-  const resend = process.env.RESEND_API_KEY;
-  if (resend) {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${resend}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM || 'brewns <onboarding@resend.dev>', to: [to], subject, text }),
-      signal: AbortSignal.timeout(4000),
-    });
-    if (res.ok) return true;
-  }
-  const brevo = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
-  if (brevo) {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: { 'api-key': brevo, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sender: { name: 'brewns', email: process.env.EMAIL_FROM || 'orders@brewns.coffee' }, to: [{ email: to }], subject, textContent: text }),
-      signal: AbortSignal.timeout(4000),
-    });
-    return res.ok;
-  }
-  return false;
-}
-
 /** Sends the message for `status` (default: where the order is now) once per status; call it after the order is saved. `before` skips it when nothing moved. */
 export async function notifyOrder(o: ServerOrder, before?: Status, status: Status = o.status) {
   try {
@@ -133,6 +109,6 @@ export async function notifyRefund(o: ServerOrder, stage: 'due' | 'paid') {
 
 async function deliver(o: ServerOrder, key: string, msg: { subject: string; text: string }) {
   if (!(await kv.set(`notified:${o.number}:${key}`, 1, { nx: true, ttlSec: 7 * 86400 }))) return;
-  const [wa, mail] = await Promise.all([whatsapp(o.phone, msg.text).catch(() => false), o.email ? email(o.email, msg.subject, msg.text).catch(() => false) : false]);
+  const [wa, mail] = await Promise.all([whatsapp(o.phone, msg.text).catch(() => false), o.email ? sendEmail({ to: o.email, subject: msg.subject, text: msg.text }).then((r) => r.ok).catch(() => false) : false]);
   await kv.push('order_notifications', { t: Date.now(), order: o.number, status: key, phone: o.phone, email: o.email, whatsapp: wa, mail, text: msg.text }, 200);
 }

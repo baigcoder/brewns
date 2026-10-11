@@ -7,8 +7,9 @@ import { currentStaff, ownerExists } from '@/lib/server/auth';
 
 export const metadata: Metadata = { title: 'Owner sign-in · brewns', robots: { index: false } };
 
-export default async function OwnerSignin() {
+export default async function OwnerSignin({ searchParams }: { searchParams: Promise<{ sent?: string }> }) {
   if (await currentStaff()) redirect('/dashboard');
+  const { sent } = await searchParams;
   const setUp = await ownerExists();
   if (!setUp) redirect('/owner/signup');
   return (
@@ -33,7 +34,14 @@ export default async function OwnerSignin() {
             <p>
               On the team? <Link href="/staff/signin">Staff sign-in</Link>
             </p>
-            <p>Forgot your password? Another owner can send you a new link from the Team page.</p>
+            {sent && (
+              <p role="status" className="cx-banner">
+                If that email is on the team, a reset link is on its way. It lasts an hour.
+              </p>
+            )}
+            <p>
+              <Link href="/staff/forgot">Forgot your password?</Link> We email you a link to choose a new one.
+            </p>
           </>
         }
       />

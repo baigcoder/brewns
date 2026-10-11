@@ -11,6 +11,8 @@ export type Field = { name: string; label: string; type?: string; autoComplete?:
 export function AuthForm({ eyebrow, heading, fields, action, extra, submit, footer, withClub }: { eyebrow: string; heading: string; fields: Field[]; action: string; extra?: Record<string, unknown>; submit: string; footer?: ReactNode; withClub?: boolean }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Staff with two-step sign-in on: the password was right, now the code from their app.
+  const [needsCode, setNeedsCode] = useState(false);
   return (
     <form
       className="auth-form"
@@ -33,6 +35,11 @@ export function AuthForm({ eyebrow, heading, fields, action, extra, submit, foot
           const res = await fetch(action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'Something went wrong. Try again.');
+          if (data.needsCode) {
+            setNeedsCode(true);
+            setBusy(false);
+            return;
+          }
           window.location.assign(data.next || '/');
         } catch (err) {
           setError((err as Error).message);
@@ -51,6 +58,13 @@ export function AuthForm({ eyebrow, heading, fields, action, extra, submit, foot
           {f.hint && <small className="cx-small cx-muted">{f.hint}</small>}
         </label>
       ))}
+      {needsCode && (
+        <label className="cx-field">
+          <span>Two-step code</span>
+          <input name="code" inputMode="text" autoComplete="one-time-code" autoFocus required maxLength={24} placeholder="6-digit code, or a recovery code" />
+          <small className="cx-small cx-muted">Open your authenticator app for the code, or type one of your recovery codes.</small>
+        </label>
+      )}
       {error && (
         <p className="auth-err" role="alert">
           {error}

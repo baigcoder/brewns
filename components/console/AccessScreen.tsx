@@ -105,6 +105,23 @@ export function AccessScreen() {
             </span>
           </div>
           <h1 className="cx-h1">Access Control</h1>
+          <button
+            type="button"
+            className="cx-btn sm"
+            style={{ marginTop: 10 }}
+            onClick={() =>
+              run(async () => {
+                const res = await fetch('/api/staff/backup', { cache: 'no-store' });
+                if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || 'The backup could not be made.');
+                const url = URL.createObjectURL(await res.blob());
+                const a = Object.assign(document.createElement('a'), { href: url, download: `brewns-backup-${new Date().toISOString().slice(0, 10)}.json` });
+                a.click();
+                URL.revokeObjectURL(url);
+              }, 'Backup downloaded. Keep the file somewhere private.')
+            }
+          >
+            Download a backup
+          </button>
         </div>
         <p className="cx-small cx-muted" style={{ maxWidth: 460 }}>
           Set what each role can see and do. Changes reach active consoles within a few seconds and are checked again on every protected API request. A screen closes when its permission is removed. Shop access stays per person on the Team page.

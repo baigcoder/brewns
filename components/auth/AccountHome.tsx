@@ -263,8 +263,68 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
               </button>
             </form>
           </section>
+          <YourData />
         </div>
       </main>
     </div>
+  );
+}
+
+/** Download what we hold, or delete the account. Past orders stay for our records, without your details. */
+function YourData() {
+  const [asking, setAsking] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const remove = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api<{ next: string }>('/api/account/delete', { password });
+      window.location.assign(r.next);
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="cx-card cx-stack">
+      <p className="cx-h2">Your data</p>
+      <p className="cx-small cx-muted">Take a copy of everything we keep about you, or delete your account. Past orders stay in our sales records with your name, number and address taken off.</p>
+      <a className="cx-btn" href="/api/account/export" download>
+        Download my data
+      </a>
+      {!asking ? (
+        <button type="button" className="cx-btn danger" onClick={() => setAsking(true)}>
+          Delete my account
+        </button>
+      ) : (
+        <form
+          className="cx-stack"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void remove();
+          }}
+        >
+          <label className="cx-field">
+            <span>Your password, to confirm. This can&apos;t be undone.</span>
+            <input type="password" autoComplete="current-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          {error && (
+            <p className="auth-err" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="cx-row">
+            <button className="cx-btn danger" disabled={!password || busy}>
+              {busy ? 'Deleting…' : 'Delete everything'}
+            </button>
+            <button type="button" className="cx-btn" onClick={() => setAsking(false)}>
+              Keep my account
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }

@@ -40,6 +40,9 @@ import { foodArt } from './foodArt';
 import { autoReply, canCancel, currentStage, fastForward, finalStage, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
 import { addStamps, birthdayTreat, CLUB, emptyClub, isDrink, memberNumber, normaliseClub, reverseOrder, rewardValue, spendReward, stampsFor } from './club';
 import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TITLES, LOCS, money, OPEN_MIN, PAY, pkMobile, PREP_MIN, PRODUCTS_BASE, selLabel, SHOP_CODES, TAX, TAX_CARD, unitPrice, validSel } from "@/lib/catalog";
+import { dietBadges, dietOf, DIET_FILTERS, matchesDiet } from '@/lib/diet';
+import { usualOf } from '@/lib/usual';
+import { pairOf } from '@/lib/pairings';
 import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
 import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
 import { initVoiceCalling } from './voiceCalling';
@@ -113,6 +116,8 @@ try {
         loc: locIndex,
         table: tableNum,
         label: `Table ${tableNum} · ${LOC_TITLES[locIndex]}`,
+        // The code printed in this table's QR (?t=): the café can require it for table orders and waiter calls.
+        key: new URLSearchParams(window.location.search).get("t") || "",
       };
 
       const tb = document.createElement("aside");
@@ -159,7 +164,7 @@ try {
           const res = await fetch("/api/tables/call", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ loc: locIndex, table: tableNum, kind }),
+            body: JSON.stringify({ loc: locIndex, table: tableNum, kind, key: activeTableSession.key }),
           });
           const data = await res.json().catch(() => null);
           if (res.ok && data?.ok) {
@@ -1302,9 +1307,12 @@ revModalForm?.addEventListener("submit", async (e) => {
       const err = await res.json().catch(() => ({ error: "Submission failed" }));
       throw new Error(err.error || "Failed to post review");
     }
+    const sent = await res.json().catch(() => ({}));
     closeRevModal();
     revModalForm.reset();
     updateStarDisplay(5);
+    // Anyone can write a review, so it waits for the café before it shows.
+    if (sent.pending) toast("THANK YOU. YOUR REVIEW GOES UP ONCE WE HAVE HAD A LOOK AT IT.");
 
     // Refresh immediately and scroll to reviews
     refreshReviews();
@@ -2313,6 +2321,8 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
       if (s.shops) s.shops.forEach((x, i) => shopState[i] && Object.assign(shopState[i], x));
       // Pay-first delivery: read again at checkout.
       window.__brewnsPrepay = s.prepay || null;
+      window.__brewnsStatus = { soldOut: Array.isArray(s.soldOut) ? s.soldOut : [], shops: Array.isArray(s.shops) ? s.shops : [] };
+      syncAvailability();
       if (Array.isArray(s.soldOut)) {
         soldOutIds = new Set(s.soldOut);
         soldOutIds.forEach((id) => {
@@ -4184,6 +4194,22 @@ const PICKUP_COPY = "Ready in about 12 minutes on MM Alam Road, in DHA Phase 5 o
 const PRODUCTS = [...PRODUCTS_BASE, ...KITCHEN];
 const productById = (id) => PRODUCTS.find((p) => p.id === id);
 
+/* ═══════════ anonymous funnel counts ═══════════
+   One beacon per step per visit (visit → bag → checkout → order), so the owner can
+   see where people drop off. Nothing is stored about the visitor: the server keeps
+   a daily count and nothing else. Off entirely when the browser sends Do Not Track. */
+function track(e, oncePerVisit = true) {
+  try {
+    if (navigator.doNotTrack === "1" || window.doNotTrack === "1") return;
+    if (oncePerVisit) {
+      if (sessionStorage.getItem(`brewns-ev-${e}`)) return;
+      sessionStorage.setItem(`brewns-ev-${e}`, "1");
+    }
+    navigator.sendBeacon?.("/api/public/event", new Blob([JSON.stringify({ e })], { type: "application/json" }));
+  } catch {}
+}
+track("visit");
+
 /* ═══════════ the bag, kept in localStorage ═══════════ */
 const cart = (() => {
   const KEY = "brewns-bag";
@@ -4218,6 +4244,7 @@ const cart = (() => {
     },
     subscribe: (f) => listeners.add(f),
     add(id, sel, qty = 1, message = "") {
+      track("add_to_bag");
       const key = `${id}|${JSON.stringify(sel)}|${message}`;
       const hit = items.find((i) => i.key === key);
       if (hit) hit.qty = Math.min(20, hit.qty + qty);
@@ -4593,6 +4620,42 @@ if (heroQuickAddBtn) {
   });
 }
 
+/* "Your usual": once a device has ordered the same thing twice, the hero offers it
+   in one tap. Worked out from the orders this device already keeps, so it needs no
+   sign-in and no request, and guests get it too. */
+(() => {
+  const meta = $(".hero-meta");
+  if (!meta) return;
+  let saved = [];
+  try {
+    saved = JSON.parse(localStorage.getItem("brewns-orders") || "[]");
+  } catch {}
+  const past = (Array.isArray(saved) ? saved : []).map((o) => ({
+    placed: o.placed || 0,
+    status: o.status || "",
+    items: (o.items || [])
+      .map((it) => ({ id: it.id, qty: it.qty || 1, sel: it.sel || {}, name: productById(it.id)?.name || "" }))
+      .filter((it) => it.name),
+  }));
+  const usual = usualOf(past, 3, 2).filter((u) => {
+    const p = productById(u.id);
+    return p && validSel(p, u.sel);
+  });
+  if (!usual.length) return;
+  const first = usual[0].name.charAt(0) + usual[0].name.slice(1).toLowerCase();
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "hero-usual";
+  btn.setAttribute("aria-label", `Add your usual to the bag: ${usual.map((u) => u.name.toLowerCase()).join(", ")}`);
+  btn.innerHTML = `<span aria-hidden="true">↻</span> YOUR USUAL · <b>${esc(first.toUpperCase())}${usual.length > 1 ? ` + ${usual.length - 1}` : ""}</b>`;
+  btn.addEventListener("click", () => {
+    playSoftClick();
+    usual.forEach((u) => cart.add(u.id, u.sel, 1));
+    openBag();
+  });
+  meta.append(btn);
+})();
+
 /* smooth anchor scroll with lenis for header and site navigation */
 $$('a[href^="#"]').forEach((a) => {
   if (a.hasAttribute("data-order-now") || a.hasAttribute("data-go") || a.id === "menu-cta" || a.classList.contains("w-order-cta")) return;
@@ -4726,6 +4789,7 @@ function openProduct(id, { push = true, replace = false, sel = null } = {}) {
   if (hasLayer("bag")) closeBag();
   pdpState = { p, sel: { ...defaultSel(p), ...picked }, qty: 1, message: "", view: p.gift ? "card" : p.photo ? "photo" : "3d", viewer: null, cleanups: [] };
   renderProduct();
+  syncAvailability();
   if (replace) history.replaceState({ pdp: id }, "", `#shop/${id}`);
   else if (push) history.pushState({ pdp: id }, "", `#shop/${id}`);
   if (!already) {
@@ -4780,7 +4844,12 @@ function renderProduct() {
   const { p, view } = pdpState;
   const index = PRODUCTS.indexOf(p) + 1;
   const views = [p.photo && ["photo", "PHOTO"], p.model && viewMode(p) !== "photo" && ["3d", viewMode(p) === "model" ? "3D VIEW" : "TILT VIEW"], p.gift && ["card", "CARD"]].filter(Boolean);
-  const related = [...PRODUCTS.filter((q) => q !== p && q.cat === p.cat), ...PRODUCTS.filter((q) => q !== p && q.cat !== p.cat)].slice(0, 3);
+  const pairId = pairOf(p.id);
+  const pair = pairId && !(window.__brewnsStatus?.soldOut || []).includes(pairId) ? productById(pairId) : null;
+  const soldNow = window.__brewnsStatus?.soldOut || [];
+  const related = [...PRODUCTS.filter((q) => q !== p && q !== pair && q.cat === p.cat), ...PRODUCTS.filter((q) => q !== p && q !== pair && q.cat !== p.cat)]
+    .filter((q) => !soldNow.includes(q.id))
+    .slice(0, 3);
   const options = p.options
     .map(
       (o) => `<div class="opt" data-opt="${o.key}">
@@ -4808,25 +4877,41 @@ function renderProduct() {
       <div>
         <div class="pdp-kicker mono-fine"><span>${String(index).padStart(2, "0")} / ${String(PRODUCTS.length).padStart(2, "0")} · ${CAT_LABEL[p.cat]}</span>${p.tag ? `<span class="chip"><span class="dot"></span>${p.tag}</span>` : ""}</div>
         <h2 class="pdp-name" id="pdp-name">${p.name}</h2>
+        ${pdpRatingHTML(p.id)}
         <div class="pdp-priceline"><span class="pdp-price" id="pdp-price" aria-live="polite"></span><span class="pdp-was" id="pdp-was"></span><span class="mono-fine" style="color:rgb(255 255 255/.5)">${p.meta}</span></div>
+      </div>
+      <p class="pdp-avail mono-fine" id="pdp-avail" role="status" hidden></p>
+      <div class="pdp-tools mono-fine" role="group" aria-label="Browse and share">
+        <button type="button" data-nav="-1" aria-label="Previous product"><span aria-hidden="true">←</span> PREV</button>
+        <button type="button" data-nav="1" aria-label="Next product">NEXT <span aria-hidden="true">→</span></button>
+        <button type="button" data-share aria-label="Share this product">SHARE <span aria-hidden="true">↗</span></button>
       </div>
       <p class="pdp-desc">${p.desc}</p>
       <div class="pdp-notes">${p.notes.map((n) => `<span class="chip">${n}</span>`).join("")}</div>
+      ${dietRowHTML(p.id)}
       ${options}
       ${p.gift ? `<label class="opt"><span class="opt-head mono-fine"><span>MESSAGE ON THE CARD · OPTIONAL</span></span><textarea class="pdp-msg" maxlength="120" placeholder="Happy Monday. The first one is on me." data-msg></textarea></label>` : ""}
-      <p class="pdp-total-line mono-fine" aria-hidden="true"><span>TOTAL</span><b id="pdp-total-m"></b></p>
+      ${requestHTML(p)}
+      <p class="pdp-total-line mono-fine" aria-hidden="true"><span class="pdp-summary" id="pdp-summary-m">TOTAL</span><b id="pdp-total-m"></b></p>
       <div class="pdp-actions">
-        <div class="pdp-total mono-fine"><span>TOTAL</span><b id="pdp-total"></b></div>
+        <div class="pdp-total mono-fine"><span class="pdp-summary" id="pdp-summary">TOTAL</span><b id="pdp-total"></b></div>
         <div class="qty" role="group" aria-label="Quantity"><button type="button" data-q="-1" aria-label="Decrease quantity">−</button><output id="pdp-qty" aria-live="polite">1</output><button type="button" data-q="1" aria-label="Increase quantity">+</button></div>
         <button type="button" class="btn btn-line" id="pdp-add"><span>ADD<span class="lbl-long"> TO BAG</span></span><span aria-hidden="true">+</span></button>
         <button type="button" class="btn btn-solid" id="pdp-now">ORDER<span class="lbl-long">&nbsp;NOW</span> ${ARROW_SVG}</button>
       </div>
       <div>
         <details class="acc" open><summary>DETAILS<i aria-hidden="true">+</i></summary><ul>${p.details.map(([k, v]) => `<li><span>${k}</span><span>${v}</span></li>`).join("")}</ul></details>
-        <details class="acc"><summary>${p.cat === "beans" ? "FRESHNESS &amp; STORAGE" : "HOW WE MAKE IT"}<i aria-hidden="true">+</i></summary><p>${p.care}</p></details>
+        ${dietPanelHTML(p.id)}
+        <details class="acc"><summary>${p.cat === "beans" ? "FRESHNESS &amp; STORAGE" : "HOW WE MAKE IT"}<i aria-hidden="true">+</i></summary><p>${p.care}</p>${p.cat === "beans" ? `<p><a class="pdp-link" href="/brew-timer">Brew it at home: step-by-step V60, French press, AeroPress and moka pot recipes <span aria-hidden="true">→</span></a></p>` : ""}</details>
         <details class="acc"><summary>PICKUP<i aria-hidden="true">+</i></summary><p>${PICKUP_COPY}</p></details>
+        ${pdpReviewsHTML(p.id)}
       </div>
-      <div class="pdp-related"><h3 class="mono-fine">YOU MAY ALSO LIKE</h3><ul>${related
+      ${
+        pair
+          ? `<div class="pdp-pair"><h3 class="mono-fine">PAIRS WELL WITH</h3><div class="pdp-pair-row"><button type="button" class="pdp-pair-item" data-related="${pair.id}">${thumbHTML(pair)}<span class="rel-name">${pair.name}</span><span class="mono-fine" style="color:rgb(255 255 255/.5)">${money(unitPrice(pair, defaultSel(pair)))}</span></button><button type="button" class="btn btn-line pdp-pair-add" id="pdp-pair-both" data-pair="${pair.id}"><span>ADD BOTH · <b data-pair-total></b></span><span aria-hidden="true">+</span></button></div></div>`
+          : ""
+      }
+      <div class="pdp-related"><h3 class="mono-fine">${soldNow.includes(p.id) ? "AVAILABLE TODAY INSTEAD" : "YOU MAY ALSO LIKE"}</h3><ul>${related
         .map((q) => `<li><button type="button" data-related="${q.id}">${thumbHTML(q)}<span class="rel-name">${q.name}</span><span class="mono-fine" style="color:rgb(255 255 255/.5)">${money(q.price)}</span></button></li>`)
         .join("")}</ul></div>
       <div class="pdp-foot-pad"></div>
@@ -4843,6 +4928,7 @@ function syncOptions() {
     const group = $(`[data-opt="${o.key}"]`, pdpEl);
     $$("[data-choice]", group).forEach((b) => b.setAttribute("aria-checked", String(+b.dataset.choice === sel[o.key])));
     $("[data-opt-val]", group).textContent = o.choices[sel[o.key]][0];
+    $$("[data-choice]", group).forEach((b) => (b.tabIndex = +b.dataset.choice === sel[o.key] ? 0 : -1));
   });
   const amount = $(".pdp-stage .gc-amount", pdpEl);
   if (amount) amount.textContent = giftAmount();
@@ -4858,6 +4944,51 @@ function updatePrice(immediate = false) {
   const totalM = $("#pdp-total-m", pdpEl);
   if (totalM) totalM.textContent = `${qty} × ${money(unitNow)} = ${money(unitNow * qty)}`;
   $("#pdp-qty", pdpEl).textContent = qty;
+  const picked = selLabel(p, sel).split(" · ").filter((x) => x !== "NONE").join(" · ") || "TOTAL";
+  for (const id of ["#pdp-summary", "#pdp-summary-m"]) {
+    const el = $(id, pdpEl);
+    if (el) el.textContent = picked;
+  }
+  const both = $("#pdp-pair-both", pdpEl);
+  if (both) {
+    const q = productById(both.dataset.pair);
+    $("[data-pair-total]", both).textContent = money(unitNow * qty + unitPrice(q, defaultSel(q)));
+  }
+}
+
+/** Sold out, paused or how soon it is ready: read from the café's live status, so the buy buttons never promise what the shop can't do. */
+function syncAvailability() {
+  if (!pdpState) return;
+  const { p } = pdpState;
+  const st = window.__brewnsStatus || { soldOut: [], shops: [] };
+  const out = st.soldOut.includes(p.id);
+  const open = st.shops.filter((x) => !x.paused);
+  const paused = st.shops.length > 0 && open.length === 0;
+  let state = "ok";
+  let text = "";
+  if (out) {
+    state = "out";
+    text = "SOLD OUT FOR NOW";
+  } else if (paused) {
+    state = "paused";
+    text = "ONLINE ORDERS ARE PAUSED RIGHT NOW";
+  } else if (!p.gift) {
+    const extra = Math.min(...(open.length ? open : [{}]).map((x) => x.extraMin || 0));
+    text = `READY IN ABOUT ${PREP_MIN + extra} MIN`;
+  }
+  const el = $("#pdp-avail", pdpEl);
+  if (el) {
+    el.className = `pdp-avail mono-fine ${state}`;
+    el.textContent = text;
+    el.hidden = !text;
+  }
+  const blocked = state !== "ok";
+  ["#pdp-add", "#pdp-now", "#pdp-pair-both"].forEach((sel) => {
+    const b = $(sel, pdpEl);
+    if (!b) return;
+    b.disabled = blocked;
+    b.setAttribute("aria-disabled", String(blocked));
+  });
 }
 
 function mountMedia() {
@@ -4969,7 +5100,7 @@ pdpEl.addEventListener("click", (e) => {
   }
   const { p, sel, qty, message } = pdpState;
   if (t.closest("#pdp-add")) {
-    cart.add(p.id, { ...sel }, qty, p.gift ? message.trim() : "");
+    cart.add(p.id, { ...sel }, qty, message.trim());
     flashButton(t.closest("#pdp-add"), "ADDED ✓");
     return toast(`ADDED — ${p.name} ×${qty}`, "VIEW BAG", () => {
       closeProduct();
@@ -4977,7 +5108,7 @@ pdpEl.addEventListener("click", (e) => {
     });
   }
   if (t.closest("#pdp-now")) {
-    cart.add(p.id, { ...sel }, qty, p.gift ? message.trim() : "");
+    cart.add(p.id, { ...sel }, qty, message.trim());
     closeProduct();
     return openCheckout();
   }
@@ -4987,11 +5118,89 @@ pdpEl.addEventListener("click", (e) => {
     setFilter(crumb.dataset.crumb);
     return setTimeout(() => lenis.scrollTo("#shop", { force: true, immediate: true }), 60);
   }
+  const reqToggle = t.closest("[data-req-toggle]");
+  if (reqToggle) {
+    const body = $("#pdp-request-body", pdpEl);
+    const open = body.hidden;
+    body.hidden = !open;
+    reqToggle.setAttribute("aria-expanded", String(open));
+    reqToggle.firstElementChild.textContent = open ? "−" : "+";
+    if (open) $("textarea", body).focus({ preventScroll: true });
+    return;
+  }
+  const reqChip = t.closest("[data-req-chip]");
+  if (reqChip) {
+    const box = $("textarea[data-msg]", pdpEl);
+    const word = reqChip.dataset.reqChip.charAt(0) + reqChip.dataset.reqChip.slice(1).toLowerCase();
+    const parts = box.value.split(",").map((x) => x.trim()).filter(Boolean);
+    const at = parts.findIndex((x) => x.toLowerCase() === word.toLowerCase());
+    if (at >= 0) parts.splice(at, 1);
+    else parts.push(word);
+    box.value = parts.join(", ").slice(0, REQUEST_MAX);
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
+  const nav = t.closest("[data-nav]");
+  if (nav) {
+    const at = PRODUCTS.indexOf(pdpState.p);
+    const next = PRODUCTS[(at + +nav.dataset.nav + PRODUCTS.length) % PRODUCTS.length];
+    playSoftClick();
+    return openProduct(next.id, { replace: true });
+  }
+  if (t.closest("[data-share]")) {
+    const { p } = pdpState;
+    const url = `${location.origin}/#shop/${p.id}`;
+    if (navigator.share) return navigator.share({ title: `${p.name} · brewns`, text: `${p.name} at brewns coffee house`, url }).catch(() => {});
+    return navigator.clipboard
+      ?.writeText(url)
+      .then(() => toast("LINK COPIED"))
+      .catch(() => toast(url));
+  }
+  const jump = t.closest("[data-jump]");
+  if (jump) {
+    const target = document.getElementById(jump.dataset.jump);
+    if (target) {
+      target.open = true;
+      target.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
+    }
+    return;
+  }
+  const both = t.closest("#pdp-pair-both");
+  if (both) {
+    const { p, sel, qty, message } = pdpState;
+    const q = productById(both.dataset.pair);
+    if (!q) return;
+    cart.add(p.id, { ...sel }, qty, message.trim());
+    cart.add(q.id, defaultSel(q), 1);
+    playSoftClick();
+    return toast(`ADDED — ${p.name} + ${q.name}`, "VIEW BAG", () => {
+      closeProduct();
+      openBag();
+    });
+  }
   const rel = t.closest("[data-related]");
   if (rel) openProduct(rel.dataset.related, { replace: true });
 });
 pdpEl.addEventListener("input", (e) => {
-  if (pdpState && e.target.matches("[data-msg]")) pdpState.message = e.target.value;
+  if (!pdpState || !e.target.matches("[data-msg]")) return;
+  pdpState.message = e.target.value;
+  const count = $("[data-req-count]", pdpEl);
+  if (count) count.textContent = `${e.target.value.length}/${REQUEST_MAX}`;
+  const typed = e.target.value.split(",").map((x) => x.trim().toLowerCase());
+  $$("[data-req-chip]", pdpEl).forEach((c) => c.setAttribute("aria-pressed", String(typed.includes(c.dataset.reqChip.toLowerCase()))));
+});
+
+/* Options are radio groups: one tab stop each, arrow keys move and choose. */
+pdpEl.addEventListener("keydown", (e) => {
+  const radio = pdpState && e.target.closest?.('[role="radio"]');
+  if (!radio) return;
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!step && e.key !== "Home" && e.key !== "End") return;
+  const group = [...radio.closest('[role="radiogroup"]').querySelectorAll('[role="radio"]')];
+  const next = e.key === "Home" ? group[0] : e.key === "End" ? group[group.length - 1] : group[(group.indexOf(radio) + step + group.length) % group.length];
+  e.preventDefault();
+  next.click();
+  next.focus();
 });
 
 /* ═══════════ product viewer: one shared model, snapshots and a turntable ═══════════ */
@@ -5334,6 +5543,7 @@ veilEl.addEventListener("click", () => {
 
 function openBag() {
   if (hasLayer("bag")) return;
+  track("bag_open");
   if (hasLayer("full-menu")) closeFullMenu();
   hideToast();
   renderBag();
@@ -5400,6 +5610,65 @@ const FULL_MENU_SECTIONS = [
   },
 ];
 
+/** Diet and allergen badges for a menu item; empty for things like merch. */
+const dietRowHTML = (id) => {
+  const badges = dietBadges(id);
+  if (!badges.length) return "";
+  return `<p class="diet-row" aria-label="Diet and allergens">${badges.map((b) => `<span class="diet-tag diet-${b.kind}">${b.text}</span>`).join("")}</p>`;
+};
+
+/** The product-page panel: what it is, what it contains, and any swap that changes it. */
+const dietPanelHTML = (id) => {
+  const d = dietOf(id);
+  if (!d) return "";
+  const row = dietRowHTML(id);
+  const contains = d.allergens.length ? "" : `<p class="diet-clear">No milk, egg, wheat, nuts or sesame in the recipe.</p>`;
+  const note = d.note ? `<p class="diet-note">${esc(d.note)}.</p>` : "";
+  return `<details class="acc"><summary>DIET &amp; ALLERGENS<i aria-hidden="true">+</i></summary>${row}${contains}${note}<p class="diet-note">Our kitchen handles wheat, milk, eggs, nuts and sesame. If you have an allergy, tell the barista and we will check every ingredient with you.</p></details>`;
+};
+
+/* ── product page: what people said, and what goes with it ── */
+const reviewsForProduct = (id) => [...currentLiveReviews, ...STATIC_REVIEWS].filter((r) => r.product === id);
+
+/** "★ 4.5 · 2 reviews", counted from the reviews that exist for this item only. */
+const pdpRatingHTML = (id) => {
+  const rs = reviewsForProduct(id);
+  if (!rs.length) return "";
+  const avg = Math.round((rs.reduce((n, r) => n + r.stars, 0) / rs.length) * 10) / 10;
+  const word = `${rs.length} review${rs.length === 1 ? "" : "s"}`;
+  return `<button type="button" class="pdp-rating" data-jump="pdp-reviews" aria-label="Rated ${avg} out of 5 from ${word}. Read them."><span class="pdp-rating-star" aria-hidden="true">★</span><b>${avg.toFixed(1)}</b><span>${word}</span></button>`;
+};
+
+const pdpReviewsHTML = (id) => {
+  const rs = reviewsForProduct(id);
+  if (!rs.length) return "";
+  return `<details class="acc" id="pdp-reviews"><summary>REVIEWS (${rs.length})<i aria-hidden="true">+</i></summary><ul class="pdp-revs">${rs
+    .slice(0, 3)
+    .map(
+      (r) =>
+        `<li><p class="pdp-rev-q">“${esc(r.quote)}”</p><p class="pdp-rev-by mono-fine" aria-label="${r.stars} out of 5 stars, ${esc(r.name)}"><span aria-hidden="true">${"★".repeat(r.stars)}${"☆".repeat(5 - r.stars)}</span> ${esc(r.name)} · ${esc(r.place)}${r.verified ? " · VERIFIED ORDER" : ""}</p></li>`,
+    )
+    .join("")}</ul></details>`;
+};
+
+/** Quick requests by kind of dish. Tapping one adds it to the request box. */
+const REQUEST_CHIPS = {
+  kitchen: ["NO ONIONS", "EXTRA SPICY", "SAUCE ON THE SIDE", "CUT IN HALF"],
+  coolers: ["LESS ICE", "LESS SWEET", "EXTRA ICE"],
+  drinks: ["EXTRA HOT", "LESS FOAM", "LESS SWEET"],
+  bakery: ["WARMED", "BOXED TO GO"],
+};
+const REQUEST_MAX = 80;
+
+/** A collapsed "add a request" box: what the kitchen should know about this one dish. Gift cards have their own message box. */
+const requestHTML = (p) => {
+  if (p.gift || p.cat === "merch" || p.cat === "beans") return "";
+  const chips = REQUEST_CHIPS[p.cat] || [];
+  return `<div class="pdp-request"><button type="button" class="pdp-request-toggle mono-fine" data-req-toggle aria-expanded="false" aria-controls="pdp-request-body"><span aria-hidden="true">+</span> ADD A REQUEST</button><div class="pdp-request-body" id="pdp-request-body" hidden>${
+    chips.length ? `<div class="pdp-request-chips" role="group" aria-label="Quick requests">${chips.map((c) => `<button type="button" class="chip" data-req-chip="${c}" aria-pressed="false">${c}</button>`).join("")}</div>` : ""
+  }<label class="opt"><span class="opt-head mono-fine"><span>SPECIAL REQUEST · OPTIONAL</span><b data-req-count>0/${REQUEST_MAX}</b></span><textarea class="pdp-msg" rows="2" maxlength="${REQUEST_MAX}" placeholder="Allergy? Anything to leave out? Tell the kitchen." data-msg aria-label="Special request for ${esc(p.name)}"></textarea></label><p class="pdp-request-help mono-fine">Goes straight onto the kitchen ticket. For a serious allergy, please also tell the staff.</p></div></div>`;
+};
+
 const FULL_MENU_PILLS = { coffee: "COFFEE", specialty: "COLD BAR", bakery: "BAKERY", sides: "SIDES", burgers: "BURGERS", pizza: "PIZZA", pasta: "PASTA", rolls: "ROLLS", drinks: "COOLERS", beans: "ROASTS", merch: "GEAR &amp; GIFTS" };
 
 function renderFullMenu() {
@@ -5421,6 +5690,12 @@ function renderFullMenu() {
         <button type="button" class="full-menu-pill active" data-fsec="all">ALL (${totalCount})</button>
         ${FULL_MENU_SECTIONS.map((sec) => `<button type="button" class="full-menu-pill" data-fsec="${sec.cat}">${FULL_MENU_PILLS[sec.cat]} (${sec.items.length})</button>`).join("")}
       </div>
+      <div class="full-menu-diet" role="group" aria-label="Dietary filters">
+        <span class="full-menu-diet-label mono-fine">FILTER</span>
+        ${DIET_FILTERS.map((f) => `<button type="button" class="full-menu-diet-chip" data-diet="${f.key}" aria-pressed="false">${f.label}</button>`).join("")}
+        <button type="button" class="full-menu-diet-clear mono-fine" id="full-menu-diet-clear" hidden>CLEAR</button>
+      </div>
+      <p class="full-menu-diet-empty" id="full-menu-diet-empty" role="status" hidden>Nothing here suits all of those. Try taking a filter off.</p>
       <div class="full-menu-body" id="full-menu-body">
         ${FULL_MENU_SECTIONS.map((sec) => `
           <section class="full-menu-sec" data-sec-cat="${sec.cat}">
@@ -5441,6 +5716,7 @@ function renderFullMenu() {
                         ${p.tag ? `<span class="full-menu-item-tag">${p.tag}</span>` : ""}
                       </div>
                       <p class="full-menu-item-notes mono-fine">${p.notes ? p.notes.join(" · ") : p.meta}</p>
+                      ${dietRowHTML(p.id)}
                     </div>
                     <div class="full-menu-item-bottom">
                       <span class="full-menu-item-price">${money(p.price)}</span>
@@ -5474,15 +5750,61 @@ function renderFullMenu() {
     lenis.scrollTo("#shop", { duration: 1.2 });
   });
 
+  /* Section pills and dietary chips narrow the same list, so they share one pass. */
+  let fullMenuSection = "all";
+  const dietOn = new Set();
+  const applyFullMenuFilters = () => {
+    const active = [...dietOn];
+    let shown = 0;
+    $$(".full-menu-sec", fullMenuEl).forEach((sec) => {
+      const inSection = fullMenuSection === "all" || sec.dataset.secCat === fullMenuSection;
+      let visible = 0;
+      $$(".full-menu-item", sec).forEach((item) => {
+        const ok = matchesDiet(item.dataset.fproduct, active);
+        item.hidden = !ok;
+        if (ok) visible++;
+      });
+      sec.hidden = !inSection || visible === 0;
+      const count = $(".full-menu-sec-count", sec);
+      if (count) count.textContent = `${visible} ${visible === 1 ? "ITEM" : "ITEMS"}`;
+      if (!sec.hidden) shown += visible;
+    });
+    const empty = $("#full-menu-diet-empty", fullMenuEl);
+    if (empty) empty.hidden = shown > 0;
+    const clear = $("#full-menu-diet-clear", fullMenuEl);
+    if (clear) clear.hidden = dietOn.size === 0;
+  };
+
   $$(".full-menu-pill", fullMenuEl).forEach((pill) => {
     pill.addEventListener("click", () => {
       playSoftClick();
-      const cat = pill.dataset.fsec;
+      fullMenuSection = pill.dataset.fsec;
       $$(".full-menu-pill", fullMenuEl).forEach((b) => b.classList.toggle("active", b === pill));
-      $$(".full-menu-sec", fullMenuEl).forEach((sec) => {
-        sec.hidden = cat !== "all" && sec.dataset.secCat !== cat;
-      });
+      applyFullMenuFilters();
     });
+  });
+
+  $$(".full-menu-diet-chip", fullMenuEl).forEach((chip) => {
+    chip.addEventListener("click", () => {
+      playSoftClick();
+      const key = chip.dataset.diet;
+      const on = !dietOn.has(key);
+      if (on) dietOn.add(key);
+      else dietOn.delete(key);
+      chip.classList.toggle("active", on);
+      chip.setAttribute("aria-pressed", String(on));
+      applyFullMenuFilters();
+    });
+  });
+
+  $("#full-menu-diet-clear", fullMenuEl)?.addEventListener("click", () => {
+    playSoftClick();
+    dietOn.clear();
+    $$(".full-menu-diet-chip", fullMenuEl).forEach((c) => {
+      c.classList.remove("active");
+      c.setAttribute("aria-pressed", "false");
+    });
+    applyFullMenuFilters();
   });
 
   $$("[data-fadd]", fullMenuEl).forEach((btn) => {
@@ -5781,6 +6103,7 @@ const orderBars = (seed) => {
 
 function openCheckout() {
   if (!cart.count()) return openBag();
+  track("checkout_start");
   if (hasLayer("bag")) closeBag();
   const saved = readStore("brewns-details", {});
   co = { useReward: false, step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
@@ -5945,7 +6268,7 @@ function renderCheckout({ animate = true } = {}) {
   const lines = cart.items
     .map((it) => {
       const p = productById(it.id);
-      return `<div class="co-line">${thumbHTML(p).replace(/<\/span>$/, `<b>${it.qty}</b></span>`)}<div><p class="bag-item-name">${p.name}</p><p class="bag-item-opts mono-fine">${esc(selLabel(p, it.sel))}</p></div><p class="bag-item-price">${money(unitPrice(p, it.sel) * it.qty)}</p></div>`;
+      return `<div class="co-line">${thumbHTML(p).replace(/<\/span>$/, `<b>${it.qty}</b></span>`)}<div><p class="bag-item-name">${p.name}</p><p class="bag-item-opts mono-fine">${esc(selLabel(p, it.sel))}${it.message ? ` · “${esc(it.message)}”` : ""}</p></div><p class="bag-item-price">${money(unitPrice(p, it.sel) * it.qty)}</p></div>`;
     })
     .join("");
 
@@ -5990,7 +6313,7 @@ const orderLines = (o) =>
   o.items.map((it) => {
     const p = productById(it.id);
     const unit = unitPrice(p, it.sel);
-    return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * it.qty, photo: p.photo ? photoSrc(p.photo) : "" };
+    return { qty: it.qty, name: p.name, opts: selLabel(p, it.sel), note: it.message || "", unit, total: unit * it.qty, photo: p.photo ? photoSrc(p.photo) : "" };
   });
 const saveOrder = (o) => writeStore("brewns-orders", readStore("brewns-orders", []).map((x) => (x.number === o.number ? o : x)));
 /* An order the café's server has: take its word for number, times, totals and status. */
@@ -6159,7 +6482,7 @@ function renderDone() {
               .map((it) => {
                 const p = productById(it.id);
                 const unit = unitPrice(p, it.sel);
-                return `<div class="bill-item">${p.photo ? `<span class="bill-thumb"><img src="${esc(photoSrc(p.photo))}" alt="" loading="lazy" decoding="async"></span>` : `<span class="bill-thumb bill-thumb-mark" aria-hidden="true">B</span>`}<div class="bill-item-copy"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}</span><span>@ ${money(unit)}</span></div></div></div>`;
+                return `<div class="bill-item">${p.photo ? `<span class="bill-thumb"><img src="${esc(photoSrc(p.photo))}" alt="" loading="lazy" decoding="async"></span>` : `<span class="bill-thumb bill-thumb-mark" aria-hidden="true">B</span>`}<div class="bill-item-copy"><div><span>${it.qty} × ${esc(p.name)}</span><span>${money(unit * it.qty)}</span></div><div class="bill-opt"><span>${esc(selLabel(p, it.sel))}${it.message ? ` · “${esc(it.message)}”` : ""}</span><span>@ ${money(unit)}</span></div></div></div>`;
               })
               .join("")}</div>
             <p class="bill-count">${o.items.reduce((a, it) => a + it.qty, 0)} ITEM${o.items.reduce((a, it) => a + it.qty, 0) === 1 ? "" : "S"}</p>
@@ -6563,18 +6886,22 @@ function placeOrder() {
   const email = co.email.trim();
   const started = Date.now();
   const payload = {
-    items: cart.items.map(({ id, qty, sel }) => ({ id, qty, sel })),
-    mode: co.mode, loc: co.loc, area: delivery ? co.area : null, table: co.mode === "dinein" ? co.table : null, address: delivery ? co.address.trim() : "",
+    items: cart.items.map(({ id, qty, sel, message }) => ({ id, qty, sel, note: message || "" })),
+    mode: co.mode, loc: co.loc, area: delivery ? co.area : null, table: co.mode === "dinein" ? co.table : null, tableKey: co.mode === "dinein" ? activeTableSession?.key || "" : undefined, address: delivery ? co.address.trim() : "",
     when: co.when === "asap" ? "asap" : co.slot, name: co.name.trim(), phone: co.phone, email, note: co.note.trim(),
     pay: co.pay, promo: co.discount ? co.promo : "", useReward: !!co.useReward, guestReward: !!co.useReward,
   };
   // The café's server takes the order: it prices it again, gives it a number
   // and puts it on the kitchen screen. Only before the owner has set the café
   // up does the order stay in this browser as a preview.
-  fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+  // One key per order attempt: if the connection drops and the visitor taps again, the server
+  // hands back the same order instead of placing a second one.
+  co.idem ||= Array.from(crypto.getRandomValues(new Uint8Array(18)), (b) => b.toString(36).padStart(2, "0")).join("");
+  fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": co.idem }, body: JSON.stringify(payload) })
     .then(async (res) => {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        if (co) co.idem = null;
         applyServer(order, data.order, data.key);
         if (data.order?.hold) order.payUrl = `/pay/${data.order.number}?k=${encodeURIComponent(data.key)}`;
         return "server";
@@ -6593,6 +6920,7 @@ function placeOrder() {
     .then((sent) => {
     if (sent === null) return;
     order.sent = sent;
+    track("order_placed", false);
     order.email = email;
     order.club = creditClub(order);
     writeStore("brewns-orders", [order, ...readStore("brewns-orders", [])].slice(0, 20));
@@ -6638,7 +6966,7 @@ const receiptText = (o) => {
     where,
     `Time: ${o.pickupAt.tomorrow ? "tomorrow " : "today "}${hhmm(o.pickupAt.t)}`,
     "",
-    ...lines.map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}  ${money(l.total)}`),
+    ...lines.map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}${l.note ? ` - "${l.note}"` : ""}  ${money(l.total)}`),
     "",
     `Subtotal: ${money(t.sub)}`,
     ...discountRows(t).map(([label, v]) => `${titleCase(label)}: -${money(v)}`),
@@ -6669,7 +6997,7 @@ async function sendOrder(o, email) {
         [o.mode === "delivery" ? "Deliver to" : "Pickup at"]: o.mode === "delivery" ? `${o.address}, ${DELIVERY.areas[o.area][0]}, Lahore` : `${LOC_TITLES[o.loc]}, Lahore`,
         "Shop": LOC_TITLES[o.loc],
         "Time": `${o.pickupAt.tomorrow ? "Tomorrow" : "Today"} ${hhmm(o.pickupAt.t)}`,
-        "Items": orderLines(o).map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}: ${money(l.total)}`).join("\n"),
+        "Items": orderLines(o).map((l) => `${l.qty} x ${l.name}${l.opts ? ` (${l.opts})` : ""}${l.note ? ` - "${l.note}"` : ""}: ${money(l.total)}`).join("\n"),
         "Total": `${money(o.totals.total)} (incl. ${Math.round(o.totals.rate * 100)}% sales tax${o.totals.fee ? `, ${money(o.totals.fee)} delivery` : ""})`,
         "Payment": `${PAY[o.pay][0]} ${o.mode === "delivery" ? "on delivery" : "at pickup"}`,
         "Note": o.note || "-",
@@ -6850,12 +7178,15 @@ coEl.addEventListener("submit", (e) => {
   const checking = co;
   fetch("/api/public/promo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: co.promo }) })
     .then((r) => r.json())
-    .then((d) => (d.valid ? d.pct / 100 : 0))
+    .then((d) => {
+      checking.promoWhy = d.valid ? "" : d.reason || "";
+      return d.valid ? d.pct / 100 : 0;
+    })
     .catch(() => (checking.promo === "BREWNS10" ? 0.1 : 0))
     .then((pct) => {
       if (co !== checking) return;
       co.discount = pct;
-      if (co.promo && !pct) toast("THAT CODE ISN'T VALID");
+      if (co.promo && !pct) toast(co.promoWhy ? co.promoWhy.toUpperCase() : "THAT CODE ISN'T VALID");
       renderCheckout({ animate: false });
     });
 });
@@ -7048,19 +7379,11 @@ coEl.addEventListener("submit", (e) => {
     writeStore("brewns-reviews", [{ t: Date.now(), stars: revCtx.stars, text, name, place, product: f.product.value, order: revCtx.order || null }, ...myReviews()].slice(0, 30));
     const prodItem = productById(f.product.value);
     const orderStr = revCtx.order ? `Order #${revCtx.order}` : prodItem ? prodItem.name : "";
-    fetch("/api/public/reviews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "add",
-        name,
-        place,
-        order: orderStr,
-        product: f.product.value,
-        quote: text,
-        stars: revCtx.stars,
-      }),
-    })
+    const post = (url, payload) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const anonymous = () => post("/api/public/reviews", { action: "add", name, place, order: orderStr, product: f.product.value, quote: text, stars: revCtx.stars });
+    // A review left through the order's own link is verified and goes up at once; anything else waits for the café.
+    const ordered = revCtx.order ? readStore("brewns-orders", []).find((x) => x.number === revCtx.order) : null;
+    (ordered?.server?.key ? post(`/api/orders/${ordered.number}/review?k=${encodeURIComponent(ordered.server.key)}`, { stars: revCtx.stars, quote: text }).then((res) => (res.ok ? res : anonymous())) : anonymous())
       .then(() => (window as any).__refreshBrewnsReviews?.())
       .catch(() => {});
     if (revCtx.order) {
@@ -7075,7 +7398,7 @@ coEl.addEventListener("submit", (e) => {
     renderMyReviews();
     revCards.scrollTo({ left: 0, behavior: "auto" }); // the new slip is first
     playChime();
-    toast("THANK YOU — YOUR REVIEW IS UP", "SEE IT", () => {
+    toast("THANK YOU — WE HAVE YOUR REVIEW", "SEE IT", () => {
       if (hasLayer("checkout")) closeCheckout();
       setTimeout(() => lenis.scrollTo("#reviews", { force: true }), 80);
     });

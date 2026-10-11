@@ -8,7 +8,7 @@ import { api, initials } from './api';
 import { LiveProvider, useLive } from './Live';
 import { ToastProvider, useToast } from './Toasts';
 
-export type Me = { id: string; name: string; email: string; role: Role; shops: number[] };
+export type Me = { id: string; name: string; email: string; role: Role; shops: number[]; twoStep?: boolean };
 
 const MeCtx = createContext<{ me: Me; perms: Permission[] } | null>(null);
 /** The signed-in staff member and what they may do, for showing only the buttons that will work. */
@@ -118,6 +118,20 @@ function ShellContent({
   const accessRevoked = !!section && !canOpen(perms, section);
   const safeHome = homeFor(me.role, perms);
 
+  // Owners and managers can change prices, pay-outs and who has access: nudge them towards two-step sign-in.
+  const [twoStep, setTwoStep] = useState(!!initialMe.twoStep);
+  const [nudgeOff, setNudgeOff] = useState(true);
+  useEffect(() => {
+    const t = window.setTimeout(() => setNudgeOff(sessionStorage.getItem('brewns-nudge-two-step') === '1'), 0);
+    const on = (e: Event) => setTwoStep(!!(e as CustomEvent).detail?.on);
+    window.addEventListener('brewns:two-step', on);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('brewns:two-step', on);
+    };
+  }, []);
+  const showNudge = !twoStep && !nudgeOff && (me.role === 'owner' || me.role === 'manager') && path !== '/dashboard/account';
+
   useEffect(() => {
     if (accessRevoked) router.replace(safeHome);
   }, [accessRevoked, router, safeHome]);
@@ -182,6 +196,23 @@ function ShellContent({
             </p>
           )}
           {notice && <p className="cx-banner cx-noprint">{notice}</p>}
+          {showNudge && (
+            <p className="cx-banner cx-noprint" role="status">
+              Protect this account: you can change prices, access and refunds. <Link href="/dashboard/account" className="cx-link">Turn on two-step sign-in</Link> (takes a minute).{' '}
+              <button
+                type="button"
+                className="cx-link"
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem('brewns-nudge-two-step', '1');
+                  } catch {}
+                  setNudgeOff(true);
+                }}
+              >
+                Not now
+              </button>
+            </p>
+          )}
           <Suspense fallback={null}>
             <Denied />
           </Suspense>
