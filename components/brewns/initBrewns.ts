@@ -4208,6 +4208,53 @@ function track(e, oncePerVisit = true) {
     navigator.sendBeacon?.("/api/public/event", new Blob([JSON.stringify({ e })], { type: "application/json" }));
   } catch {}
 }
+/* The header's account button is for customers: their first name once signed in, "Sign in" otherwise. Team
+   members never see it as theirs. A signed-in team member only gets an extra "Open the console" line in the menu;
+   everyone else never sees a staff link here. The last name seen is remembered, so a returning customer's button
+   is right on the first paint instead of flipping from "Sign in". Text is set with textContent, never as markup. */
+(() => {
+  const btn = $("#hdr-account");
+  if (!btn) return;
+  const label = btn.querySelector(".hdr-account-text");
+  const menuAccount = $("#menu-account-link");
+  const menuStaff = $("#menu-staff-link");
+  const first = (name) => String(name || "").trim().split(/\s+/)[0].slice(0, 12);
+  const asCustomer = (fullName) => {
+    const name = first(fullName) || "Account";
+    label.textContent = name.toUpperCase();
+    btn.setAttribute("aria-label", `${fullName || name}: my account and club card`);
+    btn.dataset.in = "1";
+    btn.dataset.initial = name.charAt(0).toUpperCase();
+  };
+  const asVisitor = () => {
+    label.textContent = "SIGN IN";
+    btn.setAttribute("aria-label", "Sign in or create an account");
+    delete btn.dataset.in;
+    delete btn.dataset.initial;
+    if (menuAccount) menuAccount.lastChild.textContent = "Sign in · My Account & Club Card";
+  };
+  try {
+    const seen = window.localStorage.getItem("brewns-acct");
+    if (seen) asCustomer(seen);
+  } catch {}
+  fetch("/api/public/whoami", { cache: "no-store" })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((who) => {
+      if (!who) return;
+      try {
+        if (who.customer) window.localStorage.setItem("brewns-acct", String(who.customer.name).slice(0, 60));
+        else window.localStorage.removeItem("brewns-acct");
+      } catch {}
+      if (who.customer) asCustomer(who.customer.name);
+      else asVisitor();
+      if (who.staff && menuStaff) {
+        menuStaff.setAttribute("href", who.staff.href);
+        menuStaff.lastChild.textContent = `Open the console (${who.staff.label})`;
+        menuStaff.hidden = false;
+      }
+    })
+    .catch(() => {});
+})();
 track("visit");
 
 /* ═══════════ the bag, kept in localStorage ═══════════ */
