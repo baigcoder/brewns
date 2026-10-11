@@ -23,6 +23,8 @@ type Member = {
   invited: boolean;
   inviteExpired: boolean;
   invitedBy: string;
+  twoStep: boolean;
+  recoveryLeft: number;
 };
 
 const shopsLabel = (s: number[]) => (s.length ? s.map((i) => LOC_TITLES[i].split(',')[0]).join(', ') : 'All shops');
@@ -142,6 +144,15 @@ export function TeamScreen() {
                     ) : (
                       <span className="cx-pill plain">Active</span>
                     )}
+                    {m.twoStep ? (
+                      <span className="cx-pill ready" style={{ marginLeft: 6 }} title="Two-step sign-in is on">
+                        2-step
+                      </span>
+                    ) : m.lastLoginAt > 0 && (m.role === 'owner' || m.role === 'manager') ? (
+                      <span className="cx-pill cancelled" style={{ marginLeft: 6 }} title="Two-step sign-in is off. Owners and managers should have it on.">
+                        No 2-step
+                      </span>
+                    ) : null}
                   </td>
                   <td className="cx-small cx-muted">{m.lastSeenAt ? ago(m.lastSeenAt, now) : '—'}</td>
                   <td className="r">
@@ -202,6 +213,7 @@ function CopyButton({ text }: { text: string }) {
 
 function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClose: () => void; onSaved: (r: { link?: { name: string; url: string; reset: boolean } }) => void }) {
   const { me } = useMe();
+  const toast = useToast();
   const run = useRun();
   const self = member?.id === me.id;
   const myShops = me.shops.length ? me.shops : LOC_TITLES.map((_, i) => i);
@@ -219,9 +231,11 @@ function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClo
   const submit = async () => {
     setBusy(true);
     if (!member) {
-      const r = await run(() => api<{ link: string }>('/api/staff/users', f), `${f.name} is invited.`);
+      const r = await run(() => api<{ link: string; emailed: boolean }>('/api/staff/users', f));
       setBusy(false);
-      if (r) onSaved({ link: { name: f.name, url: r.link, reset: false } });
+      if (!r) return;
+      toast(r.emailed ? `The invite was emailed to ${f.email}.` : `${f.name} is invited. No email service is set up, so send them the link yourself.`, 'good');
+      onSaved(r.emailed ? {} : { link: { name: f.name, url: r.link, reset: false } });
       return;
     }
     const body: Record<string, unknown> = { name: f.name, phone: f.phone, plate: f.plate };
@@ -235,8 +249,12 @@ function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClo
   };
   const action = async (body: Record<string, unknown>, done: string, confirm?: string) => {
     if (confirm && !window.confirm(confirm)) return;
-    const r = await run(() => api<{ link: string }>(`/api/staff/users/${member!.id}`, body), done);
-    if (r) onSaved(r.link ? { link: { name: member!.name, url: r.link, reset: !!member!.lastLoginAt } } : {});
+    const r = await run(() => api<{ link: string; emailed: boolean }>(`/api/staff/users/${member!.id}`, body));
+    if (r) {
+      if (r.emailed) toast(`A new link was emailed to ${member!.email}.`, 'good');
+      else toast(done, 'good');
+      onSaved(r.link ? { link: { name: member!.name, url: r.link, reset: !!member!.lastLoginAt } } : {});
+    }
   };
 
   return (
@@ -315,6 +333,15 @@ function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClo
               {member.active && (
                 <button type="button" className="cx-btn sm" onClick={() => action({ reset: true }, 'New link ready.')}>
                   {member.lastLoginAt ? 'New password link' : 'New invite link'}
+                </button>
+              )}
+              {member.twoStep && (
+                <button
+                  type="button"
+                  className="cx-btn sm"
+                  onClick={() => action({ resetTwoStep: true }, 'Two-step sign-in reset. They sign in with their password and can set it up again.', `Reset two-step sign-in for ${member.name}? They will be signed out. Do this only if they have lost their phone and recovery codes.`)}
+                >
+                  Reset two-step
                 </button>
               )}
               {member.lastLoginAt > 0 && (

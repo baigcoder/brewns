@@ -14,7 +14,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   const { user, role, perms } = ctx;
   const { ephemeral, kind } = storeInfo();
   return (
-    <Shell me={{ id: user.id, name: user.name, email: user.email, role, shops: user.shops }} perms={perms} store={{ ephemeral, kind }}>
+    <Shell me={{ id: user.id, name: user.name, email: user.email, role, shops: user.shops, twoStep: !!user.totp?.on }} perms={perms} store={{ ephemeral, kind }}>
       {children}
     </Shell>
   );

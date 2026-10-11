@@ -6,8 +6,9 @@
    rules are the same pure functions the site uses (components/brewns/club.ts). */
 
 import { addStamps, birthdayTreat, CLUB, emptyClub, memberNumber, normaliseClub, reverseOrder, spendReward, stampsFor, type ClubState } from '@/components/brewns/club';
-import { pkMinutes } from '@/lib/orderFlow';
-import { getUser, saveUser, type User } from './auth';
+import { isOpen, pkMinutes } from '@/lib/orderFlow';
+import { deleteUser, getUser, saveUser, type User } from './auth';
+import { fail } from './http';
 import { kv, withLock } from './store';
 
 export const customerView = (u: User) => ({ id: u.id, name: u.name, email: u.email, phone: u.phone, since: u.createdAt });
@@ -89,3 +90,34 @@ export type OrderRef = { number: number; day: string; placed: number; total: num
 
 export const addCustomerOrder = (userId: string, ref: OrderRef) => kv.push(`customer-orders:${userId}`, ref, 200);
 export const customerOrderRefs = (userId: string, limit = 50) => kv.list<OrderRef>(`customer-orders:${userId}`, 0, limit - 1);
+
+/** Everything we keep about a customer, as a file they can download. */
+export async function exportCustomer(u: User) {
+  const { getOrder, publicOrder } = await import('./orders');
+  const refs = await customerOrderRefs(u.id, 200);
+  const orders = (await Promise.all(refs.map((r) => getOrder(r.number)))).filter((o): o is NonNullable<typeof o> => !!o && o.customerId === u.id);
+  return {
+    exportedAt: new Date().toISOString(),
+    about: 'This is the information brewns holds about your account. Write to hello@brewns.coffee if anything is wrong.',
+    account: { name: u.name, email: u.email, phone: u.phone, joined: new Date(u.createdAt).toISOString(), lastSignIn: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : null },
+    club: u.club?.member ? u.club : null,
+    orders: orders.map((o) => publicOrder(o)),
+  };
+}
+
+/**
+ * Deletes a customer's account. Their orders stay, because invoices and sales records have to be
+ * kept, but with everything that names them taken off: name, number, email, address, notes, chat.
+ */
+export async function deleteCustomer(u: User) {
+  const { getOrder, saveOrder } = await import('./orders');
+  const refs = await customerOrderRefs(u.id, 200);
+  const orders = (await Promise.all(refs.map((r) => getOrder(r.number)))).filter((o): o is NonNullable<typeof o> => !!o && o.customerId === u.id);
+  if (orders.some((o) => isOpen(o.status))) fail(409, 'You have an order in progress. Delete your account once it has been collected or delivered.');
+  for (const o of orders) {
+    await saveOrder({ ...o, customerId: null, name: 'Former customer', phone: '', email: '', address: '', note: '', messages: [], club: null });
+  }
+  await kv.del(`customer-orders:${u.id}`);
+  await deleteUser(u);
+  return { orders: orders.length };
+}

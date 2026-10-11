@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AUDIT_CATEGORIES, auditCategory, auditCsv, type AuditCategory } from '@/lib/auditKinds';
 import { ROLE_INFO, type Role } from '@/lib/rbac';
 import { ago, api, pkDate, pkTime, useNow } from './api';
 
-type Entry = { t: number; uid: string; name: string; role: string; action: string; detail: string };
+type Entry = { t: number; uid: string; name: string; role: string; action: string; detail: string; kind?: 'security' };
 
 /** The activity log: sign-ins, orders taken, payments, cancellations, menu and team changes. */
 export function ActivityScreen() {
@@ -17,6 +18,7 @@ export function ActivityScreen() {
   const inFlight = useRef(false);
   const [q, setQ] = useState('');
   const [who, setWho] = useState('');
+  const [cat, setCat] = useState<AuditCategory | ''>('');
   const now = useNow(15000);
   const refresh = useCallback(async () => {
     if (document.hidden || inFlight.current) return;
@@ -66,13 +68,27 @@ export function ActivityScreen() {
     };
   }, [refresh]);
   const people = useMemo(() => [...new Map((entries || []).filter((e) => e.uid).map((e) => [e.uid, e.name])).entries()], [entries]);
-  const list = (entries || []).filter((e) => (!who || e.uid === who) && (!q.trim() || `${e.action} ${e.detail} ${e.name}`.toLowerCase().includes(q.trim().toLowerCase())));
+  const matches = (e: Entry) => (!who || e.uid === who) && (!q.trim() || `${e.action} ${e.detail} ${e.name}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const e of entries || []) c[auditCategory(e)] = (c[auditCategory(e)] || 0) + 1;
+    return c;
+  }, [entries]);
+  const list = (entries || []).filter((e) => matches(e) && (!cat || auditCategory(e) === cat));
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([`\uFEFF${auditCsv(list)}`], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `brewns-activity-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   return (
     <>
       <div className="cx-pagehead">
         <div>
           <p className="cx-eyebrow">
-            <b>{'//'}</b> The last 1,000 changes · Live sync
+            <b>{'//'}</b> The last 1,000 changes and 500 security events · Live sync
           </p>
           <h1 className="cx-h1">Activity</h1>
         </div>
@@ -81,12 +97,26 @@ export function ActivityScreen() {
             {refreshing && !entries ? 'Connecting…' : error ? 'Sync paused' : `Updated ${updatedAt ? ago(updatedAt, now) : '—'}`}
             {version !== null && !error ? ` · v${version}` : ''}
           </span>
+          <button type="button" className="cx-btn sm" onClick={download} disabled={!list.length} title="Download what is shown below as a spreadsheet">
+            Export CSV
+          </button>
           <button type="button" className="cx-btn sm" onClick={() => void refresh()} disabled={refreshing}>
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </div>
       {error && <p className="cx-banner" role="status">{error} · Retrying automatically.</p>}
+      <div className="cx-row" style={{ marginBottom: 10 }} role="group" aria-label="Show">
+        <button type="button" className={`cx-btn sm${cat === '' ? ' primary' : ''}`} aria-pressed={cat === ''} onClick={() => setCat('')}>
+          Everything
+        </button>
+        {AUDIT_CATEGORIES.map((c) => (
+          <button key={c.key} type="button" className={`cx-btn sm${cat === c.key ? ' primary' : ''}`} aria-pressed={cat === c.key} onClick={() => setCat(c.key)}>
+            {c.label}
+            {counts[c.key] ? ` · ${counts[c.key]}` : ''}
+          </button>
+        ))}
+      </div>
       <div className="cx-row" style={{ marginBottom: 12 }}>
         <input className="cx-input" style={{ maxWidth: 280 }} placeholder="Search: cancelled, sold out, #1024…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="cx-select" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Person">
@@ -120,6 +150,7 @@ export function ActivityScreen() {
                     {pkTime(e.t)}
                   </time>
                   <span>
+                    {e.kind === 'security' && <i className="cx-sec-dot" title="Security event" aria-label="Security event" />}
                     <b style={{ color: 'var(--cx-text)' }}>{e.name}</b>
                     {e.role && ROLE_INFO[e.role as Role] ? <span className="cx-faint"> · {ROLE_INFO[e.role as Role].label}</span> : null} — {e.action}
                     {e.detail ? <span className="cx-faint"> · {e.detail}</span> : null}

@@ -20,6 +20,8 @@ import type { Reservation } from '@/app/api/reservations/route';
 import { sendBookingConfirmationEmail } from './email';
 import { sendBookingWhatsappNotification, buildBookingWhatsappMessage, getWhatsappDirectLink } from './smsWhatsapp';
 import { bumpLive } from './orders';
+import { getSettings } from './settings';
+import { bookingProblem, uniqueBookingCode } from '@/lib/booking';
 
 export type VoiceGender = 'female' | 'male';
 
@@ -136,7 +138,7 @@ export function forSpeech(text: string, lang: VoiceLang = 'en') {
     // Group Pakistani mobile numbers naturally with pauses
     .replace(/\b(03\d{2})[\s-]?(\d{3})[\s-]?(\d{4})\b/g, (_, a: string, b: string, c: string) => [a, b, c].map((g) => g.split('').join(' ')).join(', '))
     // Reservation & Party confirmation codes read with clear phonetic pauses
-    .replace(/\b(RES|PTY)-(\d{4})\b/gi, (_, p: string, d: string) => `${p.toUpperCase().split('').join(' ')}, ${d.split('').join(' ')}`)
+    .replace(/\b(RES|PTY)-(\d{4,6})\b/gi, (_, p: string, d: string) => `${p.toUpperCase().split('').join(' ')}, ${d.split('').join(' ')}`)
     .replace(/\s*—\s*/g, ', ')
     .replace(/(\d)\s*×\s*/g, '$1 ')
     .replace(/\s+/g, ' ')
@@ -577,17 +579,17 @@ function checkBooking(b: BookingInput, kind: 'table' | 'party'): Check<{ name: s
   return { ok: true, value: { name, phone, loc, date, time: hhmm(tMin), guests } };
 }
 
-const makeCode = (prefix: string) => `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
-
 async function saveReservation(b: BookingInput, transcript: string): Promise<Check<Reservation>> {
   const c = checkBooking(b, 'table');
   if (!c.ok) return c;
   const areaRaw = s(b.area).toLowerCase();
   const area: Reservation['area'] = areaRaw === 'terrace' || areaRaw === 'bar' ? areaRaw : 'indoor';
   const email = parseEmail(s(b.email));
-  const item = await withLock('reservations', async () => {
+  const tables = (await getSettings()).shops[c.value.loc]?.tables ?? 0;
+  const made = await withLock('reservations', async () => {
+    const taken = Object.values((await kv.hall<Reservation>('reservations')) || {});
     // The same guest, shop and slot again (a repeated "yes", a retried turn): that's the booking already made.
-    const same = Object.values((await kv.hall<Reservation>('reservations')) || {}).find(
+    const same = taken.find(
       (x) => x.status !== 'cancelled' && x.phone === c.value.phone && x.loc === c.value.loc && x.date === c.value.date && x.time === c.value.time,
     );
     if (same) {
@@ -598,9 +600,12 @@ async function saveReservation(b: BookingInput, transcript: string): Promise<Che
       }
       return same;
     }
+    // A different guest, or a full slot: tell the caller so they can pick another time.
+    const problem = bookingProblem(taken, c.value, tables);
+    if (problem) return problem;
     const r: Reservation = {
       id: `res_${Date.now()}_${randomBytes(3).toString('hex')}`,
-      code: makeCode('RES'),
+      code: uniqueBookingCode('RES', new Set(taken.map((x) => x.code))),
       ...c.value,
       email,
       area,
@@ -612,6 +617,8 @@ async function saveReservation(b: BookingInput, transcript: string): Promise<Che
     await bumpLive();
     return r;
   });
+  if (typeof made === 'string') return { ok: false, error: made };
+  const item = made;
   let emailSent = Boolean(item.emailSent);
   if (email && item.email === email && !emailSent) {
     const emailResult = await sendBookingConfirmationEmail({
@@ -671,7 +678,7 @@ async function saveParty(b: BookingInput): Promise<Check<PartyBooking>> {
     }
     const p: PartyBooking = {
       id: randomBytes(6).toString('hex'),
-      code: makeCode('PTY'),
+      code: uniqueBookingCode('PTY', new Set(Object.values((await kv.hall<PartyBooking>('party_bookings')) || {}).map((x) => x.code))),
       type: occasion.replace(/\b\w/g, (ch) => ch.toUpperCase()),
       ...c.value,
       email,

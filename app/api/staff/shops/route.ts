@@ -17,6 +17,30 @@ export const POST = route(async (req) => {
     await audit(actor, b.online ? 'Switched on orders through the console' : 'Switched off orders through the console');
     return json({ settings: { online: s.online, shops: s.shops } });
   }
+  if (typeof b.digest === 'boolean') {
+    if (ctx.role !== 'owner') fail(403, 'Only an owner can switch the evening summary email on or off.');
+    const s = await updateSettings((s) => void (s.digest = b.digest as boolean));
+    await audit(actor, b.digest ? 'Switched on the evening summary email' : 'Switched off the evening summary email');
+    return json({ settings: { online: s.online, digest: s.digest, shops: s.shops } });
+  }
+  if (b.business && typeof b.business === 'object') {
+    const x = b.business as Record<string, unknown>;
+    const ntn = str(x.ntn, 20);
+    const strn = str(x.strn, 24);
+    if (!/^[0-9A-Za-z-]*$/.test(ntn) || !/^[0-9A-Za-z-]*$/.test(strn)) fail(400, 'Tax numbers use letters, numbers and dashes only.');
+    const name = str(x.name, 60);
+    if (name.length < 2) fail(400, 'Add the name to print on the bill.');
+    const business = { name, address: str(x.address, 120), phone: str(x.phone, 24), ntn, strn, footer: str(x.footer, 100) };
+    const s = await updateSettings((s) => void (s.business = business));
+    await audit(actor, 'Changed the details printed on bills', business.name);
+    return json({ settings: { online: s.online, business: s.business, shops: s.shops } });
+  }
+  if (typeof b.signedTables === 'boolean') {
+    const s = await updateSettings((s) => void (s.signedTables = b.signedTables as boolean));
+    await bumpLive();
+    await audit(actor, b.signedTables ? 'Switched on protected table codes' : 'Switched off protected table codes');
+    return json({ settings: { online: s.online, signedTables: s.signedTables, shops: s.shops } });
+  }
   if (b.prepay && typeof b.prepay === 'object') {
     const p = b.prepay as Record<string, unknown>;
     const min = p.minTotal === null ? null : int(p.minTotal, 100, 100000);

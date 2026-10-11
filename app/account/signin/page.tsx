@@ -7,8 +7,9 @@ import { currentCustomer } from '@/lib/server/auth';
 
 export const metadata: Metadata = { title: 'Sign in · brewns', robots: { index: false } };
 
-export default async function CustomerSignin() {
+export default async function CustomerSignin({ searchParams }: { searchParams: Promise<{ sent?: string }> }) {
   if (await currentCustomer()) redirect('/account');
+  const { sent } = await searchParams;
   return (
     <AuthFrame title={<>Welcome<br />back.</>} lede="Your orders on any phone, your details filled in at checkout, and your club card wherever you are.">
       <AuthForm
@@ -23,6 +24,14 @@ export default async function CustomerSignin() {
         ]}
         footer={
           <>
+            {sent && (
+              <p role="status" className="cx-banner">
+                If that email has an account, a reset link is on its way. It lasts an hour.
+              </p>
+            )}
+            <p>
+              <Link href="/account/forgot">Forgot your password?</Link>
+            </p>
             <p>
               No account yet? <Link href="/account/signup">Create one</Link> in a minute.
             </p>

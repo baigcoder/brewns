@@ -16,6 +16,7 @@ export const GET = route(async () => {
     // Pay-first delivery: the site switches to the wallet option and sends the customer to the payment page.
     prepay: s.prepay.minTotal === null ? null : { minTotal: s.prepay.minTotal },
     payTo: s.prepay.payTo,
-    promoHint: s.promos.find((p) => p.active)?.code || '',
+    // Only the code the café chose to show. A private code is never suggested.
+    promoHint: s.promos.find((p) => p.active && p.hint)?.code || '',
   });
 });

@@ -48,6 +48,24 @@ describe('placing an order', () => {
     expect(order.key.length).toBeGreaterThan(10);
   });
 
+  it('keeps a request on its own line, cleaned, and leaves other lines alone', async () => {
+    const { order } = await orders.placeOrder(
+      { ...base, mode: 'pickup', items: [{ ...americano(), note: '  extra   hot\n please ' }, americano(), { ...americano(), note: 42 as unknown as string }] },
+      guest,
+    );
+    expect(order.items[0].note).toBe('extra hot please');
+    expect('note' in order.items[1]).toBe(false);
+    expect('note' in order.items[2]).toBe(false); // not text: dropped, not stored
+    expect(orders.publicOrder(order).items[0].note).toBe('extra hot please');
+  });
+
+  it('needs a real mobile online, and stores it in one tidy form', async () => {
+    const { order } = await orders.placeOrder({ ...base, phone: '+92 300-1234567', mode: 'pickup', items: [americano()] }, guest);
+    expect(order.phone).toBe('0300 1234567');
+    await rejects(orders.placeOrder({ ...base, phone: 'x'.repeat(5000), mode: 'pickup', items: [americano()] }, guest), 400);
+    await rejects(orders.placeOrder({ ...base, phone: '12345', mode: 'pickup', items: [americano()] }, guest), 400);
+  });
+
   it('numbers orders in sequence', async () => {
     const a = await orders.placeOrder({ ...base, mode: 'pickup', items: [americano()] }, guest);
     const b = await orders.placeOrder({ ...base, mode: 'pickup', items: [americano()] }, guest);
@@ -227,6 +245,21 @@ describe('pay-first delivery', () => {
     await rejects(orders.customerAct(order.number, order.key, { type: 'payref', text: '3847291056' }), 409);
   });
 
+  it('lets one real payment pay for one order: a transaction ID cannot be reused', async () => {
+    await turnOn();
+    const first = (await place(2)).order;
+    const second = (await place(2)).order;
+    await orders.customerAct(first.number, first.key, { type: 'payref', text: 'ABC-998877' });
+    await rejects(orders.customerAct(second.number, second.key, { type: 'payref', text: 'abc-998877' }), 409); // same ID, any letter case
+    const again = await orders.customerAct(first.number, first.key, { type: 'payref', text: 'ABC-998877' }); // its own order may repeat it
+    expect(again.hold?.ref).toBe('ABC-998877');
+    const other = await orders.customerAct(second.number, second.key, { type: 'payref', text: 'XYZ-112233' });
+    expect(other.hold?.ref).toBe('XYZ-112233');
+    // Leave nothing held behind for the tests that follow.
+    await orders.customerAct(first.number, first.key, { type: 'cancel' });
+    await orders.customerAct(second.number, second.key, { type: 'cancel' });
+  });
+
   it('cancels unpaid orders when the time runs out and gives the stock back', async () => {
     await turnOn();
     await settings.setStock('americano', 10);
@@ -255,22 +288,24 @@ describe('refunds', () => {
   const delivery = { ...base, mode: 'delivery' as const, area: 0, address: 'House 12, Street 4, Block B' };
   const staff = (role: 'cashier' | 'barista') =>
     ({ user: { id: `u-${role}`, name: role, role, shops: [] }, role, perms: DEFAULT_ROLE_PERMS[role], settings: {} }) as never;
+  let txn = 0; // each real payment has its own transaction ID
   const paidOrder = async (qty = 4) => {
     const s = await settings.getSettings();
     await store.kv.set('settings', { ...s, prepay: { minTotal: 500, holdMin: 10, payTo: 'Raast ID: test@bank' }, soldOut: [], stock: {} });
     const { order } = await orders.placeOrder({ ...delivery, pay: 2, items: [americano(qty)] }, guest);
-    await orders.customerAct(order.number, order.key, { type: 'payref', text: 'TXN123456' });
+    const ref = `TXN${123456 + txn++}`;
+    await orders.customerAct(order.number, order.key, { type: 'payref', text: ref });
     return orders.staffAct(order.number, { type: 'confirmpay' }, staff('cashier'));
   };
 
   it('opens a full refund when a paid order is cancelled, and keeps the customer’s transaction ID', async () => {
     const paid = await paidOrder();
-    expect(paid.payRef).toBe('TXN123456');
+    expect(paid.payRef).toMatch(/^TXN12345\d$/);
     const done = await orders.staffAct(paid.number, { type: 'cancel', reason: 'Out of milk' }, staff('cashier'));
     expect(done.status).toBe('cancelled');
     expect(done.refund).toMatchObject({ amount: paid.totals.total, state: 'pending', method: 2 });
     const list = await orders.refundList(staff('cashier'));
-    expect(list.pending.find((r) => r.number === paid.number)).toMatchObject({ payRef: 'TXN123456', amount: paid.totals.total });
+    expect(list.pending.find((r) => r.number === paid.number)).toMatchObject({ payRef: paid.payRef, amount: paid.totals.total });
     expect(list.owed).toBeGreaterThanOrEqual(paid.totals.total);
   });
 

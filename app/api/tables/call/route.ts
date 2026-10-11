@@ -1,4 +1,4 @@
-import { clientIp, fail, int, json, rateLimit, readBody, route } from '@/lib/server/http';
+import { clientIp, fail, int, json, rateLimit, readBody, route, str } from '@/lib/server/http';
 import { callWaiter } from '@/lib/server/orders';
 import { getSettings } from '@/lib/server/settings';
 
@@ -10,6 +10,6 @@ export const POST = route(async (req) => {
   if (loc === null || table === null) fail(400, 'Which table?');
   await rateLimit(`call:${loc}:${table}`, 4, 120, 'Your waiter has been called. They will be with you in a moment.');
   await rateLimit(`call-ip:${clientIp(req)}`, 10, 600);
-  const call = await callWaiter(loc!, table!, b.kind === 'bill' ? 'bill' : 'waiter', await getSettings());
+  const call = await callWaiter(loc!, table!, b.kind === 'bill' ? 'bill' : 'waiter', await getSettings(), str(b.key, 40));
   return json({ ok: true, call });
 });

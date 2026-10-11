@@ -1,12 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { currentStaff } from '@/lib/server/auth';
+import { NextResponse } from 'next/server';
+import { requireStaff } from '@/lib/server/auth';
+import { route } from '@/lib/server/http';
 import { kv } from '@/lib/server/store';
 
-export async function GET() {
-  const staff = await currentStaff();
-  if (!staff) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+async function handleGet() {
+  const staff = await requireStaff(['reports.view', 'floor.tables', 'orders.view'], 'any');
 
   const all = Object.values((await kv.hall<any>('party_bookings')) || {});
   const parties = all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -16,3 +14,5 @@ export async function GET() {
     count: parties.length,
   });
 }
+
+export const GET = route(handleGet);

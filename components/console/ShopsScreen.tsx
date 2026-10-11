@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { LOC_TITLES, SHOP_CODES } from '@/lib/catalog';
 import { qrSvg } from '@/lib/qr';
+import type { Business } from '@/lib/receipt';
 import { api } from './api';
 import { useLive } from './Live';
 import { useMe } from './Shell';
@@ -54,6 +55,44 @@ export function ShopsScreen() {
           />
         </section>
       )}
+
+      {me.role === 'owner' && data?.digest !== undefined && (
+        <section className="cx-card cx-row between cx-noprint" style={{ marginBottom: 16 }}>
+          <div className="cx-stack" style={{ gap: 4 }}>
+            <p className="cx-h2">Evening summary email</p>
+            <p className="cx-small cx-muted">Each evening after closing, every owner gets the day in a few lines: sales against last week, best sellers, refunds still to send. Days with no orders send nothing.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            className="cx-switch"
+            aria-checked={data.digest}
+            aria-label="Evening summary email"
+            onClick={() => save({ digest: !data.digest }, data.digest ? 'No more evening emails.' : 'You will get a summary each evening.')}
+          />
+        </section>
+      )}
+
+      {data?.signedTables !== undefined && (
+        <section className="cx-card cx-row between cx-noprint" style={{ marginBottom: 16 }}>
+          <div className="cx-stack" style={{ gap: 4 }}>
+            <p className="cx-h2">Protect table codes</p>
+            <p className="cx-small cx-muted">
+              On: ordering from a table and calling a waiter work only from that table’s own QR code, so nobody can send a waiter or a dine-in order to a table from elsewhere. Print the codes again from “Table QR codes” first: cards printed before this was added stop working once it is on.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            className="cx-switch"
+            aria-checked={data.signedTables}
+            aria-label="Protect table codes"
+            onClick={() => save({ signedTables: !data.signedTables }, data.signedTables ? 'Old table codes work again.' : 'Table orders and waiter calls now need the new QR codes.')}
+          />
+        </section>
+      )}
+
+      {data?.business && <BusinessCard business={data.business} save={save} />}
 
       {data?.prepay && <PrepayCard prepay={data.prepay} save={save} />}
 
@@ -123,7 +162,23 @@ export function ShopsScreen() {
 }
 
 function QrSheet({ loc, tables, origin, onClose }: { loc: number; tables: number; origin: string; onClose: () => void }) {
-  const codes = useMemo(() => Array.from({ length: tables }, (_, i) => ({ n: i + 1, url: `${origin}/?table=${SHOP_CODES[loc]}-${i + 1}` })).map((c) => ({ ...c, svg: qrSvg(c.url) })), [loc, tables, origin]);
+  const run = useRun();
+  // Each card's address carries a signature only the server can make, so a table code cannot be guessed or forged.
+  const [loaded, setLoaded] = useState<{ loc: number; tables: number; map: Record<number, string> } | null>(null);
+  useEffect(() => {
+    run(() => api<{ codes: { n: number; key: string }[] }>(`/api/staff/table-codes?loc=${loc}`)).then((r) => r && setLoaded({ loc, tables, map: Object.fromEntries(r.codes.map((c) => [c.n, c.key])) }));
+  }, [loc, tables, run]);
+  const keys = loaded && loaded.loc === loc && loaded.tables === tables ? loaded.map : null;
+  const codes = useMemo(
+    () =>
+      keys
+        ? Array.from({ length: tables }, (_, i) => {
+            const url = `${origin}/?table=${SHOP_CODES[loc]}-${i + 1}&t=${keys[i + 1] || ''}`;
+            return { n: i + 1, url, svg: qrSvg(url) };
+          })
+        : [],
+    [loc, tables, origin, keys],
+  );
   return (
     <section style={{ marginTop: 22 }}>
       <div className="cx-row between cx-noprint" style={{ marginBottom: 12 }}>
@@ -140,6 +195,7 @@ function QrSheet({ loc, tables, origin, onClose }: { loc: number; tables: number
           </button>
         </div>
       </div>
+      {!keys && <p className="cx-muted">Making the codes…</p>}
       <div className="cx-qr-grid">
         {codes.map((c) => (
           <figure key={c.n} className="cx-qr">
@@ -149,6 +205,53 @@ function QrSheet({ loc, tables, origin, onClose }: { loc: number; tables: number
             <small>SCAN TO ORDER · CALL A WAITER</small>
           </figure>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/** What is printed at the top of every bill: the legal name, the address, and the tax numbers a sales-tax invoice shows. */
+function BusinessCard({ business, save }: { business: Business; save: (body: Record<string, unknown>, done?: string) => Promise<unknown> }) {
+  const { can } = useMe();
+  const [f, setF] = useState(business);
+  if (!can('shops.manage')) return null;
+  const set = (k: keyof Business) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  return (
+    <section className="cx-card cx-stack cx-noprint" style={{ marginBottom: 16, gap: 12 }}>
+      <div className="cx-stack" style={{ gap: 4 }}>
+        <p className="cx-h2">Bill details</p>
+        <p className="cx-small cx-muted">Printed at the top of every bill the cashier prints. Add your NTN and sales-tax registration number so the bill reads as a proper sales-tax invoice.</p>
+      </div>
+      <div className="cx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+        <label className="cx-field">
+          <span>Name on the bill</span>
+          <input value={f.name} onChange={set('name')} maxLength={60} />
+        </label>
+        <label className="cx-field">
+          <span>Phone</span>
+          <input value={f.phone} onChange={set('phone')} maxLength={24} inputMode="tel" />
+        </label>
+        <label className="cx-field">
+          <span>NTN</span>
+          <input value={f.ntn} onChange={set('ntn')} maxLength={20} placeholder="e.g. 1234567-8" />
+        </label>
+        <label className="cx-field">
+          <span>Sales-tax registration (PRA)</span>
+          <input value={f.strn} onChange={set('strn')} maxLength={24} />
+        </label>
+        <label className="cx-field" style={{ gridColumn: '1 / -1' }}>
+          <span>Address</span>
+          <input value={f.address} onChange={set('address')} maxLength={120} placeholder="Head office address" />
+        </label>
+        <label className="cx-field" style={{ gridColumn: '1 / -1' }}>
+          <span>Line at the bottom</span>
+          <input value={f.footer} onChange={set('footer')} maxLength={100} />
+        </label>
+      </div>
+      <div className="cx-row">
+        <button type="button" className="cx-btn primary" disabled={f.name.trim().length < 2} onClick={() => save({ business: f }, 'Bill details saved.')}>
+          Save bill details
+        </button>
       </div>
     </section>
   );

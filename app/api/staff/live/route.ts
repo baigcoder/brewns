@@ -4,6 +4,7 @@ import { json, route } from '@/lib/server/http';
 import { activeOrders, expireHolds, liveVersion, openCalls, refundList, staffView, visibleTo } from '@/lib/server/orders';
 import { isLive, recentVoiceCalls } from '@/lib/server/voiceLog';
 import { countPendingMoments } from '@/lib/server/moments';
+import { countPendingReviews } from '@/lib/server/reviews';
 import { kv } from '@/lib/server/store';
 
 /**
@@ -29,7 +30,7 @@ export const GET = route(async (req) => {
     activeOrders(),
     openCalls(),
     canAny(p, 'reports.view') ? recentVoiceCalls() : Promise.resolve([]),
-    canAny(p, 'shops.manage', 'reports.view') ? countPendingMoments() : Promise.resolve(0),
+    canAny(p, 'shops.manage', 'reports.view') ? Promise.all([countPendingMoments(), countPendingReviews()]).then(([m, r]) => m + r) : Promise.resolve(0),
     canAny(p, 'reports.view', 'floor.tables')
       ? kv.hall<{ loc?: number; status?: string; date?: string }>('reservations')
       : Promise.resolve({} as Record<string, { loc?: number; status?: string; date?: string }>),
@@ -58,6 +59,10 @@ export const GET = route(async (req) => {
     soldOut: ctx.settings.soldOut,
     stock: ctx.settings.stock,
     prepay: ctx.settings.prepay,
+    digest: ctx.role === 'owner' ? ctx.settings.digest : undefined,
+    signedTables: canAny(p, 'shops.manage') ? ctx.settings.signedTables : undefined,
+    // Printed at the top of every bill, so whoever can take payment needs it.
+    business: ctx.settings.business,
     // Refunds still owed, for the nav badge.
     refundsDue: canAny(p, 'orders.pay') ? (await refundList(ctx)).pending.length : 0,
     shops: ctx.settings.shops,

@@ -20,9 +20,12 @@ export const POST = route(async (req) => {
   const name = str(b.name, 60).replace(/\s+/g, ' ');
   const next = { ...user, name: name.length >= 2 ? name : user.name, passHash: await hashPassword(password), invite: null, v: user.v + 1 };
   await saveUser(next);
-  await startSession(next);
-  await audit({ id: next.id, name: next.name, role: next.role }, user.passHash ? 'Reset their password' : 'Joined the team');
+  // A reset link proves who holds the link, not that they hold the phone. With two-step on, the password is
+  // changed but they still sign in the normal way, with their code.
+  const secondStep = !!next.totp?.on;
+  if (!secondStep) await startSession(next);
+  await audit({ id: next.id, name: next.name, role: next.role }, user.passHash ? 'Reset their password' : 'Joined the team', secondStep ? 'Two-step code still needed to sign in' : '', user.passHash ? 'security' : undefined);
   const settings = await getSettings();
   const role = next.role as Role; // staff accounts only, checked above
-  return json({ ok: true, next: homeFor(role, permsFor(role, settings.rolePerms)) });
+  return json({ ok: true, next: secondStep ? '/staff/signin' : homeFor(role, permsFor(role, settings.rolePerms)) });
 });

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { orderNo, STATION_LABEL, type Station } from '@/lib/orderFlow';
+import { isAllergyNote, orderNo, STATION_LABEL, type Station } from '@/lib/orderFlow';
 import { pkTime } from './api';
 import { useLive, type StaffOrder } from './Live';
 import { playKitchenChime } from '@/lib/audio-alerts';
@@ -175,6 +175,11 @@ function TicketCard({ t, now, showStation, onBump, onLine }: { t: Ticket; now: n
             <b>{l.qty}×</b>
             <span>{l.name}</span>
             {l.opts && <small>{l.opts}</small>}
+            {l.note && (
+              <em className={`cx-line-note${isAllergyNote(l.note) ? ' allergy' : ''}`}>
+                {isAllergyNote(l.note) ? 'ALLERGY · ' : ''}“{l.note}”
+              </em>
+            )}
           </button>
         ))}
       </div>

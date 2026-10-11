@@ -17,6 +17,7 @@ export const POST = route(async (req) => {
     await rateLimit(`review-vote:${clientIp(req)}`, 30, 600);
     const id = str(b.id, 40);
     if (!id) fail(400, 'Missing review id');
+    await rateLimit(`review-vote:${clientIp(req)}:${id.slice(0, 24)}`, 1, 86400, 'You already marked this one helpful.');
     const helpful = await upvoteReview(id);
     if (helpful === null) fail(404, 'Review not found');
     return json({ helpful });
@@ -30,8 +31,9 @@ export const POST = route(async (req) => {
   if (!quote || !name || !place || !stars) fail(400, 'Missing required fields: quote, name, place, stars');
   if (!(stars >= 1 && stars <= 5)) fail(400, 'Stars must be 1–5');
   if (quote.length > 500) fail(400, 'Review too long (max 500 chars)');
+  // Anyone can write one, so it waits for the café to look at it first. (A review from an order's own link goes live at once.)
   const review = await addReview({ quote, name, place, order: str(b.order, 120), product: str(b.product, 60), stars });
-  return json({ review }, 201);
+  return json({ pending: review.status === 'pending' }, 201);
 });
 
 /** DELETE — removes a review by id. Staff who manage shops only: it used to be open to anyone. */

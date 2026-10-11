@@ -7,11 +7,12 @@
    on their very next click. Staff and customers have separate cookies, so the
    same person can be a barista at work and a club member at home. */
 
-import { createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual, createHash } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual, createHash } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { ClubState } from '@/components/brewns/club';
 import { canOpen, permsFor, sectionByKey, type AccountKind, type Permission, type Role } from '@/lib/rbac';
+import { securityOnce } from './audit';
 import { fail } from './http';
 import { getSettings, type Settings } from './settings';
 import { kv } from './store';
@@ -56,7 +57,44 @@ async function secret() {
 
 const sign = async (payload: string) => createHmac('sha256', await secret()).update(payload).digest('base64url');
 
+/** A short signature of `text` for one `purpose` (a table's QR code, say), made with the server secret: nobody can produce one without it. */
+export const signText = async (purpose: string, text: string) => (await sign(`${purpose}:${text}`)).slice(0, 16);
+
+/** Encrypts a small value (AES-256-GCM) with a key derived from the server secret, for things we must be able to read back, like a two-step secret. */
+export async function seal(plain: string) {
+  const key = createHmac('sha256', await secret()).update('seal-v1').digest();
+  const iv = randomBytes(12);
+  const c = createCipheriv('aes-256-gcm', key, iv);
+  const ct = Buffer.concat([c.update(plain, 'utf8'), c.final()]);
+  return ['v1', iv.toString('base64url'), c.getAuthTag().toString('base64url'), ct.toString('base64url')].join('.');
+}
+
+/** The value `seal` made, or null if it was tampered with or the secret changed. */
+export async function unseal(token: string): Promise<string | null> {
+  try {
+    const [v, iv, tag, ct] = token.split('.');
+    if (v !== 'v1') return null;
+    const key = createHmac('sha256', await secret()).update('seal-v1').digest();
+    const d = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'));
+    d.setAuthTag(Buffer.from(tag, 'base64url'));
+    return Buffer.concat([d.update(Buffer.from(ct, 'base64url')), d.final()]).toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
 /* ── accounts ── */
+
+/** Two-step sign-in. `enc` is the sealed secret; `on` is false while someone is still setting it up. */
+export type TotpState = {
+  enc: string;
+  on: boolean;
+  since: number;
+  /** The last time-step accepted, so one code cannot be used twice. */
+  last: number;
+  /** Hashes of the recovery codes still unused. */
+  recovery: string[];
+};
 
 export type User = {
   id: string;
@@ -80,16 +118,29 @@ export type User = {
   invitedBy: string;
   club: ClubState | null;
   clubImported: boolean;
+  totp?: TotpState | null;
 };
 
-export type PublicUser = Omit<User, 'passHash' | 'invite' | 'club'> & { invited: boolean; inviteExpired: boolean };
+export type PublicUser = Omit<User, 'passHash' | 'invite' | 'club' | 'totp'> & { invited: boolean; inviteExpired: boolean; twoStep: boolean; recoveryLeft: number };
 
-export const publicUser = ({ passHash: _p, invite, club: _c, ...u }: User): PublicUser => ({ ...u, invited: !!invite, inviteExpired: !!invite && invite.exp < Date.now() });
+export const publicUser = ({ passHash: _p, invite, club: _c, totp, ...u }: User): PublicUser => ({
+  ...u,
+  invited: !!invite,
+  inviteExpired: !!invite && invite.exp < Date.now(),
+  twoStep: !!totp?.on,
+  recoveryLeft: totp?.on ? totp.recovery.length : 0,
+});
 
 const emailIndex = (kind: AccountKind) => (kind === 'staff' ? 'idx:staff-email' : 'idx:customer-email');
 
 export const getUser = (id: string) => kv.hget<User>('users', id);
-export const allUsers = async (kind?: AccountKind) => Object.values(await kv.hall<User>('users')).filter((u) => !kind || u.kind === kind);
+/** Everyone, with the freshest "last seen" laid over (it is kept apart from the account, see `currentStaff`). */
+export const allUsers = async (kind?: AccountKind) => {
+  const [users, seen] = await Promise.all([kv.hall<User>('users'), kv.hall<number>('seen')]);
+  return Object.values(users)
+    .filter((u) => !kind || u.kind === kind)
+    .map((u) => (seen[u.id] > u.lastSeenAt ? { ...u, lastSeenAt: seen[u.id] } : u));
+};
 
 export async function findByEmail(kind: AccountKind, email: string) {
   const id = await kv.hget<string>(emailIndex(kind), email.toLowerCase());
@@ -184,14 +235,19 @@ async function readSession(kind: AccountKind): Promise<User | null> {
 
 export type StaffContext = { user: User; role: Role; perms: Permission[]; settings: Settings };
 
+const touched = new Map<string, number>();
+
 /** The signed-in staff member with their permissions, or null. Notes when they were last seen (at most once a minute). */
 export async function currentStaff(): Promise<StaffContext | null> {
   const user = await readSession('staff');
   if (!user || user.role === 'customer') return null;
   const settings = await getSettings();
-  if (Date.now() - user.lastSeenAt > 60000) {
-    user.lastSeenAt = Date.now();
-    await kv.hset('users', user.id, user);
+  // Written to its own hash, never back onto the account: saving the copy loaded at the start of a request
+  // could undo a change made meanwhile (a deactivation, a new role, "sign out everywhere").
+  const now = Date.now();
+  if (now - (touched.get(user.id) || 0) > 60000) {
+    touched.set(user.id, now);
+    await kv.hset('seen', user.id, now);
   }
   return { user, role: user.role, perms: permsFor(user.role, settings.rolePerms), settings };
 }
@@ -203,7 +259,10 @@ export async function requireStaff(need: Permission[] = [], mode: 'all' | 'any' 
   const ctx = await currentStaff();
   if (!ctx) return fail(401, 'Sign in again.') as never;
   const ok = !need.length || (mode === 'all' ? need.every((p) => ctx.perms.includes(p)) : need.some((p) => ctx.perms.includes(p)));
-  if (!ok) return fail(403, "Your role doesn't allow that. Ask the owner if you need it.") as never;
+  if (!ok) {
+    await securityOnce(`deny:${ctx.user.id}:${need.join(',')}`, 300, { id: ctx.user.id, name: ctx.user.name, role: ctx.role }, 'Blocked: tried something their role does not allow', `Needed ${mode === 'any' ? 'one of' : 'all of'}: ${need.join(', ')}`);
+    return fail(403, "Your role doesn't allow that. Ask the owner if you need it.") as never;
+  }
   return ctx;
 }
 
@@ -222,3 +281,11 @@ export async function staffPage(sectionKey: string) {
 
 /** Can this person see or act on orders at shop `loc`? */
 export const worksAt = (u: Pick<User, 'shops'>, loc: number) => !u.shops.length || u.shops.includes(loc);
+
+/** Removes an account and its sign-in lookups. Orders and history are the caller's job to deal with first. */
+export async function deleteUser(u: User) {
+  await kv.hdel('users', u.id);
+  await kv.hdel('seen', u.id);
+  if (u.email) await kv.hdel(emailIndex(u.kind), u.email);
+  if (u.kind === 'customer' && u.phone) await kv.hdel('idx:customer-phone', u.phone.replace(/\D/g, ''));
+}

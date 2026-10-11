@@ -4,6 +4,7 @@
   "installCommand": "bun install --frozen-lockfile",
   "buildCommand": "bun run build",
   "regions": ["bom1"],
+  "crons": [{ "path": "/api/cron/daily", "schedule": "30 16 * * *" }],
   "headers": [
     {
       "source": "/(.*)",
