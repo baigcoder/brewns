@@ -786,7 +786,10 @@ address { font-style: normal; }
 .menu-receipt { pointer-events: none; position: absolute; right: calc(var(--breakpoint-board) - var(--size-menu-receipt-x) - var(--size-menu-receipt-width)); top: var(--size-menu-receipt-y); display: none; height: var(--size-menu-receipt-height); width: var(--size-menu-receipt-width); opacity: 0; transform: translate(150px, 150px); }
 .menu-receipt > span { display: block; width: 100%; height: 100%; rotate: var(--angle-menu-receipt); }
 .menu-receipt img { width: 100%; height: 100%; object-fit: cover; }
-@media (min-width: 1024px) { .menu-receipt { display: block; } }
+/* The receipt slides in beside the "View full menu" button. It is placed for the wide layout: on narrower windows it
+   slid in 200px or more and covered the button and the card edge, so there it stays away. Where it shows, it keeps a
+   small gap from the button. */
+@media (min-width: 1600px) { .menu-receipt { display: block; right: calc(var(--breakpoint-board) - var(--size-menu-receipt-x) - var(--size-menu-receipt-width) - 2.5rem); } }
 .menu-cta { display: block; color: var(--foreground-inverse); }
 @media (min-width: 640px) and (max-width: 1023.98px) { .menu-cta { justify-self: end; } }
 @media (min-width: 1024px) { .menu-cta { position: absolute; right: 2.5rem; top: calc(var(--size-menu-cards-y) - 2.75rem); } }
