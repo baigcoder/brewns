@@ -61,6 +61,43 @@ function kpis(orders: ServerOrder[]) {
   };
 }
 
+export type Exception = { name: string; role: string; cancels: number; cancelValue: number; refunds: number; refundValue: number };
+
+/** Names the system writes into an order's history: not a person. */
+const SYSTEM = new Set(['', 'Auto', 'Auto-accept', 'Customer', 'Counter']);
+
+/**
+ * Orders cancelled and money refunded, by the person who did it. The usual way a till leaks is a cashier voiding sales
+ * and pocketing the cash, so this is the first thing to look at when the drawer does not add up. Customers cancelling
+ * their own order, and the system timing out an unpaid one, are not counted.
+ */
+export function exceptionsOf(orders: ServerOrder[]): Exception[] {
+  const roles = new Map<string, string>();
+  for (const o of orders) for (const e of o.events) if (e.by && e.role && !roles.has(e.by)) roles.set(e.by, e.role);
+  const people = new Map<string, Exception>();
+  const person = (name: string) => {
+    const p = people.get(name) || { name, role: roles.get(name) || '', cancels: 0, cancelValue: 0, refunds: 0, refundValue: 0 };
+    people.set(name, p);
+    return p;
+  };
+  for (const o of orders) {
+    if (o.status === 'cancelled') {
+      const by = [...o.events].reverse().find((e) => e.what === 'cancelled')?.by;
+      if (by && !SYSTEM.has(by)) {
+        const p = person(by);
+        p.cancels++;
+        p.cancelValue += o.totals.total;
+      }
+    }
+    if (o.refund && !SYSTEM.has(o.refund.by)) {
+      const p = person(o.refund.by);
+      p.refunds++;
+      p.refundValue += o.refund.amount;
+    }
+  }
+  return [...people.values()].sort((a, b) => b.cancelValue + b.refundValue - (a.cancelValue + a.refundValue)).slice(0, 8);
+}
+
 export async function report(range: Range, ctx: StaffContext) {
   const now = Date.now();
   const { cur, prev, cutoff } = periods(range, now);
@@ -141,6 +178,7 @@ export async function report(range: Range, ctx: StaffContext) {
     byPay,
     top,
     promos: [...promos.values()].sort((a, b) => b.uses - a.uses),
+    exceptions: exceptionsOf(orders),
     team: [...team.values()].sort((a, b) => b.taken + b.rides - (a.taken + a.rides)).slice(0, 8),
     source,
     repeatCustomers: [...phones.values()].filter((n) => n > 1).length,

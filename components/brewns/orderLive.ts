@@ -229,7 +229,7 @@ export const QUICK_REPLIES = {
 
 /* ── receipt ── */
 
-export type ReceiptLine = { qty: number; name: string; opts: string; unit: number; total: number };
+export type ReceiptLine = { qty: number; name: string; opts: string; note?: string; unit: number; total: number };
 
 export const invoiceNo = (o: Order, branch: string) => `BRW-${branch}-${String(o.number).padStart(6, '0')}`;
 
@@ -239,7 +239,7 @@ export function whatsappText(o: Order, lines: ReceiptLine[], money: (n: number) 
   return [
     `Assalam o alaikum brewns! This is ${o.name} about order #${num}.`,
     '',
-    ...lines.map((l) => `• ${l.qty} × ${l.name}${l.opts ? ` (${l.opts})` : ''}: ${money(l.total)}`),
+    ...lines.map((l) => `• ${l.qty} × ${l.name}${l.opts ? ` (${l.opts})` : ''}${l.note ? ` — “${l.note}”` : ''}: ${money(l.total)}`),
     '',
     `Total: ${money(o.totals.total)}`,
     `${o.mode === 'delivery' ? 'Delivery to' : 'Pickup at'}: ${where}`,

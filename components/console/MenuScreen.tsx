@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CATALOG } from '@/lib/catalog';
+import { promoRulesLabel } from '@/lib/promos';
 import { api, pkDate } from './api';
 import { useLive } from './Live';
 import { useMe } from './Shell';
@@ -17,7 +18,7 @@ const GROUPS: [string, string][] = [
   ['gifts', 'Gift cards'],
 ];
 
-type Promo = { code: string; pct: number; active: boolean; uses: number; createdAt: number; note?: string };
+type Promo = { code: string; pct: number; active: boolean; hint?: boolean; uses: number; createdAt: number; note?: string; maxUses?: number; expires?: string; minTotal?: number; oncePerCustomer?: boolean };
 
 export function MenuScreen() {
   const { can } = useMe();
@@ -117,7 +118,8 @@ function SoldOut() {
 function Promos() {
   const run = useRun();
   const [promos, setPromos] = useState<Promo[] | null>(null);
-  const [form, setForm] = useState({ code: '', pct: 10, note: '' });
+  const blank = { code: '', pct: 10, note: '', maxUses: '', minTotal: '', expires: '', oncePerCustomer: false, hint: false };
+  const [form, setForm] = useState(blank);
   useEffect(() => {
     run(() => api<{ promos: Promo[] }>('/api/staff/promos')).then((r) => r && setPromos(r.promos));
   }, [run]);
@@ -131,7 +133,7 @@ function Promos() {
       <div className="cx-card-h">
         <div className="cx-stack" style={{ gap: 4 }}>
           <p className="cx-h2">Promo codes</p>
-          <p className="cx-small cx-muted">A percentage off the bill (after a club free drink). The checkout suggests the first active code.</p>
+          <p className="cx-small cx-muted">A percentage off the bill (after a club free drink). Only the code marked Suggested is shown to visitors; every other code stays private until someone types it.</p>
         </div>
       </div>
       <form
@@ -139,7 +141,7 @@ function Promos() {
         style={{ marginBottom: 16 }}
         onSubmit={async (e) => {
           e.preventDefault();
-          if (await post({ action: 'create', ...form, code: form.code.toUpperCase() }, `${form.code.toUpperCase()} is live.`)) setForm({ code: '', pct: 10, note: '' });
+          if (await post({ action: 'create', ...form, code: form.code.toUpperCase() }, `${form.code.toUpperCase()} is live.`)) setForm(blank);
         }}
       >
         <input className="cx-input" style={{ maxWidth: 170, textTransform: 'uppercase' }} placeholder="CODE" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.replace(/[^a-z0-9]/gi, '') })} aria-label="Code" maxLength={24} />
@@ -147,6 +149,25 @@ function Promos() {
           <input className="cx-input" style={{ width: 80 }} type="number" min={1} max={50} value={form.pct} onChange={(e) => setForm({ ...form, pct: +e.target.value })} aria-label="Percent off" />% off
         </label>
         <input className="cx-input" style={{ maxWidth: 260 }} placeholder="Note (who it's for)" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} maxLength={80} />
+        <label className="cx-row cx-small">
+          <input className="cx-input" style={{ width: 90 }} type="number" min={1} placeholder="No cap" value={form.maxUses} onChange={(e) => setForm({ ...form, maxUses: e.target.value })} aria-label="Most times it can be used" />
+          uses
+        </label>
+        <label className="cx-row cx-small">
+          <input className="cx-input" style={{ width: 150 }} type="date" value={form.expires} onChange={(e) => setForm({ ...form, expires: e.target.value })} aria-label="Last day it works" />
+          ends
+        </label>
+        <label className="cx-row cx-small">
+          Rs
+          <input className="cx-input" style={{ width: 90 }} type="number" min={1} placeholder="No min" value={form.minTotal} onChange={(e) => setForm({ ...form, minTotal: e.target.value })} aria-label="Smallest order it applies to" />
+          minimum
+        </label>
+        <label className="cx-row cx-small">
+          <input type="checkbox" checked={form.oncePerCustomer} onChange={(e) => setForm({ ...form, oncePerCustomer: e.target.checked })} /> once per customer
+        </label>
+        <label className="cx-row cx-small">
+          <input type="checkbox" checked={form.hint} onChange={(e) => setForm({ ...form, hint: e.target.checked })} /> suggest on the site
+        </label>
         <button className="cx-btn primary" disabled={form.code.length < 3}>
           Create code
         </button>
@@ -163,9 +184,11 @@ function Promos() {
                 <th>Code</th>
                 <th>Off</th>
                 <th>Note</th>
+                <th>Rules</th>
                 <th className="r">Used</th>
                 <th>Since</th>
                 <th>On</th>
+                <th>Suggested</th>
                 <th />
               </tr>
             </thead>
@@ -175,10 +198,17 @@ function Promos() {
                   <td className="cx-mono">{p.code}</td>
                   <td>{p.pct}%</td>
                   <td className="cx-muted">{p.note || '—'}</td>
-                  <td className="r cx-num">{p.uses}</td>
+                  <td className="cx-muted cx-small">{promoRulesLabel(p) || 'No limits'}</td>
+                  <td className="r cx-num">
+                    {p.uses}
+                    {p.maxUses ? ` / ${p.maxUses}` : ''}
+                  </td>
                   <td className="cx-muted cx-small">{p.createdAt ? pkDate(p.createdAt) : 'From the start'}</td>
                   <td>
                     <button type="button" role="switch" className="cx-switch" aria-checked={p.active} aria-label={`${p.code} active`} onClick={() => post({ action: 'toggle', code: p.code })} />
+                  </td>
+                  <td>
+                    <button type="button" role="switch" className="cx-switch" aria-checked={!!p.hint} aria-label={`Suggest ${p.code} on the site`} onClick={() => post({ action: 'hint', code: p.code }, p.hint ? `${p.code} is private again.` : `The site now suggests ${p.code}.`)} />
                   </td>
                   <td className="r">
                     <button type="button" className="cx-btn sm danger" onClick={() => window.confirm(`Delete ${p.code}? Orders that used it keep their discount.`) && post({ action: 'delete', code: p.code }, `${p.code} deleted.`)}>

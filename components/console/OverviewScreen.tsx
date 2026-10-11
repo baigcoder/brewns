@@ -8,6 +8,8 @@ import { api, pkDate, pkTime, rs, rsShort, useNow } from './api';
 import { useLive } from './Live';
 import { isLate, StatusPill } from './OrderBits';
 import { useMe } from './Shell';
+import { FunnelCard } from './FunnelCard';
+import { CashDrawerCard, ExceptionsCard, type Exception } from './OwnerWatch';
 import { useRun } from './Toasts';
 import { ZReportModal, type ZReportData } from './ZReportModal';
 
@@ -25,6 +27,7 @@ type Report = {
   top: { id: string; name: string; cat: string; qty: number; sales: number }[];
   promos: { code: string; uses: number; discount: number }[];
   team: { name: string; taken: number; rides: number; sales: number }[];
+  exceptions: Exception[];
   source: { source: string; orders: number }[];
   repeatCustomers: number;
   recent: { number: number; placed: number; name: string; total: number; mode: Mode; status: Status; loc: number; table: number | null }[];
@@ -450,6 +453,12 @@ export function OverviewScreen() {
               </table>
             </div>
           </section>
+
+          <ExceptionsCard rows={r.exceptions || []} />
+
+          <CashDrawerCard />
+
+          <FunnelCard />
 
           <div className="cx-grid two">
             <section className="cx-card">

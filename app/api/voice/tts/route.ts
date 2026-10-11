@@ -8,7 +8,7 @@ export const GET = route(async (req): Promise<Response> => {
   const url = new URL(req.url);
   const line = readTtsToken(url.searchParams.get('p') || '', url.searchParams.get('s') || '');
   if (!line) return fail(404, 'Nothing to say.');
-  await rateLimit(`voice-tts:${clientIp(req)}`, 3000, 3600, 'The line is busy.');
+  await rateLimit(`voice-tts:${clientIp(req)}`, 400, 3600, 'The line is busy.');
 
   // Prioritize ElevenLabs Turbo v2.5 for instantaneous, high-fidelity studio voice; fallback to Gemini TTS
   const providers = [

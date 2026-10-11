@@ -11,7 +11,7 @@ export const POST = route(async (req) => {
   const ip = clientIp(req);
   // A venue's Wi-Fi shares one IP across callers, so keep its aggregate ceiling
   // high and apply the conversational quota to each independent call as well.
-  await rateLimit(`voice:${ip}`, 3000, 3600, 'The line is busy. Please try again in a little while.');
+  await rateLimit(`voice:${ip}`, 400, 3600, 'The line is busy. Please try again in a little while.');
 
   const b = await readBody(req);
   const callId = validCallId(b.callId) ? b.callId : '';

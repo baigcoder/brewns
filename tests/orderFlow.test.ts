@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { customerStage, FLOW, pkDay, pkMinutes, stageTimes, stationFor, statusAfterStations, stationsOf } from '@/lib/orderFlow';
+import { cleanNote, customerStage, FLOW, isAllergyNote, NOTE_MAX, pkDay, pkMinutes, stageTimes, stationFor, statusAfterStations, stationsOf } from '@/lib/orderFlow';
 
 describe('order flow', () => {
   it('routes products to the right station', () => {
@@ -44,5 +44,22 @@ describe('order flow', () => {
     const t = Date.UTC(2026, 0, 1, 20, 30); // 01:30 on 2 Jan in Lahore
     expect(pkDay(t)).toBe('2026-01-02');
     expect(pkMinutes(t)).toBe(90);
+  });
+});
+
+describe('requests on a line', () => {
+  it('tidies a request and drops anything that is not text', () => {
+    expect(cleanNote('  no   onions\n please\t')).toBe('no onions please');
+    expect(cleanNote('a\u0000b\u0007c')).toBe('a b c');
+    expect(cleanNote(42)).toBe('');
+    expect(cleanNote(undefined)).toBe('');
+    expect(cleanNote('x'.repeat(500))).toHaveLength(NOTE_MAX);
+  });
+
+  it('flags allergies for the kitchen, and not ordinary requests', () => {
+    for (const n of ['Nut allergy please', 'I am allergic to sesame', 'no nuts', 'gluten free', 'dairy-free', 'peanut', 'celiac', 'without gluten'])
+      expect([n, isAllergyNote(n)]).toEqual([n, true]);
+    for (const n of ['no onions', 'extra hot', 'less ice', 'extra milk', 'sauce on the side', 'happy birthday'])
+      expect([n, isAllergyNote(n)]).toEqual([n, false]);
   });
 });

@@ -27,6 +27,6 @@ export const POST = route(async (req) => {
   }
   await saveUser(next, ctx.user);
   if (b.newPassword !== undefined) await startSession(next); // this device stays signed in, the others don't
-  if (b.newPassword !== undefined) await audit({ id: next.id, name: next.name, role: ctx.role }, 'Changed their password');
+  if (b.newPassword !== undefined) await audit({ id: next.id, name: next.name, role: ctx.role }, 'Changed their password', '', 'security');
   return json({ user: publicUser(next) });
 });

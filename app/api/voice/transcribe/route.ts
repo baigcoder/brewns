@@ -5,7 +5,7 @@ export const maxDuration = 30;
 /** POST /api/voice/transcribe: transcribe spoken voice audio using Groq Whisper. */
 export const POST = route(async (req) => {
   const ip = clientIp(req);
-  await rateLimit(`transcribe:${ip}`, 3000, 3600, 'Audio transcription limit reached. Please try typing.');
+  await rateLimit(`transcribe:${ip}`, 400, 3600, 'Audio transcription limit reached. Please try typing.');
 
   const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
   const contentLength = Number(req.headers.get('content-length') || 0);

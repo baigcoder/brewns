@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ServerOrder } from '@/lib/orderFlow';
 import type { Permission, Role, RolePerms } from '@/lib/rbac';
+import type { Business } from '@/lib/receipt';
 import type { ShopSettings } from '@/lib/server/settings';
 import { api } from './api';
 
@@ -22,6 +23,11 @@ export type LiveData = {
   stock: Record<string, number>;
   refundsDue: number;
   prepay: { minTotal: number | null; holdMin: number; payTo: string };
+  /** Owner only: is the evening summary email on? */
+  digest?: boolean;
+  /** shops.manage: are table orders and waiter calls tied to the QR codes? */
+  signedTables?: boolean;
+  business?: Business;
   shops: ShopSettings[];
   me?: { id: string; name: string; email: string; role: Role; shops: number[]; active?: boolean };
   perms?: Permission[];

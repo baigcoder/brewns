@@ -28,6 +28,7 @@ const allura = Allura({
   weight: '400',
   subsets: ['latin'],
   variable: '--font-allura',
+  preload: false, // script accents sit below the fold
   display: 'swap',
 });
 

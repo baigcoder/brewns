@@ -304,3 +304,53 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
     return { ok: false, error: err.message, sentVia };
   }
 }
+
+/**
+ * Sends one plain email through whichever provider is set up (Resend, then Brevo).
+ * Returns how it went; with neither configured nothing is sent and `sentVia` is "none".
+ */
+export async function sendEmail(msg: { to: string; subject: string; text: string; html?: string }): Promise<{ ok: boolean; sentVia: 'resend' | 'brevo' | 'none' }> {
+  const to = msg.to.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return { ok: false, sentVia: 'none' };
+  const html = msg.html || `<pre style="font:15px/1.5 system-ui,sans-serif;white-space:pre-wrap">${msg.text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] as string)}</pre>`;
+
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        signal: AbortSignal.timeout(5000),
+        headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: process.env.EMAIL_FROM || 'brewns <onboarding@resend.dev>',
+          to: [to],
+          reply_to: process.env.EMAIL_REPLY_TO || 'brewns.coffee@gmail.com',
+          subject: msg.subject,
+          html,
+          text: msg.text,
+        }),
+      });
+      if (res.ok) return { ok: true, sentVia: 'resend' };
+      console.warn('[Email Resend Error]', await res.text().catch(() => ''));
+    } catch (e) {
+      console.warn('[Email Resend Catch]', (e as Error).message);
+    }
+  }
+
+  const brevoKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  if (brevoKey) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        signal: AbortSignal.timeout(5000),
+        headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender: { name: 'brewns', email: process.env.EMAIL_FROM || 'orders@brewns.coffee' }, to: [{ email: to }], subject: msg.subject, htmlContent: html, textContent: msg.text }),
+      });
+      if (res.ok) return { ok: true, sentVia: 'brevo' };
+      console.warn('[Email Brevo Error]', await res.text().catch(() => ''));
+    } catch (e) {
+      console.warn('[Email Brevo Catch]', (e as Error).message);
+    }
+  }
+  return { ok: false, sentVia: 'none' };
+}

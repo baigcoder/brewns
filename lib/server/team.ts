@@ -62,7 +62,7 @@ export async function invite(ctx: StaffContext, b: Record<string, unknown>) {
 
 const activeOwners = async () => (await allUsers('staff')).filter((u) => u.role === 'owner' && u.active);
 
-/** `{ role?, shops?, name?, phone?, plate?, active?, reset?, signout?, remove? }` */
+/** `{ role?, shops?, name?, phone?, plate?, active?, reset?, resetTwoStep?, signout?, remove? }` */
 export async function editMember(ctx: StaffContext, id: string, b: Record<string, unknown>) {
   return withLock('team', async () => {
     const target = await getUser(id);
@@ -72,6 +72,7 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
     const next: User = { ...target };
     const done: string[] = [];
     let token = '';
+    let resetTwoStep = false;
 
     if (b.remove) {
       if (target.passHash) fail(409, 'They have already joined. Switch the account off instead, so their history stays.');
@@ -112,6 +113,14 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
       next.v += 1;
       done.push('signed out everywhere');
     }
+    if (b.resetTwoStep) {
+      if (self) fail(403, 'Use My account to change your own two-step sign-in.');
+      if (!target.totp) fail(409, 'They are not using two-step sign-in.');
+      next.totp = null;
+      next.v += 1; // their open sessions end; they sign in with the password alone and can set it up again
+      done.push('two-step sign-in reset');
+      resetTwoStep = true;
+    }
     if (b.reset) {
       if (!next.active) fail(409, 'Switch the account on first.');
       const fresh = inviteFor();
@@ -122,6 +131,7 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
     await saveUser(next, target);
     await bumpLive();
     if (done.length) await audit(actorOf(ctx), `${target.name}: ${done.join(', ')}`);
+    if (resetTwoStep) await audit(actorOf(ctx), `Reset two-step sign-in for ${target.name}`, 'Their sessions ended', 'security');
     return { user: publicUser(next), token };
   });
 }

@@ -7,10 +7,11 @@
    order number to its day. Every change bumps `live:v`, so the console's poll
    is one tiny read when nothing has happened. */
 
-import { catalogItem, CLOSE_MIN, DELIVERY, OPEN_MIN, PAY, PREP_MIN, selLabel, SHOP_COUNT, unitPrice, validSel } from '@/lib/catalog';
+import { catalogItem, CLOSE_MIN, DELIVERY, OPEN_MIN, PAY, pkMobile, PREP_MIN, selLabel, SHOP_COUNT, unitPrice, validSel } from '@/lib/catalog';
 import {
   customerStage,
   FLOW,
+  cleanNote,
   isOpen,
   pkDay,
   pkMidnight,
@@ -28,6 +29,7 @@ import {
   type Status,
 } from '@/lib/orderFlow';
 import { priceOrder } from '@/lib/pricing';
+import { promoProblem } from '@/lib/promos';
 import { rewardValue } from '@/components/brewns/club';
 import { can, canAny, type Permission } from '@/lib/rbac';
 import { audit, type Actor } from './audit';
@@ -36,6 +38,8 @@ import { addCustomerOrder, creditOrder, reverseCredit } from './customers';
 import { fail, safeEqual } from './http';
 import { getSettings, releaseStock, reserveStock, type Settings } from './settings';
 import { notifyOrder, notifyRefund } from './orderNotify';
+import { tableKeyOk } from './tableCodes';
+import { isPayMethod, paidRecord, paymentProblem, retax, WALLET_REF, type Payment } from '@/lib/payments';
 import { kv, withLock } from './store';
 
 const dayKey = (day: string) => `orders:day:${day}`;
@@ -73,11 +77,13 @@ export const ordersOn = async (days: string[]) => (await kv.hallMany<ServerOrder
 /* ── placing an order ── */
 
 export type OrderInput = {
-  items: { id: string; qty: number; sel: Record<string, number> }[];
+  items: { id: string; qty: number; sel: Record<string, number>; note?: string }[];
   mode: Mode;
   loc: number;
   area: number | null;
   table: number | null;
+  /** The code from the table's QR (`?t=`). Needed for table orders from the site when table codes are protected. */
+  tableKey?: string;
   address: string;
   when: 'asap' | { t: number; tomorrow: boolean };
   name: string;
@@ -85,6 +91,8 @@ export type OrderInput = {
   email: string;
   note: string;
   pay: number;
+  /** At the counter: how it was paid, taken before the order reaches the kitchen. */
+  payment?: Payment;
   promo: string;
   useReward: boolean;
 };
@@ -112,6 +120,7 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   const shop = settings.shops[loc];
   if (online && shop.paused) fail(409, 'This shop has paused online orders for a little while. Try another shop, or order at the counter.');
   if (mode === 'dinein' && !(input.table && input.table >= 1 && input.table <= shop.tables)) fail(400, 'Which table?');
+  if (online && mode === 'dinein' && settings.signedTables && !(await tableKeyOk(loc, input.table!, input.tableKey))) fail(403, 'Scan the QR code on your table to order from it.');
 
   // Every line priced again from the catalog.
   if (!Array.isArray(input.items) || !input.items.length) fail(400, 'The bag is empty.');
@@ -124,13 +133,16 @@ export async function placeOrder(input: OrderInput, by: Placer) {
     if (!validSel(p, it.sel)) fail(400, `Choose the options for ${p.name.toLowerCase()} again.`);
     if (settings.soldOut.includes(p.id)) fail(409, `Sorry, ${p.name.toLowerCase()} has just sold out. Take it out of the bag to carry on.`);
     const unit = unitPrice(p, it.sel);
-    return { id: p.id, qty, sel: it.sel, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * qty, cat: p.cat, station: stationFor(p.cat) };
+    const note = cleanNote(it.note);
+    return { id: p.id, qty, sel: it.sel, name: p.name, opts: selLabel(p, it.sel), unit, total: unit * qty, cat: p.cat, station: stationFor(p.cat), ...(note ? { note } : {}) };
   });
   if (mode === 'dinein' && items.some((i) => i.cat === 'gifts')) fail(400, 'Gift cards are sold online or at the counter, not to a table.');
 
   // Who it's for.
   const name = String(input.name || '').trim().replace(/\s+/g, ' ').slice(0, 40);
-  const phone = String(input.phone || '').trim();
+  // Online, the mobile must be a real Pakistani number (the kitchen and WhatsApp updates depend on it); at the counter it is optional but still capped.
+  const rawPhone = String(input.phone || '').trim();
+  const phone = pkMobile(rawPhone) || (online ? '' : rawPhone.slice(0, 20));
   const email = String(input.email || '').trim().slice(0, 80);
   if (online) {
     if (name.length < 2) fail(400, 'Tell us who to call out.');
@@ -139,7 +151,11 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   }
   const address = mode === 'delivery' ? String(input.address || '').trim().slice(0, 160) : '';
   if (mode === 'delivery' && address.length < 10) fail(400, 'House, street and block, so the rider finds you.');
-  const pay = Number.isInteger(input.pay) && input.pay >= 0 && input.pay < PAY.length ? input.pay : 0;
+  // The cashier took payment at the counter: the way they were paid decides the tax, and the order is paid when it is placed.
+  const taken = by.kind === 'staff' ? input.payment : undefined;
+  if (by.kind === 'staff' && input.payment !== undefined && !isPayMethod(input.payment.method)) fail(400, 'Pick cash, card or wallet.');
+  if (by.kind === 'staff' && mode === 'pickup' && !taken) fail(400, 'Take payment first: a counter order goes to the kitchen once it is paid.');
+  const pay = taken ? taken.method : Number.isInteger(input.pay) && input.pay >= 0 && input.pay < PAY.length ? input.pay : 0;
 
   // When.
   const now = Date.now();
@@ -163,13 +179,25 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   // Money: promo, the club's free drink, then tax.
   const code = String(input.promo || '').trim().toUpperCase().slice(0, 24);
   const promo = code ? settings.promos.find((p) => p.active && p.code === code) : undefined;
-  if (code && !promo && online) fail(400, "That promo code isn't valid any more. Remove it to carry on.");
+  if (code && !promo) fail(400, "That promo code isn't valid any more. Remove it to carry on.");
   const customer = by.kind === 'online' ? by.customer : null;
   const memberRewards = customer?.club?.member ? customer.club.rewards : 0;
   const wantsReward = !!input.useReward && rewardValue(items) > 0;
   const verified = !!customer && memberRewards > 0;
   const useReward = wantsReward && (verified || (by.kind === 'online' && by.guestReward));
   const totals = priceOrder(items, { mode, area: input.area, pay, promoPct: promo ? promo.pct / 100 : 0, useReward });
+  // The code's own rules (end date, cap, minimum, once each) are checked here, on the server, against the real bill.
+  // The same mobile however it was typed (0300 1234567, +92 300 1234567): that is one customer.
+  const phoneKey = (pkMobile(phone) || phone).replace(/\D/g, '');
+  if (promo) {
+    const usedBefore = promo.oncePerCustomer && phoneKey ? !!(await kv.get(`promo-used:${promo.code}:${phoneKey}`)) : false;
+    const why = promoProblem(promo, { uses: await kv.num(`promo-uses:${promo.code}`), today: pkDay(now), subtotal: totals.sub, usedByThisCustomer: usedBefore });
+    if (why) fail(400, `${why} Remove the code to carry on.`);
+  }
+  if (taken) {
+    const why = paymentProblem(taken, totals.total);
+    if (why) fail(400, why);
+  }
   if (mode === 'delivery' && online && totals.sub - totals.discount < DELIVERY.min) fail(400, `Delivery starts at Rs ${DELIVERY.min.toLocaleString('en-US')}.`);
 
   // Pay first: a big delivery order waits for the customer's payment before the kitchen sees it.
@@ -177,66 +205,89 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   const needsPrepay = online && mode === 'delivery' && prepay.minTotal !== null && totals.sub - totals.discount >= prepay.minTotal;
   if (needsPrepay && pay !== 2) fail(400, `Delivery orders of Rs ${prepay.minTotal!.toLocaleString('en-US')} or more are paid in advance. Choose JazzCash / Easypaisa / Raast at checkout.`);
   await reserveStock(items);
-  const number = await nextNumber();
-  const stations = Object.fromEntries(stationsOf(items).map((s) => [s, 'queued'])) as ServerOrder['stations'];
-  const staffActor = by.kind === 'staff' ? by.ctx.user : null;
-  const auto = (shop.autoAccept || by.kind === 'staff') && !needsPrepay;
-  const o: ServerOrder = {
-    number,
-    day: pkDay(now),
-    placed: now,
-    target,
-    mode,
-    loc,
-    area: mode === 'delivery' ? input.area : null,
-    table: mode === 'dinein' ? input.table : null,
-    address,
-    name: name || (mode === 'dinein' ? `Table ${input.table}` : 'Walk-in'),
-    phone,
-    email,
-    note: String(input.note || '').trim().slice(0, 140),
-    pay,
-    items,
-    totals,
-    promoCode: promo?.code || '',
-    pickupAt,
-    status: 'received',
-    stations,
-    events: [{ t: now, what: 'placed', status: 'received', by: staffActor?.name || (online ? 'Customer' : ''), role: staffActor?.role }],
-    messages: [],
-    readByCafe: 0,
-    rider: null,
-    paid: null,
-    source: by.kind === 'staff' ? by.source : mode === 'dinein' ? 'table' : 'online',
-    takenBy: staffActor ? { id: staffActor.id, name: staffActor.name } : null,
-    customerId: customer?.id || null,
-    key: randomToken(16),
-    club: useReward ? { stamps: 0, used: true, verified } : null,
-    ...(needsPrepay ? { hold: { until: now + prepay.holdMin * 60000, ref: '' } } : {}),
-  };
-  if (auto) {
-    // Straight to the stations; beans, merch and gift cards alone are ready to hand over.
-    o.status = 'accepted';
-    o.events.push({ t: now, what: 'accepted', status: 'accepted', by: staffActor ? staffActor.name : 'Auto-accept' });
-    if (!Object.keys(stations).length) {
-      o.status = 'ready';
-      o.events.push({ t: now, what: 'ready', status: 'ready', by: 'Counter' });
+  // Stock is taken before the order exists; if anything after this fails, put it back so units are not lost.
+  let claimedRef = '';
+  try {
+    const number = await nextNumber();
+    if (taken && taken.method === 2) {
+      claimedRef = `payref:${String(taken.ref).trim().toUpperCase()}`;
+      if (!(await kv.set(claimedRef, number, { nx: true, ttlSec: 90 * 86400 }))) {
+        claimedRef = '';
+        fail(409, 'That transaction ID is already attached to another order. Check the ID on the receipt.');
+      }
     }
-  }
-  await kv.hset('orders:where', number, o.day);
-  if (promo) await kv.incr(`promo-uses:${promo.code}`);
+    const stations = Object.fromEntries(stationsOf(items).map((s) => [s, 'queued'])) as ServerOrder['stations'];
+    const staffActor = by.kind === 'staff' ? by.ctx.user : null;
+    const auto = (shop.autoAccept || by.kind === 'staff') && !needsPrepay;
+    const o: ServerOrder = {
+      number,
+      day: pkDay(now),
+      placed: now,
+      target,
+      mode,
+      loc,
+      area: mode === 'delivery' ? input.area : null,
+      table: mode === 'dinein' ? input.table : null,
+      address,
+      name: name || (mode === 'dinein' ? `Table ${input.table}` : 'Walk-in'),
+      phone,
+      email,
+      note: String(input.note || '').trim().slice(0, 140),
+      pay,
+      items,
+      totals,
+      promoCode: promo?.code || '',
+      pickupAt,
+      status: 'received',
+      stations,
+      events: [{ t: now, what: 'placed', status: 'received', by: staffActor?.name || (online ? 'Customer' : ''), role: staffActor?.role }],
+      messages: [],
+      readByCafe: 0,
+      rider: null,
+      paid: null,
+      source: by.kind === 'staff' ? by.source : mode === 'dinein' ? 'table' : 'online',
+      takenBy: staffActor ? { id: staffActor.id, name: staffActor.name } : null,
+      customerId: customer?.id || null,
+      key: randomToken(16),
+      club: useReward ? { stamps: 0, used: true, verified } : null,
+      ...(needsPrepay ? { hold: { until: now + prepay.holdMin * 60000, ref: '' } } : {}),
+    };
+    if (taken && staffActor) {
+      o.paid = paidRecord(taken, totals.total, staffActor);
+      if (o.paid.method === 2) o.payRef = o.paid.ref;
+      o.events.push({ t: now, what: 'paid', by: staffActor.name, role: staffActor.role });
+    }
+    if (auto) {
+      // Straight to the stations; beans, merch and gift cards alone are ready to hand over.
+      o.status = 'accepted';
+      o.events.push({ t: now, what: 'accepted', status: 'accepted', by: staffActor ? staffActor.name : 'Auto-accept' });
+      if (!Object.keys(stations).length) {
+        o.status = 'ready';
+        o.events.push({ t: now, what: 'ready', status: 'ready', by: 'Counter' });
+      }
+    }
+    await kv.hset('orders:where', number, o.day);
+    if (promo) {
+      await kv.incr(`promo-uses:${promo.code}`);
+      if (promo.oncePerCustomer && phoneKey) await kv.set(`promo-used:${promo.code}:${phoneKey}`, 1);
+    }
 
-  let credit: Awaited<ReturnType<typeof creditOrder>> = null;
-  if (customer) {
-    credit = await creditOrder(customer.id, { number, placed: now, lines: items, usedReward: useReward && verified });
-    if (credit) o.club = { stamps: credit.stamps, used: credit.used, verified: true };
-    await addCustomerOrder(customer.id, { number, day: o.day, placed: now, total: totals.total, mode, lines: items.map(({ cat, qty, unit }) => ({ cat, qty, unit })) });
+    let credit: Awaited<ReturnType<typeof creditOrder>> = null;
+    if (customer) {
+      credit = await creditOrder(customer.id, { number, placed: now, lines: items, usedReward: useReward && verified });
+      if (credit) o.club = { stamps: credit.stamps, used: credit.used, verified: true };
+      await addCustomerOrder(customer.id, { number, day: o.day, placed: now, total: totals.total, mode, lines: items.map(({ cat, qty, unit }) => ({ cat, qty, unit })) });
+    }
+    await saveOrder(o);
+    if (!staffActor) await notifyOrder(o, undefined, 'received');
+    if (o.status === 'ready') await notifyOrder(o);
+    if (staffActor) await audit(staffActor, `Took order #${number}`, `${o.mode === 'dinein' ? `Table ${o.table}` : o.name} · Rs ${totals.total}`).catch(() => {});
+    return { order: o, credit };
+  } catch (e) {
+    await releaseStock(items).catch(() => {});
+    if (claimedRef) await kv.del(claimedRef).catch(() => {});
+    throw e;
   }
-  await saveOrder(o);
-  if (!staffActor) await notifyOrder(o, undefined, 'received');
-  if (o.status === 'ready') await notifyOrder(o);
-  if (staffActor) await audit(staffActor, `Took order #${number}`, `${o.mode === 'dinein' ? `Table ${o.table}` : o.name} · Rs ${totals.total}`);
-  return { order: o, credit };
 }
 
 async function nextNumber() {
@@ -272,7 +323,7 @@ export const publicOrder = (o: ServerOrder) => ({
   paid: !!o.paid,
   hold: o.hold ? { until: o.hold.until, ref: o.hold.ref } : null,
   totals: o.totals,
-  items: o.items.map(({ id, qty, sel, name, opts, unit, total }) => ({ id, qty, sel, name, opts, unit, total })),
+  items: o.items.map(({ id, qty, sel, name, opts, unit, total, note }) => ({ id, qty, sel, name, opts, unit, total, ...(note ? { note } : {}) })),
 });
 
 /* ── what each role sees ── */
@@ -313,7 +364,7 @@ export type Action =
   | { type: 'ready' }
   | { type: 'collected' }
   | { type: 'served' }
-  | { type: 'paid'; method: number }
+  | { type: 'paid'; method: number; tendered?: number; ref?: string }
   | { type: 'assign'; riderId: string }
   | { type: 'take' }
   | { type: 'pickup' }
@@ -415,7 +466,24 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
         if (!ownRide) need('orders.pay');
         when(o.status !== 'cancelled' && !o.paid, o.paid ? 'Already paid.' : 'This order was cancelled.');
         const method = Number.isInteger(action.method) && action.method >= 0 && action.method < PAY.length ? action.method : o.pay;
-        o.paid = { t: Date.now(), by: ctx.user.name, method };
+        // Paying a different way than first thought changes the tax (16% cash, 5% card or wallet): the bill is worked out again before it is taken.
+        if (method > 0 !== o.pay > 0) {
+          o.totals = retax(o.totals, method);
+          note(`retax:${Math.round(o.totals.rate * 100)}`);
+        }
+        o.pay = method;
+        const given: Payment = { method, tendered: action.tendered, ref: action.ref };
+        if (action.tendered !== undefined || action.ref) {
+          const why = paymentProblem(given, o.totals.total);
+          if (why) fail(400, why);
+        }
+        if (method === 2 && action.ref) {
+          if (!WALLET_REF.test(action.ref.trim())) fail(400, 'Enter the transaction ID from the wallet receipt.');
+          const key = `payref:${action.ref.trim().toUpperCase()}`;
+          if (!(await kv.set(key, o.number, { nx: true, ttlSec: 90 * 86400 })) && (await kv.get<number>(key)) !== o.number) fail(409, 'That transaction ID is already attached to another order. Check the ID on the receipt.');
+          o.payRef = action.ref.trim().toUpperCase();
+        }
+        o.paid = paidRecord({ ...given, ref: action.ref }, o.totals.total, ctx.user);
         note('paid');
         log = `Took payment · ${PAY[method][0]} · Rs ${o.totals.total}`;
         break;
@@ -555,6 +623,9 @@ export async function customerAct(number: number, key: string, action: { type: '
       if (!o.hold || o.status !== 'received') fail(409, 'This order is not waiting for payment.');
       const ref = String(action.text || '').trim();
       if (!/^[A-Za-z0-9-]{6,30}$/.test(ref)) fail(400, 'Enter the transaction ID from your payment receipt (6 to 30 letters and numbers).');
+      // One real payment pays for one order: the same transaction ID cannot be attached to another.
+      const claimed = await kv.set(`payref:${ref.toUpperCase()}`, o.number, { nx: true, ttlSec: 90 * 86400 });
+      if (!claimed && (await kv.get<number>(`payref:${ref.toUpperCase()}`)) !== o.number) fail(409, 'That transaction ID is already attached to another order. Check the ID on your receipt.');
       o.hold!.ref = ref;
       o.events.push({ t, what: 'payref', by: 'Customer' });
     } else if (action.type === 'collected') {
@@ -597,9 +668,10 @@ export async function refundList(ctx: StaffContext) {
 
 export type Call = { id: string; loc: number; table: number; kind: 'waiter' | 'bill'; t: number };
 
-export async function callWaiter(loc: number, table: number, kind: Call['kind'], settings: Settings) {
+export async function callWaiter(loc: number, table: number, kind: Call['kind'], settings: Settings, key?: string) {
   if (!(loc >= 0 && loc < SHOP_COUNT)) fail(400, 'Which shop?');
   if (!(table >= 1 && table <= settings.shops[loc].tables)) fail(400, 'Which table?');
+  if (settings.signedTables && !(await tableKeyOk(loc, table, key))) fail(403, 'Scan the QR code on your table to call a waiter.');
   const id = `${loc}-${table}-${kind}`;
   const call: Call = { id, loc, table, kind, t: Date.now() };
   await kv.hset('calls', id, call);

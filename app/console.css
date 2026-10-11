@@ -406,3 +406,57 @@
 .cx-live-tag.stale { background: rgb(230 103 103 / 0.12); border-color: rgb(230 103 103 / 0.4); color: var(--cx-late); }
 .cx-live-tag.stale::before { background: var(--cx-late); box-shadow: 0 0 6px var(--cx-late); }
 @media (prefers-reduced-motion: reduce) { .cx-live-tag::before { animation: none; } }
+
+/* a customer's request on one dish ("no onions"); allergy ones stand out for the cook */
+.cx-line-note { grid-column: 2 / -1; display: block; padding: 3px 8px; border-radius: 6px; background: #fff3cd; color: #5c4300; font-style: normal; font-size: 13px; font-weight: 600; line-height: 1.35; }
+.cx-line-note.allergy { background: #d93025; color: #fff; font-weight: 700; }
+
+/* a red marker on security events in the activity log */
+.cx-sec-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #e5604f; vertical-align: middle; }
+
+/* two-step set-up: the QR code and the recovery codes */
+.cx-qr { width: 168px; flex: none; padding: 6px; border-radius: 10px; background: #fff; line-height: 0; }
+.cx-qr svg { width: 100%; height: auto; display: block; }
+.cx-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cx-codes li { padding: 8px 10px; border: 1px solid var(--cx-line); border-radius: 8px; background: var(--cx-panel-2); font-size: 15px; letter-spacing: 0.06em; text-align: center; user-select: all; }
+
+/* ── the counter: payment, change, till ── */
+.cx-pos { grid-template-columns: minmax(0, 1fr) 400px; }
+.cx-item { position: relative; }
+.cx-item-n { position: absolute; top: 8px; right: 8px; min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px; background: var(--cx-accent); color: var(--cx-accent-ink); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cx-late-text { color: var(--cx-late); }
+.cx-kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 5px; border: 1px solid currentColor; font-family: var(--font-space-mono); font-weight: 600; font-size: 10px; line-height: 16px; letter-spacing: 0.04em; opacity: 0.6; text-align: center; }
+.cx-pay { width: min(780px, 100%); }
+.cx-pay > .cx-btn.go { position: sticky; bottom: 0; box-shadow: 0 -10px 18px var(--cx-bg); }
+.cx-pay-methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cx-pay-method { display: grid; gap: 2px; justify-items: start; padding: 12px; border-radius: 12px; border: 1px solid var(--cx-line-2); background: var(--cx-panel); text-align: left; transition: border-color 120ms, background 120ms; }
+.cx-pay-method b { font-size: 12px; letter-spacing: 0.04em; }
+.cx-pay-method span { font-size: 17px; font-weight: 700; }
+.cx-pay-method small { color: var(--cx-muted); font-size: 11px; }
+.cx-pay-method[aria-selected="true"] { border-color: var(--cx-accent); background: var(--cx-panel-2); box-shadow: inset 0 0 0 1px var(--cx-accent); }
+.cx-pay-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 2px; }
+.cx-pay-total b { font-size: 34px; letter-spacing: -0.02em; }
+.cx-pay-cash { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 640px) { .cx-pay-cash { grid-template-columns: 1fr; } }
+@media (max-height: 760px) { .cx-keypad button { min-height: 44px; font-size: 19px; } .cx-pay-total b { font-size: 28px; } }
+.cx-pay-tender { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cx-pay-tender b { font-size: 24px; }
+.cx-pay-change { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgb(47 179 122 / 0.45); background: rgb(47 179 122 / 0.1); color: var(--cx-ready); }
+.cx-pay-change b { font-size: 30px; letter-spacing: -0.02em; }
+.cx-pay-change.short { border-color: rgb(230 103 103 / 0.5); background: rgb(230 103 103 / 0.08); color: var(--cx-late); }
+.cx-pay-change .cx-muted { color: var(--cx-muted); font-size: 12px; }
+.cx-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cx-keypad button { min-height: 54px; border-radius: 12px; border: 1px solid var(--cx-line-2); background: var(--cx-panel); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; transition: background 90ms, transform 90ms; }
+.cx-keypad button:hover { background: var(--cx-panel-2); }
+.cx-keypad button:active { transform: scale(0.96); }
+.cx-done { text-align: center; justify-items: center; width: min(420px, 100%); }
+.cx-done > * { max-width: 100%; }
+.cx-done-tick { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: rgb(47 179 122 / 0.15); color: var(--cx-ready); font-size: 30px; font-weight: 700; }
+.cx-done-no { font-family: var(--font-geist); font-weight: 800; font-size: 54px; line-height: 1; letter-spacing: -0.03em; }
+.cx-till-big { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.cx-till-grid { display: grid; grid-template-columns: minmax(140px, 200px) 1fr auto; gap: 16px; align-items: end; }
+@media (max-width: 720px) { .cx-till-grid { grid-template-columns: 1fr; } }
+.cx-till-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.cx-till-list li { display: grid; grid-template-columns: 76px 1fr auto auto auto; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--cx-line); }
+@media (max-width: 720px) { .cx-till-list li { grid-template-columns: 1fr auto; } }
+@media print { .cx-pay, .cx-done { display: none !important; } }

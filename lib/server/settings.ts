@@ -3,6 +3,7 @@
    codes, and what each role may do. One small document, cached per request. */
 
 import { SHOP_COUNT } from '@/lib/catalog';
+import { DEFAULT_BUSINESS, type Business } from '@/lib/receipt';
 import { HttpError } from './http';
 import { normaliseRolePerms, type RolePerms } from '@/lib/rbac';
 import { kv, withLock } from './store';
@@ -20,11 +21,18 @@ export type ShopSettings = {
 export type Prepay = { minTotal: number | null; holdMin: number; payTo: string };
 export const DEFAULT_PREPAY: Prepay = { minTotal: null, holdMin: 10, payTo: 'Raast ID: brewns@habibbank (JazzCash and Easypaisa work too)' };
 
-export type Promo = { code: string; pct: number; active: boolean; uses: number; createdAt: number; note?: string };
+/** `hint`: the one code the site suggests to everyone. Every other code stays private until someone types it. */
+export type Promo = { code: string; pct: number; active: boolean; hint?: boolean; uses: number; createdAt: number; note?: string; maxUses?: number; expires?: string; minTotal?: number; oncePerCustomer?: boolean };
 
 export type Settings = {
   /** Orders go to the console (live tracking) instead of only by email. */
   online: boolean;
+  /** Email the owner(s) a summary of the day each evening. */
+  digest: boolean;
+  /** The details printed at the top of every bill. */
+  business: Business;
+  /** Ordering and waiter calls from a table need the code printed in that table's QR (so they can't be sent from anywhere). */
+  signedTables: boolean;
   shops: ShopSettings[];
   soldOut: string[];
   /** Units left of the items the café counts. An item at zero is sold out on its own; items not listed are unlimited. */
@@ -40,11 +48,14 @@ const DEFAULT_SHOP: ShopSettings = { paused: false, extraMin: 0, autoAccept: tru
 
 export const defaultSettings = (): Settings => ({
   online: true,
+  digest: true,
+  business: { ...DEFAULT_BUSINESS },
+  signedTables: false,
   shops: Array.from({ length: SHOP_COUNT }, (_, i) => ({ ...DEFAULT_SHOP, tables: [14, 10, 12][i] ?? 10 })),
   soldOut: [],
   stock: {},
   prepay: { ...DEFAULT_PREPAY },
-  promos: [{ code: 'BREWNS10', pct: 10, active: true, uses: 0, createdAt: 0, note: 'The code the checkout suggests' }],
+  promos: [{ code: 'BREWNS10', pct: 10, active: true, hint: true, uses: 0, createdAt: 0, note: 'The code the checkout suggests' }],
   rolePerms: normaliseRolePerms(null),
   updatedAt: 0,
 });
@@ -55,11 +66,15 @@ export async function getSettings(): Promise<Settings> {
   if (!raw) return base;
   return {
     online: raw.online ?? base.online,
+    digest: raw.digest ?? base.digest,
+    business: { ...DEFAULT_BUSINESS, ...(raw.business || {}) },
+    signedTables: raw.signedTables ?? base.signedTables,
     shops: base.shops.map((s, i) => ({ ...s, ...(raw.shops?.[i] || {}) })),
     soldOut: Array.isArray(raw.soldOut) ? raw.soldOut : [],
     stock: raw.stock && typeof raw.stock === 'object' ? raw.stock : {},
     prepay: { ...DEFAULT_PREPAY, ...(raw.prepay || {}) },
-    promos: Array.isArray(raw.promos) ? raw.promos : base.promos,
+    // Before the flag existed the site suggested BREWNS10: keep that, and nothing else, as the suggestion.
+    promos: Array.isArray(raw.promos) ? raw.promos.map((p) => (p.hint === undefined && p.code === 'BREWNS10' ? { ...p, hint: true } : p)) : base.promos,
     rolePerms: normaliseRolePerms(raw.rolePerms),
     updatedAt: raw.updatedAt || 0,
   };

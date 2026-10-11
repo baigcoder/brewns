@@ -264,7 +264,7 @@
   .pdp-actions .btn .lbl-long { display: none; }
   .pdp-actions .btn svg { display: none; }
   .pdp-actions #pdp-add span[aria-hidden] { display: none; }
-  .pdp-total-line { display: flex; justify-content: space-between; margin-top: -0.75rem; color: rgb(255 255 255 / 0.55); }
+  .pdp-total-line { display: flex; justify-content: space-between; gap: 1rem; margin-top: -0.75rem; color: rgb(255 255 255 / 0.55); }
   .pdp-total-line b { color: #fff; font-weight: 400; }
 }
 @media (min-width: 640px) { .pdp-total-line { display: none; } }
