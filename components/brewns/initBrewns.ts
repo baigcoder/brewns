@@ -749,6 +749,9 @@ const textEngine = (el) => {
     const sr = span("sr-only", text);
     const words = text.split(" ");
     let units;
+    // The headline is written as two lines (see .hero-h1-row): remember them before the text is taken apart, so
+    // it breaks where it was written at every screen width instead of wherever the words happen to wrap.
+    if (lines && el.classList.contains("hero-h1")) el._rows ||= [...el.querySelectorAll(".hero-h1-row")].map((r) => r.textContent.trim().split(/\s+/));
     if (lines) {
       el.textContent = "";
       el.style.display = "block";
@@ -759,15 +762,16 @@ const textEngine = (el) => {
         if (i < words.length - 1) el.append(" ");
         return p;
       });
-      const groups = [];
+      const groups = el._rows?.length ? el._rows.map((r) => [...r]) : [];
       let top = null;
-      probes.forEach((p, i) => {
-        if (top === null || Math.abs(p.offsetTop - top) > 2) {
-          groups.push([]);
-          top = p.offsetTop;
-        }
-        groups[groups.length - 1].push(words[i]);
-      });
+      if (!groups.length)
+        probes.forEach((p, i) => {
+          if (top === null || Math.abs(p.offsetTop - top) > 2) {
+            groups.push([]);
+            top = p.offsetTop;
+          }
+          groups[groups.length - 1].push(words[i]);
+        });
       el.style.removeProperty("display");
       el.textContent = "";
       el.append(sr);
@@ -777,7 +781,7 @@ const textEngine = (el) => {
         const inner = span(null);
         if (el.classList.contains("hero-h1")) {
           inner.innerHTML = g
-            .map((w) => (w.toUpperCase().includes("MOMENT") ? `<span class="hero-gold">${w}</span>` : w))
+            .map((w) => (w.toUpperCase().includes("MOMENT") ? `<span class="hero-gold hero-moment">${w}</span>` : w))
             .join(" ");
         } else {
           inner.textContent = g.join(" ");
@@ -2323,6 +2327,7 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
       window.__brewnsPrepay = s.prepay || null;
       window.__brewnsStatus = { soldOut: Array.isArray(s.soldOut) ? s.soldOut : [], shops: Array.isArray(s.shops) ? s.shops : [] };
       syncAvailability();
+      paintHeroWaits();
       if (Array.isArray(s.soldOut)) {
         soldOutIds = new Set(s.soldOut);
         soldOutIds.forEach((id) => {
@@ -4219,7 +4224,15 @@ function track(e, oncePerVisit = true) {
   const menuAccount = $("#menu-account-link");
   const menuStaff = $("#menu-staff-link");
   const first = (name) => String(name || "").trim().split(/\s+/)[0].slice(0, 12);
+  const hello = $("#hero-hello");
+  const greeting = (fullName) => {
+    if (!hello) return;
+    const hour = Math.floor((((Date.now() / 60000) + 300) % 1440) / 60); // Lahore time
+    hello.textContent = `${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"}, ${first(fullName) || "friend"}.`;
+    hello.hidden = false;
+  };
   const asCustomer = (fullName) => {
+    greeting(fullName);
     const name = first(fullName) || "Account";
     label.textContent = name.toUpperCase();
     btn.setAttribute("aria-label", `${fullName || name}: my account and club card`);
@@ -4227,6 +4240,7 @@ function track(e, oncePerVisit = true) {
     btn.dataset.initial = name.charAt(0).toUpperCase();
   };
   const asVisitor = () => {
+    if (hello) hello.hidden = true;
     label.textContent = "SIGN IN";
     btn.setAttribute("aria-label", "Sign in or create an account");
     delete btn.dataset.in;
@@ -6176,6 +6190,24 @@ const nowMin = () => Math.floor(((Date.now() / 60000) + 300) % 1440);
 const hhmm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const isOpenNow = () => nowMin() >= OPEN_MIN && nowMin() + PREP_MIN <= CLOSE_MIN;
 
+/* How long each counter is taking right now: the usual prep time plus any extra wait the café has set, or
+   "paused" / "opens 07:00". Read from the status the page already fetched, so it costs no request. */
+function paintHeroWaits() {
+  const list = $("#hero-waits");
+  const shops = window.__brewnsStatus?.shops;
+  if (!list || !shops?.length) return;
+  const names = ["GULBERG", "DHA", "JOHAR TOWN"];
+  const open = nowMin() >= OPEN_MIN && nowMin() + PREP_MIN <= CLOSE_MIN;
+  list.innerHTML = names
+    .map((name, i) => {
+      const sh = shops[i] || {};
+      const note = sh.paused ? "PAUSED" : !open ? `OPENS ${hhmm(OPEN_MIN)}` : `~${PREP_MIN + (Number(sh.extraMin) || 0)} MIN`;
+      return `<li data-state="${sh.paused ? "paused" : open ? "open" : "closed"}"><span>${name}</span><b>${note}</b></li>`;
+    })
+    .join("");
+  list.hidden = false;
+}
+
 /* The hero's live line: open now, closing soon, or when it opens (Lahore time). */
 {
   const live = $("#hero-live");
@@ -6189,7 +6221,13 @@ const isOpenNow = () => nowMin() >= OPEN_MIN && nowMin() + PREP_MIN <= CLOSE_MIN
       : m >= CLOSE_MIN - 30 ? ["soon", `CLOSING SOON · ${hm(CLOSE_MIN)}`]
       : ["open", `OPEN NOW · UNTIL ${hm(CLOSE_MIN)}`];
     live.dataset.state = state;
-    liveText.textContent = text;
+    liveText.textContent = state === "closed" && m >= CLOSE_MIN ? `CLOSED NOW · OPENS ${hm(OPEN_MIN)} TOMORROW` : text;
+    // Closed, "order online" would be a promise the counter can't keep: offer the first pre-order slot instead.
+    const cta = $("#hero-cta-text");
+    if (cta) cta.textContent = state === "closed" ? `PRE-ORDER · ${hm(OPEN_MIN + 15)}` : "ORDER ONLINE";
+    const navCta = $(".hdr-order > span:first-child");
+    if (navCta) navCta.textContent = state === "closed" ? "PRE-ORDER" : "ORDER ONLINE";
+    paintHeroWaits();
   };
   if (live && liveText) {
     paint();
