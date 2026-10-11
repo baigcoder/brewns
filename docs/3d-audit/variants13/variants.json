@@ -1,0 +1,425 @@
+[
+ {
+  "id": "margherita-pizza",
+  "shot": "margherita-pizza-default",
+  "selected": [
+   "10\""
+  ]
+ },
+ {
+  "id": "margherita-pizza",
+  "shot": "margherita-pizza-size-0",
+  "option": "size",
+  "clicked": "8\"",
+  "selected": "8\"",
+  "canvases": 1
+ },
+ {
+  "id": "margherita-pizza",
+  "shot": "margherita-pizza-size-1",
+  "option": "size",
+  "clicked": "10\"",
+  "selected": "10\"",
+  "canvases": 1
+ },
+ {
+  "id": "margherita-pizza",
+  "shot": "margherita-pizza-size-2",
+  "option": "size",
+  "clicked": "12\"",
+  "selected": "12\"",
+  "canvases": 1
+ },
+ {
+  "id": "pepperoni-pizza",
+  "shot": "pepperoni-pizza-default",
+  "selected": [
+   "10\"",
+   "CLASSIC"
+  ]
+ },
+ {
+  "id": "pepperoni-pizza",
+  "shot": "pepperoni-pizza-size-0",
+  "option": "size",
+  "clicked": "8\"",
+  "selected": "8\"",
+  "canvases": 1
+ },
+ {
+  "id": "pepperoni-pizza",
+  "shot": "pepperoni-pizza-size-1",
+  "option": "size",
+  "clicked": "10\"",
+  "selected": "10\"",
+  "canvases": 1
+ },
+ {
+  "id": "pepperoni-pizza",
+  "shot": "pepperoni-pizza-size-2",
+  "option": "size",
+  "clicked": "12\"",
+  "selected": "12\"",
+  "canvases": 1
+ },
+ {
+  "id": "pepperoni-pizza",
+  "shot": "pepperoni-pizza-crust-0",
+  "option": "crust",
+  "clicked": "CLASSIC",
+  "selected": "CLASSIC",
+  "canvases": 1
+ },
+ {
+  "id": "pepperoni-pizza",
+  "shot": "pepperoni-pizza-crust-1",
+  "option": "crust",
+  "clicked": "CHEESE-STUFFED",
+  "selected": "CHEESE-STUFFED",
+  "canvases": 1
+ },
+ {
+  "id": "fajita-pizza",
+  "shot": "fajita-pizza-default",
+  "selected": [
+   "10\"",
+   "CLASSIC"
+  ]
+ },
+ {
+  "id": "fajita-pizza",
+  "shot": "fajita-pizza-size-0",
+  "option": "size",
+  "clicked": "8\"",
+  "selected": "8\"",
+  "canvases": 1
+ },
+ {
+  "id": "fajita-pizza",
+  "shot": "fajita-pizza-size-1",
+  "option": "size",
+  "clicked": "10\"",
+  "selected": "10\"",
+  "canvases": 1
+ },
+ {
+  "id": "fajita-pizza",
+  "shot": "fajita-pizza-size-2",
+  "option": "size",
+  "clicked": "12\"",
+  "selected": "12\"",
+  "canvases": 1
+ },
+ {
+  "id": "fajita-pizza",
+  "shot": "fajita-pizza-crust-0",
+  "option": "crust",
+  "clicked": "CLASSIC",
+  "selected": "CLASSIC",
+  "canvases": 1
+ },
+ {
+  "id": "fajita-pizza",
+  "shot": "fajita-pizza-crust-1",
+  "option": "crust",
+  "clicked": "CHEESE-STUFFED",
+  "selected": "CHEESE-STUFFED",
+  "canvases": 1
+ },
+ {
+  "id": "alfredo-pasta",
+  "shot": "alfredo-pasta-default",
+  "selected": [
+   "CHICKEN"
+  ]
+ },
+ {
+  "id": "alfredo-pasta",
+  "shot": "alfredo-pasta-protein-0",
+  "option": "protein",
+  "clicked": "CHICKEN",
+  "selected": "CHICKEN",
+  "canvases": 1
+ },
+ {
+  "id": "alfredo-pasta",
+  "shot": "alfredo-pasta-protein-1",
+  "option": "protein",
+  "clicked": "MUSHROOM",
+  "selected": "MUSHROOM",
+  "canvases": 1
+ },
+ {
+  "id": "alfredo-pasta",
+  "shot": "alfredo-pasta-protein-2",
+  "option": "protein",
+  "clicked": "PRAWN",
+  "selected": "PRAWN",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-default",
+  "selected": [
+   "MEDIUM",
+   "NOTHING"
+  ]
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-add-0",
+  "option": "add",
+  "clicked": "NOTHING",
+  "selected": "NOTHING",
+  "canvases": 1
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "shot": "arrabbiata-pasta-add-1",
+  "option": "add",
+  "clicked": "+ CHICKEN",
+  "selected": "+ CHICKEN",
+  "canvases": 1
+ },
+ {
+  "id": "pesto-pasta",
+  "shot": "pesto-pasta-default",
+  "selected": [
+   "CHICKEN"
+  ]
+ },
+ {
+  "id": "pesto-pasta",
+  "shot": "pesto-pasta-protein-0",
+  "option": "protein",
+  "clicked": "CHICKEN",
+  "selected": "CHICKEN",
+  "canvases": 1
+ },
+ {
+  "id": "pesto-pasta",
+  "shot": "pesto-pasta-protein-1",
+  "option": "protein",
+  "clicked": "NONE",
+  "selected": "NONE",
+  "canvases": 1
+ },
+ {
+  "id": "cardamom-bun",
+  "shot": "cardamom-bun-default",
+  "selected": [
+   "AS IT IS"
+  ]
+ },
+ {
+  "id": "cardamom-bun",
+  "shot": "cardamom-bun-serve-0",
+  "option": "serve",
+  "clicked": "AS IT IS",
+  "selected": "AS IT IS",
+  "canvases": 1
+ },
+ {
+  "id": "cardamom-bun",
+  "shot": "cardamom-bun-serve-1",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-default",
+  "selected": [
+   "AS IT IS",
+   "REGULAR"
+  ]
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-warm-0",
+  "option": "warm",
+  "clicked": "AS IT IS",
+  "selected": "AS IT IS",
+  "canvases": 1
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-warm-1",
+  "option": "warm",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-glaze-0",
+  "option": "glaze",
+  "clicked": "REGULAR",
+  "selected": "REGULAR",
+  "canvases": 1
+ },
+ {
+  "id": "cinnamon-roll",
+  "shot": "cinnamon-roll-glaze-1",
+  "option": "glaze",
+  "clicked": "EXTRA",
+  "selected": "EXTRA",
+  "canvases": 1
+ },
+ {
+  "id": "matcha-financier",
+  "shot": "matcha-financier-default",
+  "selected": [
+   "ROOM TEMP"
+  ]
+ },
+ {
+  "id": "matcha-financier",
+  "shot": "matcha-financier-serve-0",
+  "option": "serve",
+  "clicked": "ROOM TEMP",
+  "selected": "ROOM TEMP",
+  "canvases": 1
+ },
+ {
+  "id": "matcha-financier",
+  "shot": "matcha-financier-serve-1",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-default",
+  "selected": [
+   "WARMED"
+  ]
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-serve-0",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-serve-1",
+  "option": "serve",
+  "clicked": "ROOM TEMP",
+  "selected": "ROOM TEMP",
+  "canvases": 1
+ },
+ {
+  "id": "san-sebastian",
+  "shot": "san-sebastian-default",
+  "selected": [
+   "WITH WARM BELGIAN CHOCOLATE"
+  ]
+ },
+ {
+  "id": "san-sebastian",
+  "shot": "san-sebastian-serve-0",
+  "option": "serve",
+  "clicked": "WITH WARM BELGIAN CHOCOLATE",
+  "selected": "WITH WARM BELGIAN CHOCOLATE",
+  "canvases": 1
+ },
+ {
+  "id": "san-sebastian",
+  "shot": "san-sebastian-serve-1",
+  "option": "serve",
+  "clicked": "ON THE SIDE",
+  "selected": "ON THE SIDE",
+  "canvases": 1
+ },
+ {
+  "id": "san-sebastian",
+  "shot": "san-sebastian-serve-2",
+  "option": "serve",
+  "clicked": "NO CHOCOLATE",
+  "selected": "NO CHOCOLATE",
+  "canvases": 1
+ },
+ {
+  "id": "fudge-brownie",
+  "shot": "fudge-brownie-default",
+  "selected": [
+   "WARMED + VANILLA GELATO"
+  ]
+ },
+ {
+  "id": "fudge-brownie",
+  "shot": "fudge-brownie-serve-0",
+  "option": "serve",
+  "clicked": "WARMED + VANILLA GELATO",
+  "selected": "WARMED + VANILLA GELATO",
+  "canvases": 1
+ },
+ {
+  "id": "fudge-brownie",
+  "shot": "fudge-brownie-serve-1",
+  "option": "serve",
+  "clicked": "WARMED ONLY",
+  "selected": "WARMED ONLY",
+  "canvases": 1
+ },
+ {
+  "id": "fudge-brownie",
+  "shot": "fudge-brownie-serve-2",
+  "option": "serve",
+  "clicked": "ROOM TEMP",
+  "selected": "ROOM TEMP",
+  "canvases": 1
+ },
+ {
+  "id": "tiramisu",
+  "shot": "tiramisu-default",
+  "selected": [
+   "SINGLE SLICE"
+  ]
+ },
+ {
+  "id": "tiramisu",
+  "shot": "tiramisu-portion-0",
+  "option": "portion",
+  "clicked": "SINGLE SLICE",
+  "selected": "SINGLE SLICE",
+  "canvases": 1
+ },
+ {
+  "id": "tiramisu",
+  "shot": "tiramisu-portion-1",
+  "option": "portion",
+  "clicked": "SHARING BOX",
+  "selected": "SHARING BOX",
+  "canvases": 1
+ }
+]

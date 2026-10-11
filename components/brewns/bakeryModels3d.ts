@@ -64,6 +64,121 @@ const croissantGeometry = (T: typeof THREE, kit: Kit) => {
   return g;
 };
 
+/** The croissant's body between t0 and t1 along its spine, open at both ends. */
+const croissantRange = (T: typeof THREE, kit: Kit, t0: number, t1: number) => {
+  const N = 80, M = 36;
+  const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+  for (let i = 0; i <= N; i++) {
+    const t = t0 + ((t1 - t0) * i) / N;
+    for (let j = 0; j <= M; j++) {
+      const { pos: p } = skin(T, t, (j / M) * TAU);
+      pos.push(p.x, p.y, p.z);
+      uv.push(t, j / M);
+    }
+  }
+  for (let i = 0; i < N; i++)
+    for (let j = 0; j < M; j++) {
+      const a = i * (M + 1) + j, b = a + 1, c = (i + 1) * (M + 1) + j, d = c + 1;
+      idx.push(a, b, c, b, d, c);
+    }
+  const g = kit.add(new T.BufferGeometry());
+  g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+};
+
+/** Cellular noise: [distance to nearest feature point, to the second nearest, that cell's random value]. */
+const worley = (x: number, y: number, seed: number) => {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  let d1 = 9, d2 = 9, id = 0;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    const cx = ix + i, cy = iy + j;
+    const h1 = Math.sin(cx * 127.1 + cy * 311.7 + seed * 74.7) * 43758.5453;
+    const h2 = Math.sin(cx * 269.5 + cy * 183.3 + seed * 12.9) * 43758.5453;
+    const d = Math.hypot(cx + (h1 - Math.floor(h1)) - x, cy + (h2 - Math.floor(h2)) - y);
+    if (d < d1) { d2 = d1; d1 = d; id = h1 - Math.floor(h1); } else if (d < d2) d2 = d;
+  }
+  return [d1, d2, id];
+};
+
+/**
+ * What a cut croissant shows: a thin golden laminated shell, then an open honeycomb of irregular air cells, large in the
+ * middle and tight near the walls, their walls thin, glossy and pale gold and their insides deeper amber. Returns colour
+ * and a height (1 on a wall, 0 at the bottom of a cell) for the bump and for pushing the cut face in.
+ */
+const honeycomb = (u: number, v: number) => {
+  const x = (u - 0.5) * 2, y = (v - 0.5) * 2;
+  const d = Math.hypot(x, y);
+  const inside = smoothstep(0.96, 0.7, d); // the shell is solid; the air is inside it
+  // Air cells as rounded bubbles of different sizes (a coarse set and a fine set), packed so only thin walls are left.
+  const [a1, a2, ida] = worley(x * 3.0 + 9, y * 3.0 + 3, 5);
+  const [b1, , idb] = worley(x * 6.4 + 1, y * 6.4 + 7, 8);
+  const [c1, , idc] = worley(x * 12 + 4, y * 12 + 2, 11);
+  const cav = (dist: number, id: number, base: number) => smoothstep(base * (0.55 + id * 0.5), base * (0.55 + id * 0.5) - 0.07, dist);
+  const big = cav(a1, ida, 0.62) * (ida > 0.12 ? 1 : 0);
+  const mid = cav(b1, idb, 0.5) * (idb > 0.3 ? 1 : 0.0);
+  const fine = cav(c1, idc, 0.45) * (idc > 0.45 ? 1 : 0);
+  const air = Math.max(big, mid * 0.9, fine * 0.8) * inside;
+  // inside a cell: deep amber at the edge, lighter and glossier towards the far wall; walls are pale gold
+  const depth = Math.max(0, 1 - Math.min(a1, b1 * 1.2, c1 * 1.5) * 1.3);
+  const lam = 0.5 + 0.5 * Math.sin(d * 130 + ida * 6);
+  let c = mix([234, 198, 124], [248, 224, 160], idb);
+  c = mix(c, mix([128, 82, 36], [196, 140, 66], depth * 0.9), air);
+  const crustBand = smoothstep(0.86, 0.93, d);
+  c = mix(c, [212, 148, 62], crustBand * 0.85);
+  c = mix(c, [170, 102, 36], crustBand * lam * 0.3);
+  c = mix(c, [178, 112, 50], smoothstep(0.92, 1.0, d) * 0.8);
+  void a2;
+  return { c, h: 1 - air * 0.95 };
+};
+
+/** The flat cut across the croissant at t, closed with the honeycomb and pushed in where the cells are. `dir` is +1 for a face looking along the spine. */
+const croissantCut = (T: typeof THREE, kit: Kit, t: number, dir: number) => {
+  const R = 22, M = 48;
+  const ring: THREE.Vector3[] = [];
+  for (let j = 0; j < M; j++) ring.push(skin(T, t, (j / M) * TAU).pos);
+  const center = new T.Vector3();
+  ring.forEach((p) => center.add(p));
+  center.multiplyScalar(1 / M);
+  const tan = spine(T, Math.min(1, t + 0.002)).sub(spine(T, Math.max(0, t - 0.002))).normalize().multiplyScalar(dir);
+  const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+  const hs: number[] = [];
+  for (let k = 0; k <= R; k++) {
+    const f = k / R;
+    for (let j = 0; j <= M; j++) {
+      const p = ring[j % M].clone().sub(center).multiplyScalar(f).add(center);
+      const a = ((j % M) / M) * TAU;
+      const q = 0.5 + 0.5 * f;
+      const uu = 0.5 + 0.5 * f * Math.cos(a), vv = 0.5 + 0.5 * f * Math.sin(a);
+      const h = honeycomb(uu, vv).h;
+      hs.push(h);
+      // cells are hollows: the wall stays on the face, the cell floors sit back inside the pastry
+      const back = (1 - h) * 0.014 * smoothstep(1.0, 0.82, f);
+      pos.push(p.x - tan.x * back, p.y - tan.y * back, p.z - tan.z * back);
+      uv.push(uu, vv);
+      void q;
+    }
+  }
+  for (let k = 0; k < R; k++)
+    for (let j = 0; j < M; j++) {
+      const a = k * (M + 1) + j, b = a + 1, c = (k + 1) * (M + 1) + j, d = c + 1;
+      if (dir > 0) idx.push(a, c, b, b, c, d); else idx.push(a, b, c, b, d, c);
+    }
+  const g = kit.add(new T.BufferGeometry());
+  g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const tex = paint(T, kit, 512, 512, (u, v) => {
+    const { c, h } = honeycomb(u, v);
+    return [c[0], c[1], c[2], h];
+  });
+  const mat = surface(T, kit, tex, { physical: true, roughness: 0.5, bumpScale: 5, clearcoat: 0.25, clearcoatRoughness: 0.4, side: T.DoubleSide });
+  return new T.Mesh(g, mat);
+};
+
 const croissantSkin = (T: typeof THREE, kit: Kit, glaze: boolean) =>
   surface(
     T,
@@ -83,24 +198,56 @@ const croissantSkin = (T: typeof THREE, kit: Kit, glaze: boolean) =>
       c = mix(c, [236, 186, 110], layers * flaky * bulge * 0.35);
       c = mix(c, [92, 46, 16], crease * 0.55);
       c = mix(c, [226, 174, 100], smoothstep(0.68, 0.86, fine) * 0.35 * bulge);
+      // the underside bakes dark and dry against the tray, not pale
+      c = mix(c, [132, 74, 26], smoothstep(0.6, 0.0, top) * 0.95);
+      // blistered, flaked edges where the layers lifted
+      c = mix(c, [246, 206, 128], smoothstep(0.8, 0.95, fbm(u * 70, v * 24, 4, 2, 13)) * crease * 0.5);
       return [c[0], c[1], c[2], 0.25 + bulge * 0.45 + n * 0.15 + layers * flaky * bulge * 0.2];
     }),
     glaze
       ? { roughness: 0.4, bumpScale: 5, physical: true, clearcoat: 0.4, clearcoatRoughness: 0.35 }
-      : { roughness: 0.48, bumpScale: 5, physical: true, clearcoat: 0.32, clearcoatRoughness: 0.35 },
+      : { roughness: 0.5, bumpScale: 9, physical: true, clearcoat: 0.2, clearcoatRoughness: 0.45 },
   );
 
 export function createCroissantModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
   const kit = new Kit();
   const inner = new T.Group();
   const almond = id === 'almond-croissant';
+  const cutOpen = id === 'butter-croissant';
   // The butter croissant is photographed on its own; the almond one on a dark stoneware plate.
   if (almond) inner.add(plate(T, kit, 0.74, 'slate'));
 
-  const body = new T.Mesh(croissantGeometry(T, kit), croissantSkin(T, kit, almond));
+  // The butter croissant's photograph is half a croissant, cut across to show the crumb: the second half of the pastry,
+  // a piece from the thick middle along towards the tail, with the honeycomb on the cut.
+  const T0 = 0.5, T1 = 0.8;
+  const skinMat = croissantSkin(T, kit, almond);
+  const bodyGeo = cutOpen ? croissantRange(T, kit, T0, T1) : croissantGeometry(T, kit);
+  // a flaky shell: lifted layers and ridges along the lamination, kept small so the croissant stays a clean shape
+  if (cutOpen) {
+    const P = bodyGeo.attributes.position, Nn = bodyGeo.attributes.normal, rows = 80, cols = 36;
+    for (let i = 0; i < P.count; i++) {
+      const row = Math.floor(i / (cols + 1));
+      // zero at the two cut ends so the shell still meets the cut faces exactly
+      const w = Math.min(1, Math.min(row, rows - row) / 6);
+      const x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+      const d = (fbm(x * 16, y * 16, z * 16, 3, 6) - 0.5) * 0.02 * w;
+      P.setXYZ(i, x + Nn.getX(i) * d, y + Nn.getY(i) * d, z + Nn.getZ(i) * d);
+    }
+    bodyGeo.computeVertexNormals();
+  }
+  const body = new T.Mesh(bodyGeo, skinMat);
   body.position.y = almond ? 0.04 : 0;
-  body.rotation.y = -0.2;
-  inner.add(body);
+  body.rotation.y = cutOpen ? 0 : -0.2;
+  if (cutOpen) {
+    const cut = croissantCut(T, kit, T0, -1);
+    // the piece was cut at both ends: the far face is the same crumb, so it is solid from every side
+    const back = croissantCut(T, kit, T1, 1);
+    const holder = new T.Group();
+    holder.add(body, cut, back);
+    // turn the cut face to the camera, a little to the left, as in the photograph
+    holder.rotation.y = 1.22;
+    inner.add(holder);
+  } else inner.add(body);
 
   if (almond) {
     // Flaked almonds and powdered sugar over the top of the pastry.
@@ -129,8 +276,15 @@ export function createCroissantModel(T: typeof THREE, id: string, sel: Sel = {})
     }, 9);
   }
 
-  const apply = () => {};
-  return assemble(T, kit, inner, { sel, apply, steam: { count: 22, height: 0.02, on: (s) => (almond ? s.serve === 0 : s.serve === 1) }, shadow: [1.9, 1.5] });
+  // Warmed: butter has softened and the shell is glossier and a shade deeper; room temperature is drier and paler.
+  const apply = (s: Sel) => {
+    const warm = almond ? s.serve === 0 : s.serve === 1;
+    skinMat.roughness = warm ? 0.34 : 0.56;
+    skinMat.clearcoat = warm ? 0.3 : 0;
+    skinMat.specularIntensity = warm ? 0.5 : 0.3; // a dry shell has no grazing sheen to wash the underside pale
+    skinMat.color.setRGB(warm ? 0.92 : 1, warm ? 0.86 : 1, warm ? 0.8 : 1);
+  };
+  return assemble(T, kit, inner, { sel, apply, steam: { count: 10, height: 0.014, on: (s) => (almond ? s.serve === 0 : s.serve === 1) }, shadow: [1.9, 1.5] });
 }
 
 /* ── San Sebastian cheesecake ── */
@@ -184,8 +338,8 @@ export function createCheesecakeModel(T: typeof THREE, id: string, sel: Sel = {}
   const faceTex = paint(T, kit, 256, 128, (u, v) => {
     const n = fbm(u * 12, v * 12, 5, 3, 4);
     const pores = smoothstep(0.7, 0.86, fbm(u * 40, v * 40, 8, 2, 2));
-    let c = mix([246, 224, 150], [252, 238, 178], n);
-    c = mix(c, [232, 200, 120], pores * 0.5);
+    let c = mix([240, 226, 186], [248, 238, 208], n);
+    c = mix(c, [224, 202, 150], pores * 0.5);
     c = mix(c, [206, 150, 70], smoothstep(0.24, 0.0, v) * 0.9);
     c = mix(c, [176, 108, 46], smoothstep(0.86, 0.94, v) * 0.85);
     c = mix(c, [60, 30, 12], smoothstep(0.93, 0.99, v));
@@ -428,15 +582,15 @@ export function createFinancierModel(T: typeof THREE, id: string, sel: Sel = {})
 
   const crustTex = paint(T, kit, 256, 128, (u, v) => {
     const n = fbm(u * 12, v * 8, 2, 4, 3);
-    let c = mix([152, 104, 46], [176, 124, 56], n);
-    c = mix(c, [96, 128, 46], smoothstep(0.25, 0.0, v) * 0.55);
-    c = mix(c, [110, 66, 26], smoothstep(0.7, 0.95, fbm(u * 26, v * 14, 4, 3, 8)) * 0.6);
+    let c = mix([92, 86, 40], [118, 104, 46], n);
+    c = mix(c, [70, 88, 36], smoothstep(0.25, 0.0, v) * 0.55);
+    c = mix(c, [64, 46, 22], smoothstep(0.7, 0.95, fbm(u * 26, v * 14, 4, 3, 8)) * 0.6);
     return [c[0], c[1], c[2], 0.35 + n * 0.5];
   });
   const topTex = paint(T, kit, 256, 128, (u, v) => {
     const n = fbm(u * 14, v * 10, 5, 4, 6);
-    let c = mix([170, 118, 52], [198, 146, 70], n);
-    c = mix(c, [118, 132, 50], smoothstep(0.55, 0.85, fbm(u * 5, v * 5, 1, 3, 4)) * 0.35);
+    let c = mix([118, 100, 44], [146, 124, 56], n);
+    c = mix(c, [92, 118, 44], smoothstep(0.55, 0.85, fbm(u * 5, v * 5, 1, 3, 4)) * 0.45);
     c = mix(c, [250, 246, 236], smoothstep(0.55, 0.8, fbm(u * 34, v * 20, 9, 3, 2)) * 0.6);
     return [c[0], c[1], c[2], 0.35 + n * 0.5];
   });
@@ -671,7 +825,14 @@ export function createCardamomBunModel(T: typeof THREE, id: string, sel: Sel = {
     return { pos: [pos.getX(i) + nor.getX(i) * 0.008, pos.getY(i) + nor.getY(i) * 0.008, pos.getZ(i) + nor.getZ(i) * 0.008], rot: [R() * 3, R() * 3, R() * 3] };
   }, 21);
 
-  return assemble(T, kit, inner, { sel, steam: { count: 22, height: 0.02, on: (s) => s.serve === 1 }, shadow: [1.9, 1.7] });
+  // Warmed: the butter and sugar glaze have softened, so the bun is glossier and a shade deeper; as-is it is drier and paler.
+  const apply = (s: Sel) => {
+    const warm = s.serve === 1;
+    bunMat.roughness = warm ? 0.3 : 0.5;
+    bunMat.clearcoat = warm ? 0.65 : 0.25;
+    bunMat.color.setRGB(warm ? 0.93 : 1, warm ? 0.87 : 1, warm ? 0.8 : 1);
+  };
+  return assemble(T, kit, inner, { sel, apply, steam: { count: 10, height: 0.014, on: (s) => s.serve === 1 }, shadow: [1.9, 1.7] });
 }
 
 /* ── cinnamon roll ── */
@@ -750,7 +911,7 @@ export function createCinnamonRollModel(T: typeof THREE, id: string, sel: Sel = 
   const glazeMat = kit.add(new T.MeshPhysicalMaterial({ color: 0xf7f0e4, roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.4, sheenColor: new T.Color(0xffffff), specularIntensity: 0.6, side: T.DoubleSide }));
   const glaze = (extra: boolean) => {
     const g = new T.Group();
-    const reach = extra ? 1.05 : 0.86;
+    const reach = extra ? 0.92 : 0.66; // thin icing: the cinnamon spiral still shows round it, as photographed
     // A disc with rings of vertices through it (a circle is only a fan from the centre), so it can follow the dome.
     const sheet = kit.add(new T.RingGeometry(0.0005, 1, 160, 48));
     sheet.rotateX(-Math.PI / 2);
@@ -810,6 +971,6 @@ export function createCinnamonRollModel(T: typeof THREE, id: string, sel: Sel = 
     extra.visible = more;
   };
   const piece = assemble(T, kit, inner, { sel, apply, steam: { count: 22, height: 0.02, on: (s) => s.warm === 1 }, shadow: [1.9, 1.7] });
-  piece.group.userData.viewPitch = 0.38;
+  piece.group.userData.viewPitch = 0.55;
   return piece;
 }

@@ -18,6 +18,23 @@ const smoothstep = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
+/** Cellular noise tiling horizontally: returns [distance to nearest point, to second nearest, that cell's random value]. */
+function cells(u: number, v: number, gx: number, gy: number, seed = 1) {
+  const x = u * gx, y = v * gy;
+  const ix = Math.floor(x), iy = Math.floor(y);
+  let d1 = 9, d2 = 9, id = 0;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    const cx = ix + i, cy = iy + j;
+    const wx = ((cx % gx) + gx) % gx;
+    const h1 = Math.sin(wx * 127.1 + cy * 311.7 + seed * 74.7) * 43758.5453;
+    const h2 = Math.sin(wx * 269.5 + cy * 183.3 + seed * 12.9) * 43758.5453;
+    const px = cx + (h1 - Math.floor(h1)), py = cy + (h2 - Math.floor(h2));
+    const d = Math.hypot(px - x, py - y);
+    if (d < d1) { d2 = d1; d1 = d; id = h1 - Math.floor(h1); } else if (d < d2) d2 = d;
+  }
+  return [d1, d2, id];
+}
+
 /* ── the drink ── */
 
 /**
@@ -47,13 +64,14 @@ function drinkBody(T: typeof THREE, kit: Kit, r: (y: number) => number, y0: numb
 }
 
 /** A vertical texture for the body: `fn(u, v)` with v up the glass. */
+const BODY_PX = 512;
 const bodyLook = (T: typeof THREE, kit: Kit, fn: (u: number, v: number) => number[], o: Record<string, unknown> = {}) =>
-  surface(T, kit, paint(T, kit, 256, 256, fn), { physical: true, roughness: 0.25, clearcoat: 0.4, clearcoatRoughness: 0.2, bumpScale: 0.6, specularIntensity: 0.5, ...o });
+  surface(T, kit, paint(T, kit, BODY_PX, BODY_PX, fn), { physical: true, roughness: 0.25, clearcoat: 0.4, clearcoatRoughness: 0.2, bumpScale: 0.6, specularIntensity: 0.5, ...o });
 
 /* ── what goes in and on the glass ── */
 
 /** Ice cubes, rounded by melting, tinted by the drink round them. Solid, so the glass shows them. */
-function iceCubes(T: typeof THREE, kit: Kit, parent: THREE.Object3D, tint: number, place: (i: number, r: () => number) => number[], count: number, seed: number) {
+function iceCubes(T: typeof THREE, kit: Kit, parent: THREE.Object3D, tint: number, place: (i: number, r: () => number) => number[], count: number, seed: number, size = 1) {
   const geo = roundBox(T, kit, 0.11, 0.1, 0.11, 0.022, 6);
   // Clear at the edges (the drink's colour shows through), frosted in the core where the air froze in, with cracks.
   const tex = paint(T, kit, 64, 64, (u, v) => {
@@ -64,7 +82,7 @@ function iceCubes(T: typeof THREE, kit: Kit, parent: THREE.Object3D, tint: numbe
     return [...c, 0.5 + crack * 0.5];
   });
   const mat = surface(T, kit, tex, { physical: true, color: tint, roughness: 0.06, clearcoat: 1, clearcoatRoughness: 0.03, bumpScale: 1, envMapIntensity: 1.4 });
-  return scatter(T, kit, parent, geo, mat, count, (i, r) => ({ pos: place(i, r), rot: [r() * 0.8, r() * TAU, r() * 0.8], scale: 0.8 + r() * 0.35 }), seed);
+  return scatter(T, kit, parent, geo, mat, count, (i, r) => ({ pos: place(i, r), rot: [r() * 0.8, r() * TAU, r() * 0.8], scale: (0.8 + r() * 0.35) * size }), seed);
 }
 
 /** A slice of citrus as a wheel: rind, pith and segments painted on its faces. */
@@ -120,25 +138,179 @@ function fruitWedge(T: typeof THREE, kit: Kit, r: number, angle: number, skin: n
   return g;
 }
 
-/** A sprig of mint: a stem with pairs of leaves, smaller towards the tip. */
+/** A mint leaf: ovate and pointed, toothed along the edge, folded along the midrib, with veins painted on it. */
+function mintLeafGeo(T: typeof THREE, kit: Kit, len: number, wid: number, fold: number) {
+  const s = new T.Shape();
+  const half = (sign: number) => {
+    const out: number[][] = [];
+    const N = 22;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      // ovate: widest a third of the way up, pointed tip
+      const w = wid * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.78)), 0.8);
+      const tooth = i > 1 && i < N - 1 ? (i % 2 ? 1 : 0.93) : 1;
+      out.push([sign * w * tooth, len * t]);
+    }
+    return out;
+  };
+  const right = half(1), left = half(-1).reverse();
+  s.moveTo(0, 0);
+  right.forEach((p) => s.lineTo(p[0], p[1]));
+  left.forEach((p) => s.lineTo(p[0], p[1]));
+  const g = kit.add(new T.ShapeGeometry(s, 4));
+  const p = g.attributes.position;
+  const uv = g.attributes.uv;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i);
+    p.setZ(i, Math.abs(x) * fold + Math.sin((y / len) * Math.PI) * 0.014);
+    uv.setXY(i, 0.5 + x / (wid * 2.1), y / len);
+  }
+  g.rotateX(-Math.PI / 2);
+  g.computeVertexNormals();
+  return g;
+}
+
+function mintLeafTexture(T: typeof THREE, kit: Kit, base: string, light: string) {
+  return draw(T, kit, 128, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, h, 0, 0);
+    g.addColorStop(0, base);
+    g.addColorStop(1, light);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(214,240,170,0.75)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(w / 2, h);
+    ctx.lineTo(w / 2, h * 0.04);
+    ctx.stroke();
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = 'rgba(200,232,150,0.6)';
+    for (let k = 1; k < 9; k++) {
+      const y = h - (k / 9.5) * h;
+      for (const sgn of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(w / 2, y);
+        ctx.quadraticCurveTo(w / 2 + sgn * w * 0.25, y - h * 0.03, w / 2 + sgn * w * 0.44, y - h * 0.09);
+        ctx.stroke();
+      }
+    }
+  });
+}
+
+/**
+ * A peach slice: a thick crescent. The flat faces are golden flesh deepening to orange towards the skin, the curved
+ * outer edge is skin with a red blush. Colour is per vertex, so no texture is needed and nothing stretches.
+ */
+function fruitSlice(T: typeof THREE, kit: Kit, R: number, thick: number, arc: number, paintFace: (ctx: CanvasRenderingContext2D) => void) {
+  // a circle segment: curved skin edge, flat cut chord, like a wedge cut from a peach half
+  const s = new T.Shape();
+  const a0 = Math.PI / 2 - arc / 2, a1 = Math.PI / 2 + arc / 2;
+  const N = 20;
+  for (let i = 0; i <= N; i++) {
+    const a = a0 + ((a1 - a0) * i) / N;
+    const x = Math.cos(a) * R, y = Math.sin(a) * R;
+    i ? s.lineTo(x, y) : s.moveTo(x, y);
+  }
+  s.closePath();
+  const g = kit.add(new T.ExtrudeGeometry(s, { depth: thick, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 4, curveSegments: 12 }));
+  g.translate(0, -R * 0.25, -thick / 2);
+  g.computeVertexNormals();
+  // UVs from position, so a radial painting sits on the flat faces: gold flesh at the middle, orange, then the red-blushed skin.
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, 0.5 + pos.getX(i) / (2 * R), 0.5 + (pos.getY(i) + R * 0.25) / (2 * R));
+  const map = draw(T, kit, 256, 256, paintFace);
+  return new T.Mesh(g, kit.add(new T.MeshPhysicalMaterial({ map, roughness: 0.34, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.2 })));
+}
+
+/** One loose mint leaf with a toothed edge and painted veins. */
+function mintLeaf(T: typeof THREE, kit: Kit, size = 1) {
+  const mat = kit.add(new T.MeshPhysicalMaterial({ map: mintLeafTexture(T, kit, '#2c8a2a', '#62c84c'), roughness: 0.4, sheen: 0.5, sheenColor: new T.Color(0xd8f8c0), side: T.DoubleSide }));
+  return new T.Mesh(mintLeafGeo(T, kit, 0.2 * size, 0.08 * size, 0.2), mat);
+}
+
+/** Sets a loose piece down on the floor: lowers or raises it until its lowest point is at y = 0. */
+function rest(T: typeof THREE, obj: THREE.Object3D, parent: THREE.Object3D) {
+  parent.updateMatrixWorld(true);
+  const box = new T.Box3().setFromObject(obj);
+  obj.position.y -= box.min.y - parent.getWorldPosition(new T.Vector3()).y;
+}
+
+const peachFace = (ctx: CanvasRenderingContext2D) => {
+  const gr = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, '#f6c14a');
+  gr.addColorStop(0.45, '#f3a737');
+  gr.addColorStop(0.78, '#ec7c2a');
+  gr.addColorStop(0.93, '#e0702a');
+  gr.addColorStop(1, '#c9402a');
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, 256, 256);
+  // fibres running out from the stone, and a few darker flecks where the flesh meets the pit
+  ctx.strokeStyle = 'rgba(255,214,120,0.35)';
+  ctx.lineWidth = 1.4;
+  const rr = rng(11);
+  for (let k = 0; k < 70; k++) {
+    const an = rr() * TAU, r0 = 10 + rr() * 40, r1 = r0 + 50 + rr() * 50;
+    ctx.beginPath();
+    ctx.moveTo(128 + Math.cos(an) * r0, 128 + Math.sin(an) * r0);
+    ctx.lineTo(128 + Math.cos(an) * r1, 128 + Math.sin(an) * r1);
+    ctx.stroke();
+  }
+  };
+
+const limeFace = (ctx: CanvasRenderingContext2D) => {
+  const gr = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, '#f1f7b8');
+  gr.addColorStop(0.55, '#d3e86a');
+  gr.addColorStop(0.84, '#bcd94c');
+  gr.addColorStop(0.88, '#f2f6d2');
+  gr.addColorStop(0.93, '#f2f6d2');
+  gr.addColorStop(0.945, '#4b9a24');
+  gr.addColorStop(1, '#2f7a1a');
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, 0, 256, 256);
+  // segment walls and juice vesicles
+  ctx.strokeStyle = 'rgba(248,252,222,0.8)';
+  ctx.lineWidth = 3;
+  for (let k = 0; k < 10; k++) {
+    const an = (k / 10) * TAU;
+    ctx.beginPath();
+    ctx.moveTo(128, 128);
+    ctx.lineTo(128 + Math.cos(an) * 106, 128 + Math.sin(an) * 106);
+    ctx.stroke();
+  }
+  const rr = rng(21);
+  ctx.fillStyle = 'rgba(255,255,230,0.5)';
+  for (let k = 0; k < 220; k++) {
+    const an = rr() * TAU, r = 14 + rr() * 92;
+    ctx.beginPath();
+    ctx.ellipse(128 + Math.cos(an) * r, 128 + Math.sin(an) * r, 3, 6, an, 0, TAU);
+    ctx.fill();
+  }
+};
+const peachSlice = (T: typeof THREE, kit: Kit, R = 0.11, thick = 0.05, arc = 2.5) => fruitSlice(T, kit, R, thick, arc, peachFace);
+const limeWedge = (T: typeof THREE, kit: Kit, R = 0.13, thick = 0.05) => fruitSlice(T, kit, R, thick, 2.7, limeFace);
+
+/** A sprig of mint: a stem with pairs of toothed, veined leaves, smaller towards the tip, arching outwards. */
 export function mintSprig(T: typeof THREE, kit: Kit, size = 1, seed = 3) {
   const g = new T.Group();
-  const mat = kit.add(new T.MeshPhysicalMaterial({ color: 0x3f9a3a, roughness: 0.45, sheen: 0.4, sheenColor: new T.Color(0xc8f0b0), side: T.DoubleSide }));
-  const young = kit.add(new T.MeshPhysicalMaterial({ color: 0x62b84c, roughness: 0.45, sheen: 0.4, sheenColor: new T.Color(0xd8f8c0), side: T.DoubleSide }));
+  const mk = (base: string, light: string) =>
+    kit.add(new T.MeshPhysicalMaterial({ map: mintLeafTexture(T, kit, base, light), roughness: 0.42, sheen: 0.5, sheenColor: new T.Color(0xd8f8c0), side: T.DoubleSide }));
+  const mat = mk('#2f8a2c', '#5fc24a');
+  const young = mk('#4fae3c', '#8be06a');
   const R = rng(seed);
-  const pairs = 4;
+  const pairs = 5;
   for (let k = 0; k < pairs; k++) {
-    const s = (1 - k * 0.2) * size;
-    const geo = leaf(T, kit, 0.13 * s, 0.085 * s, 0.3);
+    const s = (1 - k * 0.16) * size;
+    const geo = mintLeafGeo(T, kit, 0.2 * s, 0.075 * s, 0.34);
     for (const side of [-1, 1]) {
       const m = new T.Mesh(geo, k === pairs - 1 ? young : mat);
-      m.position.y = k * 0.03 * size;
-      m.rotation.set(-0.5 + R() * 0.3, (k % 2 ? Math.PI / 2 : 0) + (side < 0 ? Math.PI : 0) + (R() - 0.5) * 0.4, 0);
+      m.position.y = k * 0.034 * size;
+      m.rotation.set(-0.75 + R() * 0.35, (k % 2 ? Math.PI / 2 : 0) + (side < 0 ? Math.PI : 0) + (R() - 0.5) * 0.5, 0);
       g.add(m);
     }
   }
-  const stem = new T.Mesh(kit.add(new T.CylinderGeometry(0.004 * size, 0.005 * size, 0.13 * size, 6)), mat);
-  stem.position.y = 0.03 * size;
+  const stem = new T.Mesh(kit.add(new T.CylinderGeometry(0.004 * size, 0.006 * size, 0.17 * size, 6)), mat);
+  stem.position.y = 0.04 * size;
   g.add(stem);
   return g;
 }
@@ -173,6 +345,10 @@ type Look = {
   ice: number;
   iceTint: number;
   garnish: (T: typeof THREE, kit: Kit, g: { inner: THREE.Group; glass: THREE.Group; rim: number; h: number; innerR: (y: number) => number; level: number }) => void;
+  /** Small crushed-ice chunks packed against the glass and heaped on the surface (count). */
+  crushed?: number;
+  /** The thick glass foot, tinted by the drink above it. */
+  baseTint?: number;
   saucer?: boolean;
   steamOn?: (s: Sel) => boolean;
   tone?: (s: Sel) => number;
@@ -183,64 +359,81 @@ const highball = { rb: 0.19, rt: 0.215, h: 0.95, wall: 0.018, base: 0.09 };
 const LOOKS: Record<string, Look> = {
   // Blended mint and lime with crushed ice: bright green slush flecked with mint, frosty at the top.
   'mint-margarita': {
-    glass: highball, fill: 0.9, ice: 0, iceTint: 0xe6f6dc, top: 0xd8efc4,
+    glass: highball, fill: 0.97, ice: 0, iceTint: 0xeaf6e0, top: 0xe6f2d8,
+    crushed: 64,
+    baseTint: 0xdcebc9,
     body: (u, v) => {
-      const n = fbm(u * 18, v * 30, 1, 3, 3);
-      const fleck = smoothstep(0.66, 0.74, fbm(u * 60, v * 90, 2, 2, 5));
-      const ice = smoothstep(0.6, 0.72, fbm(u * 30, v * 40, 3, 2, 7));
-      let c = mix([118, 196, 60], [84, 164, 40], n);
-      c = mix(c, [204, 236, 170], ice * 0.6 + smoothstep(0.8, 1, v) * 0.5);
-      c = mix(c, [36, 104, 30], fleck * 0.8);
-      return [...c, 0.3 + ice * 0.5 + n * 0.2];
+      // Photo: deep olive muddle with dark mint bits at the foot, fading up through yellow-green into pale crushed ice.
+      const n = fbm(u * 14, v * 22, 1, 3, 3);
+      const bits = smoothstep(0.58, 0.66, fbm(u * 70, v * 110, 2, 3, 5));
+      const [d1, d2, id] = cells(u, v, 16, 13, 4);
+      const [e1, e2, id2] = cells(u + 0.31, v + 0.17, 28, 22, 8);
+      const rim = Math.min(1, (d2 - d1) * 3.2);
+      const rim2 = Math.min(1, (e2 - e1) * 3.6);
+      const facet = 0.55 + id * 0.45;
+      const up = smoothstep(0.2, 0.62, v);
+      let c = mix([66, 104, 18], [96, 138, 30], n);
+      c = mix(c, [168, 200, 74], smoothstep(0.2, 0.55, v));
+      // each ice chunk is a slightly different tint, with bright cut edges and darker seams between them
+      const ice = mix([206, 228, 190], [250, 253, 246], facet * (0.6 + id2 * 0.4));
+      const seam = mix([120, 170, 90], ice, Math.min(rim, rim2 * 1.2));
+      c = mix(c, seam, up * 0.9);
+      c = mix(c, [255, 255, 252], (1 - rim) * up * 0.35);
+      const dark = (1 - smoothstep(0.3, 0.7, v)) * 0.85 + 0.12;
+      c = mix(c, [28, 78, 18], bits * dark * (1 - up * 0.55));
+      return [...c, 0.3 + facet * 0.4];
     },
     garnish: (T, kit, g) => {
-      const wheel = citrusWheel(T, kit, 0.085, '#4f8f26', '#c6e27e');
-      wheel.rotation.set(Math.PI / 2, 0, 0.35);
-      wheel.position.set(g.innerR(g.h) * 0.62, g.rim + 0.035, 0.06);
+      const wheel = citrusWheel(T, kit, 0.12, '#4f8f26', '#c6e27e');
+      wheel.rotation.set(Math.PI / 2 - 0.15, 0, 0.5);
+      wheel.position.set(g.innerR(g.h) * 0.5, g.rim + 0.045, 0.1);
       g.glass.add(wheel);
-      const sprig = mintSprig(T, kit, 1.3, 5);
-      sprig.position.set(-0.05, g.level + 0.03, 0.02);
+      const sprig = mintSprig(T, kit, 1.45, 5);
+      sprig.position.set(-0.09, g.rim - 0.01, 0.0);
+      sprig.rotation.z = 0.22;
       g.glass.add(sprig);
-      g.glass.add(straw(T, kit, [[0.06, g.level - 0.4, -0.05], [0.07, g.rim + 0.05, -0.08], [0.1, g.rim + 0.26, -0.13]], kit.add(new T.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, clearcoat: 1, transparent: true, opacity: 0.45 })), 0.014));
+      const steel = kit.add(new T.MeshStandardMaterial({ color: 0xdfe3e7, metalness: 1, roughness: 0.18, envMapIntensity: 1.2 }));
+      g.glass.add(straw(T, kit, [[0.09, g.level - 0.5, -0.03], [0.12, g.rim + 0.04, -0.03], [0.19, g.rim + 0.3, -0.04]], steel, 0.0105));
     },
   },
   // Black tea over ice: clear amber, darker below, with peach slices and cubes against the glass.
   'peach-iced-tea': {
-    glass: highball, fill: 0.88, ice: 8, iceTint: 0xf0a868, top: 0xc98a3e,
+    glass: highball, fill: 0.9, ice: 9, iceTint: 0xf7c27a, top: 0xb86a1e,
     body: (u, v, s) => {
-      const n = fbm(u * 5, v * 8, 2, 3, 5);
-      const sweet = [0.92, 1, 1.08][s.sweet ?? 1] ?? 1;
-      let c = mix([150, 66, 18], [214, 128, 48], smoothstep(0, 1, v));
-      c = mix(c, [236, 168, 84], n * 0.25);
+      // deep amber, a little lighter where the light comes through the top, with faint streaks of steeped tea
+      const n = fbm(u * 5, v * 9, 2, 3, 5);
+      const sweet = [0.94, 1, 1.06][s.sweet ?? 1] ?? 1;
+      let c = mix([138, 62, 14], [196, 108, 30], smoothstep(0, 1, v));
+      c = mix(c, [226, 150, 58], n * 0.3);
       return [c[0] * sweet, c[1] * sweet, c[2], 0.5];
     },
     garnish: (T, kit, g) => {
-      const slice = () => fruitWedge(T, kit, 0.075, 0.9, 0xd4552a, 0xf6a642);
-      // Slices sunk in the tea against the glass, and one hooked on the rim.
-      for (const [a, y] of [[0.3, 0.3], [2.4, 0.5], [4.2, 0.24], [1.3, 0.62]]) {
-        const s = slice();
-        const r = g.innerR(y) - 0.03;
-        s.position.set(Math.sin(a) * r, y, Math.cos(a) * r);
-        s.rotation.set(0.2, a + Math.PI / 2, 0.4 + a);
-        g.inner.add(s);
+      // Big peach slices pressed against the glass between the tea and the wall, facing out so they show.
+      for (const [a, y, tilt, size] of [[0.15, 0.62, 0.5, 1], [-0.65, 0.4, -0.35, 1.05], [0.75, 0.3, 0.9, 0.95], [-0.05, 0.2, -0.6, 1], [2.6, 0.5, 0.2, 1], [3.9, 0.3, -0.4, 1]]) {
+        const sl = peachSlice(T, kit, 0.12 * size);
+        const r = g.innerR(y) - 0.045;
+        sl.position.set(Math.sin(a) * r, y, Math.cos(a) * r);
+        sl.rotation.set(0, a, tilt);
+        g.inner.add(sl);
       }
-      const rim = slice();
-      rim.scale.multiplyScalar(1.2);
-      rim.position.set(g.innerR(g.h) * 0.9, g.rim + 0.02, 0.05);
-      rim.rotation.set(0, -0.3, Math.PI / 2 + 0.15);
+      // One leaning on the rim, tall and out of the glass.
+      const rim = peachSlice(T, kit, 0.15, 0.036);
+      rim.position.set(g.innerR(g.h) * 0.78, g.rim + 0.06, 0.04);
+      rim.rotation.set(0.08, -0.25, -0.62);
       g.glass.add(rim);
-      const sprig = mintSprig(T, kit, 1.1, 8);
-      sprig.position.set(-0.06, g.level + 0.02, -0.04);
+      const sprig = mintSprig(T, kit, 0.95, 8);
+      sprig.position.set(g.innerR(g.h) * 0.55, g.rim - 0.01, -0.03);
+      sprig.rotation.z = -0.2;
       g.glass.add(sprig);
     },
   },
   // Mango blended with yogurt: thick, opaque, sunny, with a steel straw and the fruit beside the glass.
   'mango-smoothie': {
-    glass: { rb: 0.2, rt: 0.215, h: 0.82, wall: 0.018, base: 0.08 }, fill: 0.84, ice: 0, iceTint: 0xffffff, top: 0xf6b73a,
+    glass: { rb: 0.168, rt: 0.225, h: 0.78, wall: 0.018, base: 0.07 }, fill: 0.9, ice: 0, iceTint: 0xffffff, top: 0xf6b73a,
     body: (u, v, s) => {
       const n = fbm(u * 10, v * 14, 4, 3, 2);
       const oat = s.milk === 1 ? 0.25 : 0;
-      let c = mix([248, 176, 30], [252, 198, 64], n);
+      let c = mix([244, 164, 18], [250, 188, 38], n);
       c = mix(c, [252, 220, 140], oat);
       c = mix(c, [252, 214, 110], smoothstep(0.85, 1, v) * 0.4);
       return [...c, 0.4 + n * 0.3];
@@ -248,65 +441,83 @@ const LOOKS: Record<string, Look> = {
     tone: () => 0.95,
     garnish: (T, kit, g) => {
       const steel = kit.add(new T.MeshStandardMaterial({ color: 0xd6d8dc, metalness: 1, roughness: 0.18 }));
-      g.glass.add(straw(T, kit, [[0.04, g.level - 0.35, 0], [0.06, g.rim + 0.08, 0.01], [0.12, g.rim + 0.2, 0.02], [0.26, g.rim + 0.25, 0.03]], steel, 0.012));
+      g.glass.add(straw(T, kit, [[0.0, g.level - 0.4, 0.01], [0.07, g.rim - 0.03, 0.02], [0.11, g.rim + 0.1, 0.02], [0.27, g.rim + 0.29, 0.03]], steel, 0.0115));
       // A whole mango, green at the stalk blushing to red, lying beside the glass.
       const skin = paint(T, kit, 256, 128, (u, v) => {
         const n = fbm(u * 6, v * 4, 1, 3, 4);
-        let c = mix([96, 150, 46], [236, 190, 54], smoothstep(0.1, 0.55, u + n * 0.2));
-        c = mix(c, [214, 72, 34], smoothstep(0.55, 0.95, u + (n - 0.5) * 0.3) * 0.8);
+        let c = mix([104, 118, 38], [136, 136, 42], smoothstep(0.1, 0.9, u + n * 0.2));
+        c = mix(c, [186, 62, 34], smoothstep(0.62, 0.96, u + (n - 0.5) * 0.3) * 0.9);
         const dot = smoothstep(0.82, 0.9, fbm(u * 80, v * 40, 3, 2, 6));
         c = mix(c, [246, 230, 170], dot * 0.4);
         return [...c, 0.5 + n * 0.2];
       });
-      const mango = new T.Mesh(blob(T, kit, 0.2, 0.13, 0.14, { amp: 0.01, freq: 3, seed: 3, seg: 48 }), surface(T, kit, skin, { physical: true, roughness: 0.35, clearcoat: 0.5, clearcoatRoughness: 0.3, bumpScale: 0.5 }));
-      mango.position.set(-0.4, 0.12, 0.12);
-      mango.rotation.set(0, 0.5, 0.15);
+      const mango = new T.Mesh(blob(T, kit, 0.3, 0.2, 0.21, { amp: 0.012, freq: 3, seed: 3, seg: 48 }), surface(T, kit, skin, { physical: true, roughness: 0.35, clearcoat: 0.5, clearcoatRoughness: 0.3, bumpScale: 0.5 }));
+      mango.position.set(-0.4, 0.19, 0.08);
+      mango.rotation.set(0, 3.5, 0.12);
+      mango.scale.setScalar(0.88);
       g.inner.add(mango);
+      rest(T, mango, g.inner);
       // And a cheek cut hedgehog style, its cubes pushed out.
       const flesh = kit.add(new T.MeshPhysicalMaterial({ color: 0xf5a623, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.1 }));
-      const cheek = new T.Mesh(blob(T, kit, 0.13, 0.05, 0.1, { amp: 0.004, freq: 6, seed: 5, seg: 32 }), kit.add(new T.MeshPhysicalMaterial({ color: 0xc9a02a, roughness: 0.4 })));
-      cheek.position.set(-0.3, 0.035, 0.34);
+      const cheek = new T.Mesh(blob(T, kit, 0.21, 0.07, 0.15, { amp: 0.004, freq: 6, seed: 5, seg: 32 }), kit.add(new T.MeshPhysicalMaterial({ color: 0xc9a02a, roughness: 0.4 })));
+      cheek.position.set(-0.3, 0.05, 0.3);
       g.inner.add(cheek);
-      scatter(T, kit, cheek, roundBox(T, kit, 0.04, 0.05, 0.04, 0.008, 3), flesh, 16, (i) => {
-        const x = (i % 4) - 1.5, z = Math.floor(i / 4) - 1.5;
-        const d = Math.hypot(x / 2, z / 2.2);
-        return { pos: [x * 0.052, 0.045 - d * 0.02, z * 0.042], rot: [z * 0.25, 0, -x * 0.25], scale: d > 1 ? 0.001 : 1 };
+      scatter(T, kit, cheek, roundBox(T, kit, 0.05, 0.06, 0.05, 0.009, 3), flesh, 30, (i) => {
+        const x = (i % 6) - 2.5, z = Math.floor(i / 6) - 2;
+        const d = Math.hypot(x / 3, z / 2.5);
+        return { pos: [x * 0.06, 0.06 - d * 0.03, z * 0.052], rot: [z * 0.28, 0, -x * 0.25], scale: d > 1 ? 0.001 : 1 };
       }, 3);
     },
   },
   // Lime over soda with ice: pale and fizzy, lime wheels and mint against the glass, a wedge beside it.
   'lime-soda': {
-    glass: highball, fill: 0.9, ice: 11, iceTint: 0xe2f0d4, top: 0xe8f2d6,
+    glass: highball, fill: 0.93, ice: 14, iceTint: 0xeef6ea, top: 0xe9f3df,
     body: (u, v, s) => {
+      // nearly clear fizzy water: a faint green, with bubbles
       const n = fbm(u * 6, v * 10, 2, 3, 9);
-      const bubble = smoothstep(0.78, 0.86, fbm(u * 70, v * 110, 5, 2, 3));
+      const bubble = smoothstep(0.74, 0.84, fbm(u * 70, v * 110, 5, 2, 3));
       const cloud = s.style === 1 ? 0.15 : s.style === 2 ? 0.08 : 0;
-      let c = mix([214, 234, 196], [232, 244, 220], n);
+      let c = mix([226, 240, 212], [240, 249, 232], n);
       c = mix(c, [236, 238, 226], cloud);
-      c = mix(c, [255, 255, 255], bubble * 0.7);
+      c = mix(c, [255, 255, 255], bubble * 0.8);
       return [...c, 0.4 + bubble * 0.6];
     },
     garnish: (T, kit, g) => {
-      for (const [a, y] of [[0.2, 0.28], [2.2, 0.5], [4.4, 0.66], [1.1, 0.72]]) {
-        const w = citrusWheel(T, kit, 0.075, '#4d9a22', '#c9e67c');
-        const r = g.innerR(y) - 0.02;
-        w.position.set(Math.sin(a) * r, y, Math.cos(a) * r);
-        w.rotation.set(Math.PI / 2, 0, -a);
-        w.rotateX(0.2);
+      // Big lime wheels pressed against the glass, facing out, and mint leaves between them.
+      for (const [a, y, r, tilt] of [[0.1, 0.3, 0.145, 0.2], [-0.4, 0.58, 0.125, -0.25], [2.5, 0.45, 0.13, 0.1]]) {
+        const w = citrusWheel(T, kit, r, '#4d9a22', '#c9e67c', 0.03);
+        const rad = g.innerR(y) - 0.04;
+        w.rotation.order = 'YXZ';
+        w.rotation.set(Math.PI / 2 + tilt * 0.4, a, 0);
+        w.position.set(Math.sin(a) * rad, y, Math.cos(a) * rad);
         g.inner.add(w);
       }
-      const sprig = mintSprig(T, kit, 1.2, 11);
-      sprig.position.set(0.02, g.level + 0.03, 0);
+      for (const [a, y, sz, rz] of [[-0.95, 0.74, 1.4, 0.5], [0.7, 0.62, 1.3, -0.4], [-0.35, 0.2, 1.2, 0.2], [3.4, 0.6, 1.3, 0.3]]) {
+        const lf = mintLeaf(T, kit, sz);
+        const rad = g.innerR(y) - 0.03;
+        lf.rotation.order = 'YXZ';
+        lf.rotation.set(0, a, rz);
+        lf.rotateX(Math.PI / 2);
+        lf.position.set(Math.sin(a) * rad, y, Math.cos(a) * rad);
+        g.inner.add(lf);
+      }
+      // Clear cubes piled above the rim.
+      iceCubes(T, kit, g.glass, 0xeef6ea, (i, r) => [(r() - 0.5) * 0.22, g.rim - 0.03 + r() * 0.05 + (i % 2) * 0.03, (r() - 0.5) * 0.18], 4, 41, 1.05);
+      const sprig = mintSprig(T, kit, 1.15, 11);
+      sprig.position.set(0.08, g.rim + 0.04, -0.02);
+      sprig.rotation.z = -0.25;
       g.glass.add(sprig);
-      // Lying on its skin, cut faces up.
-      const wedge = fruitWedge(T, kit, 0.075, 1.1, 0x3f8f1e, 0xd6ec9a);
-      wedge.position.set(0.36, 0.06, 0.22);
-      wedge.rotation.set(Math.PI / 2, 0.55 - Math.PI / 2, 0.5);
+      // Beside the glass: a wedge lying on its skin, and a few loose leaves.
+      const wedge = limeWedge(T, kit, 0.15, 0.055);
+      wedge.rotation.set(0.08, 0.3, 0.55);
+      wedge.position.set(0.37, 0.1, 0.22);
       g.inner.add(wedge);
-      const loose = mintSprig(T, kit, 1.1, 13);
-      loose.position.set(-0.36, 0.01, 0.2);
+      rest(T, wedge, g.inner);
+      const loose = mintSprig(T, kit, 1.5, 13);
       loose.rotation.set(Math.PI / 2 - 0.1, 0, 0.8);
+      loose.position.set(-0.38, 0.1, 0.2);
       g.inner.add(loose);
+      rest(T, loose, g.inner);
     },
   },
   // Condensed milk and cold milk under espresso: cream below, coffee above, marbled where they meet, over ice.
@@ -338,7 +549,7 @@ export function createTallGlassModel(T: typeof THREE, id: string, sel: Sel = {})
   inner.add(glassGroup);
   const shell = glassShell(T, kit, look.glass);
   const level = look.glass.base + (look.glass.h - look.glass.base) * look.fill;
-  const bodyR = (y: number) => shell.innerR(y) - (look.ice || id === 'lime-soda' || id === 'peach-iced-tea' ? 0.035 : 0.002);
+  const bodyR = (y: number) => shell.innerR(y) - (look.ice || look.crushed || id === 'lime-soda' || id === 'peach-iced-tea' ? 0.035 : 0.002);
 
   // The body is repainted when an option changes its colour, so paint lazily and keep one texture per look.
   let key = '';
@@ -369,10 +580,40 @@ export function createTallGlassModel(T: typeof THREE, id: string, sel: Sel = {})
       return [Math.sin(a) * rad, y, Math.cos(a) * rad];
     }, look.ice, seed);
   }
+  // Crushed ice: small irregular chunks against the glass in the upper drink, and a heap on the surface.
+  if (look.crushed) {
+    iceCubes(T, kit, glassGroup, look.iceTint, (i, r) => {
+      const heap = i % 4 === 0;
+      const a = r() * TAU;
+      if (heap) {
+        const rad = Math.sqrt(r()) * (bodyR(level) - 0.02);
+        return [Math.sin(a) * rad, level + 0.005 + r() * 0.05, Math.cos(a) * rad];
+      }
+      const y = level * (0.45 + 0.52 * r());
+      const rad = shell.innerR(y) - 0.03 - r() * 0.015;
+      return [Math.sin(a) * rad, y, Math.cos(a) * rad];
+    }, look.crushed, seed + 3, 0.42);
+  }
+  if (look.baseTint) {
+    const r0 = shell.innerR(look.glass.base);
+    const disc = new T.Mesh(kit.add(new T.CylinderGeometry(r0 - 0.004, (look.glass.rb - 0.035), look.glass.base - 0.012, 64)), kit.add(new T.MeshPhysicalMaterial({ color: look.baseTint, roughness: 0.18, clearcoat: 0.6 })));
+    disc.position.y = 0.012 + (look.glass.base - 0.012) / 2;
+    disc.userData.noShadow = true;
+    disc.userData.noAO = true;
+    glassGroup.add(disc);
+  }
   glassGroup.add(shell.mesh);
   beads(T, kit, glassGroup, (y) => shell.innerR(y) + look.glass.wall + 0.002, look.glass.base + 0.05, level, 70, seed + 1);
 
   look.garnish(T, kit, { inner, glass: glassGroup, rim: look.glass.h, h: look.glass.h, innerR: shell.innerR, level });
+
+  // The salted-rim choices (lime soda SALTED and MIXED): coarse salt crystals frosting the lip of the glass.
+  const salt = id === 'lime-soda'
+    ? scatter(T, kit, glassGroup, kit.add(new T.BoxGeometry(0.014, 0.01, 0.012)), kit.add(new T.MeshStandardMaterial({ color: 0xfbfaf4, roughness: 0.4 })), 150, (i, r) => {
+        const a = r() * TAU, rad = shell.innerR(look.glass.h) + look.glass.wall * (0.2 + r() * 1.5);
+        return { pos: [Math.sin(a) * rad, look.glass.h + 0.006 + r() * 0.01, Math.cos(a) * rad], rot: [r() * 3, r() * 3, r() * 3] };
+      }, 77)
+    : null;
 
   if (look.saucer) {
     const sMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x121111, roughness: 0.28, specularIntensity: 0.3, envMapIntensity: 0.5 }));
@@ -388,7 +629,7 @@ export function createTallGlassModel(T: typeof THREE, id: string, sel: Sel = {})
     const next = JSON.stringify([s.sweet, s.milk, s.style]);
     if (next !== key) {
       key = next;
-      const tex = paint(T, kit, 256, 256, (u, v) => look.body(u, v, s));
+      const tex = paint(T, kit, BODY_PX, BODY_PX, (u, v) => look.body(u, v, s));
       sideMat.map = tex.map;
       sideMat.bumpMap = tex.bump;
       sideMat.needsUpdate = true;
@@ -397,6 +638,7 @@ export function createTallGlassModel(T: typeof THREE, id: string, sel: Sel = {})
     sideMat.color.setScalar(tone);
     // Hot Spanish latte: no ice.
     if (ice) ice.count = id === 'spanish-latte' && s.temp === 1 ? 0 : look.ice;
+    if (salt) salt.visible = id === 'lime-soda' && (s.style ?? 0) >= 1;
     const k = s.size === 1 ? 1.08 : 1;
     glassGroup.scale.set(1, k, 1);
   };

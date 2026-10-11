@@ -1,0 +1,16 @@
+{"id":"single-origin","shots":["single-origin-default","single-origin-size-0","single-origin-size-1","single-origin-size-2","single-origin-grind-0","single-origin-grind-1"]}
+{"id":"single-origin+","shots":["single-origin-grind-2","single-origin-grind-3","single-origin-plan-0","single-origin-plan-1","single-origin-plan-2"]}
+{"id":"slow-roast","shots":["slow-roast-default","slow-roast-size-0","slow-roast-size-1","slow-roast-size-2","slow-roast-grind-0","slow-roast-grind-1"]}
+{"id":"slow-roast+","shots":["slow-roast-grind-2","slow-roast-grind-3","slow-roast-plan-0","slow-roast-plan-1","slow-roast-plan-2"]}
+{"id":"smash-burger","shots":["smash-burger-default","smash-burger-meal-0","smash-burger-meal-1","smash-burger-extra-0","smash-burger-extra-1","smash-burger-extra-2"]}
+{"id":"zinger-burger","shots":["zinger-burger-default","zinger-burger-meal-0","zinger-burger-meal-1","zinger-burger-spice-0","zinger-burger-spice-1","zinger-burger-spice-2"]}
+{"id":"bbq-burger","shots":["bbq-burger-default","bbq-burger-meal-0","bbq-burger-meal-1"]}
+{"id":"butter-croissant","shots":["butter-croissant-default","butter-croissant-serve-0","butter-croissant-serve-1"]}
+{"id":"almond-croissant","shots":["almond-croissant-default","almond-croissant-serve-0","almond-croissant-serve-1"]}
+{"id":"cardamom-bun","shots":["cardamom-bun-default","cardamom-bun-serve-0","cardamom-bun-serve-1"]}
+{"id":"alfredo-pasta","shots":["alfredo-pasta-default","alfredo-pasta-protein-0","alfredo-pasta-protein-1","alfredo-pasta-protein-2"]}
+{"id":"pesto-pasta","shots":["pesto-pasta-default","pesto-pasta-protein-0","pesto-pasta-protein-1"]}
+{"id":"cinnamon-roll","shots":["cinnamon-roll-default","cinnamon-roll-warm-0","cinnamon-roll-warm-1","cinnamon-roll-glaze-0","cinnamon-roll-glaze-1"]}
+{"id":"cortado","shots":["cortado-default","cortado-shots-0","cortado-shots-1","cortado-milk-0","cortado-milk-1","cortado-milk-2"]}
+{"id":"cortado+","shots":["cortado-temp-0","cortado-temp-1"]}
+{"id":"nitro-cold-brew","shots":["nitro-cold-brew-default","nitro-cold-brew-size-0","nitro-cold-brew-size-1","nitro-cold-brew-style-0","nitro-cold-brew-style-1"]}

@@ -1,0 +1,5 @@
+noWebGL    single-origin      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"ETHIOPIA YIRGACHEFFE","back":true}
+noWebGL    slow-roast         pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"SLOW ROAST","back":true}
+glbBlocked single-origin      pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"ETHIOPIA YIRGACHEFFE","back":true}
+glbBlocked slow-roast         pass {"canvas":false,"photo":true,"status":"3D VIEW UNAVAILABLE · SHOWING THE PHOTO","name":"SLOW ROAST","back":true}
+all done

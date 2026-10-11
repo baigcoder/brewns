@@ -1,0 +1,1532 @@
+[
+ {
+  "id": "smash-burger",
+  "option": "meal",
+  "rows": [
+   {
+    "choice": "JUST THE BURGER",
+    "maxDiffVsOthers": 0.2363,
+    "visible": true
+   },
+   {
+    "choice": "+ FRIES & DRINK",
+    "maxDiffVsOthers": 0.2363,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "smash-burger",
+  "option": "extra",
+  "rows": [
+   {
+    "choice": "NONE",
+    "maxDiffVsOthers": 0.0531,
+    "visible": true
+   },
+   {
+    "choice": "+ CHEESE",
+    "maxDiffVsOthers": 0.052,
+    "visible": true
+   },
+   {
+    "choice": "+ PATTY",
+    "maxDiffVsOthers": 0.0531,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "zinger-burger",
+  "option": "meal",
+  "rows": [
+   {
+    "choice": "JUST THE BURGER",
+    "maxDiffVsOthers": 0.171,
+    "visible": true
+   },
+   {
+    "choice": "+ FRIES & DRINK",
+    "maxDiffVsOthers": 0.171,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "zinger-burger",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "bbq-burger",
+  "option": "meal",
+  "rows": [
+   {
+    "choice": "JUST THE BURGER",
+    "maxDiffVsOthers": 0.2011,
+    "visible": true
+   },
+   {
+    "choice": "+ FRIES & DRINK",
+    "maxDiffVsOthers": 0.2011,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "alfredo-pasta",
+  "option": "protein",
+  "rows": [
+   {
+    "choice": "CHICKEN",
+    "maxDiffVsOthers": 0.0443,
+    "visible": true
+   },
+   {
+    "choice": "MUSHROOM",
+    "maxDiffVsOthers": 0.0419,
+    "visible": true
+   },
+   {
+    "choice": "PRAWN",
+    "maxDiffVsOthers": 0.0443,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0011,
+    "visible": false
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.0007,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0011,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "arrabbiata-pasta",
+  "option": "add",
+  "rows": [
+   {
+    "choice": "NOTHING",
+    "maxDiffVsOthers": 0.0098,
+    "visible": true
+   },
+   {
+    "choice": "+ CHICKEN",
+    "maxDiffVsOthers": 0.0098,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "pesto-pasta",
+  "option": "protein",
+  "rows": [
+   {
+    "choice": "CHICKEN",
+    "maxDiffVsOthers": 0.0139,
+    "visible": true
+   },
+   {
+    "choice": "NONE",
+    "maxDiffVsOthers": 0.0139,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "tikka-roll",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0018,
+    "visible": true
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.001,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0018,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": false
+ },
+ {
+  "id": "tikka-roll",
+  "option": "cheese",
+  "rows": [
+   {
+    "choice": "NO",
+    "maxDiffVsOthers": 0.0034,
+    "visible": true
+   },
+   {
+    "choice": "YES",
+    "maxDiffVsOthers": 0.0034,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "behari-roll",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0022,
+    "visible": true
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.0012,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0022,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": false
+ },
+ {
+  "id": "crispy-wrap",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0018,
+    "visible": true
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.001,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0018,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": false
+ },
+ {
+  "id": "margherita-pizza",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "8\"",
+    "maxDiffVsOthers": 0.34,
+    "visible": true
+   },
+   {
+    "choice": "10\"",
+    "maxDiffVsOthers": 0.2974,
+    "visible": true
+   },
+   {
+    "choice": "12\"",
+    "maxDiffVsOthers": 0.34,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "fajita-pizza",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "8\"",
+    "maxDiffVsOthers": 0.3431,
+    "visible": true
+   },
+   {
+    "choice": "10\"",
+    "maxDiffVsOthers": 0.3253,
+    "visible": true
+   },
+   {
+    "choice": "12\"",
+    "maxDiffVsOthers": 0.3431,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "fajita-pizza",
+  "option": "crust",
+  "rows": [
+   {
+    "choice": "CLASSIC",
+    "maxDiffVsOthers": 0.1741,
+    "visible": true
+   },
+   {
+    "choice": "CHEESE-STUFFED",
+    "maxDiffVsOthers": 0.1741,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "pepperoni-pizza",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "8\"",
+    "maxDiffVsOthers": 0.3345,
+    "visible": true
+   },
+   {
+    "choice": "10\"",
+    "maxDiffVsOthers": 0.3068,
+    "visible": true
+   },
+   {
+    "choice": "12\"",
+    "maxDiffVsOthers": 0.3345,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "pepperoni-pizza",
+  "option": "crust",
+  "rows": [
+   {
+    "choice": "CLASSIC",
+    "maxDiffVsOthers": 0.1721,
+    "visible": true
+   },
+   {
+    "choice": "CHEESE-STUFFED",
+    "maxDiffVsOthers": 0.1721,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "mint-margarita",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "REGULAR",
+    "maxDiffVsOthers": 0.0804,
+    "visible": true
+   },
+   {
+    "choice": "LARGE",
+    "maxDiffVsOthers": 0.0804,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "peach-iced-tea",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "REGULAR",
+    "maxDiffVsOthers": 0.0515,
+    "visible": true
+   },
+   {
+    "choice": "LARGE",
+    "maxDiffVsOthers": 0.0515,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "peach-iced-tea",
+  "option": "sweet",
+  "rows": [
+   {
+    "choice": "LESS",
+    "maxDiffVsOthers": 0.0094,
+    "visible": true
+   },
+   {
+    "choice": "REGULAR",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "EXTRA",
+    "maxDiffVsOthers": 0.0094,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": false
+ },
+ {
+  "id": "mango-smoothie",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "REGULAR",
+    "maxDiffVsOthers": 0.0266,
+    "visible": true
+   },
+   {
+    "choice": "LARGE",
+    "maxDiffVsOthers": 0.0266,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "mango-smoothie",
+  "option": "milk",
+  "rows": [
+   {
+    "choice": "YOGURT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "OAT MILK",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "lime-soda",
+  "option": "style",
+  "rows": [
+   {
+    "choice": "SWEET",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "SALTED",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "MIXED",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "truffle-fries",
+  "option": "dip",
+  "rows": [
+   {
+    "choice": "TRUFFLE AIOLI",
+    "maxDiffVsOthers": 0.0131,
+    "visible": true
+   },
+   {
+    "choice": "SPICY MAYO",
+    "maxDiffVsOthers": 0.0168,
+    "visible": true
+   },
+   {
+    "choice": "EXTRA TRUFFLE AIOLI",
+    "maxDiffVsOthers": 0.0168,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "chicken-tenders",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0002,
+    "visible": false
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.0002,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0002,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "chicken-tenders",
+  "option": "dip",
+  "rows": [
+   {
+    "choice": "HONEY MUSTARD & BBQ",
+    "maxDiffVsOthers": 0.0116,
+    "visible": true
+   },
+   {
+    "choice": "SMOKY RANCH & CHILLI",
+    "maxDiffVsOthers": 0.0116,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "garlic-bread",
+  "option": "cheese",
+  "rows": [
+   {
+    "choice": "STANDARD MOZZARELLA",
+    "maxDiffVsOthers": 0.0446,
+    "visible": true
+   },
+   {
+    "choice": "EXTRA CHEESE",
+    "maxDiffVsOthers": 0.0446,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "slow-roast",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "250 G",
+    "maxDiffVsOthers": 0.3768,
+    "visible": true
+   },
+   {
+    "choice": "500 G",
+    "maxDiffVsOthers": 0.2803,
+    "visible": true
+   },
+   {
+    "choice": "1 KG",
+    "maxDiffVsOthers": 0.3768,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "slow-roast",
+  "option": "grind",
+  "rows": [
+   {
+    "choice": "WHOLE BEAN",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "ESPRESSO",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "FILTER",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "FRENCH PRESS",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "slow-roast",
+  "option": "plan",
+  "rows": [
+   {
+    "choice": "ONE-TIME",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "EVERY 2 WK",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "EVERY 4 WK",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "single-origin",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "250 G",
+    "maxDiffVsOthers": 0.3727,
+    "visible": true
+   },
+   {
+    "choice": "500 G",
+    "maxDiffVsOthers": 0.2729,
+    "visible": true
+   },
+   {
+    "choice": "1 KG",
+    "maxDiffVsOthers": 0.3727,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "single-origin",
+  "option": "grind",
+  "rows": [
+   {
+    "choice": "WHOLE BEAN",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "FILTER",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "ESPRESSO",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "FRENCH PRESS",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "single-origin",
+  "option": "plan",
+  "rows": [
+   {
+    "choice": "ONE-TIME",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "EVERY 2 WK",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "EVERY 4 WK",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "latte",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "8 OZ",
+    "maxDiffVsOthers": 0.3157,
+    "visible": true
+   },
+   {
+    "choice": "12 OZ",
+    "maxDiffVsOthers": 0.2534,
+    "visible": true
+   },
+   {
+    "choice": "16 OZ",
+    "maxDiffVsOthers": 0.3157,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "latte",
+  "option": "milk",
+  "rows": [
+   {
+    "choice": "WHOLE",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "OAT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "ALMOND",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "latte",
+  "option": "temp",
+  "rows": [
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "ICED",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "espresso",
+  "option": "shots",
+  "rows": [
+   {
+    "choice": "SINGLE",
+    "maxDiffVsOthers": 0.0003,
+    "visible": false
+   },
+   {
+    "choice": "DOUBLE",
+    "maxDiffVsOthers": 0.0003,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "espresso",
+  "option": "style",
+  "rows": [
+   {
+    "choice": "STRAIGHT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "MACCHIATO",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "CORTADO",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "cortado",
+  "option": "shots",
+  "rows": [
+   {
+    "choice": "DOUBLE",
+    "maxDiffVsOthers": 0.0497,
+    "visible": true
+   },
+   {
+    "choice": "TRIPLE",
+    "maxDiffVsOthers": 0.0497,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "cortado",
+  "option": "milk",
+  "rows": [
+   {
+    "choice": "WHOLE",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "OAT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "ALMOND",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "cortado",
+  "option": "temp",
+  "rows": [
+   {
+    "choice": "WARM (57°C)",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "nitro-cold-brew",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "12 OZ",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "16 OZ",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "nitro-cold-brew",
+  "option": "style",
+  "rows": [
+   {
+    "choice": "STRAIGHT NITRO",
+    "maxDiffVsOthers": 0.0355,
+    "visible": true
+   },
+   {
+    "choice": "VANILLA SWEET CREAM",
+    "maxDiffVsOthers": 0.0355,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "iced-matcha",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "12 OZ",
+    "maxDiffVsOthers": 0.0824,
+    "visible": true
+   },
+   {
+    "choice": "16 OZ",
+    "maxDiffVsOthers": 0.0824,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "iced-matcha",
+  "option": "milk",
+  "rows": [
+   {
+    "choice": "WHOLE",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "OAT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "ALMOND",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "iced-matcha",
+  "option": "sweet",
+  "rows": [
+   {
+    "choice": "NONE",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "LIGHT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "REGULAR",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "iced-latte",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "12 OZ",
+    "maxDiffVsOthers": 0.0815,
+    "visible": true
+   },
+   {
+    "choice": "16 OZ",
+    "maxDiffVsOthers": 0.0815,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "iced-latte",
+  "option": "milk",
+  "rows": [
+   {
+    "choice": "WHOLE",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "OAT",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   },
+   {
+    "choice": "ALMOND",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "iced-latte",
+  "option": "shots",
+  "rows": [
+   {
+    "choice": "DOUBLE",
+    "maxDiffVsOthers": 0.0078,
+    "visible": true
+   },
+   {
+    "choice": "TRIPLE",
+    "maxDiffVsOthers": 0.0078,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "cappuccino",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "8 OZ",
+    "maxDiffVsOthers": 0.0714,
+    "visible": true
+   },
+   {
+    "choice": "12 OZ",
+    "maxDiffVsOthers": 0.0714,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "cappuccino",
+  "option": "milk",
+  "rows": [
+   {
+    "choice": "WHOLE",
+    "maxDiffVsOthers": 0.0015,
+    "visible": true
+   },
+   {
+    "choice": "OAT",
+    "maxDiffVsOthers": 0.0014,
+    "visible": false
+   },
+   {
+    "choice": "ALMOND",
+    "maxDiffVsOthers": 0.0015,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": false
+ },
+ {
+  "id": "cappuccino",
+  "option": "temp",
+  "rows": [
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0016,
+    "visible": true
+   },
+   {
+    "choice": "ICED",
+    "maxDiffVsOthers": 0.0016,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "spanish-latte",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "12 OZ",
+    "maxDiffVsOthers": 0.0512,
+    "visible": true
+   },
+   {
+    "choice": "16 OZ",
+    "maxDiffVsOthers": 0.0512,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "spanish-latte",
+  "option": "temp",
+  "rows": [
+   {
+    "choice": "ICED",
+    "maxDiffVsOthers": 0.0162,
+    "visible": true
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0162,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "spanish-latte",
+  "option": "sweet",
+  "rows": [
+   {
+    "choice": "LIGHT",
+    "maxDiffVsOthers": 0.0369,
+    "visible": true
+   },
+   {
+    "choice": "REGULAR",
+    "maxDiffVsOthers": 0.0283,
+    "visible": true
+   },
+   {
+    "choice": "EXTRA",
+    "maxDiffVsOthers": 0.0369,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "americano",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "8 OZ",
+    "maxDiffVsOthers": 0.1267,
+    "visible": true
+   },
+   {
+    "choice": "12 OZ",
+    "maxDiffVsOthers": 0.0994,
+    "visible": true
+   },
+   {
+    "choice": "16 OZ",
+    "maxDiffVsOthers": 0.1267,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "americano",
+  "option": "temp",
+  "rows": [
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0034,
+    "visible": true
+   },
+   {
+    "choice": "ICED",
+    "maxDiffVsOthers": 0.0034,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "americano",
+  "option": "shots",
+  "rows": [
+   {
+    "choice": "DOUBLE",
+    "maxDiffVsOthers": 0.014,
+    "visible": true
+   },
+   {
+    "choice": "TRIPLE",
+    "maxDiffVsOthers": 0.014,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "flat-white",
+  "option": "milk",
+  "rows": [
+   {
+    "choice": "WHOLE",
+    "maxDiffVsOthers": 0.0003,
+    "visible": false
+   },
+   {
+    "choice": "OAT",
+    "maxDiffVsOthers": 0.0003,
+    "visible": false
+   },
+   {
+    "choice": "ALMOND",
+    "maxDiffVsOthers": 0.0003,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "flat-white",
+  "option": "temp",
+  "rows": [
+   {
+    "choice": "HOT (62°C)",
+    "maxDiffVsOthers": 0,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "mocha",
+  "option": "size",
+  "rows": [
+   {
+    "choice": "12 OZ",
+    "maxDiffVsOthers": 0.1282,
+    "visible": true
+   },
+   {
+    "choice": "16 OZ",
+    "maxDiffVsOthers": 0.1282,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "mocha",
+  "option": "milk",
+  "rows": [
+   {
+    "choice": "WHOLE",
+    "maxDiffVsOthers": 0.0033,
+    "visible": true
+   },
+   {
+    "choice": "OAT",
+    "maxDiffVsOthers": 0.003,
+    "visible": true
+   },
+   {
+    "choice": "ALMOND",
+    "maxDiffVsOthers": 0.0033,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "mocha",
+  "option": "temp",
+  "rows": [
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0019,
+    "visible": true
+   },
+   {
+    "choice": "ICED",
+    "maxDiffVsOthers": 0.0019,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "cardamom-bun",
+  "option": "serve",
+  "rows": [
+   {
+    "choice": "AS IT IS",
+    "maxDiffVsOthers": 0.1099,
+    "visible": true
+   },
+   {
+    "choice": "WARMED",
+    "maxDiffVsOthers": 0.1099,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "cinnamon-roll",
+  "option": "warm",
+  "rows": [
+   {
+    "choice": "AS IT IS",
+    "maxDiffVsOthers": 0.1181,
+    "visible": true
+   },
+   {
+    "choice": "WARMED",
+    "maxDiffVsOthers": 0.1181,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "cinnamon-roll",
+  "option": "glaze",
+  "rows": [
+   {
+    "choice": "REGULAR",
+    "maxDiffVsOthers": 0.0658,
+    "visible": true
+   },
+   {
+    "choice": "EXTRA",
+    "maxDiffVsOthers": 0.0658,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "matcha-financier",
+  "option": "serve",
+  "rows": [
+   {
+    "choice": "ROOM TEMP",
+    "maxDiffVsOthers": 0.0942,
+    "visible": true
+   },
+   {
+    "choice": "WARMED",
+    "maxDiffVsOthers": 0.0942,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "butter-croissant",
+  "option": "serve",
+  "rows": [
+   {
+    "choice": "AS IT IS",
+    "maxDiffVsOthers": 0.3823,
+    "visible": true
+   },
+   {
+    "choice": "WARMED",
+    "maxDiffVsOthers": 0.3823,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "almond-croissant",
+  "option": "serve",
+  "rows": [
+   {
+    "choice": "WARMED",
+    "maxDiffVsOthers": 0.1537,
+    "visible": true
+   },
+   {
+    "choice": "ROOM TEMP",
+    "maxDiffVsOthers": 0.1537,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "san-sebastian",
+  "option": "serve",
+  "rows": [
+   {
+    "choice": "WITH WARM BELGIAN CHOCOLATE",
+    "maxDiffVsOthers": 0.1582,
+    "visible": true
+   },
+   {
+    "choice": "ON THE SIDE",
+    "maxDiffVsOthers": 0.1582,
+    "visible": true
+   },
+   {
+    "choice": "NO CHOCOLATE",
+    "maxDiffVsOthers": 0.158,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "fudge-brownie",
+  "option": "serve",
+  "rows": [
+   {
+    "choice": "WARMED + VANILLA GELATO",
+    "maxDiffVsOthers": 0.1197,
+    "visible": true
+   },
+   {
+    "choice": "WARMED ONLY",
+    "maxDiffVsOthers": 0.1197,
+    "visible": true
+   },
+   {
+    "choice": "ROOM TEMP",
+    "maxDiffVsOthers": 0.1196,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "tiramisu",
+  "option": "portion",
+  "rows": [
+   {
+    "choice": "SINGLE SLICE",
+    "maxDiffVsOthers": 0.2456,
+    "visible": true
+   },
+   {
+    "choice": "SHARING BOX",
+    "maxDiffVsOthers": 0.2456,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "ceramic-tumbler",
+  "option": "color",
+  "rows": [
+   {
+    "choice": "MATTE CHARCOAL",
+    "maxDiffVsOthers": 0.1482,
+    "visible": true
+   },
+   {
+    "choice": "RAW OAT",
+    "maxDiffVsOthers": 0.1481,
+    "visible": true
+   },
+   {
+    "choice": "AMBER CREMA",
+    "maxDiffVsOthers": 0.1482,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "ceramic-tumbler",
+  "option": "lid",
+  "rows": [
+   {
+    "choice": "SLIDE LOCK",
+    "maxDiffVsOthers": 0.0005,
+    "visible": false
+   },
+   {
+    "choice": "360° SIP LID",
+    "maxDiffVsOthers": 0.0005,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ }
+]

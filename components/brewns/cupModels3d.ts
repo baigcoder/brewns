@@ -81,7 +81,9 @@ const glossBlack: Glaze = (u, v) => {
 const creamOverBlack: Glaze = (u, v, rimV) => {
   const inside = v > rimV;
   // The cream stops in a soft, wandering line, with a few runs dripping lower.
-  const line = 0.8 + (fbm(u * 6, 0, 3, 3, 4) - 0.5) * 0.2 - Math.pow(smoothstep(0.55, 0.8, fbm(u * 14, 0, 6, 2, 8)), 2) * 0.14;
+  // sampled on a circle round the cup, so the line closes on itself instead of stepping where the texture wraps
+  const ca = Math.cos(u * TAU), sa = Math.sin(u * TAU);
+  const line = 0.8 + (fbm(ca * 1.1, sa * 1.1, 3, 3, 4) - 0.5) * 0.2 - Math.pow(smoothstep(0.55, 0.8, fbm(ca * 2.4, sa * 2.4, 6, 2, 8)), 2) * 0.14;
   const vv = inside ? 1 : v / rimV;
   const cream = inside ? 1 : smoothstep(line - 0.025, line + 0.01, vv);
   const speck = smoothstep(0.72, 0.86, fbm(u * 140, v * 90, 5, 2, 7));
@@ -97,12 +99,15 @@ const creamOverBlack: Glaze = (u, v, rimV) => {
 
 /** Rustic black: a heavy glaze mottled with rust brown, pooled darker at the foot. */
 const rusticBlack: Glaze = (u, v, rimV) => {
-  const n = fbm(u * 8, v * 6, 2, 4, 11);
-  const rust = smoothstep(0.55, 0.78, fbm(u * 14, v * 9, 3, 3, 13));
-  let c = mix([20, 18, 17], [40, 34, 30], n);
-  c = mix(c, [88, 58, 36], rust * 0.55 * (v < rimV ? 1 : 0.3));
+  // noise sampled on a circle round the cup, so the glaze closes on itself with no seam where the texture wraps
+  const ca = Math.cos(u * TAU), sa = Math.sin(u * TAU);
+  const n = fbm(ca * 1.3 + v * 3, sa * 1.3, v * 6, 4, 11);
+  const rust = smoothstep(0.52, 0.78, fbm(ca * 2.2, sa * 2.2, v * 9, 3, 13));
+  const grain = fbm(ca * 14, sa * 14, v * 40, 2, 17);
+  let c = mix([20, 18, 17], [42, 35, 30], n);
+  c = mix(c, [96, 60, 36], rust * 0.62 * (v < rimV ? 1 : 0.3));
   c = mix(c, [10, 9, 9], smoothstep(0.25, 0.0, v) * 0.6);
-  return [...c, 0.3 + n * 0.4 + rust * 0.3];
+  return [...c, 0.3 + n * 0.4 + rust * 0.3 + grain * 0.15];
 };
 
 /* ── the drink's surface ── */
@@ -154,7 +159,7 @@ const foamArt = (T: typeof THREE, kit: Kit, o: { art: 'rosetta' | 'heart'; base:
       // Wings from the bottom up, each narrower, drawn as thick arcs that bow downwards.
       for (let i = 0; i < 9; i++) {
         const y = 385 - i * 27;
-        const wdt = 160 - i * 13 + Math.sin(i * 1.7) * 6;
+        const wdt = 34 + 128 * Math.pow(Math.sin((Math.PI * (i + 0.9)) / 9.6), 0.8) + Math.sin(i * 1.7) * 5;
         ctx.lineWidth = 19 - i * 0.8;
         ctx.beginPath();
         ctx.ellipse(256, y - 30, wdt, 44, 0, 0.18 * Math.PI, 0.82 * Math.PI);
@@ -251,12 +256,12 @@ type CupSpec = {
 const CUPS: Record<string, CupSpec> = {
   // A straight-sided mug, a touch wider at the rim, with a generous handle.
   americano: {
-    h: 0.52, thick: 0.03, foot: 0.25,
+    h: 0.44, thick: 0.03, foot: 0.25,
     wall: (t) => 0.255 + 0.03 * t + 0.012 * Math.sin(Math.PI * Math.min(1, t * 3)),
     glaze: stoneware, gloss: { roughness: 0.62, clearcoat: 0.08 },
     fill: 0.86, top: 'crema',
     handle: { at: [0.22, 0.78], reach: 0.17, r: 0.032 },
-    spoon: { color: 0x2b2724, roughness: 0.38, len: 0.6, on: 'table' },
+    spoon: { color: 0x2b2724, roughness: 0.55, len: 0.46, on: 'table' },
     sizes: [0.9, 1, 1.1],
   },
   // A tulip cup: a round belly narrowing slightly to the rim, on a saucer.
@@ -281,10 +286,10 @@ const CUPS: Record<string, CupSpec> = {
   },
   // A wide rustic bowl, no handle, brimming with foam, cocoa and curls.
   mocha: {
-    h: 0.42, thick: 0.03, foot: 0.12,
-    wall: (t) => 0.13 + 0.3 * Math.sin(Math.min(1, t) * Math.PI * 0.5) + 0.015 * fbm(t * 4, 0, 0, 2, 3),
+    h: 0.6, thick: 0.03, foot: 0.11,
+    wall: (t) => 0.1 + 0.33 * Math.pow(Math.sin(Math.min(1, t) * Math.PI * 0.5), 0.85) + 0.012 * fbm(t * 4, 0, 0, 2, 3),
     glaze: rusticBlack, gloss: { roughness: 0.5, clearcoat: 0.25 },
-    fill: 0.93, top: 'heart', foamBase: ['#8a5530', '#5e3419', '#3a1f0e'], cocoa: 9000, curls: true,
+    fill: 0.93, top: 'heart', foamBase: ['#8a5530', '#5e3419', '#3a1f0e'], cocoa: 14000, curls: true,
     sizes: [0.95, 1.05],
   },
 };
@@ -308,7 +313,7 @@ export function createCeramicCupModel(T: typeof THREE, id: string, sel: Sel = {}
     const [a, b] = spec.handle.at;
     const x0 = spec.wall((a + b) / 2);
     // The handle takes the glaze colour of the wall it joins.
-    const hMat = kit.add(new T.MeshPhysicalMaterial({ color: spec.glaze === creamOverBlack ? 0xd9ccb6 : 0x1e1c1b, roughness: spec.gloss.roughness, clearcoat: spec.gloss.clearcoat, clearcoatRoughness: 0.2 }));
+    const hMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x23201e, roughness: spec.gloss.roughness, clearcoat: spec.gloss.clearcoat, clearcoatRoughness: 0.2 }));
     cup.add(handle(T, kit, hMat, { x0, y0: a * spec.h, y1: b * spec.h, reach: spec.handle.reach, r: spec.handle.r }));
   }
 
@@ -343,13 +348,14 @@ export function createCeramicCupModel(T: typeof THREE, id: string, sel: Sel = {}
 
   // Chocolate curls heaped in the middle of the mocha.
   if (spec.curls) {
-    // A shaving is a thin sheet of chocolate that rolled up as it was scraped: an open, curled-up tube.
-    const curl = kit.add(new T.CylinderGeometry(0.014, 0.014, 0.075, 16, 1, true, 0, Math.PI * 1.7));
-    curl.rotateZ(Math.PI / 2);
-    const chocolate = kit.add(new T.MeshPhysicalMaterial({ color: 0x3a1c0e, roughness: 0.4, clearcoat: 0.4, clearcoatRoughness: 0.3, side: T.DoubleSide }));
-    scatter(T, kit, cup, curl, chocolate, 24, (i, r) => {
-      const a = r() * TAU, d = Math.sqrt(r()) * rTop * 0.32;
-      return { pos: [Math.cos(a) * d, level + 0.024 + (1 - d / (rTop * 0.32)) * 0.022 + r() * 0.012, Math.sin(a) * d], rot: [r() * TAU, r() * TAU, (r() - 0.5) * 0.8], scale: [0.7 + r() * 0.6, 0.8 + r() * 0.5, 0.8 + r() * 0.5] };
+    // Chocolate shards: thin, flat, angular slivers heaped off-centre, as in the photograph.
+    const shard = kit.add(new T.BoxGeometry(0.085, 0.007, 0.022));
+    const chocolate = kit.add(new T.MeshPhysicalMaterial({ color: 0x3a1c0e, roughness: 0.38, clearcoat: 0.5, clearcoatRoughness: 0.3 }));
+    scatter(T, kit, cup, shard, chocolate, 46, (i, r) => {
+      const a = r() * TAU, d = Math.sqrt(r()) * rTop * 0.3;
+      const cx = -rTop * 0.1, cz = rTop * 0.04;
+      const heap = (1 - d / (rTop * 0.3)) * 0.04;
+      return { pos: [cx + Math.cos(a) * d * 1.25, level + 0.014 + heap + r() * 0.012, cz + Math.sin(a) * d * 0.8], rot: [(r() - 0.5) * 0.9, r() * TAU, (r() - 0.5) * 0.9], scale: [0.6 + r() * 0.9, 1, 0.7 + r() * 0.6] };
     }, seed + 3);
   }
 

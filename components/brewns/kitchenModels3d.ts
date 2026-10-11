@@ -49,17 +49,23 @@ const grilledMaterial = (T: typeof THREE, kit: Kit, base = [206, 152, 88]) =>
 
 /* ── pizza ── */
 
-const pizzaTop = (T: typeof THREE, kit: Kit, patchy: boolean, seed: number) =>
+const pizzaTop = (T: typeof THREE, kit: Kit, patchy: boolean, seed: number, kind = 'marg') =>
   paint(T, kit, 512, 512, (u, v) => {
     const x = (u - 0.5) * 2, y = (v - 0.5) * 2;
     const r = Math.hypot(x, y);
     const n = fbm(x * 3.2 + 2, y * 3.2 + 2, 1, 4, seed);
     const b = fbm(x * 9, y * 9, 2, 3, seed + 1);
-    const mask = patchy ? smoothstep(0.44, 0.52, n) : 1;
-    let cheese = mix([232, 190, 106], [240, 208, 130], n);
-    cheese = mix(cheese, [190, 112, 34], smoothstep(0.55, 0.74, b) * 0.9);
+    const mask = patchy ? 0 : 1;
+    // pepperoni: pale mozzarella speckled with black pepper and herb; fajita: deeper, oilier golden cheese
+    let cheese = kind === 'pep' ? mix([240, 222, 176], [246, 232, 192], n) : kind === 'faj' ? mix([226, 168, 78], [236, 188, 98], n) : mix([232, 190, 106], [240, 208, 130], n);
+    cheese = mix(cheese, kind === 'pep' ? [214, 150, 70] : [190, 112, 34], smoothstep(0.55, 0.74, b) * (kind === 'pep' ? 0.5 : 0.9));
+    if (kind !== 'marg') cheese = mix(cheese, kind === 'pep' ? [40, 30, 22] : [92, 56, 20], smoothstep(0.78, 0.9, fbm(x * 55, y * 55, 4, 2, seed + 11)) * (kind === 'pep' ? 0.75 : 0.35));
     cheese = mix(cheese, [246, 220, 150], smoothstep(0.75, 0.92, fbm(x * 16, y * 16, 6, 2, seed + 4)) * 0.4);
-    const sauce = mix([176, 34, 16], [206, 58, 26], fbm(x * 12, y * 12, 3, 2, seed + 2));
+    // crushed tomato: deep red with darker pulp and lighter oily flecks
+    const pulp = smoothstep(0.5, 0.7, fbm(x * 22, y * 22, 3, 3, seed + 6));
+    let sauce = mix([158, 26, 12], [196, 48, 22], fbm(x * 12, y * 12, 3, 2, seed + 2));
+    sauce = mix(sauce, [112, 14, 8], pulp * 0.6);
+    sauce = mix(sauce, [226, 112, 56], smoothstep(0.78, 0.92, fbm(x * 40, y * 40, 7, 2, seed + 9)) * 0.35);
     let c = mix(sauce, cheese, mask);
     c = mix(c, [170, 96, 30], smoothstep(0.86, 1, r) * 0.6);
     const a = Math.atan2(y, x);
@@ -69,7 +75,7 @@ const pizzaTop = (T: typeof THREE, kit: Kit, patchy: boolean, seed: number) =>
   });
 
 /** A wood-fired Neapolitan rim: pale gold dough, blistered, with the leopard spotting of char a hot oven leaves. */
-const leopardCrust = (T: typeof THREE, kit: Kit, seed = 3) =>
+const leopardCrust = (T: typeof THREE, kit: Kit, seed = 3, char = 0) =>
   surface(
     T,
     kit,
@@ -78,29 +84,84 @@ const leopardCrust = (T: typeof THREE, kit: Kit, seed = 3) =>
       const blister = smoothstep(0.6, 0.72, fbm(u * 18, v * 9, seed + 5, 3, seed + 3));
       // Leopard spots: small round char marks, some with a paler halo.
       const s1 = fbm(u * 70, v * 35, seed + 1, 2, seed + 7) * (0.75 + 0.35 * fbm(u * 6, v * 3, seed, 2, 2));
-      const spot = smoothstep(0.64, 0.7, s1);
-      const halo = smoothstep(0.58, 0.66, s1) * (1 - spot);
-      let c = mix([228, 184, 118], [206, 150, 82], n);
-      c = mix(c, [178, 112, 50], blister * 0.7);
-      c = mix(c, [150, 92, 44], halo * 0.6);
-      c = mix(c, [40, 22, 12], spot * 0.92);
+      const spot = smoothstep(0.6 - char * 0.06, 0.66 - char * 0.06, s1);
+      const halo = smoothstep(0.54 - char * 0.06, 0.62 - char * 0.06, s1) * (1 - spot);
+      let c = mix(mix([216, 152, 78], [190, 118, 52], n), [150, 88, 40], char * 0.55);
+      c = mix(c, [158, 86, 34], blister * 0.75);
+      c = mix(c, [120, 64, 26], halo * 0.7);
+      c = mix(c, [26, 14, 8], spot * 0.95);
       const flour = smoothstep(0.72, 0.9, fbm(u * 40, v * 20, 2, 2, 8));
       c = mix(c, [240, 226, 196], flour * 0.25);
       return [c[0], c[1], c[2], 0.35 + n * 0.3 + blister * 0.3 - spot * 0.1];
     }),
-    { roughness: 0.66, bumpScale: 4 },
+    { roughness: 0.74, bumpScale: 6 },
   );
 
 const pepperoni = (T: typeof THREE, kit: Kit) => {
   const g = lathe(T, kit, [[0, 0.004], [0.05, 0.007], [0.07, 0.016], [0.08, 0.026], [0.074, 0.027], [0.055, 0.011], [0, 0.008]], 28);
   const tex = paint(T, kit, 64, 64, (u, v) => {
     const n = fbm(u * 8, v * 8, 2, 3, 5);
-    let c = mix([140, 30, 16], [176, 54, 26], n);
+    let c = mix([112, 22, 12], [150, 38, 20], n);
     c = mix(c, [214, 150, 100], smoothstep(0.74, 0.9, fbm(u * 18, v * 18, 5, 2, 3)) * 0.5);
     c = mix(c, [86, 26, 12], smoothstep(0.85, 1, v) * 0.5);
     return [c[0], c[1], c[2], n];
   });
   return { geo: g, mat: surface(T, kit, tex, { roughness: 0.5, bumpScale: 1.5, physical: true, clearcoat: 0.25, clearcoatRoughness: 0.4, side: T.DoubleSide }) };
+};
+
+/** A basil leaf: dark, glossy, ovate with a pointed tip, a pale midrib and curved veins painted on it. */
+const basilTexture = (T: typeof THREE, kit: Kit) =>
+  draw(T, kit, 128, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, h, 0, 0);
+    g.addColorStop(0, '#1b4a16');
+    g.addColorStop(0.6, '#25601d');
+    g.addColorStop(1, '#2f7424');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(140,200,110,0.55)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(w / 2, h);
+    ctx.lineTo(w / 2, h * 0.05);
+    ctx.stroke();
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = 'rgba(120,184,96,0.4)';
+    for (let k = 1; k < 8; k++) {
+      const y = h - (k / 8.5) * h;
+      for (const sgn of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(w / 2, y);
+        ctx.quadraticCurveTo(w / 2 + sgn * w * 0.22, y - h * 0.02, w / 2 + sgn * w * 0.42, y - h * 0.1);
+        ctx.stroke();
+      }
+    }
+  });
+
+/** Basil leaf geometry: wide at the base, pointed, folded along the midrib and curled at the tip. */
+const basilGeo = (T: typeof THREE, kit: Kit, len: number, wid: number, fold: number, curl: number) => {
+  const s = new T.Shape();
+  const N = 20;
+  const half = (sign: number) => {
+    const o: number[][] = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      o.push([sign * wid * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.7)), 0.85), len * t]);
+    }
+    return o;
+  };
+  s.moveTo(0, 0);
+  half(1).forEach((p) => s.lineTo(p[0], p[1]));
+  half(-1).reverse().forEach((p) => s.lineTo(p[0], p[1]));
+  const g = kit.add(new T.ShapeGeometry(s, 6));
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i);
+    pos.setZ(i, Math.abs(x) * fold + Math.pow(y / len, 2) * curl * len * 0.35);
+    uv.setXY(i, 0.5 + x / (wid * 2.1), y / len);
+  }
+  g.rotateX(-Math.PI / 2);
+  g.computeVertexNormals();
+  return g;
 };
 
 export function createPizzaModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
@@ -114,13 +175,13 @@ export function createPizzaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
   const pizza = new T.Group();
   inner.add(pizza);
 
-  const crust = leopardCrust(T, kit, seed);
+  const crust = leopardCrust(T, kit, seed, isMarg ? 0 : 1);
   const baseGeo = kit.add(new T.CylinderGeometry(0.62, 0.62, 0.05, 72));
   const base = new T.Mesh(baseGeo, crust);
   base.position.y = 0.025;
   pizza.add(base);
   // A puffed, uneven cornicione: fat in places, pinched in others.
-  const rimGeo = kit.add(new T.TorusGeometry(0.585, 0.095, 24, 96));
+  const rimGeo = kit.add(new T.TorusGeometry(0.575, 0.11, 24, 96));
   rimGeo.rotateX(Math.PI / 2);
   rimGeo.scale(1, 0.85, 1);
   displace(rimGeo, 0.034, 4.5, seed);
@@ -135,7 +196,7 @@ export function createPizzaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
   stuffed.position.y = 0.075;
   pizza.add(stuffed);
 
-  const topTex = pizzaTop(T, kit, isMarg, seed);
+  const topTex = pizzaTop(T, kit, isMarg, seed, isMarg ? 'marg' : isPep ? 'pep' : 'faj');
   const topGeo = kit.add(new T.CircleGeometry(0.565, 96, 0, TAU));
   topGeo.rotateX(-Math.PI / 2);
   const tp = topGeo.attributes.position;
@@ -159,35 +220,37 @@ export function createPizzaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
 
   if (isPep) {
     const pep = pepperoni(T, kit);
-    spots(30, 0.5, 0.13).forEach(([x, z], i) => {
+    spots(27, 0.5, 0.15).forEach(([x, z], i) => {
       const m = new T.Mesh(pep.geo, pep.mat);
       m.position.set(x, topY, z);
       m.rotation.y = R() * TAU;
-      m.scale.setScalar(0.9 + R() * 0.2);
+      m.scale.setScalar(1.0 + R() * 0.2);
+      m.rotation.x = (R() - 0.5) * 0.16;
+      m.rotation.z = (R() - 0.5) * 0.16;
       pizza.add(m);
     });
   } else if (isMarg) {
-    // Fior di latte melts into flat, milky pools, browned a little at the edges.
-    const mozz = kit.add(new T.MeshPhysicalMaterial({ color: 0xf6efe0, roughness: 0.35, clearcoat: 0.5, clearcoatRoughness: 0.3, sheen: 0.5, sheenColor: new T.Color(0xffffff) }));
-    spots(9, 0.44, 0.19).forEach(([x, z], i) => {
-      const m = new T.Mesh(blob(T, kit, 0.1 + R() * 0.03, 0.014, 0.09 + R() * 0.03, { amp: 0.018, freq: 7, seed: 40 + i }), mozz);
-      m.position.set(x, topY - 0.002, z);
+    // Fior di latte torn into thick, creamy patches with a little oil on them, melted soft at the edges.
+    const mozz = kit.add(new T.MeshPhysicalMaterial({ color: 0xf3ead6, roughness: 0.4, clearcoat: 0.55, clearcoatRoughness: 0.3, sheen: 0.4, sheenColor: new T.Color(0xfff6e0) }));
+    [[-0.3, 0.18, 0.15, 0.12], [0.02, -0.05, 0.17, 0.13], [0.3, 0.2, 0.15, 0.12], [-0.24, -0.26, 0.16, 0.12], [0.3, -0.18, 0.14, 0.13], [0.02, 0.34, 0.14, 0.1], [0.0, -0.4, 0.12, 0.1]].forEach(([x, z, rx, rz], i) => {
+      const m = new T.Mesh(blob(T, kit, rx * 1.1, 0.034, rz * 1.1, { amp: 0.055, freq: 9, seed: 40 + i }), mozz);
+      m.position.set(x + (R() - 0.5) * 0.03, topY + 0.004, z + (R() - 0.5) * 0.03);
       m.rotation.y = R() * TAU;
       pizza.add(m);
     });
-    const leafGeo = leaf(T, kit, 0.16, 0.1, 0.35);
-    const leafMat = kit.add(new T.MeshPhysicalMaterial({ color: 0x2f7a22, roughness: 0.35, clearcoat: 0.5, clearcoatRoughness: 0.2, side: T.DoubleSide }));
-    spots(9, 0.44, 0.17).forEach(([x, z], i) => {
-      const m = new T.Mesh(leafGeo, leafMat);
-      m.position.set(x, topY + 0.03 + R() * 0.01, z);
-      m.rotation.set((R() - 0.5) * 0.4, R() * TAU, (R() - 0.5) * 0.3);
+    // Basil: whole dark leaves, large and small, lying on the cheese and the sauce, some curled up at the tip.
+    const basil = kit.add(new T.MeshPhysicalMaterial({ map: basilTexture(T, kit), roughness: 0.38, clearcoat: 0.45, clearcoatRoughness: 0.3, sheen: 0.15, sheenColor: new T.Color(0x5f9f45), color: 0xb8c8b0, side: T.DoubleSide }));
+    [[-0.16, 0.2, 0.3, 0.2, 2.4], [0.2, 0.0, 0.34, 0.22, 0.6], [0.18, 0.3, 0.26, 0.17, 3.5], [-0.28, -0.12, 0.3, 0.2, 5.5], [0.0, 0.0, 0.2, 0.14, 1.2], [-0.22, -0.34, 0.22, 0.15, 4.4], [0.14, -0.28, 0.2, 0.14, 2.0], [0.34, -0.3, 0.22, 0.15, 0.3], [-0.04, 0.33, 0.16, 0.11, 5.0], [0.06, -0.14, 0.14, 0.1, 3.1]].forEach(([x, z, len, wid, yaw], i) => {
+      const m = new T.Mesh(basilGeo(T, kit, len * 0.78, wid * 0.78, 0.34 + R() * 0.15, 0.18 + R() * 0.3), basil);
+      m.position.set(x, topY + 0.026 + (i % 3) * 0.004, z);
+      m.rotation.set((R() - 0.5) * 0.15, yaw, (R() - 0.5) * 0.15);
       pizza.add(m);
     });
   } else {
     // Fajita: chicken, peppers and onion.
-    const chick = grilledMaterial(T, kit, [204, 140, 74]);
-    spots(15, 0.46, 0.12).forEach(([x, z], i) => {
-      const m = chickenPiece(T, kit, chick, 0.055, 0.03, 0.045, 60 + i);
+    const chick = grilledMaterial(T, kit, [176, 108, 50]);
+    spots(20, 0.47, 0.11).forEach(([x, z], i) => {
+      const m = chickenPiece(T, kit, chick, 0.07, 0.035, 0.055, 60 + i);
       m.position.set(x, topY + 0.02, z);
       m.rotation.y = R() * TAU;
       pizza.add(m);
@@ -197,15 +260,15 @@ export function createPizzaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
       spots(n, 0.44, 0.14).forEach(([x, z], i) => {
         const a = R() * TAU;
         const pts = [0, 1, 2, 3].map((k) => V(T, Math.cos(a + k * 0.5) * 0.11 - 0.16 + k * 0.1, topY + 0.02 + Math.sin(k * 1.1) * 0.012, Math.sin(a + k * 0.5) * 0.06));
-        const m = new T.Mesh(sweep(T, kit, new T.CatmullRomCurve3(pts), { width: 0.034, thick: 0.014, segs: 12 }), mat);
+        const m = new T.Mesh(sweep(T, kit, new T.CatmullRomCurve3(pts), { width: 0.05, thick: 0.017, segs: 12 }), mat);
         m.position.set(x, 0, z);
         m.rotation.y = R() * TAU;
         pizza.add(m);
       });
     };
-    strip(0x2f8f2e, 11, 1);
-    strip(0xd2301f, 10, 2);
-    strip(0xefe4f0, 9, 3);
+    strip(0x3f8a22, 12, 1);
+    strip(0xc4301a, 11, 2);
+    strip(0x9a5878, 10, 3);
     const dust = kit.add(new T.BoxGeometry(0.016, 0.004, 0.011));
     scatter(T, kit, pizza, dust, kit.add(new T.MeshStandardMaterial({ color: 0xb03a14, roughness: 0.7 })), 70, (i, r) => {
       const a = r() * TAU, rr = Math.sqrt(r()) * 0.5;
@@ -222,15 +285,18 @@ export function createPizzaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
   };
   // Built for the biggest size and the fattest crust, so the fit holds for every choice.
   pizza.scale.set(1, 1, 1);
-  return assemble(T, kit, inner, { sel, apply, steam: { count: 22, height: 0.05, on: () => true }, shadow: [2.3, 2.1] });
+  const piece = assemble(T, kit, inner, { sel, apply, steam: { count: 22, height: 0.05, on: () => true }, shadow: [2.3, 2.1] });
+  // The photograph looks down on the pizza: start from nearly overhead.
+  piece.group.userData.viewPitch = 0.95;
+  return piece;
 }
 
 /* ── pasta ── */
 
 const sauceLook = {
-  'alfredo-pasta': { noodle: 0xecd6a2, sauce: 0xf1e2b4 },
-  'arrabbiata-pasta': { noodle: 0xd4622e, sauce: 0xa8321a },
-  'pesto-pasta': { noodle: 0x8ea336, sauce: 0x4e6a22 },
+  'alfredo-pasta': { noodle: 0xe6c987, sauce: 0xf3e6c0 },
+  'arrabbiata-pasta': { noodle: 0xd4622e, sauce: 0x7a2210 },
+  'pesto-pasta': { noodle: 0x7c8a38, sauce: 0x46561e },
 };
 
 export function createPastaModel(T: typeof THREE, id: string, sel: Sel = {}): VariantEngine {
@@ -252,9 +318,9 @@ export function createPastaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
   });
   const bowl = new T.Mesh(bowlGeo, surface(T, kit, bowlTex, { physical: true, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.3, bumpScale: 0.8, side: T.DoubleSide }));
   inner.add(bowl);
-  const pool = new T.Mesh(kit.add(new T.CircleGeometry(0.46, 40)), kit.add(new T.MeshPhysicalMaterial({ color: look.sauce, roughness: 0.25, clearcoat: 0.8 })));
+  const pool = new T.Mesh(kit.add(new T.CircleGeometry(id === 'alfredo-pasta' ? 0.46 : 0.4, 40)), kit.add(new T.MeshPhysicalMaterial({ color: look.sauce, roughness: 0.22, clearcoat: 0.85 })));
   pool.rotation.x = -Math.PI / 2;
-  pool.position.y = 0.075;
+  pool.position.y = 0.125;
   inner.add(pool);
 
   const mound = new T.Group();
@@ -265,7 +331,7 @@ export function createPastaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
   if (id === 'alfredo-pasta') {
     // Fettuccine: long flat ribbons looping over the mound.
     for (let i = 0; i < 74; i++) {
-      const a0 = R() * TAU, r0 = 0.06 + R() * 0.38;
+      const a0 = R() * TAU, r0 = 0.06 + R() * 0.33;
       const dir = R() < 0.5 ? -1 : 1;
       const pts = Array.from({ length: 7 }, (_, k) => {
         const a = a0 + dir * k * (0.5 + R() * 0.25);
@@ -300,13 +366,34 @@ export function createPastaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
         })();
     const col = new T.Color();
     // Pasta coated in its sauce: arrabbiata orange-red over golden penne, pesto a deep basil green.
-    const tone = id === 'arrabbiata-pasta' ? [0.055, 0.58] : [0.2, 0.5];
+    // photographs: penne golden and sauce-stained in a dark tomato ragu; fusilli an olive, pesto-dulled green
+    const tone = id === 'arrabbiata-pasta' ? [0.045, 0.78] : [0.2, 0.52];
     noodleMat.roughness = 0.45;
     noodleMat.clearcoat = 0.2;
+    noodleMat.color.set(0xffffff); // each piece carries its own tint, so the material must not multiply it
     scatter(T, kit, mound, one, noodleMat, 150, (i, r) => {
       const a = r() * TAU, rr = Math.sqrt(r()) * 0.47;
-      return { pos: [Math.cos(a) * rr, heightAt(rr) - 0.03 + (r() - 0.3) * 0.11, Math.sin(a) * rr], rot: [r() * 3, r() * 3, r() * 3], color: col.setHSL(tone[0] + r() * 0.025, tone[1], 0.4 + r() * 0.16).getHex() };
+      return { pos: [Math.cos(a) * rr, heightAt(rr) - 0.03 + (r() - 0.3) * 0.11, Math.sin(a) * rr], rot: [r() * 3, r() * 3, r() * 3], color: col.setHSL(tone[0] + (id === 'pesto-pasta' ? (r() < 0.45 ? -0.07 : 0.01) : 0) + r() * 0.025, id === 'pesto-pasta' ? tone[1] + 0.05 : tone[1], (id === 'arrabbiata-pasta' ? 0.27 : id === 'pesto-pasta' ? 0.3 : 0.24) + r() * 0.16).getHex() };
     }, 23);
+  }
+
+  // Alfredo: the cream sauce coats the ribbons in glossy pale clumps and pools at their foot, as photographed.
+  if (id === 'alfredo-pasta') {
+    const cream = kit.add(new T.MeshPhysicalMaterial({ color: 0xecdcae, roughness: 0.34, clearcoat: 0.5, clearcoatRoughness: 0.3 }));
+    const clump = blob(T, kit, 0.05, 0.012, 0.04, { amp: 0.01, freq: 9, seed: 8 });
+    scatter(T, kit, mound, clump, cream, 44, (i, r) => {
+      const a = r() * TAU, rr = Math.sqrt(r()) * 0.47;
+      return { pos: [Math.cos(a) * rr, heightAt(rr) + 0.012 + (r() - 0.3) * 0.04, Math.sin(a) * rr], rot: [(r() - 0.5) * 0.5, r() * 3, (r() - 0.5) * 0.5], scale: 0.7 + r() * 0.8 };
+    }, 37);
+  }
+  // Arrabbiata: dark tomato ragu in glossy clumps clinging between and over the penne.
+  if (id === 'arrabbiata-pasta') {
+    const ragu = kit.add(new T.MeshPhysicalMaterial({ color: 0x7a1c0c, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.2 }));
+    const clump = blob(T, kit, 0.05, 0.03, 0.045, { amp: 0.014, freq: 10, seed: 5 });
+    scatter(T, kit, mound, clump, ragu, 46, (i, r) => {
+      const a = r() * TAU, rr = Math.sqrt(r()) * 0.45;
+      return { pos: [Math.cos(a) * rr, heightAt(rr) + (r() - 0.2) * 0.06, Math.sin(a) * rr], rot: [r() * 3, r() * 3, r() * 3], scale: 0.7 + r() * 0.9 };
+    }, 29);
   }
 
   // Toppings.
@@ -341,7 +428,8 @@ export function createPastaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
   let hotChilli: THREE.InstancedMesh | null = null;
 
   if (id === 'alfredo-pasta') {
-    const chicken = chickenAt(5, 0.17, 0.445);
+    const chicken = chickenAt(6, 0.17, 0.445);
+    chicken.scale.setScalar(1.3);
     const mush = new T.Group();
     const mushMat = kit.add(new T.MeshStandardMaterial({ color: 0xcdb08a, roughness: 0.55 }));
     for (let i = 0; i < 7; i++) {
@@ -390,7 +478,8 @@ export function createPastaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
       top.add(m);
     });
     speck(kit.add(new T.BoxGeometry(0.014, 0.004, 0.009)), kit.add(new T.MeshStandardMaterial({ color: 0xc02a10, roughness: 0.6 })), 60, 33, 0.014);
-    hotChilli = speck(kit.add(new T.TorusGeometry(0.018, 0.005, 6, 12)), kit.add(new T.MeshStandardMaterial({ color: 0xd42c12, roughness: 0.4 })), 26, 34, 0.02);
+    // fresh chilli rings, bright against the dark ragu so the spice level can be read
+    hotChilli = speck(kit.add(new T.TorusGeometry(0.03, 0.009, 6, 14)), kit.add(new T.MeshStandardMaterial({ color: 0xe8381a, roughness: 0.35, emissive: 0x3a0800 })), 34, 34, 0.026);
   } else {
     chickenOptional = chickenAt(5, 0.17, 0.445);
     top.add(chickenOptional);
@@ -425,7 +514,7 @@ export function createPastaModel(T: typeof THREE, id: string, sel: Sel = {}): Va
     if (id === 'alfredo-pasta') proteinSets.forEach((o, i) => (o.visible = (s.protein ?? 0) === i));
     if (id === 'arrabbiata-pasta') {
       chickenOptional.visible = s.add === 1;
-      hotChilli.count = [0, 10, 26][s.spice ?? 1] ?? 10;
+      hotChilli.count = [0, 12, 34][s.spice ?? 1] ?? 12;
     }
     if (id === 'pesto-pasta') chickenOptional.visible = (s.protein ?? 0) === 0;
   };
@@ -691,10 +780,11 @@ function fillingParts(T: typeof THREE, kit: Kit, id: string) {
         }), { physical: true, roughness: 0.42, clearcoat: 0.45, clearcoatRoughness: 0.3, bumpScale: 4 })
       : surface(T, kit, paint(T, kit, 128, 128, (u, v) => {
           const n = fbm(u * 9, v * 9, 4, 3, 2);
-          const char = smoothstep(0.64, 0.8, fbm(u * 14, v * 14, 6, 2, 5));
-          let c = mix([196, 92, 38], [158, 62, 24], n);
-          c = mix(c, [226, 142, 76], smoothstep(0.55, 0.3, n) * 0.35);
-          c = mix(c, [52, 22, 10], char * 0.9);
+          const char = smoothstep(0.5, 0.7, fbm(u * 14, v * 14, 6, 2, 5));
+          // the photograph's tikka is chargrilled dark brown, with blackened edges
+          let c = mix([128, 62, 26], [96, 44, 18], n);
+          c = mix(c, [168, 98, 52], smoothstep(0.55, 0.3, n) * 0.3);
+          c = mix(c, [30, 14, 6], char * 1.0);
           return [c[0], c[1], c[2], 0.3 + n * 0.4 + char * 0.3];
         }), { physical: true, roughness: 0.45, clearcoat: 0.3, clearcoatRoughness: 0.35, bumpScale: 4 });
   const arc = kit.add(new T.TorusGeometry(0.034, 0.0055, 6, 18, Math.PI * 1.1));
@@ -955,14 +1045,16 @@ export function createTendersModel(T: typeof THREE, id: string, sel: Sel = {}): 
   const kit = new Kit();
   const inner = new T.Group();
   // A heap of tenders straight on the table, as photographed: each one long, tapering and craggy.
-  const crust = friedCrust(T, kit, 12);
+  const crust = friedCrust(T, kit, 12, true);
   const strips = new T.Group();
+  // A real heap, not a row: three on the board, four across them, two leaning on top, each at its own angle.
   const layout = [
-    [-0.1, 0, 0.12, 0.2, 0], [0.12, 0, 0.06, -0.35, 0], [-0.02, 0, -0.14, 0.9, 0],
-    [0.02, 0.12, 0.02, -0.1, 0.12], [-0.12, 0.1, -0.04, 0.6, -0.1], [0.06, 0.2, -0.05, 0.3, 0.05],
+    [-0.12, 0, 0.17, 0.15, 0], [0.12, 0, 0.1, -0.4, 0], [-0.02, 0, -0.17, 0.95, 0], [0.16, 0, -0.1, -0.9, 0],
+    [0.0, 0.1, 0.07, -0.1, 0.14], [-0.14, 0.1, -0.05, 0.65, -0.1], [0.1, 0.11, -0.06, 0.35, 0.08], [-0.04, 0.1, -0.2, -0.5, 0.05],
+    [-0.02, 0.2, 0.0, 0.4, 0.1], [0.06, 0.21, 0.08, -0.7, -0.12],
   ];
   layout.forEach(([x, y, z, rot, tilt], i) => {
-    const geo = blob(T, kit, 0.3, 0.07, 0.1, { amp: 0.035, freq: 6, seed: 50 + i, seg: 72 });
+    const geo = blob(T, kit, 0.3, 0.085, 0.115, { amp: 0.05, freq: 5, seed: 50 + i, seg: 96 });
     // Tapered to one end, like a strip cut from the breast.
     const p = geo.attributes.position;
     for (let k = 0; k < p.count; k++) {
@@ -971,21 +1063,24 @@ export function createTendersModel(T: typeof THREE, id: string, sel: Sel = {}): 
       p.setZ(k, p.getZ(k) * t);
     }
     geo.computeVertexNormals();
-    displace(geo, 0.012, 24, 60 + i, 2);
+    // craggy fried coating at three scales: lumps, crags and fine crumbs
+    displace(geo, 0.03, 12, 60 + i, 3);
+    displace(geo, 0.02, 34, 70 + i, 3);
+    displace(geo, 0.01, 80, 80 + i, 2);
     const m = new T.Mesh(geo, crust);
     m.position.set(x, y + 0.07, z);
     m.rotation.set(tilt, rot, (i % 2 ? 1 : -1) * 0.08);
     strips.add(m);
   });
   inner.add(strips);
-  const chilliGeo = kit.add(new T.BoxGeometry(0.016, 0.004, 0.01));
+  const chilliGeo = kit.add(new T.BoxGeometry(0.03, 0.007, 0.018));
   // Garnish lands on the strips: a point along a strip's top, following its turn and tilt.
   const onStrip = (r: () => number, lift = 0) => {
     const [x, y, z, rot, tilt] = layout[Math.floor(r() * layout.length)];
     const along = (r() - 0.5) * 0.4, across = (r() - 0.5) * 0.08;
     return [x + Math.cos(rot) * along + Math.sin(rot) * across, y + 0.07 + 0.045 * (1 - Math.abs(along) * 2) + lift - tilt * along, z - Math.sin(rot) * along + Math.cos(rot) * across];
   };
-  const chilli = scatter(T, kit, inner, chilliGeo, kit.add(new T.MeshStandardMaterial({ color: 0xb01c0c, roughness: 0.6 })), 70, (i, r) => ({ pos: onStrip(r), rot: [0, r() * 3, 0] }), 4);
+  const chilli = scatter(T, kit, inner, chilliGeo, kit.add(new T.MeshStandardMaterial({ color: 0xb01c0c, roughness: 0.6 })), 70, (i, r) => ({ pos: onStrip(r, 0.045), rot: [0, r() * 3, 0] }), 4);
   // Two dips in rustic pots behind the heap.
   const cupA = dipCup(T, kit, 0xe2a83a, 0.12);
   const cupB = dipCup(T, kit, 0x5a2312, 0.12);
@@ -1073,6 +1168,30 @@ export function createGarlicBreadModel(T: typeof THREE, id: string, sel: Sel = {
     extra.add(new T.Mesh(kit.add(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 24, r, 6, false)), cheeseMat));
   }
   inner.add(extra);
+  // Extra cheese: a second, thick melt over every piece with its own bubbles, runs down the crust and a few heavier
+  // strings, so the choice is plainly more cheese and not a few thin threads.
+  const more = new T.Group();
+  const moreMat = kit.add(new T.MeshPhysicalMaterial({ color: 0xf3d27a, roughness: 0.32, clearcoat: 0.55, clearcoatRoughness: 0.3, sheen: 0.4, sheenColor: new T.Color(0xfff0b0) }));
+  place.forEach(([x, y, z, yaw, rx, rz], i) => {
+    // Each melt rides on a group that has the piece's own position and tilt, so it lies on the bread, not above it.
+    const holder = new T.Group();
+    holder.position.set(x, y, z);
+    holder.rotation.set(rx, yaw, rz);
+    const sheet = new T.Mesh(blob(T, kit, len * 0.47, 0.016, wid * 0.46, { amp: 0.02, freq: 6, seed: 70 + i, seg: 40 }), moreMat);
+    sheet.position.y = 0.05;
+    holder.add(sheet);
+    const lump = new T.Mesh(blob(T, kit, 0.06, 0.018, 0.045, { amp: 0.01, freq: 8, seed: 80 + i, seg: 24 }), moreMat);
+    lump.position.set(0.03, 0.062, -0.02);
+    holder.add(lump);
+    more.add(holder);
+  });
+  const pr2 = rng(31);
+  for (let i = 0; i < 4; i++) {
+    const x0 = -0.14 + pr2() * 0.28, z0 = -0.07 + pr2() * 0.14;
+    const pts = [V(T, x0, hgt * 1.9 + 0.03, z0), V(T, x0 + 0.015, hgt * 1.5, z0 + 0.02), V(T, x0 + 0.06, hgt * 1.15, z0), V(T, x0 + 0.11, hgt * 1.04, z0 - 0.03)];
+    more.add(new T.Mesh(kit.add(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 24, 0.011 + pr2() * 0.004, 8, false)), moreMat));
+  }
+  inner.add(more);
   // Chopped parsley over the cheese.
   const parsley = kit.add(new T.PlaneGeometry(0.016, 0.01));
   parsley.rotateX(-Math.PI / 2);
@@ -1084,6 +1203,7 @@ export function createGarlicBreadModel(T: typeof THREE, id: string, sel: Sel = {
   const apply = (s: Sel) => {
     // Extra cheese: a thicker pull.
     extra.children.forEach((m, i) => (m.visible = s.cheese === 1 || i < 3));
+    more.visible = s.cheese === 1;
   };
   return assemble(T, kit, inner, { sel, apply, steam: { count: 22, height: 0.02, on: () => true }, shadow: [2.2, 1.3] });
 }

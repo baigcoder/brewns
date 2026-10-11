@@ -1,0 +1,335 @@
+[
+ {
+  "id": "americano",
+  "shot": "americano-default",
+  "selected": [
+   "12 OZ",
+   "HOT",
+   "DOUBLE"
+  ]
+ },
+ {
+  "id": "americano",
+  "shot": "americano-size-0",
+  "option": "size",
+  "clicked": "8 OZ",
+  "selected": "8 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "americano",
+  "shot": "americano-size-1",
+  "option": "size",
+  "clicked": "12 OZ",
+  "selected": "12 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "americano",
+  "shot": "americano-size-2",
+  "option": "size",
+  "clicked": "16 OZ",
+  "selected": "16 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "americano",
+  "shot": "americano-temp-0",
+  "option": "temp",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "americano",
+  "shot": "americano-temp-1",
+  "option": "temp",
+  "clicked": "ICED",
+  "selected": "ICED",
+  "canvases": 1
+ },
+ {
+  "id": "americano",
+  "shot": "americano-shots-0",
+  "option": "shots",
+  "clicked": "DOUBLE",
+  "selected": "DOUBLE",
+  "canvases": 1
+ },
+ {
+  "id": "americano",
+  "shot": "americano-shots-1",
+  "option": "shots",
+  "clicked": "TRIPLE",
+  "selected": "TRIPLE",
+  "canvases": 1
+ },
+ {
+  "id": "cappuccino",
+  "shot": "cappuccino-default",
+  "selected": [
+   "8 OZ",
+   "WHOLE",
+   "HOT"
+  ]
+ },
+ {
+  "id": "cappuccino",
+  "shot": "cappuccino-size-0",
+  "option": "size",
+  "clicked": "8 OZ",
+  "selected": "8 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "cappuccino",
+  "shot": "cappuccino-size-1",
+  "option": "size",
+  "clicked": "12 OZ",
+  "selected": "12 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "cappuccino",
+  "shot": "cappuccino-milk-0",
+  "option": "milk",
+  "clicked": "WHOLE",
+  "selected": "WHOLE",
+  "canvases": 1
+ },
+ {
+  "id": "cappuccino",
+  "shot": "cappuccino-milk-1",
+  "option": "milk",
+  "clicked": "OAT",
+  "selected": "OAT",
+  "canvases": 1
+ },
+ {
+  "id": "cappuccino",
+  "shot": "cappuccino-milk-2",
+  "option": "milk",
+  "clicked": "ALMOND",
+  "selected": "ALMOND",
+  "canvases": 1
+ },
+ {
+  "id": "cappuccino",
+  "shot": "cappuccino-temp-0",
+  "option": "temp",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "cappuccino",
+  "shot": "cappuccino-temp-1",
+  "option": "temp",
+  "clicked": "ICED",
+  "selected": "ICED",
+  "canvases": 1
+ },
+ {
+  "id": "spanish-latte",
+  "shot": "spanish-latte-default",
+  "selected": [
+   "12 OZ",
+   "ICED",
+   "REGULAR"
+  ]
+ },
+ {
+  "id": "spanish-latte",
+  "shot": "spanish-latte-size-0",
+  "option": "size",
+  "clicked": "12 OZ",
+  "selected": "12 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "spanish-latte",
+  "shot": "spanish-latte-size-1",
+  "option": "size",
+  "clicked": "16 OZ",
+  "selected": "16 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "spanish-latte",
+  "shot": "spanish-latte-temp-0",
+  "option": "temp",
+  "clicked": "ICED",
+  "selected": "ICED",
+  "canvases": 1
+ },
+ {
+  "id": "spanish-latte",
+  "shot": "spanish-latte-temp-1",
+  "option": "temp",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ },
+ {
+  "id": "spanish-latte",
+  "shot": "spanish-latte-sweet-0",
+  "option": "sweet",
+  "clicked": "LIGHT",
+  "selected": "LIGHT",
+  "canvases": 1
+ },
+ {
+  "id": "spanish-latte",
+  "shot": "spanish-latte-sweet-1",
+  "option": "sweet",
+  "clicked": "REGULAR",
+  "selected": "REGULAR",
+  "canvases": 1
+ },
+ {
+  "id": "spanish-latte",
+  "shot": "spanish-latte-sweet-2",
+  "option": "sweet",
+  "clicked": "EXTRA",
+  "selected": "EXTRA",
+  "canvases": 1
+ },
+ {
+  "id": "iced-latte",
+  "shot": "iced-latte-default",
+  "selected": [
+   "12 OZ",
+   "WHOLE",
+   "DOUBLE"
+  ]
+ },
+ {
+  "id": "iced-latte",
+  "shot": "iced-latte-size-0",
+  "option": "size",
+  "clicked": "12 OZ",
+  "selected": "12 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "iced-latte",
+  "shot": "iced-latte-size-1",
+  "option": "size",
+  "clicked": "16 OZ",
+  "selected": "16 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "iced-latte",
+  "shot": "iced-latte-milk-0",
+  "option": "milk",
+  "clicked": "WHOLE",
+  "selected": "WHOLE",
+  "canvases": 1
+ },
+ {
+  "id": "iced-latte",
+  "shot": "iced-latte-milk-1",
+  "option": "milk",
+  "clicked": "OAT",
+  "selected": "OAT",
+  "canvases": 1
+ },
+ {
+  "id": "iced-latte",
+  "shot": "iced-latte-milk-2",
+  "option": "milk",
+  "clicked": "ALMOND",
+  "selected": "ALMOND",
+  "canvases": 1
+ },
+ {
+  "id": "iced-latte",
+  "shot": "iced-latte-shots-0",
+  "option": "shots",
+  "clicked": "DOUBLE",
+  "selected": "DOUBLE",
+  "canvases": 1
+ },
+ {
+  "id": "iced-latte",
+  "shot": "iced-latte-shots-1",
+  "option": "shots",
+  "clicked": "TRIPLE",
+  "selected": "TRIPLE",
+  "canvases": 1
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-default",
+  "selected": [
+   "12 OZ",
+   "WHOLE",
+   "LIGHT"
+  ]
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-size-0",
+  "option": "size",
+  "clicked": "12 OZ",
+  "selected": "12 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-size-1",
+  "option": "size",
+  "clicked": "16 OZ",
+  "selected": "16 OZ",
+  "canvases": 1
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-milk-0",
+  "option": "milk",
+  "clicked": "WHOLE",
+  "selected": "WHOLE",
+  "canvases": 1
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-milk-1",
+  "option": "milk",
+  "clicked": "OAT",
+  "selected": "OAT",
+  "canvases": 1
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-milk-2",
+  "option": "milk",
+  "clicked": "ALMOND",
+  "selected": "ALMOND",
+  "canvases": 1
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-sweet-0",
+  "option": "sweet",
+  "clicked": "NONE",
+  "selected": "NONE",
+  "canvases": 1
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-sweet-1",
+  "option": "sweet",
+  "clicked": "LIGHT",
+  "selected": "LIGHT",
+  "canvases": 1
+ },
+ {
+  "id": "iced-matcha",
+  "shot": "iced-matcha-sweet-2",
+  "option": "sweet",
+  "clicked": "REGULAR",
+  "selected": "REGULAR",
+  "canvases": 1
+ }
+]

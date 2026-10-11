@@ -1,0 +1,6 @@
+single-origin      pass  size,grind,plan  lines=2
+slow-roast         pass  size,grind,plan  lines=2
+smash-burger       pass  meal,extra  lines=2
+latte              pass  size,milk,temp  lines=2
+
+4/4 products pass

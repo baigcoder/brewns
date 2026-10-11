@@ -1,0 +1,71 @@
+[
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-default",
+  "selected": [
+   "STANDARD MOZZARELLA"
+  ]
+ },
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-cheese-0",
+  "option": "cheese",
+  "clicked": "STANDARD MOZZARELLA",
+  "selected": "STANDARD MOZZARELLA",
+  "canvases": 1
+ },
+ {
+  "id": "garlic-bread",
+  "shot": "garlic-bread-cheese-1",
+  "option": "cheese",
+  "clicked": "EXTRA CHEESE",
+  "selected": "EXTRA CHEESE",
+  "canvases": 1
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-default",
+  "selected": [
+   "AS IT IS"
+  ]
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-serve-0",
+  "option": "serve",
+  "clicked": "AS IT IS",
+  "selected": "AS IT IS",
+  "canvases": 1
+ },
+ {
+  "id": "butter-croissant",
+  "shot": "butter-croissant-serve-1",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-default",
+  "selected": [
+   "WARMED"
+  ]
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-serve-0",
+  "option": "serve",
+  "clicked": "WARMED",
+  "selected": "WARMED",
+  "canvases": 1
+ },
+ {
+  "id": "almond-croissant",
+  "shot": "almond-croissant-serve-1",
+  "option": "serve",
+  "clicked": "ROOM TEMP",
+  "selected": "ROOM TEMP",
+  "canvases": 1
+ }
+]

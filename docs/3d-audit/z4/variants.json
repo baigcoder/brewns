@@ -1,0 +1,50 @@
+[
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-default",
+  "selected": [
+   "JUST THE BURGER",
+   "MEDIUM"
+  ]
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-meal-0",
+  "option": "meal",
+  "clicked": "JUST THE BURGER",
+  "selected": "JUST THE BURGER",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-meal-1",
+  "option": "meal",
+  "clicked": "+ FRIES & DRINK",
+  "selected": "+ FRIES & DRINK",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-0",
+  "option": "spice",
+  "clicked": "MILD",
+  "selected": "MILD",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-1",
+  "option": "spice",
+  "clicked": "MEDIUM",
+  "selected": "MEDIUM",
+  "canvases": 1
+ },
+ {
+  "id": "zinger-burger",
+  "shot": "zinger-burger-spice-2",
+  "option": "spice",
+  "clicked": "HOT",
+  "selected": "HOT",
+  "canvases": 1
+ }
+]

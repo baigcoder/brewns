@@ -1,0 +1,10 @@
+{"id":"americano","shots":["americano-default","americano-size-0","americano-size-1","americano-size-2","americano-temp-0"]}
+{"id":"americano+","shots":["americano-temp-1","americano-shots-0","americano-shots-1"]}
+{"id":"cappuccino","shots":["cappuccino-default","cappuccino-size-0","cappuccino-size-1","cappuccino-milk-0","cappuccino-milk-1"]}
+{"id":"cappuccino+","shots":["cappuccino-milk-2","cappuccino-temp-0","cappuccino-temp-1"]}
+{"id":"spanish-latte","shots":["spanish-latte-default","spanish-latte-size-0","spanish-latte-size-1","spanish-latte-temp-0","spanish-latte-temp-1"]}
+{"id":"spanish-latte+","shots":["spanish-latte-sweet-0","spanish-latte-sweet-1","spanish-latte-sweet-2"]}
+{"id":"iced-latte","shots":["iced-latte-default","iced-latte-size-0","iced-latte-size-1","iced-latte-milk-0","iced-latte-milk-1"]}
+{"id":"iced-latte+","shots":["iced-latte-milk-2","iced-latte-shots-0","iced-latte-shots-1"]}
+{"id":"iced-matcha","shots":["iced-matcha-default","iced-matcha-size-0","iced-matcha-size-1","iced-matcha-milk-0","iced-matcha-milk-1"]}
+{"id":"iced-matcha+","shots":["iced-matcha-milk-2","iced-matcha-sweet-0","iced-matcha-sweet-1","iced-matcha-sweet-2"]}

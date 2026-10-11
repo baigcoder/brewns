@@ -1,0 +1,84 @@
+[
+ {
+  "id": "zinger-burger",
+  "option": "meal",
+  "rows": [
+   {
+    "choice": "JUST THE BURGER",
+    "maxDiffVsOthers": 0.1713,
+    "visible": true
+   },
+   {
+    "choice": "+ FRIES & DRINK",
+    "maxDiffVsOthers": 0.1713,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "zinger-burger",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0011,
+    "visible": false
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.0007,
+    "visible": false
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0011,
+    "visible": false
+   }
+  ],
+  "anyVisible": false,
+  "allVisible": false
+ },
+ {
+  "id": "chicken-tenders",
+  "option": "spice",
+  "rows": [
+   {
+    "choice": "MILD",
+    "maxDiffVsOthers": 0.0081,
+    "visible": true
+   },
+   {
+    "choice": "MEDIUM",
+    "maxDiffVsOthers": 0.0046,
+    "visible": true
+   },
+   {
+    "choice": "HOT",
+    "maxDiffVsOthers": 0.0081,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ },
+ {
+  "id": "chicken-tenders",
+  "option": "dip",
+  "rows": [
+   {
+    "choice": "HONEY MUSTARD & BBQ",
+    "maxDiffVsOthers": 0.0116,
+    "visible": true
+   },
+   {
+    "choice": "SMOKY RANCH & CHILLI",
+    "maxDiffVsOthers": 0.0116,
+    "visible": true
+   }
+  ],
+  "anyVisible": true,
+  "allVisible": true
+ }
+]
