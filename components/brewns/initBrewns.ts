@@ -5858,12 +5858,13 @@ function renderFullMenu() {
         <button type="button" class="full-menu-pill active" data-fsec="all">ALL (${totalCount})</button>
         ${FULL_MENU_SECTIONS.map((sec) => `<button type="button" class="full-menu-pill" data-fsec="${sec.cat}">${FULL_MENU_PILLS[sec.cat]} (${sec.items.length})</button>`).join("")}
       </div>
+      <div class="full-menu-search"><input type="search" id="full-menu-search" placeholder="Search the menu: latte, burger, vegan…" aria-label="Search the menu" autocomplete="off" maxlength="40"></div>
       <div class="full-menu-diet" role="group" aria-label="Dietary filters">
         <span class="full-menu-diet-label mono-fine">FILTER</span>
         ${DIET_FILTERS.map((f) => `<button type="button" class="full-menu-diet-chip" data-diet="${f.key}" aria-pressed="false">${f.label}</button>`).join("")}
         <button type="button" class="full-menu-diet-clear mono-fine" id="full-menu-diet-clear" hidden>CLEAR</button>
       </div>
-      <p class="full-menu-diet-empty" id="full-menu-diet-empty" role="status" hidden>Nothing here suits all of those. Try taking a filter off.</p>
+      <p class="full-menu-diet-empty" id="full-menu-diet-empty" role="status" hidden>Nothing matches that. Try a different word, or take a filter off.</p>
       <div class="full-menu-body" id="full-menu-body">
         ${FULL_MENU_SECTIONS.map((sec) => `
           <section class="full-menu-sec" data-sec-cat="${sec.cat}">
@@ -5874,6 +5875,7 @@ function renderFullMenu() {
             <div class="full-menu-grid">
               ${sec.items.map((p) => `
                 <article class="full-menu-item" data-fproduct="${p.id}" tabindex="0" role="button" aria-label="${p.name}, ${money(p.price)}">
+                  ${heartHTML(p)}
                   <div class="full-menu-img-wrap">
                     ${p.gift ? giftcardHTML(money(p.price)) : p.photo ? `<img${p.art ? ' class="shot"' : ""} src="${photoSrc(p.photo)}" alt="${esc(p.name)}" loading="lazy">` : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.name)}">`}
                   </div>
@@ -5902,9 +5904,9 @@ function renderFullMenu() {
       </div>
       <div class="full-menu-foot">
         <p class="full-menu-foot-hint mono-fine">Order ahead to have your pour &amp; pastries boxed and waiting at any counter.</p>
-        <button type="button" class="full-menu-shop-btn" id="full-menu-to-shop">
-          <span>ORDER AHEAD IN SHOP (${totalCount} ITEMS)</span>
-          <span aria-hidden="true">↓</span>
+        <button type="button" class="full-menu-shop-btn" id="full-menu-to-bag">
+          <span id="full-menu-bag-label"></span>
+          <span aria-hidden="true">→</span>
         </button>
       </div>
     </div>
@@ -5912,23 +5914,41 @@ function renderFullMenu() {
 
   fillSnaps(fullMenuEl);
   $("#full-menu-close", fullMenuEl)?.addEventListener("click", () => closeFullMenu());
-  $("#full-menu-to-shop", fullMenuEl)?.addEventListener("click", () => {
+  // The footer button is about the customer's order: open the bag when there is something in it, otherwise just keep browsing.
+  $("#full-menu-to-bag", fullMenuEl)?.addEventListener("click", () => {
+    const has = cart.count() > 0;
     closeFullMenu();
-    setFilter("all");
-    lenis.scrollTo("#shop", { duration: 1.2 });
+    if (has) setTimeout(() => openBag(), 320);
   });
+  paintBoardBag();
+  // A heart saves an item without opening it; capturing the click here keeps the item from opening underneath.
+  if (!fullMenuEl._heartWired) {
+    fullMenuEl._heartWired = true;
+    fullMenuEl.addEventListener(
+      "click",
+      (e) => {
+        const heart = e.target.closest("[data-fav]");
+        if (!heart) return;
+        e.stopPropagation();
+        toggleFav(heart.dataset.fav);
+      },
+      true,
+    );
+  }
+  paintHearts();
 
   /* Section pills and dietary chips narrow the same list, so they share one pass. */
   let fullMenuSection = "all";
   const dietOn = new Set();
   const applyFullMenuFilters = () => {
     const active = [...dietOn];
+    const q = ($("#full-menu-search", fullMenuEl)?.value || "").trim().toLowerCase();
     let shown = 0;
     $$(".full-menu-sec", fullMenuEl).forEach((sec) => {
       const inSection = fullMenuSection === "all" || sec.dataset.secCat === fullMenuSection;
       let visible = 0;
       $$(".full-menu-item", sec).forEach((item) => {
-        const ok = matchesDiet(item.dataset.fproduct, active);
+        const ok = matchesDiet(item.dataset.fproduct, active) && (!q || item.textContent.toLowerCase().includes(q));
         item.hidden = !ok;
         if (ok) visible++;
       });
@@ -5940,8 +5960,9 @@ function renderFullMenu() {
     const empty = $("#full-menu-diet-empty", fullMenuEl);
     if (empty) empty.hidden = shown > 0;
     const clear = $("#full-menu-diet-clear", fullMenuEl);
-    if (clear) clear.hidden = dietOn.size === 0;
+    if (clear) clear.hidden = dietOn.size === 0 && !q;
   };
+  $("#full-menu-search", fullMenuEl)?.addEventListener("input", applyFullMenuFilters);
 
   $$(".full-menu-pill", fullMenuEl).forEach((pill) => {
     pill.addEventListener("click", () => {
@@ -5968,6 +5989,8 @@ function renderFullMenu() {
   $("#full-menu-diet-clear", fullMenuEl)?.addEventListener("click", () => {
     playSoftClick();
     dietOn.clear();
+    const box = $("#full-menu-search", fullMenuEl);
+    if (box) box.value = "";
     $$(".full-menu-diet-chip", fullMenuEl).forEach((c) => {
       c.classList.remove("active");
       c.setAttribute("aria-pressed", "false");
@@ -6014,6 +6037,14 @@ function renderFullMenu() {
       }
     });
   });
+}
+
+/** The footer button of the menu board: how many things are in the bag, or a plain "keep browsing". */
+function paintBoardBag() {
+  const label = $("#full-menu-bag-label");
+  if (!label) return;
+  const n = cart.count();
+  label.textContent = n > 0 ? `VIEW MY BAG · ${n} ${n === 1 ? "ITEM" : "ITEMS"}` : "KEEP BROWSING";
 }
 
 function openFullMenu() {
@@ -6139,6 +6170,7 @@ function ordersHTML() {
     .join("")}</div>`;
 }
 cart.subscribe(() => hasLayer("bag") && renderBag());
+cart.subscribe(paintBoardBag);
 
 /* ═══════════ checkout ═══════════ */
 const coEl = $("#checkout");
