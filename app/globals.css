@@ -4909,3 +4909,16 @@ body:has(#pre) .voice-call-floating {
 .full-menu-item .fav[aria-pressed="true"] { background: var(--accent, #c99355); border-color: var(--accent, #c99355); color: #0d0b09; }
 .full-menu-item .fav[aria-pressed="true"] path { fill: currentColor; }
 @media (max-width: 639.98px) { .full-menu-foot-hint { display: none; } }
+
+/* Phones: the picture starts below the text. It used to start a fixed 40% of the way down, which on a short screen is
+   above where the text ends, so the bag ran behind the "closed / open now" line. The 19.5rem floor is the bottom of the
+   text block; shorter screens also tighten the paragraph and spacing a little so the product keeps its size. */
+@media (max-width: 639.98px) {
+  .hero-media { top: max(40%, 19.5rem); }
+}
+@media (max-width: 639.98px) and (max-height: 700px) {
+  .hero .t-lede { font-size: 0.9375rem; line-height: 1.45; }
+  .hero-lede { gap: 1.1rem; }
+  .hero-in { padding-top: 5.25rem; }
+  .hero-bar { padding-top: 0.5rem; }
+}
