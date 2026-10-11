@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CLUB, type ClubState } from '@/components/brewns/club';
-import { LOC_TITLES } from '@/lib/catalog';
+import { catalogItem, defaultSel, DELIVERY, LOC_TITLES } from '@/lib/catalog';
+import type { Member } from '@/lib/member';
 import { usualOf } from '@/lib/usual';
 import { MODE_LABEL, orderNo, type Mode } from '@/lib/orderFlow';
 import { api, pkDate, pkTime, rs } from '@/components/console/api';
@@ -21,6 +22,8 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
   const [bday, setBday] = useState({ d: '', m: '' });
   const [pw, setPw] = useState({ password: '', newPassword: '' });
+  const [member, setMember] = useState<Member | null>(null);
+  const [addr, setAddr] = useState({ label: 'Home', area: 0, address: '' });
 
   useEffect(() => {
     let cancelled = false;
@@ -31,6 +34,16 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
       );
     };
     fetchOrders();
+    api<Member>('/api/account/member').then(
+      (m) => {
+        if (cancelled) return;
+        setMember(m);
+        try {
+          localStorage.setItem('brewns-favs', JSON.stringify(m.favs));
+        } catch {}
+      },
+      () => {},
+    );
 
     // Poll live order and club status dynamically every 5 seconds
     const interval = setInterval(() => {
@@ -58,6 +71,24 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load: the café page's engine starts once per document
     window.location.assign('/?bag=open');
   };
+  const changeMember = async (body: Record<string, unknown>, done?: string) => {
+    try {
+      const m = await api<Member>('/api/account/member', body);
+      setMember(m);
+      try {
+        localStorage.setItem('brewns-favs', JSON.stringify(m.favs));
+      } catch {}
+      if (done) say(done);
+      return true;
+    } catch (e) {
+      say((e as Error).message, true);
+      return false;
+    }
+  };
+  const favItems = (member?.favs || []).flatMap((id) => {
+    const p = catalogItem(id);
+    return p ? [{ p, id }] : [];
+  });
   const usual = orders ? usualOf(orders) : [];
   const addUsual = () => again({ items: usual.map((u) => ({ id: u.id, qty: 1, sel: u.sel, name: u.name })) } as Order);
   const join = async () => {
@@ -164,6 +195,92 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
             </p>
           </section>
         )}
+
+        {favItems.length > 0 && (
+          <section className="cx-card">
+            <div className="cx-card-h" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p className="cx-h2" style={{ margin: 0 }}>Your favourites</p>
+              <button type="button" className="cx-btn sm primary" onClick={() => again({ items: favItems.map(({ p }) => ({ id: p.id, qty: 1, sel: defaultSel(p), name: p.name })) } as Order)}>
+                Add all to bag
+              </button>
+            </div>
+            <div className="cx-stack" style={{ gap: 10 }}>
+              {favItems.map(({ p }) => (
+                <div key={p.id} className="cx-row between">
+                  <div>
+                    <p style={{ fontWeight: 600 }}>{p.name.charAt(0) + p.name.slice(1).toLowerCase()}</p>
+                    <p className="cx-small cx-muted">{rs(p.price)}</p>
+                  </div>
+                  <div className="cx-row">
+                    <button type="button" className="cx-btn sm" onClick={() => again({ items: [{ id: p.id, qty: 1, sel: defaultSel(p), name: p.name }] } as Order)}>
+                      Add to bag
+                    </button>
+                    <button type="button" className="cx-btn sm ghost" aria-label={`Remove ${p.name} from favourites`} onClick={() => changeMember({ action: 'fav', id: p.id, on: false }, 'Removed from your favourites.')}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="cx-small cx-muted">Tap the heart on any product on the site to add it here.</p>
+          </section>
+        )}
+
+        <section className="cx-card cx-stack">
+          <p className="cx-h2">Saved addresses</p>
+          {member && member.addrs.length > 0 ? (
+            <div className="cx-stack" style={{ gap: 10 }}>
+              {member.addrs.map((a) => (
+                <div key={a.id} className="cx-row between">
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontWeight: 600 }}>{a.label}</p>
+                    <p className="cx-small cx-muted">
+                      {a.address} · {DELIVERY.areas[a.area]?.[0]}
+                    </p>
+                  </div>
+                  <button type="button" className="cx-btn sm ghost" aria-label={`Delete ${a.label}`} onClick={() => changeMember({ action: 'addr-delete', id: a.id }, 'Address deleted.')}>
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="cx-small cx-muted">Save where you usually get deliveries and checkout fills it in with one tap.</p>
+          )}
+          {(!member || member.addrs.length < 4) && (
+            <form
+              className="cx-stack"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (await changeMember({ action: 'addr-save', ...addr }, 'Address saved.')) setAddr({ label: 'Home', area: addr.area, address: '' });
+              }}
+            >
+              <div className="cx-grid" style={{ gridTemplateColumns: '1fr 2fr', gap: 8 }}>
+                <label className="cx-field">
+                  <span>Name</span>
+                  <input value={addr.label} onChange={(e) => setAddr({ ...addr, label: e.target.value })} maxLength={20} />
+                </label>
+                <label className="cx-field">
+                  <span>Area</span>
+                  <select value={addr.area} onChange={(e) => setAddr({ ...addr, area: +e.target.value })}>
+                    {DELIVERY.areas.map((a, i) => (
+                      <option key={a[0]} value={i}>
+                        {a[0]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="cx-field">
+                <span>Address</span>
+                <textarea value={addr.address} onChange={(e) => setAddr({ ...addr, address: e.target.value })} maxLength={160} placeholder="House / flat, street, block, nearest landmark" />
+              </label>
+              <button type="submit" className="cx-btn" disabled={addr.address.trim().length < 10}>
+                Save address
+              </button>
+            </form>
+          )}
+        </section>
 
         <section className="cx-card">
           <div className="cx-card-h" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

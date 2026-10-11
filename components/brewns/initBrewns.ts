@@ -4241,6 +4241,8 @@ function track(e, oncePerVisit = true) {
     .then((res) => (res.ok ? res.json() : null))
     .then((who) => {
       if (!who) return;
+      window.__brewnsWho = who;
+      document.dispatchEvent(new CustomEvent("brewns:who", { detail: who }));
       try {
         if (who.customer) window.localStorage.setItem("brewns-acct", String(who.customer.name).slice(0, 60));
         else window.localStorage.removeItem("brewns-acct");
@@ -4445,6 +4447,93 @@ const fillSnaps = (rootEl) =>
     img.src = `${ASSET_BASE_URL}shop/snap/${kind}-${snapProduct}.webp?v=${SNAP_VERSION}`;
   });
 
+/* ═══════════ favourites and saved addresses ═══════════
+   A heart on a product saves it. It works for everyone on this phone; signed in, it is kept in the
+   account too, so it follows the customer to any phone. Signing in brings both lists together, so
+   nothing saved on either side is lost. Saved delivery addresses come from the account. */
+const FAV_KEY = "brewns-favs";
+const FAV_MAX = 24;
+const favs = new Set(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem(FAV_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  })()
+    .filter((id) => typeof id === "string")
+    .slice(-FAV_MAX),
+);
+let favSignedIn = false;
+let favHinted = false;
+const memberCall = (body) =>
+  fetch("/api/account/member", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => (r.ok ? r.json() : null));
+const saveFavsLocal = () => {
+  try {
+    localStorage.setItem(FAV_KEY, JSON.stringify([...favs]));
+  } catch {}
+};
+const heartHTML = (p) =>
+  `<button type="button" class="fav" data-fav="${p.id}" data-name="${esc(p.name)}" aria-pressed="false" aria-label="Save ${esc(p.name)} to favourites"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>`;
+const paintFavs = () => {
+  $$("[data-fav]").forEach((b) => {
+    const on = favs.has(b.dataset.fav);
+    b.setAttribute("aria-pressed", String(on));
+    b.setAttribute("aria-label", `${on ? "Remove" : "Save"} ${b.dataset.name || "this"} ${on ? "from" : "to"} favourites`);
+  });
+  const tab = $('.shop-tab[data-cat="favs"]');
+  if (tab) {
+    tab.hidden = favs.size === 0;
+    const n = tab.querySelector("sup");
+    if (n) n.textContent = String(favs.size).padStart(2, "0");
+  }
+  if (typeof shopFilter !== "undefined" && shopFilter === "favs" && !favs.size) setFilter("all");
+};
+const toggleFav = (id) => {
+  const p = productById(id);
+  if (!p) return;
+  const on = !favs.has(id);
+  if (on) {
+    favs.add(id);
+    while (favs.size > FAV_MAX) favs.delete(favs.values().next().value); // a full list drops the oldest
+  } else favs.delete(id);
+  saveFavsLocal();
+  paintFavs();
+  if (favSignedIn) {
+    memberCall({ action: "fav", id, on }).catch(() => {});
+    toast(on ? `SAVED TO FAVOURITES — ${p.name}` : `REMOVED — ${p.name}`);
+  } else if (on && !favHinted) {
+    favHinted = true;
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load: the account page is a separate app
+    toast(`SAVED — ${p.name}`, "SIGN IN TO KEEP IT", () => { window.location.href = "/account"; });
+  } else toast(on ? `SAVED — ${p.name}` : `REMOVED — ${p.name}`);
+};
+/** Called once we know who is signed in. */
+const syncMember = (who) => {
+  window.__brewnsMember = null;
+  if (!who?.customer) {
+    favSignedIn = false;
+    return;
+  }
+  fetch("/api/account/member", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((m) => {
+      if (!m) return;
+      favSignedIn = true;
+      window.__brewnsMember = m;
+      const merged = [...new Set([...(m.favs || []), ...favs])].filter((id) => productById(id)).slice(-FAV_MAX);
+      const hadExtra = merged.length > (m.favs || []).length;
+      favs.clear();
+      merged.forEach((id) => favs.add(id));
+      saveFavsLocal();
+      paintFavs();
+      if (hadExtra) memberCall({ action: "favs", ids: merged }).catch(() => {});
+    })
+    .catch((err) => console.warn("[favourites]", err));
+};
+document.addEventListener("brewns:who", (e) => syncMember(e.detail));
+if (window.__brewnsWho) syncMember(window.__brewnsWho);
+
 /* ═══════════ the grid ═══════════ */
 const shopGrid = $("#shop-grid");
 const shopTabs = $("#shop-tabs");
@@ -4462,6 +4551,7 @@ shopGrid.innerHTML = PRODUCTS.map((p, i) => {
       : `<img data-snap="${p.model}" data-snap-product="${p.id}" alt="${esc(p.alt || `A bag of brewns ${p.name.toLowerCase()} coffee beans`)}"><span class="pcard-loading" aria-hidden="true"></span>`;
   return `<li class="${p.feature ? "feature" : p.id === "cinnamon-roll" || p.id === "ceramic-tumbler" || p.gift ? "wide" : ""}" data-cat="${p.cat}"><div class="lean"><div>
     <article class="pcard" tabindex="0" role="link" aria-label="${esc(p.name)}, ${money(p.price)}" data-product="${p.id}">
+      ${p.gift ? "" : heartHTML(p)}
       <div class="pcard-top mono-fine"><span>${String(i + 1).padStart(2, "0")}</span>${p.tag ? `<span class="pcard-tag chip"><span class="dot"></span>${p.tag}</span>` : `<span>${CAT_LABEL[p.cat]}</span>`}</div>
       <div class="pcard-media">${media}<span class="pcard-view mono-fine${p.photo && !p.cutout ? "" : " on-dark"}" aria-hidden="true">VIEW PRODUCT <span style="display:inline-block;width:.6rem;transform:rotate(-45deg)">${ARROW_SVG}</span></span></div>
       <div class="pcard-foot">
@@ -4483,7 +4573,7 @@ shopTabs.insertAdjacentHTML(
       const n = key === "all" ? PRODUCTS.length : PRODUCTS.filter((p) => p.cat === key).length;
       return `<button type="button" class="shop-tab" role="tab" aria-selected="${key === "all"}" data-cat="${key}">${label}<sup>${String(n).padStart(2, "0")}</sup></button>`;
     })
-    .join(""),
+    .join("") + '<button type="button" class="shop-tab" role="tab" aria-selected="false" data-cat="favs" hidden>♥ FAVOURITES<sup>00</sup></button>',
 );
 const tabSpring = new Spring({ x: 0, w: 0 }, (o) => (tabInd.style.transform = `translateX(${o.x}px) scaleX(${o.w})`));
 const placeTabInd = (immediate) => {
@@ -4501,7 +4591,7 @@ const setFilter = (cat) => { playSoftClick();
   placeTabInd(false);
   let shown = 0;
   $$("#shop-grid > li").forEach((li) => {
-    const match = cat === "all" || li.dataset.cat === cat;
+    const match = cat === "all" || (cat === "favs" ? favs.has(li.querySelector("[data-product]")?.dataset.product) : li.dataset.cat === cat);
     li.hidden = !match;
     if (!match || REDUCED) return;
     let s = itemSprings.get(li);
@@ -4517,6 +4607,8 @@ shopTabs.addEventListener("click", (e) => {
   if (b) setFilter(b.dataset.cat);
 });
 
+paintFavs();
+
 const quickAdd = (id, btn) => { if (btn) flyLiquidDrop(btn); else playPourDrop();
   const p = productById(id);
   cart.add(id, defaultSel(p));
@@ -4531,6 +4623,8 @@ const quickAdd = (id, btn) => { if (btn) flyLiquidDrop(btn); else playPourDrop()
   }, 1400);
 };
 shopGrid.addEventListener("click", (e) => {
+  const fav = e.target.closest("[data-fav]");
+  if (fav) return toggleFav(fav.dataset.fav);
   const add = e.target.closest("[data-add]");
   if (add) return quickAdd(add.dataset.add, add);
   const card = e.target.closest(".pcard");
@@ -6277,7 +6371,7 @@ function renderCheckout({ animate = true } = {}) {
         <div class="co-block"><div class="fields">
           ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', dineIn ? "Name for table service" : delivery ? "Who the rider asks for" : "Who we call out")}
           ${field("phone", "MOBILE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="16"', "0300 1234567")}
-          ${delivery ? `<label class="field wide${co.errors.address ? " bad" : ""}"><span class="mono-fine">ADDRESS · ${DELIVERY.areas[co.area][0]}</span><textarea data-field="address" rows="2" maxlength="160" autocomplete="street-address" placeholder="House / flat, street, block, nearest landmark">${esc(co.address)}</textarea><span class="err mono-fine">${co.errors.address || ""}</span></label>` : ""}
+          ${delivery ? `${savedAddrChips()}<label class="field wide${co.errors.address ? " bad" : ""}"><span class="mono-fine">ADDRESS · ${DELIVERY.areas[co.area][0]}</span><textarea data-field="address" rows="2" maxlength="160" autocomplete="street-address" placeholder="House / flat, street, block, nearest landmark">${esc(co.address)}</textarea><span class="err mono-fine">${co.errors.address || ""}</span></label><div data-addr-save-slot>${saveAddrButton()}</div>` : ""}
           ${field("email", "EMAIL · OPTIONAL", "email", 'autocomplete="email" maxlength="80"', "For the receipt")}
           <label class="field wide"><span class="mono-fine">NOTE FOR THE ${dineIn ? "SERVER" : delivery ? "RIDER" : "BARISTA"} · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="${dineIn ? "Water first, extra napkins…" : delivery ? "Gate code, call on arrival…" : "Extra hot, less ice…"}">${esc(co.note)}</textarea></label>
         </div></div>
@@ -7059,9 +7153,48 @@ async function sendOrder(o, email) {
   }
 }
 
+/* Saved delivery addresses (signed in): tap one to fill the address and area, or save the one just typed. */
+const savedAddrChips = () => {
+  const list = window.__brewnsMember?.addrs || [];
+  if (!list.length) return "";
+  return `<div class="field wide addr-chips" role="group" aria-label="Saved addresses"><span class="mono-fine">YOUR SAVED ADDRESSES</span><div>${list
+    .map((a) => `<button type="button" class="addr-chip${co && co.address.trim() === a.address && co.area === a.area ? " on" : ""}" data-addr-use="${esc(a.id)}"><b>${esc(a.label)}</b><span>${esc(DELIVERY.areas[a.area]?.[0] || "")} · ${esc(a.address.slice(0, 38))}${a.address.length > 38 ? "…" : ""}</span></button>`)
+    .join("")}</div></div>`;
+};
+const saveAddrButton = () => {
+  const who = window.__brewnsWho;
+  if (!who?.customer || !co || co.address.trim().length < 10) return "";
+  const saved = (window.__brewnsMember?.addrs || []).some((a) => a.address === co.address.trim() && a.area === co.area);
+  return saved ? "" : `<button type="button" class="addr-save mono-fine" data-addr-save>+ SAVE THIS ADDRESS TO MY ACCOUNT</button>`;
+};
+
 coEl.addEventListener("click", (e) => {
   if (!co) return;
   const t = e.target;
+  const useAddr = t.closest("[data-addr-use]");
+  if (useAddr) {
+    const a = (window.__brewnsMember?.addrs || []).find((x) => x.id === useAddr.dataset.addrUse);
+    if (a) {
+      co.address = a.address;
+      co.area = a.area;
+      co.errors.address = "";
+      renderCheckout({ animate: false });
+    }
+    return;
+  }
+  if (t.closest("[data-addr-save]")) {
+    const label = window.prompt("Name this address (Home, Work…)", "Home");
+    if (label === null) return;
+    memberCall({ action: "addr-save", label, address: co.address.trim(), area: co.area })
+      .then((m) => {
+        if (!m) return toast("THAT ADDRESS COULDN'T BE SAVED. YOU CAN KEEP 4.");
+        window.__brewnsMember = m;
+        toast("ADDRESS SAVED TO YOUR ACCOUNT");
+        if (co) renderCheckout({ animate: false });
+      })
+      .catch(() => toast("NO CONNECTION. TRY AGAIN."));
+    return;
+  }
   const act = t.closest("[data-co]")?.dataset.co;
   if (act === "close") return closeCheckout();
   if (co.trk) {
@@ -7204,6 +7337,10 @@ coEl.addEventListener("input", (e) => {
   const k = e.target.dataset.field;
   if (!co || !k) return;
   co[k] = e.target.value;
+  if (k === "address") {
+    const slot = $("[data-addr-save-slot]", coEl);
+    if (slot) slot.innerHTML = saveAddrButton();
+  }
   const wrap = e.target.closest(".field");
   if (co.errors[k]) {
     co.errors[k] = "";

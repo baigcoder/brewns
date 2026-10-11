@@ -101,6 +101,8 @@ export async function exportCustomer(u: User) {
     about: 'This is the information brewns holds about your account. Write to hello@brewns.coffee if anything is wrong.',
     account: { name: u.name, email: u.email, phone: u.phone, joined: new Date(u.createdAt).toISOString(), lastSignIn: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : null },
     club: u.club?.member ? u.club : null,
+    favourites: (await (await import('./member')).readMember(u.id)).favs,
+    savedAddresses: (await (await import('./member')).readMember(u.id)).addrs.map(({ label, address }) => ({ label, address })),
     orders: orders.map((o) => publicOrder(o)),
   };
 }
@@ -118,6 +120,8 @@ export async function deleteCustomer(u: User) {
     await saveOrder({ ...o, customerId: null, name: 'Former customer', phone: '', email: '', address: '', note: '', messages: [], club: null });
   }
   await kv.del(`customer-orders:${u.id}`);
+  const { deleteMember } = await import('./member');
+  await deleteMember(u.id);
   await deleteUser(u);
   return { orders: orders.length };
 }
