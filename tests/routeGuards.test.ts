@@ -25,8 +25,8 @@ const PER_ACTION = new Set([
   'staff/orders/[number]/route.ts', // every action calls need(...) in lib/server/orders.ts
 ]);
 
-/** The only routes allowed to merely look at who is signed in: signing out reads the session to end it. */
-const MAY_READ_SESSION = new Set(['auth/signout/route.ts']);
+/** The only routes allowed to merely look at who is signed in: signing out reads the session to end it, and the site's header reads a name to greet them. */
+const MAY_READ_SESSION = new Set(['auth/signout/route.ts', 'public/whoami/route.ts']);
 
 describe('every API route', () => {
   it('never settles for "signed in as staff" alone, anywhere (a rider could then do a manager job)', () => {
