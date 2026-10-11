@@ -4922,3 +4922,17 @@ body:has(#pre) .voice-call-floating {
   .hero-in { padding-top: 5.25rem; }
   .hero-bar { padding-top: 0.5rem; }
 }
+
+/* Phones and tablets: turn the product with a finger, and stop the dark band at the bottom swallowing it.
+   - The drag area was switched off below 1024px, so touch never reached the 3D model. It is on now; `pan-y` leaves
+     vertical swipes to the page (scrolling still works) and gives sideways drags to the model.
+   - The band behind the opening hours was tall, almost black and blurred: it cut the bottom off the bag and cup. It is
+     shorter and fades out softly, and on a phone the picture now ends above the strip instead of running under it. */
+@media (max-width: 1023.98px) {
+  .hero-handle { display: block; pointer-events: auto; touch-action: pan-y; }
+  .hero-bar-scrim { top: -1.25rem; background: linear-gradient(to top, rgba(7, 7, 7, 0.96) 0%, rgba(7, 7, 7, 0.9) 60%, rgba(7, 7, 7, 0) 100%); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .hero-media::after { opacity: 0.45; }
+}
+@media (max-width: 639.98px) {
+  .hero-media { bottom: 4.25rem; margin-bottom: 0; }
+}
