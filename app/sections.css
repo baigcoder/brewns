@@ -15,7 +15,6 @@
 .pcard-media:has(img.shot) { overflow: hidden; min-height: 15rem; margin-block: 0.75rem; }
 .pcard-media img.shot { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
 .pcard:hover .pcard-media img.shot { transform: scale(1.05); }
-.lean > div { transform-style: preserve-3d; will-change: transform; }
 .pcard, .card { will-change: transform, opacity; }
 .pcard-media img { will-change: transform; transform: translateZ(0); }
 .pcard-media img.shot { will-change: transform; }
@@ -36,10 +35,11 @@
 .trk-steps li time { font-size: var(--font-size-label); }
 .trk-steps li.on { color: #fff; }
 .trk-steps li.on i { background: var(--accent); border-color: var(--accent); }
-.trk-steps li.now i { box-shadow: 0 0 0 4px rgb(213 140 61 / 0.25); animation: trk-pulse 1.6s ease-in-out infinite; }
+.trk-steps li.now i { position: relative; box-shadow: 0 0 0 4px rgb(213 140 61 / 0.25); }
+.trk-steps li.now i::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 4px solid rgb(213 140 61 / 0.25); animation: dot-ring 1.6s ease-out infinite; }
 .trk-steps li.now b { color: var(--accent); }
 .trk-steps.cancelled li { color: rgb(255 255 255 / 0.25); text-decoration: line-through; }
-@keyframes trk-pulse { 50% { box-shadow: 0 0 0 8px rgb(213 140 61 / 0); } }
+@keyframes dot-ring { from { transform: scale(0.7); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
 .trk-rider { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem; border: 1px solid rgb(216 183 119 / 0.35); background: rgb(216 183 119 / 0.06); }
 .trk-rider > div { flex: 1; min-width: 0; }
 .trk-rider .mono-fine { color: rgb(255 255 255 / 0.55); }
@@ -234,8 +234,9 @@
 .sp-moment { display: flex; align-items: center; gap: 0.55rem; padding: 0.6rem 0.75rem; border-radius: 10px; background: rgb(216 183 119 / 0.08); border: 1px solid rgb(216 183 119 / 0.18); font-size: 0.82rem; line-height: 1.35; color: rgb(255 255 255 / 0.85); }
 .sp-moment.in #sp-moment-t { animation: sp-moment 500ms var(--ease-entrance, ease) both; }
 @keyframes sp-moment { from { opacity: 0; transform: translateY(4px); } }
-.sp-moment-dot { flex: none; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: #d8b777; box-shadow: 0 0 0 0 rgb(216 183 119 / 0.5); animation: sp-dot 1.8s ease-out infinite; }
-@keyframes sp-dot { 70% { box-shadow: 0 0 0 0.45rem rgb(216 183 119 / 0); } 100% { box-shadow: 0 0 0 0 rgb(216 183 119 / 0); } }
+.sp-moment-dot { flex: none; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: #d8b777; position: relative; }
+.sp-moment-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: rgb(216 183 119 / 0.5); animation: dot-ping 1.8s ease-out infinite; }
+@keyframes dot-ping { 0% { transform: scale(1); opacity: 1; } 70%, 100% { transform: scale(3); opacity: 0; } }
 /* the tune the trio is playing */
 .sp-np { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem 0.75rem; border-radius: 10px; background: rgb(255 255 255 / 0.05); border: 1px solid rgb(255 255 255 / 0.08); animation: sp-moment 500ms var(--ease-entrance, ease) both; }
 .sp-np .mono-fine { color: #d8b777; }
@@ -416,9 +417,9 @@
 .inside-now-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.12em; color: rgb(255 255 255 / 0.6); }
 .inside-now-head b { font-weight: 400; color: #7fd18b; }
 .inside-now.closed .inside-now-head b { color: #e0876a; }
-.inside-now-dot { width: 7px; height: 7px; border-radius: 50%; background: #7fd18b; box-shadow: 0 0 0 0 rgb(127 209 139 / 0.6); animation: in-live 1.8s infinite; }
+.inside-now-dot { width: 7px; height: 7px; border-radius: 50%; background: #7fd18b; position: relative; }
+.inside-now-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: rgb(127 209 139 / 0.6); animation: dot-ping 1.8s ease-out infinite; }
 .inside-now.closed .inside-now-dot { background: #e0876a; animation: none; }
-@keyframes in-live { 70% { box-shadow: 0 0 0 7px rgb(127 209 139 / 0); } 100% { box-shadow: 0 0 0 0 rgb(127 209 139 / 0); } }
 .inside-busy { display: flex; flex-direction: column; gap: 0.5rem; }
 .inside-busy-t { display: flex; justify-content: space-between; font-family: var(--font-space-mono); font-size: 0.625rem; letter-spacing: 0.14em; color: rgb(255 255 255 / 0.45); }
 .inside-bars { display: grid; grid-template-columns: repeat(14, 1fr); align-items: end; gap: 3px; height: 3.25rem; }

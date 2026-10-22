@@ -439,16 +439,9 @@
   --size-arrow-height: var(--raw-size-arrow-height);
 }
 
-@font-face {
-  font-family: "Space Mono";
-  src: url("/assets/fonts/SpaceMono-Regular.woff2") format("woff2"), url("/assets/fonts/SpaceMono-Regular.ttf") format("truetype");
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Allura";
-  src: url("/assets/fonts/Allura-Regular.woff2") format("woff2"), url("/assets/fonts/Allura-Regular.ttf") format("truetype");
-  font-weight: 400; font-style: normal; font-display: swap;
-}
+/* "Space Mono" and "Allura" come from next/font (app/layout.tsx), which declares
+   them under those family names as subset woff2. A second @font-face here pointing
+   at /assets/fonts made the browser download both copies. */
 :root {
   /* --font-geist, --font-onest and --font-space-mono come from next/font on <html>.
      Redefining them here in terms of themselves made them invalid, and every
@@ -939,8 +932,6 @@ address { font-style: normal; }
 @media (min-width: 1024px) { .cards { position: absolute; left: 2.5rem; right: 2.5rem; bottom: 2.5rem; top: auto; display: flex; gap: 0.75rem; } }
 @media (min-width: 1440px) { .cards { bottom: auto; top: var(--size-menu-cards-y); } }
 .cards li, .lean, .lean > div { display: flex; flex: 1 1 0%; }
-.lean { perspective: 900px; }
-.lean > div { transform-style: preserve-3d; }
 .card { position: relative; display: flex; height: 16rem; flex: 1 1 0%; flex-direction: column; align-items: center; gap: 0.75rem; border: 1px solid var(--foreground-inverse); padding: 0.75rem; color: var(--foreground-inverse); opacity: 0; }
 @media (max-width: 639.98px) { .card { height: 22.5rem; } }
 @media (min-width: 640px) { .card { height: 18rem; gap: 1rem; padding: 1rem; } }
@@ -3753,9 +3744,9 @@ body:has(#pre) .voice-call-floating {
   .hero-scroll { position: absolute; z-index: 11; left: 50%; bottom: 2.25rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.6rem; font-family: var(--font-space-mono); font-size: 0.625rem; letter-spacing: 0.3em; color: rgb(244 242 236 / 0.55); transition: color 200ms ease; }
   .hero-scroll:hover { color: var(--foreground); }
   .hero-scroll i { position: relative; width: 1px; height: 2.5rem; overflow: hidden; background: rgb(255 255 255 / 0.16); }
-  .hero-scroll i::after { content: ""; position: absolute; left: 0; top: -40%; width: 1px; height: 40%; background: var(--accent, #c99355); animation: heroScroll 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+  .hero-scroll i::after { content: ""; position: absolute; left: 0; top: 0; width: 1px; height: 40%; background: var(--accent, #c99355); transform: translateY(-100%); animation: heroScroll 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
 }
-@keyframes heroScroll { to { top: 100%; } }
+@keyframes heroScroll { to { transform: translateY(250%); } }
 
 /* a fine film grain over the warm light, under the copy */
 .hero::after {
@@ -4136,4 +4127,20 @@ body:has(#pre) .voice-call-floating {
 }
 @media (max-width: 639.98px) {
   .hero-media { bottom: 4.25rem; margin-bottom: 0; }
+}
+
+
+/* Menu card footer: the name gets the full width on its own line (two at most),
+   then the price and "+ ADD" share one row that never wraps. Side by side, long
+   names ran into the price on desktop, and on phones the price and the button
+   broke onto two lines ("RS / 1,150", "+ / ADD"). */
+.menu .card-foot { flex-direction: column; align-items: stretch; justify-content: flex-end; gap: 0.45rem; min-height: 0; }
+.menu .card-foot > p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; line-height: 1.15; padding-bottom: 0.05em; }
+.menu .card-foot > div { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
+.menu .card-foot > div > p { white-space: nowrap; min-width: 0; }
+.menu .card-quick-add { flex: none; white-space: nowrap; }
+@media (max-width: 639.98px) {
+  .menu .card-foot { gap: 0.3rem; }
+  .menu .card-foot > div > p { font-size: 0.6875rem; }
+  .menu .card-quick-add { padding: 0.45rem 0.55rem; font-size: 0.625rem; letter-spacing: 0.04em; }
 }

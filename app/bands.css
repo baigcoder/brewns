@@ -356,14 +356,15 @@
 .film-sound { position: absolute; left: 1rem; bottom: 1rem; height: 3rem; display: inline-flex; align-items: center; gap: 0.7rem; padding: 0 1.15rem 0 1rem; border-radius: 999px; border: 1px solid rgb(245 240 232 / 0.25); background: rgb(16 12 10 / 0.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: #f5f0e8; font-family: var(--font-space-mono); font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; transition: background 200ms ease, border-color 200ms ease; }
 .film-sound:hover { background: rgb(211 154 98 / 0.85); border-color: transparent; }
 .film-sound:focus-visible { outline: 2px solid #d39a62; outline-offset: 3px; }
-.film-sound[aria-pressed="false"] { animation: film-sound-call 2.4s ease-in-out infinite; }
-@keyframes film-sound-call { 0%, 100% { box-shadow: 0 0 0 0 rgb(211 154 98 / 0); } 50% { box-shadow: 0 0 0 6px rgb(211 154 98 / 0.22); } }
+.film-sound::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 0 6px rgb(211 154 98 / 0.22); opacity: 0; pointer-events: none; }
+.film-sound[aria-pressed="false"]::after { animation: film-sound-call 2.4s ease-in-out infinite; }
+@keyframes film-sound-call { 50% { opacity: 1; } }
 .film-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
-.film-eq i { width: 3px; height: 4px; border-radius: 1px; background: #d39a62; }
+.film-eq i { width: 3px; height: 14px; border-radius: 1px; background: #d39a62; transform: scaleY(0.29); transform-origin: bottom; }
 .film-sound[aria-pressed="true"] .film-eq i { animation: film-eq 0.9s ease-in-out infinite alternate; }
 .film-sound[aria-pressed="true"] .film-eq i:nth-child(2) { animation-delay: -0.3s; }
 .film-sound[aria-pressed="true"] .film-eq i:nth-child(3) { animation-delay: -0.6s; }
 .film-sound[aria-pressed="true"] .film-eq i:nth-child(4) { animation-delay: -0.15s; }
-@keyframes film-eq { from { height: 3px; } to { height: 14px; } }
-@media (prefers-reduced-motion: reduce) { .film-sound[aria-pressed] { animation: none; } .film-sound[aria-pressed="true"] .film-eq i { animation: none; height: 10px; } }
+@keyframes film-eq { from { transform: scaleY(0.21); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .film-sound[aria-pressed]::after { animation: none; } .film-sound[aria-pressed="true"] .film-eq i { animation: none; transform: scaleY(0.71); } }
 @media (max-width: 639.98px) { .film-sound { left: 0.6rem; bottom: 0.6rem; height: 2.5rem; padding: 0 0.9rem 0 0.8rem; font-size: 0.6875rem; } .film-toggle { right: 0.6rem; bottom: 0.6rem; width: 2.5rem; height: 2.5rem; } }
