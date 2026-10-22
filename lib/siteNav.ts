@@ -26,6 +26,7 @@ export const FOOTER_COLUMNS: [string, NavLink[]][] = [
     { href: '/reserve', label: 'Book a table' },
     { href: '/#menu', label: 'Café menu' },
     { href: '/#order', label: 'Order ahead' },
+    { href: '/how-it-works', label: 'How it works' },
     { href: '/#faq', label: 'Events & catering' },
   ]],
   ['brewns', [

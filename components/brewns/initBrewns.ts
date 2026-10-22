@@ -1774,7 +1774,7 @@ document.addEventListener("click", (e) => {
 const COLUMNS = [
   ["Shop", [["ALL PRODUCTS", "/shop"], ["COFFEE BEANS", "/shop#beans"], ["SUBSCRIBE", "/subscribe"], ["GIFT CARDS", "/gift-cards"], ["MERCH", "#shop", "shop:merch"]]],
   ["Menu", [["COFFEE", "#menu", "menu:coffee"], ["COLD BAR", "#menu", "menu:specialty"], ["KITCHEN", "#menu", "menu:burgers"], ["FULL MENU", "#menu", "fullmenu"]]],
-  ["Experience", [["MOMENTS", "#moments"], ["BOOK A TABLE", "/reserve"], ["BREW AT HOME", "#brew"], ["BREW TIMER", "/brew-timer"], ["FLAVOR WHEEL", "/flavor-wheel"], ["BREWNS CLUB", "#club"]]],
+  ["Experience", [["MOMENTS", "#moments"], ["BOOK A TABLE", "/reserve"], ["HOW IT WORKS", "/how-it-works"], ["BREW AT HOME", "#brew"], ["BREW TIMER", "/brew-timer"], ["FLAVOR WHEEL", "/flavor-wheel"], ["BREWNS CLUB", "#club"]]],
   ["brewns", [["OUR STORY", "/about"], ["OUR COFFEE", "/coffee"], ["LOCATIONS", "/locations"], ["THE JOURNAL", "/journal"], ["CAREERS", "/careers"], ["STAFF PORTAL", "/staff/signin"]]],
   ["Help", [["CONTACT US", "/contact"], ["DELIVERY", "/delivery"], ["REFUNDS", "/refunds"], ["PRIVACY", "/privacy"], ["TERMS", "/terms"], ["EMAIL US", "mailto:hello@brewns.coffee"], ["CALL US", "tel:+924212345678"]]],
 ];
@@ -2542,7 +2542,7 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   const load = () => {
     if (loaded) return;
     loaded = true;
-    video.innerHTML = `<source src="/assets/film/brewns-film-${size}.webm" type="video/webm"><source src="/assets/film/brewns-film-${size}.mp4" type="video/mp4">`;
+    video.innerHTML = `<source src="/assets/film/how-it-works/how-it-works-${size}.webm" type="video/webm"><source src="/assets/film/how-it-works/how-it-works-${size}.mp4" type="video/mp4">`;
     video.load();
   };
   const paint = () => {
@@ -2572,6 +2572,27 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   video.addEventListener("volumechange", paintSound);
   video.addEventListener("ended", () => { setSound(false); video.play().catch(() => {}); });
   toggle.addEventListener("click", () => { wanted = video.paused; sync(); if (wanted && !inView) { inView = true; sync(); } });
+  // A chapter plays from its moment with the voice-over, like "Sound on" but mid-film.
+  const chips = [...document.querySelectorAll(".film-chapters button")];
+  const seekTo = (at) => {
+    load();
+    if (video.readyState >= 1) video.currentTime = at;
+    else video.addEventListener("loadedmetadata", () => { video.currentTime = at; }, { once: true });
+  };
+  chips.forEach((b) => b.addEventListener("click", () => {
+    video.muted = false;
+    video.loop = false;
+    wanted = true;
+    inView = true;
+    paintSound();
+    seekTo(Number(b.dataset.at));
+    sync();
+  }));
+  video.addEventListener("timeupdate", () => {
+    let on = -1;
+    chips.forEach((b, i) => { if (Number(b.dataset.at) <= video.currentTime + 0.25) on = i; });
+    chips.forEach((b, i) => (i === on ? b.setAttribute("aria-current", "true") : b.removeAttribute("aria-current")));
+  });
   // Fetch a little before it arrives, but never during the page load: it sits right under
   // the hero and must not compete with it. Play only while most of it is on screen.
   const watch = () => new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && !REDUCED && load(), { rootMargin: "400px 0px" }).observe(video);

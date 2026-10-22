@@ -334,16 +334,37 @@
 .rev-empty-p { margin-inline: 0; font-size: 1rem; }
 
 /* ── The brewns film ── */
-.film { position: relative; background: #100c0a; color: #f5f0e8; padding: 5.5rem 1.25rem 6rem; overflow: hidden; }
-.film::before { content: ""; position: absolute; inset: -20% -10% auto; height: 70%; background: radial-gradient(50% 60% at 50% 30%, rgb(122 74 40 / 0.35), transparent 70%); pointer-events: none; }
+/* A dark stage under a warm spotlight, so the film (itself a warm brown) reads as a lit screen, not a box. */
+.film { position: relative; isolation: isolate; background: #080605; color: #f5f0e8; padding: 5.5rem 1.25rem 6rem; overflow: hidden; }
+.film::before { content: ""; position: absolute; z-index: -1; left: 50%; top: 52%; width: min(120rem, 140vw); aspect-ratio: 16 / 9; transform: translate(-50%, -50%); background: radial-gradient(closest-side, rgb(211 154 98 / 0.22), rgb(122 74 40 / 0.12) 45%, transparent 75%); pointer-events: none; }
+.film::after { content: ""; position: absolute; z-index: -1; inset: 0; background: linear-gradient(#080605, transparent 18%, transparent 82%, #080605), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E"); pointer-events: none; }
 @media (min-width: 640px) { .film { padding: 7rem 2.5rem 7.5rem; } }
-.film-in { position: relative; max-width: 88rem; margin-inline: auto; display: grid; gap: 2rem; }
-.film-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem 2rem; }
+.film-in { position: relative; max-width: 76rem; margin-inline: auto; display: grid; gap: clamp(1.75rem, 3vw, 2.75rem); }
+.film-head { display: grid; gap: 1.5rem 3rem; align-items: end; }
+@media (min-width: 900px) { .film-head { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); } }
+.film-title { display: grid; gap: 1.1rem; }
+.film-aside { display: grid; gap: 1.1rem; justify-items: start; padding-bottom: 0.4rem; }
+.film-lede { max-width: 30rem; font-size: clamp(0.95rem, 1.3vw, 1.05rem); line-height: 1.6; color: rgb(245 240 232 / 0.68); }
 .film-eyebrow { display: inline-flex; align-items: center; gap: 0.6rem; font-family: var(--font-space-mono); font-size: 0.75rem; letter-spacing: 0.16em; text-transform: uppercase; color: #d39a62; }
+.film-more { font-family: var(--font-space-mono); font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgb(245 237 227 / 0.75); text-decoration: none; border-bottom: 1px solid rgb(211 154 98 / 0.45); padding-bottom: 0.3rem; transition: color 150ms ease, border-color 150ms ease; }
+.film-more:hover, .film-more:focus-visible { color: #d39a62; border-color: #d39a62; }
 .film-eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: #d39a62; box-shadow: 0 0 0 4px rgb(211 154 98 / 0.18); }
 .film-h { font-family: var(--font-geist); font-weight: 800; text-transform: uppercase; letter-spacing: -0.03em; line-height: 0.95; font-size: clamp(2.2rem, 5.4vw, 5rem); max-width: 16ch; }
 .film-h em { display: block; font-family: var(--font-allura); font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0; color: #d39a62; font-size: 1.05em; line-height: 1.1; }
-.film-frame { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 1.5rem; overflow: hidden; background: #0a0706 url("/assets/film/brewns-film-poster.webp") center / cover no-repeat; border: 1px solid rgb(211 154 98 / 0.22); box-shadow: 0 40px 120px -40px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.03) inset; }
+.film-frame { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 1.5rem; overflow: hidden; background: #0a0706 url("/assets/film/how-it-works/how-it-works-poster.webp") center / cover no-repeat; border: 1px solid rgb(211 154 98 / 0.4); box-shadow: 0 0 0 10px rgb(245 240 232 / 0.025), 0 0 0 11px rgb(211 154 98 / 0.12), 0 50px 140px -30px rgb(0 0 0 / 0.95), 0 0 160px -30px rgb(211 154 98 / 0.35); }
+.film-frame::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), inset 0 0 80px rgb(0 0 0 / 0.35); pointer-events: none; }
+
+/* chapter chips under the film */
+.film-chapters { display: flex; gap: 0.5rem; list-style: none; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; padding: 0.25rem 0.1rem; margin-top: 0.5rem; }
+.film-chapters::-webkit-scrollbar { display: none; }
+@media (min-width: 1100px) { .film-chapters { justify-content: space-between; gap: 0.4rem; overflow: visible; } .film-chapters button { padding: 0 0.8rem 0 0.7rem; gap: 0.45rem; font-size: 0.8rem; } }
+.film-chapters li { flex: none; scroll-snap-align: start; }
+.film-chapters button { display: inline-flex; align-items: center; gap: 0.6rem; height: 2.5rem; padding: 0 1rem 0 0.85rem; border-radius: 999px; border: 1px solid rgb(245 240 232 / 0.14); background: rgb(245 240 232 / 0.04); color: rgb(245 240 232 / 0.78); font-family: var(--font-geist); font-weight: 600; font-size: 0.85rem; cursor: pointer; white-space: nowrap; transition: background 180ms ease, border-color 180ms ease, color 180ms ease; }
+.film-chapters b { font-family: var(--font-space-mono); font-weight: 400; font-size: 0.7rem; letter-spacing: 0.08em; color: #d39a62; }
+.film-chapters button:hover { border-color: rgb(211 154 98 / 0.6); color: #f5f0e8; }
+.film-chapters button:focus-visible { outline: 2px solid #d39a62; outline-offset: 2px; }
+.film-chapters button[aria-current] { background: #d39a62; border-color: #d39a62; color: #120c06; }
+.film-chapters button[aria-current] b { color: #120c06; }
 @media (max-width: 639.98px) { .film-frame { border-radius: 1rem; } }
 .film-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .film-toggle { position: absolute; right: 1rem; bottom: 1rem; width: 3rem; height: 3rem; border-radius: 50%; border: 1px solid rgb(245 240 232 / 0.25); background: rgb(16 12 10 / 0.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); display: grid; place-items: center; cursor: pointer; transition: background 200ms ease, transform 200ms ease; }

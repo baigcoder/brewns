@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { POSTS } from '@/lib/journal';
 import { CATALOG } from '@/lib/catalog';
 import { CAFES } from '@/lib/locations';
+import { FILM } from '@/lib/howItWorks';
 import { SITE_URL } from '@/lib/site';
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -22,6 +23,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/delivery`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${SITE_URL}/refunds`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${SITE_URL}/reserve`, changeFrequency: 'monthly', priority: 0.8 },
+    {
+      url: `${SITE_URL}${FILM.path}`,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+      videos: [{ title: FILM.title, description: FILM.description, thumbnail_loc: `${SITE_URL}${FILM.poster}`, content_loc: `${SITE_URL}${FILM.sources.large.mp4}`, duration: FILM.seconds, publication_date: FILM.uploaded }],
+    },
     { url: `${SITE_URL}/brew-timer`, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/flavor-wheel`, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/privacy`, changeFrequency: 'yearly', priority: 0.2 },

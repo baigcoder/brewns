@@ -5,6 +5,7 @@
 
 import { catalogItem, money } from '@/lib/catalog';
 import { ANNOUNCEMENT } from '@/lib/siteNav';
+import { CHAPTERS, clockTime } from '@/lib/howItWorks';
 import { SPOTLIGHT } from '@/lib/spotlight';
 
 const ARROW = `<svg viewBox="0 0 12.2137 13.2551" fill="none" aria-hidden="true"><path d="M11.9501 7.26396C12.3016 6.91249 12.3016 6.34264 11.9501 5.99117L6.22254 0.263604C5.87107 -0.0878682 5.30122 -0.0878682 4.94975 0.263604C4.59828 0.615076 4.59828 1.18492 4.94975 1.5364L10.0409 6.62756L4.94975 11.7187C4.59828 12.0702 4.59828 12.6401 4.94975 12.9915C5.30122 13.343 5.87107 13.343 6.22254 12.9915L11.9501 7.26396ZM0 6.62756V7.52756H11.3137V6.62756V5.72756H0V6.62756Z" fill="currentColor"/></svg>`;
@@ -113,21 +114,31 @@ export const SPOTLIGHT_MARKUP = `
 /** The line across the top of the home page, as on every other page. */
 export const NOTE_MARKUP = `<p class="gh-note home-note"><span>${ANNOUNCEMENT.text}</span><span class="gh-note-more">${ANNOUNCEMENT.more}</span><a href="${ANNOUNCEMENT.href}">${ANNOUNCEMENT.cta} →</a></p>`;
 
-/* The brewns film: a 46 second narrated motion piece, right after the hero. Nothing
+/* The brewns film: a one-minute narrated tour of ordering at brewns (the same film,
+   with chapters and a transcript, lives on /how-it-works), right after the hero. Nothing
    loads until it is near the screen; it plays muted while in view, and "Sound on"
    starts it again from the top with the voice-over (see initBrewns). */
 export const FILM_MARKUP = `
 <section aria-label="The brewns film" id="film" data-header-theme="dark" class="film">
   <div class="film-in">
     <div class="film-head" data-iv="rise" data-y="16">
-      <p class="film-eyebrow"><span aria-hidden="true"></span>46 seconds at brewns</p>
-      <h2 class="film-h">From the first shot <em>to your moment.</em></h2>
+      <div class="film-title">
+        <p class="film-eyebrow"><span aria-hidden="true"></span>One minute at brewns</p>
+        <h2 class="film-h">Your coffee, <em>one tap away.</em></h2>
+      </div>
+      <div class="film-aside">
+        <p class="film-lede">Open the menu, make the cup your own, pay ahead and walk past the line. Or just call, and Sarah books your table.</p>
+        <a class="film-more" href="/how-it-works">Chapters &amp; transcript <span aria-hidden="true">→</span></a>
+      </div>
     </div>
     <figure class="film-frame" data-iv="rise" data-y="24" data-d="120">
-      <video class="film-video" id="film-video" muted playsinline loop preload="none" poster="/assets/film/brewns-film-poster.webp" aria-label="The brewns film: 7 a.m. in Lahore, 92 degree water and 27 second shots, beans sourced and roasted weekly in Lahore, the menu, order ahead and ready in four minutes, three counters across the city."></video>
+      <video class="film-video" id="film-video" muted playsinline loop preload="none" poster="/assets/film/how-it-works/how-it-works-poster.webp" aria-label="The brewns film: open the menu, tap a cup to spin it in 3D and pick your size and milk, pay ahead and skip the line, beans roasted weekly in Lahore, three counters, Sarah booking a table by phone, and the same site on your phone."></video>
       <button type="button" class="film-toggle" id="film-toggle" aria-label="Play the film" data-state="paused"><span class="film-ico" aria-hidden="true"></span></button>
       <button type="button" class="film-sound" id="film-sound" aria-pressed="false"><span class="film-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="film-sound-l">Sound on</span></button>
     </figure>
+    <ol class="film-chapters" aria-label="Jump to a moment in the film" data-iv="rise" data-y="16" data-d="200">${CHAPTERS.map(
+      (c) => `<li><button type="button" data-at="${c.at}" aria-label="Play from ${clockTime(c.at)}: ${c.title}"><b>${clockTime(c.at)}</b>${c.title}</button></li>`,
+    ).join('')}</ol>
   </div>
 </section>
 `;

@@ -1,0 +1,44 @@
+/* The "How brewns works" film and its chapter list (components/site/FilmPlayer.tsx). */
+.fp { display: grid; gap: 2rem; }
+.fp-frame { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border-radius: clamp(16px, 2.4vw, 28px); background: #0a0706; border: 1px solid rgb(216 183 119 / 0.16); box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.7); }
+.fp-video { display: block; width: 100%; height: 100%; object-fit: cover; background: #0a0706; }
+.fp-play { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-start; gap: 14px; padding: clamp(16px, 3vw, 32px); border: 0; cursor: pointer; color: #f5ede3; background: linear-gradient(to top, rgb(10 7 6 / 0.85), rgb(10 7 6 / 0.1) 55%, transparent); text-align: left; }
+.fp-play-ico { position: relative; flex: none; width: clamp(52px, 7vw, 72px); height: clamp(52px, 7vw, 72px); border-radius: 50%; background: var(--cx-accent, #c99355); box-shadow: 4px 4px 0 #f5ede3; transition: transform 150ms ease, box-shadow 150ms ease; }
+.fp-play-ico::after { content: ""; position: absolute; left: 54%; top: 50%; transform: translate(-50%, -50%); border-style: solid; border-width: 11px 0 11px 18px; border-color: transparent transparent transparent #120c06; }
+.fp-play:hover .fp-play-ico, .fp-play:focus-visible .fp-play-ico { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #f5ede3; }
+.fp-play:focus-visible { outline: 2px solid var(--cx-accent, #c99355); outline-offset: -4px; }
+.fp-play-txt { display: grid; gap: 4px; font-family: var(--font-geist); font-weight: 800; font-size: clamp(1rem, 2vw, 1.35rem); letter-spacing: -0.01em; text-transform: uppercase; }
+.fp-play-txt small { font-family: var(--font-space-mono); font-weight: 400; font-size: 11px; letter-spacing: 0.14em; color: rgb(245 237 227 / 0.7); }
+
+.fp-chapters { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); counter-reset: none; }
+.fp-chapters li { display: grid; gap: 8px; align-content: start; padding: 20px; border-radius: 18px; background: linear-gradient(165deg, #17130f, #0f0c0a); border: 1px solid rgb(216 183 119 / 0.14); transition: border-color 250ms ease; }
+.fp-chapters li.on { border-color: var(--cx-accent, #c99355); }
+/* On a phone the chapters are one swipeable row, not eight cards to scroll past. */
+@media (max-width: 640px) {
+  .fp-chapters { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 78%; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: 4px; }
+  .fp-chapters::-webkit-scrollbar { display: none; }
+  .fp-chapters li { scroll-snap-align: start; }
+}
+.fp-jump { display: grid; gap: 6px; justify-items: start; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; }
+.fp-at { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-space-mono); font-size: 12px; letter-spacing: 0.12em; color: var(--cx-accent, #c99355); }
+.fp-at::before { content: ""; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent currentColor; }
+.fp-title { font-family: var(--font-geist); font-weight: 800; font-size: 1.2rem; letter-spacing: -0.02em; line-height: 1.05; text-transform: uppercase; }
+.fp-jump:hover .fp-title, .fp-jump:focus-visible .fp-title { color: #f1c982; }
+.fp-jump:focus-visible { outline: 2px solid var(--cx-accent, #c99355); outline-offset: 4px; border-radius: 6px; }
+.fp-chapters p { line-height: 1.55; color: rgb(245 237 227 / 0.65); }
+.fp-more { margin-top: 4px; font-family: var(--font-space-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: rgb(245 237 227 / 0.85); }
+.fp-more:hover { color: var(--cx-accent, #c99355); }
+
+/* transcript */
+.fp-script { border: 1px solid rgb(255 255 255 / 0.1); border-radius: 16px; background: #12100d; }
+.fp-script summary { display: flex; justify-content: space-between; gap: 16px; padding: 18px 20px; cursor: pointer; font-weight: 700; list-style: none; }
+.fp-script summary::-webkit-details-marker { display: none; }
+.fp-script summary::after { content: "+"; color: var(--cx-accent, #c99355); font-size: 20px; line-height: 1; transition: transform 200ms ease; }
+.fp-script[open] summary::after { transform: rotate(45deg); }
+.fp-script ol { display: grid; gap: 8px; padding: 0 20px 20px; }
+.fp-script li { display: grid; grid-template-columns: 3.2rem 1fr; gap: 10px; line-height: 1.55; color: rgb(245 237 227 / 0.75); }
+.fp-script time { font-family: var(--font-space-mono); font-size: 12px; color: rgb(245 237 227 / 0.45); padding-top: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fp-play-ico { transition: none; }
+}
