@@ -44,11 +44,9 @@ import { dietBadges, dietOf, DIET_FILTERS, matchesDiet } from '@/lib/diet';
 import { usualOf } from '@/lib/usual';
 import { pairOf } from '@/lib/pairings';
 import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
-import { createBakeryModel, createIcedGlassModel, createProduct3DModel, dressPackaging, extractPackagingPiece, PACKAGING_POSE } from './pdp3dEngine';
+import { dressPackaging, loadPrint } from './packaging';
 import { initVoiceCalling } from './voiceCalling';
-import { createViewerFX, lightProduct, makeStudio, setupRenderer, shadowPiece } from './viewerStage';
 import { viewMode } from "./viewPolicy";
-import { createPhotoRelief, RELIEF_PITCH, RELIEF_YAW, reliefDepth } from './photoRelief';
 
 export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
   if (cafeRecording !== null) setCafeRecording(cafeRecording);
@@ -422,6 +420,22 @@ const lenis = new Lenis({
   touchMultiplier: 1.0,
 });
 window.lenis = lenis;
+/* Everything that follows the scroll runs in two passes per frame: every handler
+   measures first, then all the style writes land together. Interleaving reads and
+   writes made the browser recompute layout once per handler, many times a frame. */
+const scrollReaders = new Set();
+const onScrollFrame = (read) => scrollReaders.add(read);
+lenis.on("scroll", () => {
+  const writes = [];
+  for (const read of scrollReaders) {
+    const write = read();
+    if (write) writes.push(write);
+  }
+  for (const write of writes) write();
+});
+/* Heavy one-off work (compiling a WebGL program blocks the main thread on most
+   phones) waits until the page has stopped moving, so it never lands mid-scroll. */
+const whenStill = (fn) => (lenis.isScrolling ? setTimeout(() => whenStill(fn), 180) : fn());
 const root = document.documentElement;
 const stopScroll = () => {
   lenis.stop();
@@ -601,13 +615,23 @@ class Spring {
 }
 
 const unit = (v, u = "px") => (typeof v === "number" ? v + u : v);
+/* A move that has come to rest at no offset drops its transform altogether: an
+   identity translate3d still keeps the element on its own GPU layer, and the
+   reveals left a hundred-odd of them behind (every word of every headline). */
+const atRest = (o) =>
+  !("transform" in o) &&
+  !parseFloat(o.x ?? 0) && !parseFloat(o.y ?? 0) &&
+  (!("scale" in o) || +o.scale === 1) &&
+  (!("rotate" in o) || !parseFloat(o.rotate));
 const styler = (el) => (o) => {
   let t = "";
-  if ("x" in o || "y" in o) t += `translate3d(${unit(o.x ?? 0)}, ${unit(o.y ?? 0)}, 0)`;
+  // Hidden (still waiting for its reveal) it moves in 2D, so it doesn't hold a GPU layer while it waits.
+  const hidden = "opacity" in o && +o.opacity === 0;
+  if ("x" in o || "y" in o) t += hidden ? `translate(${unit(o.x ?? 0)}, ${unit(o.y ?? 0)})` : `translate3d(${unit(o.x ?? 0)}, ${unit(o.y ?? 0)}, 0)`;
   if ("scale" in o) t += ` scale(${o.scale})`;
   if ("rotate" in o) t += ` rotate(${unit(o.rotate, "deg")})`;
   if ("transform" in o) t += ` ${o.transform}`;
-  if (t) el.style.transform = t;
+  if (t) el.style.transform = atRest(o) ? "" : t;
   if ("opacity" in o) el.style.opacity = o.opacity;
   if ("clipPath" in o) el.style.clipPath = o.clipPath;
 };
@@ -701,12 +725,13 @@ const scrub = (el, trigger, start, end, from, to, reducedProgress = 1) => {
   const apply = styler(el);
   if (REDUCED) return apply(interpolate(from, to, reducedProgress));
   let last = -1;
-  const update = () => {
+  const read = () => {
     const p = Math.round(progressOf(trigger, start, end) * 1000) / 1000;
     if (p === last) return;
     last = p;
-    apply(interpolate(from, to, p));
+    return () => apply(interpolate(from, to, p));
   };
+  const update = () => read()?.();
   let isIntersecting = false;
   const io = new IntersectionObserver(
     ([entry]) => {
@@ -717,9 +742,7 @@ const scrub = (el, trigger, start, end, from, to, reducedProgress = 1) => {
   );
   io.observe(trigger);
   update();
-  lenis.on("scroll", () => {
-    if (isIntersecting) update();
-  });
+  onScrollFrame(() => (isIntersecting ? read() : undefined));
 };
 
 /* ═══════════ TextEngine ═══════════ */
@@ -738,7 +761,7 @@ const textEngine = (el) => {
   if ("clip" in d) el.classList.add("te-clip");
   if ("tight" in d) el.classList.add("te-tight");
 
-  let played = false, springs = [], width = 0;
+  let played = false, springs = [], width = null;
   const span = (cls, txt) => {
     const s = document.createElement("span");
     if (cls) s.className = cls;
@@ -802,7 +825,6 @@ const textEngine = (el) => {
     }
     springs.forEach((s) => s.stop());
     springs = units.map((u) => new Spring(played || REDUCED ? to : from, styler(u)));
-    width = el.clientWidth;
   };
   const play = () => {
     played = true;
@@ -811,8 +833,12 @@ const textEngine = (el) => {
   render();
   if (!REDUCED) onceVisible(el, play, { rootMargin: d.margin });
   if (lines) {
+    // The width is read here, where layout is fresh, not after each render (that forced a layout per heading).
     new ResizeObserver(() => {
-      if (Math.abs(el.clientWidth - width) < 1) return;
+      const now = el.clientWidth;
+      if (width === null) width = now;
+      if (Math.abs(now - width) < 1) return;
+      width = now;
       render();
     }).observe(el);
   }
@@ -1170,7 +1196,6 @@ const refreshReviews = () => {
         cardsEl.innerHTML = merged.length ? merged.map(renderReviewCard).join("") : emptyReviewsHTML;
         // Re-wire declarative primitives for new DOM
         $$("#rev-cards [data-rise]").forEach(rise);
-        $$("#rev-cards .lean").forEach((outer) => lean(outer.firstElementChild, outer));
       }
       refreshRevBar();
     })
@@ -1811,7 +1836,7 @@ $$("[data-iv]").forEach((el) => {
   inview(el, from, to, { config, delay: +(el.dataset.d || 0), gate: el.dataset.gate !== "0" });
 });
 $$("[data-pulse]").forEach(pulse);
-$$(".lean").forEach((outer) => lean(outer.firstElementChild, outer));
+// Cards stay flat on hover (the 3D tilt is gone): they lift and light instead, in CSS.
 
 /* The footer's giant wordmark rises out of the bottom edge. It starts below the
    footer's clip, so it is triggered by its band, which is always in place. */
@@ -1935,18 +1960,16 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   let onScreen = false;
   new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
   if (!REDUCED) {
-    const updatePhotoDrift = () => {
+    const imgs = tiles.map((t) => $("img", t));
+    onScrollFrame(() => {
       if (!onScreen) return;
       const vh = innerHeight;
-      const rects = tiles.map((t) => t.getBoundingClientRect());
-      tiles.forEach((t, i) => {
-        const r = rects[i];
-        const p = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh));
-        const img = $("img", t);
-        if (img) img.style.translate = `0 ${(-p * 3).toFixed(2)}%`;
+      const shifts = tiles.map((t) => {
+        const r = t.getBoundingClientRect();
+        return `0 ${(-Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh)) * 3).toFixed(2)}%`;
       });
-    };
-    lenis.on("scroll", updatePhotoDrift);
+      return () => imgs.forEach((img, i) => img && (img.style.translate = shifts[i]));
+    });
   }
 
   /* ── desktop: a VIEW badge follows the cursor over the photos ── */
@@ -2052,21 +2075,26 @@ const themed = $$("[data-header-theme]");
 const footer = $("#ftr");
 const PROBE_OFFSET = 35;
 let lastThemeY = -1;
-const checkHeaderTheme = () => {
+const readHeaderTheme = () => {
   const y = window.scrollY;
   if (Math.abs(y - lastThemeY) < 15) return;
   lastThemeY = y;
+  let theme = null;
   for (const s of themed) {
     const b = s.getBoundingClientRect();
     if (b.top <= PROBE_OFFSET && b.bottom > PROBE_OFFSET) {
-      header.dataset.theme = s.dataset.headerTheme;
+      theme = s.dataset.headerTheme;
       break;
     }
   }
-  header.classList.toggle("over-footer", footer.getBoundingClientRect().top <= PROBE_OFFSET);
+  const overFooter = footer.getBoundingClientRect().top <= PROBE_OFFSET;
+  return () => {
+    if (theme) header.dataset.theme = theme;
+    header.classList.toggle("over-footer", overFooter);
+  };
 };
-lenis.on("scroll", checkHeaderTheme);
-checkHeaderTheme();
+onScrollFrame(readHeaderTheme);
+readHeaderTheme()?.();
 
 /* The bar itself: see-through over the hero, a frosted capsule once the page
    moves, out of the way while reading down and back the moment you scroll up.
@@ -2075,17 +2103,15 @@ checkHeaderTheme();
   const links = $$(".hdr-nav a[href^='#']");
   const targetPairs = links.map((a) => [a, document.getElementById(a.getAttribute("href").slice(1))]);
   let lastY = -1, travelled = 0;
-  const checkHeaderNav = () => {
+  const readHeaderNav = () => {
     const y = window.scrollY;
     if (Math.abs(y - lastY) < 6) return;
     const dy = y - (lastY === -1 ? y : lastY);
     lastY = y;
-    header.classList.toggle("scrolled", y > 24);
     // Hide after a real downward run, never with the menu open or focus inside the bar.
     travelled = Math.sign(dy) === Math.sign(travelled) ? travelled + dy : dy;
     const busy = header.classList.contains("open") || header.contains(document.activeElement);
-    if (busy || y < 320 || travelled < -8) header.classList.remove("tucked");
-    else if (travelled > 64) header.classList.add("tucked");
+    const tuck = busy || y < 320 || travelled < -8 ? false : travelled > 64 ? true : null;
     const probe = window.innerHeight * 0.35;
     let current = null;
     for (const [a, el] of targetPairs) {
@@ -2093,10 +2119,14 @@ checkHeaderTheme();
       const b = el.getBoundingClientRect();
       if (b.top <= probe && b.bottom > probe) current = a;
     }
-    for (const a of links) a.classList.toggle("is-active", a === current);
+    return () => {
+      header.classList.toggle("scrolled", y > 24);
+      if (tuck !== null) header.classList.toggle("tucked", tuck);
+      for (const a of links) a.classList.toggle("is-active", a === current);
+    };
   };
-  lenis.on("scroll", checkHeaderNav);
-  checkHeaderNav();
+  onScrollFrame(readHeaderNav);
+  readHeaderNav()?.();
 })();
 
 const toggle = $("#menu-toggle");
@@ -2120,12 +2150,11 @@ window.addEventListener("keydown", (e) => {
 });
 
 /* ═══════════ fonts must be visible when they fail ═══════════ */
-for (const [family, file] of [["Space Mono", "SpaceMono-Regular.woff2"], ["Allura", "Allura-Regular.woff2"]]) {
-  const url = `${ASSET_BASE_URL}fonts/${file}`;
+for (const family of ["Space Mono", "Allura"]) {
   document.fonts
     .load(`16px "${family}"`)
-    .then((faces) => faces.length || banner(`Font failed to load: ${url}`))
-    .catch(() => banner(`Font failed to load: ${url}`));
+    .then((faces) => faces.length || banner(`Font failed to load: ${family}`))
+    .catch(() => banner(`Font failed to load: ${family}`));
 }
 
 /* ═══════════ preloader ═══════════ */
@@ -2219,7 +2248,7 @@ document.fonts.ready.then(() => {
     if (el.closest("#hero")) {
       textEngine(el);
     } else {
-      whenNear(el, () => textEngine(el), "600px 0px");
+      whenNear(el, () => textEngine(el), "600px 0px", false);
     }
   });
 });
@@ -2809,15 +2838,16 @@ const orderPrinter = { reprint: () => {} };
     if (inView) measure();
   }, { rootMargin: "25% 0px" }).observe(section);
 
-  const measure = () => {
+  const readOrder = () => {
     if (!inView) return;
     const scrolled = -section.getBoundingClientRect().top;
     const from = START_VH * window.innerHeight;
     const to = END_VH * window.innerHeight;
     let p = clamp((scrolled - from) / (to - from), 0, 1);
     p = 1 - Math.pow(1 - p, EASE_POWER);
-    write(Math.round(p * STEPS) / STEPS);
+    return () => write(Math.round(p * STEPS) / STEPS);
   };
+  const measure = () => readOrder()?.();
 
   const place = (scale, shift, nudgeX) => {
     stage.style.transform = `translateX(-50%) translate(${nudgeX}px, ${shift}px) scale(${scale})`;
@@ -2853,7 +2883,7 @@ const orderPrinter = { reprint: () => {} };
     write(1);
     sweep.set({ v: 1 });
   } else {
-    lenis.on("scroll", measure);
+    onScrollFrame(readOrder);
   }
 })();
 
@@ -3029,9 +3059,11 @@ const opalesce = (wrapper, overrides = {}) => {
   if (!gl) return;
 
   let program = null, vertexShader = null, fragmentShader = null, vao = null;
+  // Set once the program has linked: until then nothing may draw or read a uniform.
+  let linked = false;
   let locations = {};
   const loc = (n) => {
-    if (!program) return null;
+    if (!program || !linked) return null;
     if (!(n in locations)) locations[n] = gl.getUniformLocation(program, n);
     return locations[n];
   };
@@ -3046,12 +3078,12 @@ const opalesce = (wrapper, overrides = {}) => {
     if (!sh) throw new Error("createShader failed");
     gl.shaderSource(sh, src);
     gl.compileShader(sh);
-    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh) ?? "shader compile failed");
     return sh;
   };
 
   let dpr = 1;
   const resize = () => {
+    if (!linked) return;
     dpr = Math.min(window.devicePixelRatio || 1, CFG.maxDpr);
     const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
@@ -3096,7 +3128,12 @@ const opalesce = (wrapper, overrides = {}) => {
     resize();
   };
 
+  /* Compile and link without asking how it went: asking makes the page wait for the
+     GPU. With KHR_parallel_shader_compile the driver says when it is done (polled per
+     frame below); without it, link() asks straight away, as before. */
+  const parallel = gl.getExtension("KHR_parallel_shader_compile");
   const build = () => {
+    linked = false;
     if (program) gl.deleteProgram(program);
     if (vertexShader) gl.deleteShader(vertexShader);
     if (fragmentShader) gl.deleteShader(fragmentShader);
@@ -3109,13 +3146,34 @@ const opalesce = (wrapper, overrides = {}) => {
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? "link failed");
+  };
+  const link = () => {
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      for (const sh of [vertexShader, fragmentShader]) if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh) ?? "shader compile failed");
+      throw new Error(gl.getProgramInfoLog(program) ?? "link failed");
+    }
+    linked = true;
     gl.useProgram(program);
     vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
   };
+  const whenLinked = (done) => {
+    const built = program;
+    const poll = () => {
+      if (program !== built || gl.isContextLost()) return;
+      if (parallel && !gl.getProgramParameter(program, parallel.COMPLETION_STATUS_KHR)) return void requestAnimationFrame(poll);
+      try {
+        link();
+      } catch (error) {
+        console.error("opalesce", error);
+        return;
+      }
+      done();
+    };
+    poll();
+  };
 
-  const draw = () => gl.drawArrays(gl.TRIANGLES, 0, 3);
+  const draw = () => linked && gl.drawArrays(gl.TRIANGLES, 0, 3);
 
   const mouse = { x: 0, y: 0, ax: 0, ay: 0, wx: 0, wy: 0, tx: 0, ty: 0 };
   let canvasRect: DOMRect | null = null;
@@ -3190,9 +3248,11 @@ const opalesce = (wrapper, overrides = {}) => {
   });
   canvas.addEventListener("webglcontextrestored", () => {
     build();
-    applyConfig();
-    draw();
-    if (!REDUCED) stopFrame = loop(frame);
+    whenLinked(() => {
+      applyConfig();
+      draw();
+      if (!REDUCED && !stopFrame) stopFrame = loop(frame);
+    });
   });
 
   if (CFG.cursor) {
@@ -3202,38 +3262,58 @@ const opalesce = (wrapper, overrides = {}) => {
 
   try {
     build();
-    applyConfig();
   } catch (error) {
     console.error("opalesce", error);
     return;
   }
-  draw();
-  whenReady(() => {
-    fade.classList.add("on");
-    if (!REDUCED && !stopFrame) stopFrame = loop(frame);
+  whenLinked(() => {
+    applyConfig();
+    draw();
+    whenReady(() => {
+      fade.classList.add("on");
+      if (!REDUCED && !stopFrame) stopFrame = loop(frame);
+    });
   });
 };
 /* Heavy scenes start when they're about to be seen, not at load: only the hero
    compiles its shaders up front, so the first screen is ready sooner and the
    page stays smooth while it loads. */
-const whenNear = (el, start, margin = "1500px 0px") => {
+const whenNear = (el, start, margin = "1500px 0px", heavy = true) => {
   if (!el) return;
   let started = false;
   const go = () => {
     if (started) return;
     started = true;
     io?.disconnect();
-    start();
+    if (heavy) whenStill(start);
+    else start();
   };
   const io = "IntersectionObserver" in window ? new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && go(), { rootMargin: margin }) : null;
   if (!io) return go();
   io.observe(el);
-  // …or in the first quiet moment after the page is in, so the work never lands mid-scroll.
-  whenReady(() => {
-    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
-    setTimeout(() => idle(go, { timeout: 4000 }), 1500);
-  });
+  // …or in a quiet moment after the page is in, so the work never lands mid-scroll.
+  whenReady(() => setTimeout(() => idleQueue.push(go), 1500));
 };
+/* The early starts take turns: one per idle period, and only when the browser is
+   really idle (no timeout), so on a slow phone they never pile into one long task
+   while the first screen is still settling. */
+const idleQueue = (() => {
+  const jobs = [];
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
+  let waiting = false;
+  const next = () => {
+    waiting = false;
+    if (lenis.isScrolling) return void setTimeout(schedule, 250);
+    jobs.shift()?.();
+    if (jobs.length) schedule();
+  };
+  const schedule = () => {
+    if (waiting) return;
+    waiting = true;
+    idle(next);
+  };
+  return { push: (job) => (jobs.push(job), schedule()) };
+})();
 $$("[data-opal]").forEach((w) => (w.closest("#hero") ? opalesce(w, heroConfig()) : whenNear(w, () => opalesce(w))));
 
 /* ═══════════ three.js layers ═══════════ */
@@ -3372,6 +3452,8 @@ function heroModel(T, mount, handle, onPiece) {
   intro.add(pivot);
 
   let model = null;
+  // The first frame waits for the shaders, compiled off the main thread where the GPU allows it.
+  let compiled = false;
   let pieces = [];
   let hovered = null;
   const layout = savedHeroLayout;
@@ -3519,15 +3601,18 @@ function heroModel(T, mount, handle, onPiece) {
   let lastHeroScrollY = -1;
   let cachedHeroAway = 0;
 
+  // The hero's height, kept up to date by a ResizeObserver: reading offsetHeight here, after the
+  // scroll handlers have written their styles, forced a full layout on every frame.
+  let heroHeight = hero?.offsetHeight || 0;
+  if (hero && "ResizeObserver" in window) new ResizeObserver(([e]) => (heroHeight = e.target.offsetHeight)).observe(hero);
   const frame = () => {
-    if (!model || !onScreen || document.hidden) return;
+    if (!model || !compiled || !onScreen || document.hidden) return;
 
     if (hero && !reduced && productHeight) {
       const sy = window.scrollY || window.pageYOffset || 0;
       if (sy !== lastHeroScrollY) {
         lastHeroScrollY = sy;
-        const heroHeight = hero.offsetHeight || window.innerHeight;
-        cachedHeroAway = Math.min(1, Math.max(0, sy / heroHeight));
+        cachedHeroAway = Math.min(1, Math.max(0, sy / (heroHeight || window.innerHeight)));
       }
       const gap = -cachedHeroAway * SCROLL_DROP * productHeight - drift.position.y;
       if (Math.abs(gap) > productHeight * 1e-4) {
@@ -3664,6 +3749,8 @@ function heroModel(T, mount, handle, onPiece) {
   const draco = sharedDraco(DRACOLoader);
   const loader = new GLTFLoader().setDRACOLoader(draco);
 
+  // The label's wordmark and faces load alongside the model, so the label is painted once.
+  loadPrint();
   loadPackagingModel(
     loader,
     (gltf) => {
@@ -3699,6 +3786,13 @@ function heroModel(T, mount, handle, onPiece) {
       }
       measure();
       applyStage();
+      renderer
+        .compileAsync(scene, camera)
+        .catch(() => {})
+        .then(() => {
+          compiled = true;
+          dirty = true;
+        });
     },
     (error) => {
       console.error("hero model", error);
@@ -4746,7 +4840,6 @@ shopGrid.innerHTML = SHOP_PRODUCTS.map((p, i) => {
 shopCountEl.textContent = String(SHOP_PRODUCTS.length).padStart(2, "0");
 fillSnaps(shopGrid);
 fillSnaps($("#cards")); // the menu cards were built before fillSnaps existed
-$$(".lean", shopGrid).forEach((outer) => lean(outer.firstElementChild, outer, 6));
 $$(".pcard", shopGrid).forEach((card, i) => inview(card, { opacity: 0, y: 28 }, { opacity: 1, y: 0 }, { config: C(80, 26), delay: (i % 4) * 90 }));
 
 shopTabs.insertAdjacentHTML(
@@ -4866,10 +4959,6 @@ const wireMenuCardEvents = () => {
       const id = btn.dataset.cardAdd;
       if (id) quickAdd(id, btn);
     };
-  });
-  $$("#cards .lean:not([data-wired])").forEach((outer) => {
-    outer.dataset.wired = "1";
-    lean(outer.firstElementChild, outer);
   });
   paintHearts();
 };
@@ -5566,9 +5655,25 @@ const loadShopModel = (productId) => {
   ));
 };
 
+/* The product viewer's code (every modelled product, the photo relief, the AO pass)
+   arrives with the first product opened, not with the page. */
+let createProduct3DModel, extractPackagingPiece, PACKAGING_POSE;
+let createViewerFX, lightProduct, makeStudio, setupRenderer, shadowPiece;
+let createPhotoRelief, RELIEF_PITCH, RELIEF_YAW, reliefDepth;
+let viewerKit = null;
+const loadViewerKit = () =>
+  (viewerKit ||= Promise.all([import("./pdp3dEngine"), import("./viewerStage"), import("./photoRelief")]).then(([pdp, stage, relief]) => {
+    ({ createProduct3DModel, extractPackagingPiece, PACKAGING_POSE } = pdp);
+    ({ createViewerFX, lightProduct, makeStudio, setupRenderer, shadowPiece } = stage);
+    ({ createPhotoRelief, RELIEF_PITCH, RELIEF_YAW, reliefDepth } = relief);
+  }).catch((error) => {
+    viewerKit = null;
+    throw error;
+  }));
+
 let productAssets = null;
 const loadProductAssets = () =>
-  (productAssets ||= threeReady.then(
+  (productAssets ||= Promise.all([threeReady, loadViewerKit()]).then(([T]) => T).then(
     (T) =>
       new Promise((resolve, reject) => {
         const draco = sharedDraco(T.DRACOLoader);
@@ -5633,7 +5738,7 @@ function mountViewer(container, kind, initialSel = {}, product = null) {
   let viewerInstance = null;
   // Only the printed cups and bags need the packaging model; if it fails to load, everything built procedurally
   // still shows (the packaging pieces fall back in createProduct3DModel).
-  const assets = loadProductAssets().catch(() => threeReady.then((T) => ({ T, gltf: null })));
+  const assets = loadProductAssets().catch(() => Promise.all([threeReady, loadViewerKit()]).then(([T]) => ({ T, gltf: null })));
   Promise.all([assets, loadShopModel(product?.id)])
     .then(([{ T, gltf }, shopModel]) => {
       if (destroyed) return;
@@ -8044,7 +8149,6 @@ coEl.addEventListener("submit", (e) => {
      a member yet: the same card, blank, with the form to join beside it. */
   const clubSide = $("#club-side");
   clubSide.innerHTML = `<div class="club-card-wrap lean"><div><div class="club-card" id="club-card"></div></div></div><div class="club-panel" id="club-panel"></div>`;
-  lean($(".club-card-wrap", clubSide).firstElementChild, $(".club-card-wrap", clubSide), 6);
   const clubCard = $("#club-card");
   const clubPanel = $("#club-panel");
   const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
