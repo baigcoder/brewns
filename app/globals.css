@@ -4144,3 +4144,7 @@ body:has(#pre) .voice-call-floating {
   .menu .card-foot > div > p { font-size: 0.6875rem; }
   .menu .card-quick-add { padding: 0.45rem 0.55rem; font-size: 0.625rem; letter-spacing: 0.04em; }
 }
+
+/* Looping animations out of view stay still (see pauseLoopsOffscreen in initBrewns). */
+.loop-off, .loop-off::before, .loop-off::after { animation-play-state: paused !important; }
+

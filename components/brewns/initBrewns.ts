@@ -412,12 +412,16 @@ let liveLocationsTimer = 0;
 /* ═══════════ smooth scroll ═══════════ */
 if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
+/* Wheel and touch scrolling stay native: the browser scrolls on its compositor
+   thread, so the page keeps moving smoothly even while the main thread is busy
+   with 3D, video or layout. With Lenis driving every frame from JavaScript
+   (smoothWheel, syncTouch), any main-thread hiccup froze the scroll and then made
+   it jump. Lenis still animates in-page jumps (scrollTo), emits the scroll events
+   the effects listen to, and locks the page behind overlays. */
 const lenis = new Lenis({
-  smoothWheel: !REDUCED,
+  smoothWheel: false,
+  syncTouch: false,
   lerp: 0.14,
-  wheelMultiplier: 1.0,
-  syncTouch: true,
-  touchMultiplier: 1.0,
 });
 window.lenis = lenis;
 /* Everything that follows the scroll runs in two passes per frame: every handler
@@ -436,6 +440,23 @@ lenis.on("scroll", () => {
 /* Heavy one-off work (compiling a WebGL program blocks the main thread on most
    phones) waits until the page has stopped moving, so it never lands mid-scroll. */
 const whenStill = (fn) => (lenis.isScrolling ? setTimeout(() => whenStill(fn), 180) : fn());
+/* Looping CSS animations (bokeh, marquees, the dial's halo, the rain on the
+   locations cup...) keep running off screen, and the browser restyles them, and
+   for SVG lays them out, every frame. Once the page is in, each element that loops
+   forever is watched on its own and paused while it's out of view. Pausing one
+   element restyles just that element, so this costs nothing while scrolling. */
+const pauseLoopsOffscreen = () => {
+  const loops = [];
+  const loopsIn = (cs) => cs.animationName !== "none" && cs.animationIterationCount.split(",").some((c) => c.trim() === "infinite");
+  for (const el of document.querySelectorAll("body *")) {
+    if (loopsIn(getComputedStyle(el)) || loopsIn(getComputedStyle(el, "::after")) || loopsIn(getComputedStyle(el, "::before"))) loops.push(el);
+  }
+  if (!loops.length) return;
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) e.target.classList.toggle("loop-off", !e.isIntersecting);
+  }, { rootMargin: "150px 0px" });
+  loops.forEach((el) => io.observe(el));
+};
 const root = document.documentElement;
 const stopScroll = () => {
   lenis.stop();
@@ -637,16 +658,37 @@ const styler = (el) => (o) => {
 };
 
 /* ═══════════ Inview / Hover ═══════════ */
+/* One shared observer per (rootMargin, threshold) instead of one per element:
+   ~150 single-target observers were each re-checked on every scrolled frame.
+   An element leaves its observer as soon as it has been seen. */
+const visiblePools = new Map();
 const onceVisible = (el, cb, { rootMargin = "0px", gate = true, threshold = 0 } = {}) => {
-  const io = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((e) => e.isIntersecting)) return;
-      io.disconnect();
-      gate ? whenReady(cb) : cb();
-    },
-    { rootMargin, threshold },
-  );
-  io.observe(el);
+  const key = `${rootMargin}|${threshold}`;
+  let pool = visiblePools.get(key);
+  if (!pool) {
+    const waiting = new Map();
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const cbs = waiting.get(e.target);
+          if (!cbs) continue;
+          waiting.delete(e.target);
+          io.unobserve(e.target);
+          for (const [fn, gated] of cbs) gated ? whenReady(fn) : fn();
+        }
+      },
+      { rootMargin, threshold },
+    );
+    pool = { io, waiting };
+    visiblePools.set(key, pool);
+  }
+  const cbs = pool.waiting.get(el);
+  if (cbs) cbs.push([cb, gate]);
+  else {
+    pool.waiting.set(el, [[cb, gate]]);
+    pool.io.observe(el);
+  }
 };
 
 const inview = (el, from, to, { config, delay = 0, rootMargin, gate = true, trigger = el } = {}) => {
@@ -3315,6 +3357,7 @@ const idleQueue = (() => {
   return { push: (job) => (jobs.push(job), schedule()) };
 })();
 $$("[data-opal]").forEach((w) => (w.closest("#hero") ? opalesce(w, heroConfig()) : whenNear(w, () => opalesce(w))));
+whenReady(() => setTimeout(() => idleQueue.push(pauseLoopsOffscreen), 800));
 
 /* ═══════════ three.js layers ═══════════ */
 const threeReady = Promise.resolve({ ...THREE, GLTFLoader, DRACOLoader, RoomEnvironment });
