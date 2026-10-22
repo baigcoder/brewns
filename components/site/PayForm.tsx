@@ -89,8 +89,8 @@ export default function PayForm({ number, keyToken }: { number: string; keyToken
             2. Enter the transaction ID from your receipt
           </label>
           <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            <input id="ref" value={ref} onChange={(e) => setRef(e.target.value.replace(/[^A-Za-z0-9-]/g, ''))} maxLength={30} placeholder={order.hold?.ref || 'e.g. 3847291056'} autoComplete="off" style={{ flex: 1, minWidth: 180, padding: 12, borderRadius: 10, border: '1px solid #444', background: '#070707', color: 'inherit', font: 'inherit' }} />
-            <button disabled={busy || ref.length < 6} style={{ background: '#d58c3d', color: '#070707', border: 0, borderRadius: 999, padding: '12px 24px', font: 'inherit', fontWeight: 600, cursor: 'pointer', opacity: ref.length < 6 ? 0.5 : 1 }}>
+            <input id="ref" value={ref} onChange={(e) => setRef(e.target.value.replace(/[^A-Za-z0-9-]/g, ''))} maxLength={30} placeholder={order.hold?.ref || 'e.g. 3847291056'} autoComplete="off" style={{ flex: 1, minWidth: 180, padding: 12, borderRadius: 10, border: '1px solid #444', background: '#100c0a', color: 'inherit', font: 'inherit' }} />
+            <button disabled={busy || ref.length < 6} style={{ background: '#d58c3d', color: '#100c0a', border: 0, borderRadius: 999, padding: '12px 24px', font: 'inherit', fontWeight: 600, cursor: 'pointer', opacity: ref.length < 6 ? 0.5 : 1 }}>
               {busy ? 'Sending…' : 'Send'}
             </button>
           </div>

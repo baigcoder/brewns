@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Onest, Space_Mono, Allura } from 'next/font/google';
+import { Geist, Onest, Space_Mono, Allura, Noto_Nastaliq_Urdu } from 'next/font/google';
 import './globals.css';
+import './segments.css';
 import { SITE_URL } from '@/lib/site';
 import { FAQ } from '@/lib/faq';
 import RegisterSW from '@/components/site/RegisterSW';
@@ -32,6 +33,15 @@ const allura = Allura({
   display: 'swap',
 });
 
+// Urdu in the concierge's captions and chat, in the Nastaliq script people read it in.
+const urdu = Noto_Nastaliq_Urdu({
+  weight: ['400', '600'],
+  subsets: ['arabic'],
+  variable: '--font-urdu',
+  preload: false, // only the call and chat use it
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: 'brewns — Specialty Coffee House in Lahore',
@@ -44,7 +54,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#070707',
+  themeColor: '#100c0a',
 };
 
 export default function RootLayout({
@@ -95,7 +105,7 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="en" className={`${geist.variable} ${onest.variable} ${spaceMono.variable} ${allura.variable}`}>
+    <html lang="en" className={`${geist.variable} ${onest.variable} ${spaceMono.variable} ${allura.variable} ${urdu.variable}`}>
       <head>
         <script
           type="application/ld+json"

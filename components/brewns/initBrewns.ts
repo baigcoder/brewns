@@ -1051,20 +1051,12 @@ $("#cards").innerHTML = ALL_MENU_CARDS.slice(0, 4).map((c, i) => cardHTML(c, i))
 /* The shop prints a receipt for every order, so a review arrives the same way:
    on a slip, in the same mono, torn off at the bottom. What someone ordered is
    part of the review — it ties the words back to the menu two sections up. */
-const STATIC_REVIEWS = [
-  { id: "s0", quote: "Four minutes from the door to the first sip, and it still tastes like someone cared how it came out.", name: "Maya R.", place: "Gulberg", order: "Iced Matcha · 12 oz", product: "iced-matcha", when: "12.05", stars: 5, verified: true, helpful: 42 },
-  { id: "s1", quote: "Came in for a flat white and stayed two hours. Nobody once made me feel like I should be leaving.", name: "Daniel O.", place: "DHA", order: "Flat White · 8 oz", product: "latte", when: "04.05", stars: 5, verified: false, helpful: 31 },
-  { id: "s2", quote: "The slow roast ruined every other bag in my kitchen. I have made my peace with that.", name: "Priya S.", place: "Johar Town", order: "Slow Roast · 250 g", product: "slow-roast", when: "28.04", stars: 5, verified: true, helpful: 27 },
-  { id: "s3", quote: "A smash burger with properly crispy edges, from a coffee house. Better than the burger places down the road.", name: "Hamza K.", place: "Gulberg", order: "Classic Smash Burger · Meal", product: "smash-burger", when: "19.09", stars: 5, verified: true, helpful: 18 },
-  { id: "s4", quote: "Ordered to Model Town in the rain. The rider messaged from the gate and the latte was still hot.", name: "Usman T.", place: "Gulberg", order: "Latte · 12 oz · Delivery", product: "latte", when: "16.09", stars: 5, verified: true, helpful: 24 },
-  { id: "s5", quote: "Cardamom bun and a cortado at 8am has become my whole personality. The bun sells out by ten, go early.", name: "Ayesha N.", place: "DHA", order: "Cardamom Bun", product: "cardamom-bun", when: "14.09", stars: 5, verified: false, helpful: 15 },
-  { id: "s6", quote: "Tikka paratha roll with the mint chutney, eaten in the car in the parking. Zero regrets.", name: "Bilal A.", place: "Johar Town", order: "Chicken Tikka Paratha Roll", product: "tikka-roll", when: "11.09", stars: 5, verified: true, helpful: 12 },
-  { id: "s7", quote: "Four stars only because the lounge was full on Saturday evening. The cinnamon roll was worth the wait.", name: "Sana M.", place: "Gulberg", order: "Cinnamon Roll · Warmed", product: "cinnamon-roll", when: "07.09", stars: 4, verified: false, helpful: 9 },
-  { id: "s8", quote: "Nitro cold brew that tastes like coffee, not like a can. Smooth all the way to the bottom.", name: "Omar F.", place: "DHA", order: "Nitro Cold Brew", product: "nitro-cold-brew", when: "02.09", stars: 5, verified: true, helpful: 14 },
-  { id: "s9", quote: "A margherita with real char on the crust. The kids fought over the last slice, so now we order two.", name: "Fatima Z.", place: "Johar Town", order: "Margherita Pizza · 12 in", product: "margherita-pizza", when: "29.08", stars: 5, verified: true, helpful: 21 },
-  { id: "s10", quote: "Bought the Ethiopia beans for home. Bright, a bit of blueberry, exactly what the bag says.", name: "Ali R.", place: "DHA", order: "Ethiopia Yirgacheffe · 250 g", product: "single-origin", when: "24.08", stars: 5, verified: false, helpful: 11 },
-  { id: "s11", quote: "Mango smoothie in August is the only correct decision. Real Chaunsa, not the syrup stuff.", name: "Mehak S.", place: "Gulberg", order: "Mango Smoothie · Large", product: "mango-smoothie", when: "18.08", stars: 5, verified: true, helpful: 16 },
-];
+/* Only real reviews are shown anywhere on the site: the score, the count and
+   the cards all come from what customers actually wrote (/api/public/reviews).
+   Until there are a few, the section says so honestly and asks for the first. */
+const STATIC_REVIEWS: any[] = [];
+/** Below this many real reviews the hero shows no score: one review isn't a rating. */
+const MIN_REVIEWS_FOR_SCORE = 3;
 
 let refreshRevBar: () => void = () => {};
 
@@ -1094,11 +1086,11 @@ const renderReviewCard = (r: any, o: number) => {
 
 const renderRatings = (stats: any) => {
   const ratings = [
-    [5, stats?.dist?.[0] ?? 91],
-    [4, stats?.dist?.[1] ?? 7],
-    [3, stats?.dist?.[2] ?? 1],
+    [5, stats?.dist?.[0] ?? 0],
+    [4, stats?.dist?.[1] ?? 0],
+    [3, stats?.dist?.[2] ?? 0],
     [2, stats?.dist?.[3] ?? 0],
-    [1, stats?.dist?.[4] ?? 1],
+    [1, stats?.dist?.[4] ?? 0],
   ];
   $("#rev-dist").innerHTML = ratings.map(
     ([stars, pct], i) => `<li>
@@ -1109,24 +1101,44 @@ const renderRatings = (stats: any) => {
   ).join("");
 };
 
-const renderScore = (avg: any, total: any) => {
+const renderScore = (avg: number, total: number) => {
+  const scored = total >= MIN_REVIEWS_FOR_SCORE && avg > 0;
   const scoreN = $(".rev-score-n");
-  if (scoreN) scoreN.innerHTML = `<span data-dr data-d="420">${avg}</span>`;
+  if (scoreN) scoreN.innerHTML = scored ? `<span data-dr data-d="420">${avg.toFixed(1)}</span>` : '<span class="rev-score-new">NEW</span>';
+  const stars = $(".rev-stars");
+  if (stars) {
+    stars.setAttribute("aria-label", scored ? `Rated ${avg.toFixed(1)} out of 5` : "No rating yet");
+    stars.style.opacity = scored ? "" : "0.25";
+  }
   const countEl = $(".rev-score-meta");
   if (countEl) {
     const p = countEl.querySelector("p:last-child");
-    if (p) p.innerHTML = `<span class="blk"><span data-dr data-d="520">${total.toLocaleString()}</span> reviews</span><span class="blk">across three shops</span>`;
-  }  // The hero quotes the same score.
+    if (p) p.innerHTML = total
+      ? `<span class="blk"><span data-dr data-d="520">${total.toLocaleString()}</span> review${total === 1 ? "" : "s"}</span><span class="blk">from real orders</span>`
+      : '<span class="blk">No reviews yet</span><span class="blk">be the first to leave one</span>';
+  }
+  // Empty star bars read as broken, so the spread only shows once there are reviews.
+  $("#rev-dist")?.toggleAttribute("hidden", !total);
+  // The hero quotes the same score, and only once there is one.
+  const hero = $("#hero-rating");
+  if (hero) {
+    hero.hidden = !scored;
+    hero.previousElementSibling?.classList.toggle("hero-live-solo", !scored);
+  }
   const heroN = $("#hero-rating-n");
-  if (heroN) heroN.textContent = String(avg);
+  if (heroN && scored) heroN.textContent = avg.toFixed(1);
   const heroC = $("#hero-rating-c");
-  if (heroC) heroC.textContent = `${total.toLocaleString()} reviews`;
+  if (heroC && scored) heroC.textContent = `${total.toLocaleString()} reviews`;
 };
 
-/* ── initial render with static data ── */
-const STATIC_RATINGS = { avg: 4.9, total: 1284, dist: [91, 7, 1, 0, 1] };
-renderRatings(STATIC_RATINGS);
-$("#rev-cards").innerHTML = STATIC_REVIEWS.map(renderReviewCard).join("");
+/** Star counts → the percentage bars, from the real reviews. */
+const pctDist = (counts: number[], total: number) => counts.map((n) => (total ? Math.round((n / total) * 100) : 0));
+const emptyReviewsHTML = `<li class="rev-empty"><p class="rev-empty-h">No reviews yet</p><p class="rev-empty-p">After your order you get a link to say how it was. The first ones will show here, word for word.</p></li>`;
+
+/* ── first paint, before the real numbers arrive: nothing invented ── */
+renderRatings({ dist: [0, 0, 0, 0, 0] });
+renderScore(0, 0);
+$("#rev-cards").innerHTML = emptyReviewsHTML;
 
 /* ── fetch live reviews and merge ── */
 let currentLiveReviews: any[] = [];
@@ -1143,30 +1155,19 @@ const refreshReviews = () => {
       lastReviewsStamp = stamp;
       const liveReviews = data.reviews || [];
       currentLiveReviews = liveReviews;
-      const merged = [...liveReviews, ...STATIC_REVIEWS];
-
-      if (liveReviews.length > 0) {
-        const total = STATIC_RATINGS.total + liveReviews.length;
-        const liveSum = liveReviews.reduce((s: number, r: any) => s + r.stars, 0);
-        const staticSum = STATIC_RATINGS.avg * STATIC_RATINGS.total;
-        const avg = Math.round(((staticSum + liveSum) / total) * 10) / 10;
-        const dist = [0, 0, 0, 0, 0];
-        for (const r of liveReviews) dist[5 - r.stars] += 1;
-        const totalWithStatic = STATIC_RATINGS.total + liveReviews.length;
-        const pctDist = STATIC_RATINGS.dist.map((sp, i) =>
-          Math.round(((sp / 100 * STATIC_RATINGS.total + dist[i]) / totalWithStatic) * 100)
-        );
-        renderRatings({ dist: pctDist });
-        renderScore(avg, total);
-      } else {
-        renderRatings(STATIC_RATINGS);
-        renderScore(STATIC_RATINGS.avg, STATIC_RATINGS.total);
-      }
+      const merged = liveReviews;
+      const counts = [0, 0, 0, 0, 0];
+      for (const r of liveReviews) counts[5 - Math.max(1, Math.min(5, Number(r.stars) || 5))] += 1;
+      const total = Number(data.stats?.total) || liveReviews.length;
+      const avg = Number(data.stats?.avg) || (liveReviews.length ? liveReviews.reduce((s: number, r: any) => s + (Number(r.stars) || 0), 0) / liveReviews.length : 0);
+      const dist = Array.isArray(data.stats?.dist) && data.stats.dist.length === 5 ? data.stats.dist.map(Number) : counts;
+      renderRatings({ dist: pctDist(dist, dist.reduce((a: number, b: number) => a + b, 0)) });
+      renderScore(Math.round(avg * 10) / 10, total);
 
       // Re-render review cards with merged data
       const cardsEl = $("#rev-cards");
       if (cardsEl) {
-        cardsEl.innerHTML = merged.map(renderReviewCard).join("");
+        cardsEl.innerHTML = merged.length ? merged.map(renderReviewCard).join("") : emptyReviewsHTML;
         // Re-wire declarative primitives for new DOM
         $$("#rev-cards [data-rise]").forEach(rise);
         $$("#rev-cards .lean").forEach((outer) => lean(outer.firstElementChild, outer));
@@ -1771,16 +1772,28 @@ document.addEventListener("click", (e) => {
    near the end) filters the shop or menu, or opens a product or form; the href is
    where the link lands without it. */
 const COLUMNS = [
-  ["Shop", [["COFFEE", "#shop", "shop:beans"], ["SUBSCRIPTIONS", "#shop/slow-roast", "product:slow-roast:plan=1"], ["MERCH", "#shop", "shop:merch"], ["GIFT CARDS", "#shop/gift-card", "product:gift-card"]]],
+  ["Shop", [["ALL PRODUCTS", "/shop"], ["COFFEE BEANS", "/shop#beans"], ["SUBSCRIBE", "/subscribe"], ["GIFT CARDS", "/gift-cards"], ["MERCH", "#shop", "shop:merch"]]],
   ["Menu", [["COFFEE", "#menu", "menu:coffee"], ["COLD BAR", "#menu", "menu:specialty"], ["KITCHEN", "#menu", "menu:burgers"], ["FULL MENU", "#menu", "fullmenu"]]],
-  ["Experience", [["COMMUNITY MOMENTS", "#moments"], ["TABLE RESERVATIONS", "/reserve"], ["BREW TIMER & RATIOS", "/brew-timer"], ["FLAVOR WHEEL", "/flavor-wheel"]]],
-  ["About & Staff", [["OUR STORY", "#story"], ["BREW AT HOME", "#brew"], ["BREWNS CLUB", "#club"], ["STAFF PORTAL", "/staff/signin"]]],
+  ["Experience", [["MOMENTS", "#moments"], ["BOOK A TABLE", "/reserve"], ["BREW AT HOME", "#brew"], ["BREW TIMER", "/brew-timer"], ["FLAVOR WHEEL", "/flavor-wheel"], ["BREWNS CLUB", "#club"]]],
+  ["brewns", [["OUR STORY", "/about"], ["OUR COFFEE", "/coffee"], ["LOCATIONS", "/locations"], ["THE JOURNAL", "/journal"], ["CAREERS", "/careers"], ["STAFF PORTAL", "/staff/signin"]]],
+  ["Help", [["CONTACT US", "/contact"], ["DELIVERY", "/delivery"], ["REFUNDS", "/refunds"], ["PRIVACY", "/privacy"], ["TERMS", "/terms"], ["EMAIL US", "mailto:hello@brewns.coffee"], ["CALL US", "tel:+924212345678"]]],
 ];
 $("#ftr-nav").innerHTML = COLUMNS.map(([heading, links], i) =>
   `<div class="ftr-col"><p data-rise data-d="${160 + i * 130}">${heading}</p><ul class="ftr-list">${links
     .map(([t, href, go], row) => `<li data-rise data-d="${160 + i * 130 + (row + 1) * 70}"><a href="${href}"${go ? ` data-go="${go}"` : ""} data-ul data-rule>${t.replace("&", "&amp;")}</a></li>`)
     .join("")}</ul></div>`,
 ).join("");
+
+/* Bean to cup: the step crossing the middle of the screen picks the picture. */
+(() => {
+  const pillars = $("#pillars");
+  if (!pillars) return;
+  const io = new IntersectionObserver(
+    (entries) => entries.forEach((en) => en.isIntersecting && (pillars.dataset.pillar = en.target.dataset.i)),
+    { rootMargin: "-45% 0px -45% 0px" },
+  );
+  $$(".pillars-step", pillars).forEach((s) => io.observe(s));
+})();
 
 /* ═══════════ wire the declarative primitives ═══════════ */
 $$("[data-rise]").forEach(rise);
@@ -2517,22 +2530,144 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   $$(".journey-step", steps).forEach((li) => io.observe(li));
 })();
 
+/* ═══════════ the brewns film ═══════════ */
+(() => {
+  const video = $("#film-video");
+  const toggle = $("#film-toggle");
+  const sound = $("#film-sound");
+  if (!video || !toggle) return;
+  const small = window.innerWidth < 900 || navigator.connection?.saveData;
+  const size = small ? "720" : "1080";
+  let loaded = false, wanted = !REDUCED, inView = false;
+  const load = () => {
+    if (loaded) return;
+    loaded = true;
+    video.innerHTML = `<source src="/assets/film/brewns-film-${size}.webm" type="video/webm"><source src="/assets/film/brewns-film-${size}.mp4" type="video/mp4">`;
+    video.load();
+  };
+  const paint = () => {
+    const playing = !video.paused;
+    toggle.dataset.state = playing ? "playing" : "paused";
+    toggle.setAttribute("aria-label", playing ? "Pause the film" : "Play the film");
+  };
+  const sync = () => {
+    if (wanted && inView) { load(); video.play().catch(() => {}); } else video.pause();
+  };
+  video.addEventListener("play", paint);
+  video.addEventListener("pause", paint);
+  // Muted it loops as ambience; with sound it plays once from the top, then goes quiet again.
+  const paintSound = () => {
+    if (!sound) return;
+    sound.setAttribute("aria-pressed", String(!video.muted));
+    sound.querySelector(".film-sound-l").textContent = video.muted ? "Sound on" : "Sound off";
+  };
+  const setSound = (on) => {
+    video.muted = !on;
+    video.loop = !on;
+    if (on) { video.currentTime = 0; wanted = true; inView = true; }
+    paintSound();
+    sync();
+  };
+  sound?.addEventListener("click", () => setSound(video.muted));
+  video.addEventListener("volumechange", paintSound);
+  video.addEventListener("ended", () => { setSound(false); video.play().catch(() => {}); });
+  toggle.addEventListener("click", () => { wanted = video.paused; sync(); if (wanted && !inView) { inView = true; sync(); } });
+  // Fetch a little before it arrives, but never during the page load: it sits right under
+  // the hero and must not compete with it. Play only while most of it is on screen.
+  const watch = () => new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && !REDUCED && load(), { rootMargin: "400px 0px" }).observe(video);
+  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
+  if (document.readyState === "complete") idle(watch);
+  else window.addEventListener("load", () => idle(watch), { once: true });
+  new IntersectionObserver((es) => { inView = es[0].intersectionRatio >= 0.4; sync(); }, { threshold: [0, 0.4] }).observe(video);
+  document.addEventListener("visibilitychange", () => document.hidden ? video.pause() : sync());
+})();
+
 /* ═══════════ hero card ═══════════ */
+/* Each object in the hero is a real product: the card and its quick add read
+   the catalogue, so the name, the price and what lands in the bag always agree. */
 const HERO_CARDS = {
-  bag: { eyebrow: "in the bag", name: "SLOW ROAST", price: "Rs 3,800", meta: ["250 G", "WHOLE BEAN", "ROASTED IN LAHORE"] },
-  cup: { eyebrow: "in the cup", name: "HOUSE LATTE", price: "Rs 950", meta: ["250 ML", "BREWED DAILY", "TO GO"] },
+  bag: { id: "slow-roast", eyebrow: "in the bag", meta: ["250 G", "WHOLE BEAN", "ROASTED IN LAHORE"] },
+  cup: { id: "latte", eyebrow: "in the cup", meta: ["HOT OR ICED", "OAT OR ALMOND", "TO GO"] },
 };
 const heroCard = $("#hero-card");
+let heroRole = "bag";
+const heroProduct = (role) => PRODUCTS_BASE.find((p) => p.id === HERO_CARDS[role].id);
+const heroAddHTML = (p) => `<span>+ QUICK ADD</span><span>${money(p.price)}</span>`;
 const setCard = (role) => {
   const c = HERO_CARDS[role];
+  const p = heroProduct(role);
+  if (!c || !p) return;
+  heroRole = role;
   $('[data-card="eyebrow"]', heroCard).textContent = c.eyebrow;
-  $('[data-card="name"]', heroCard).textContent = c.name;
-  $('[data-card="price"]', heroCard).textContent = c.price;
+  $('[data-card="name"]', heroCard).textContent = p.name;
+  $('[data-card="price"]', heroCard).textContent = money(p.price);
   $('[data-card="meta"]', heroCard).innerHTML = c.meta.map((m, i) => `<li>${i ? "<i></i>" : ""}${m}</li>`).join("");
+  const add = $("#hero-quick-add");
+  if (add && !add.classList.contains("done")) {
+    add.innerHTML = heroAddHTML(p);
+    add.setAttribute("aria-label", `Quick add ${p.name.toLowerCase()} to bag, ${money(p.price)}`);
+  }
+  const more = $("#hero-card-more");
+  if (more) more.href = `/shop/${p.id}`;
 };
 setCard("bag");
 const heroHandle = $("#hero-handle");
-hover(heroCard, heroHandle, { opacity: 0, y: 18 }, { opacity: 1, y: 0 }, { config: C(210, 26) });
+/* The card opens over the products and stays open while the pointer is on the
+   products or on the card itself (with a moment's grace crossing between them),
+   so its buttons can actually be clicked. It only takes clicks while showing. */
+(() => {
+  const spring = new Spring({ opacity: 0, y: 18 }, styler(heroCard));
+  let hide;
+  /* The card sits in the clear space above the cup: under the header (never over
+     Sign in or the bag) and to the right of the headline. */
+  const place = () => {
+    const media = heroCard.offsetParent;
+    const hdr = $("#hdr");
+    const head = $(".hero-head");
+    if (!media || !hdr || !heroHandle) return;
+    const m = media.getBoundingClientRect();
+    const h = heroHandle.getBoundingClientRect();
+    const w = heroCard.offsetWidth;
+    const top = hdr.getBoundingClientRect().bottom + 22;
+    // Where the headline's letters end, not its (full width) box.
+    let textRight = 0;
+    if (head) {
+      const walk = document.createTreeWalker(head, NodeFilter.SHOW_TEXT);
+      const words = document.createRange();
+      for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+        if (!t.textContent.trim() || t.parentElement.closest(".sr-only")) continue;
+        words.selectNodeContents(t);
+        textRight = Math.max(textRight, words.getBoundingClientRect().right);
+      }
+    }
+    let left = Math.max(h.left - 24, textRight + 24);
+    left = Math.min(left, window.innerWidth - w - 24);
+    heroCard.style.setProperty("top", `${Math.round(top - m.top)}px`, "important");
+    heroCard.style.setProperty("left", `${Math.round(left - m.left)}px`, "important");
+    heroCard.style.setProperty("right", "auto", "important");
+  };
+  const show = () => {
+    if (noHover()) return;
+    clearTimeout(hide);
+    if (heroCard.style.pointerEvents !== "auto") place();
+    heroCard.style.pointerEvents = "auto";
+    spring.start({ opacity: 1, y: 0 }, { config: C(210, 26) });
+  };
+  const later = () => {
+    clearTimeout(hide);
+    hide = setTimeout(() => {
+      if (heroCard.contains(document.activeElement)) return;
+      heroCard.style.pointerEvents = "none";
+      spring.start({ opacity: 0, y: 18 }, { config: C(210, 26) });
+    }, 320);
+  };
+  for (const el of [heroHandle, heroCard]) {
+    el.addEventListener("mouseenter", show);
+    el.addEventListener("mouseleave", later);
+  }
+  heroCard.addEventListener("focusin", show);
+  heroCard.addEventListener("focusout", later);
+})();
 
 /* ═══════════ order block: the thermal printer ═══════════ */
 // Filled in by the printer below; the tear-off gesture asks it for a fresh slip.
@@ -2724,11 +2859,33 @@ const orderPrinter = { reprint: () => {} };
 
 /* ═══════════ Opalesce ═══════════ */
 const CONFIG = {
-  bgColor: "#070707", colorA: "#110b07", colorB: "#2c1a11", colorC: "#6e3e22", colorD: "#c69b6e",
+  bgColor: "#100c0a", colorA: "#110b07", colorB: "#2c1a11", colorC: "#6e3e22", colorD: "#c69b6e",
   scale: 0.5, speed: 0.12, flow: 0.16, warp: 1.45, warpScale: 0.75, roughness: 0.45, lacunarity: 2,
   thickness: 1.2, iridescence: 0.22, spread: 0.28, sheen: 0.05, contrast: 1.35, midpoint: 0.54,
   glow: 0.08, sink: 0.35, grain: 0.045, grainAnim: 1, dither: 1.55, vignette: 0.26, cursor: 1,
   pointerRadius: 0.3, pointerStrength: 1.2, parallax: 0.01, maxDpr: 1.0,
+};
+
+/* The hero's own colours and pace: livelier than the other opal sections, and
+   tuned to the products. Each palette runs dark to light: background, deep, mid,
+   glow, highlight. Preview any with ?hero=<name>. */
+const HERO_PALETTES = {
+  sage: { bgColor: "#060807", colorA: "#0a100c", colorB: "#18261d", colorC: "#46634e", colorD: "#c89263" },
+  teal: { bgColor: "#04080a", colorA: "#061114", colorB: "#0d2a2f", colorC: "#1d5b5d", colorD: "#d89c62" },
+  copper: { bgColor: "#080605", colorA: "#170d07", colorB: "#3b2213", colorC: "#8c4c23", colorD: "#e4a96c" },
+  espresso: { bgColor: "#0a0706", colorA: "#120c09", colorB: "#2a1a10", colorC: "#5a3a22", colorD: "#d39a62" },
+  ink: { bgColor: "#100c0a", colorA: "#0d0d0e", colorB: "#1c1a18", colorC: "#3d342d", colorD: "#c89263" },
+  current: { bgColor: CONFIG.bgColor, colorA: CONFIG.colorA, colorB: CONFIG.colorB, colorC: CONFIG.colorC, colorD: CONFIG.colorD },
+};
+const HERO_PALETTE = "espresso";
+const HERO_MOTION = { speed: 0.2, flow: 0.26, warp: 1.6, glow: 0.12, iridescence: 0.3 };
+const heroConfig = () => {
+  let pick = HERO_PALETTE;
+  try {
+    const q = new URLSearchParams(location.search).get("hero");
+    if (q && q in HERO_PALETTES) pick = q;
+  } catch {}
+  return { ...HERO_MOTION, ...HERO_PALETTES[pick], drift: 1 };
 };
 
 const VERT = `#version 300 es
@@ -2864,7 +3021,8 @@ const hexToVec3 = (h) => {
   return [parseInt(s.slice(0, 2), 16) / 255, parseInt(s.slice(2, 4), 16) / 255, parseInt(s.slice(4, 6), 16) / 255];
 };
 
-const opalesce = (wrapper) => {
+const opalesce = (wrapper, overrides = {}) => {
+  const CFG = { ...CONFIG, ...overrides };
   const canvas = $("canvas", wrapper);
   const fade = $(".opal-canvas", wrapper);
   const gl = canvas.getContext("webgl2", { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: "high-performance" });
@@ -2894,7 +3052,7 @@ const opalesce = (wrapper) => {
 
   let dpr = 1;
   const resize = () => {
-    dpr = Math.min(window.devicePixelRatio || 1, CONFIG.maxDpr);
+    dpr = Math.min(window.devicePixelRatio || 1, CFG.maxDpr);
     const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) {
@@ -2908,33 +3066,33 @@ const opalesce = (wrapper) => {
 
   const applyConfig = () => {
     gl.useProgram(program);
-    u3c("uBgColor", CONFIG.bgColor);
-    u3c("uColorA", CONFIG.colorA);
-    u3c("uColorB", CONFIG.colorB);
-    u3c("uColorC", CONFIG.colorC);
-    u3c("uColorD", CONFIG.colorD);
-    u1f("uScale", CONFIG.scale);
-    u1f("uSpeed", CONFIG.speed);
-    u1f("uFlow", CONFIG.flow);
-    u1f("uWarp", CONFIG.warp);
-    u1f("uWarpScale", CONFIG.warpScale);
-    u1f("uRoughness", CONFIG.roughness);
-    u1f("uLacunarity", CONFIG.lacunarity);
-    u1f("uThickness", CONFIG.thickness);
-    u1f("uIridescence", CONFIG.iridescence);
-    u1f("uSpread", CONFIG.spread);
-    u1f("uSheen", CONFIG.sheen);
-    u1f("uContrast", CONFIG.contrast);
-    u1f("uMidpoint", CONFIG.midpoint);
-    u1f("uGlow", CONFIG.glow);
-    u1f("uSink", CONFIG.sink);
-    u1f("uGrain", CONFIG.grain);
-    u1f("uGrainAnim", CONFIG.grainAnim);
-    u1f("uDither", CONFIG.dither);
-    u1f("uVignette", CONFIG.vignette);
-    u1f("uPointerRadius", CONFIG.pointerRadius);
-    u1f("uPointerStrength", CONFIG.pointerStrength);
-    u1f("uParallax", CONFIG.parallax);
+    u3c("uBgColor", CFG.bgColor);
+    u3c("uColorA", CFG.colorA);
+    u3c("uColorB", CFG.colorB);
+    u3c("uColorC", CFG.colorC);
+    u3c("uColorD", CFG.colorD);
+    u1f("uScale", CFG.scale);
+    u1f("uSpeed", CFG.speed);
+    u1f("uFlow", CFG.flow);
+    u1f("uWarp", CFG.warp);
+    u1f("uWarpScale", CFG.warpScale);
+    u1f("uRoughness", CFG.roughness);
+    u1f("uLacunarity", CFG.lacunarity);
+    u1f("uThickness", CFG.thickness);
+    u1f("uIridescence", CFG.iridescence);
+    u1f("uSpread", CFG.spread);
+    u1f("uSheen", CFG.sheen);
+    u1f("uContrast", CFG.contrast);
+    u1f("uMidpoint", CFG.midpoint);
+    u1f("uGlow", CFG.glow);
+    u1f("uSink", CFG.sink);
+    u1f("uGrain", CFG.grain);
+    u1f("uGrainAnim", CFG.grainAnim);
+    u1f("uDither", CFG.dither);
+    u1f("uVignette", CFG.vignette);
+    u1f("uPointerRadius", CFG.pointerRadius);
+    u1f("uPointerStrength", CFG.pointerStrength);
+    u1f("uParallax", CFG.parallax);
     resize();
   };
 
@@ -2961,8 +3119,11 @@ const opalesce = (wrapper) => {
 
   const mouse = { x: 0, y: 0, ax: 0, ay: 0, wx: 0, wy: 0, tx: 0, ty: 0 };
   let canvasRect: DOMRect | null = null;
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  let lastAim = -1e9;
   const aim = (e) => {
     if (!visible || document.hidden) return;
+    lastAim = performance.now();
     if (!canvasRect) canvasRect = canvas.getBoundingClientRect();
     const a = canvasRect.width / (canvasRect.height || 1);
     mouse.tx = ((e.clientX - canvasRect.left) / canvasRect.width - 0.5) * a;
@@ -2995,7 +3156,12 @@ const opalesce = (wrapper) => {
     mouse.wy += (mouse.y - mouse.wy) * kWake;
     u1f("iTime", clock);
     if (mouse.rest === undefined) mouse.rest = { x: mouse.tx, y: mouse.ty };
-    if (!CONFIG.cursor) {
+    if (CFG.drift && (coarse || now - lastAim > 4000)) {
+      const a = canvas.clientWidth / (canvas.clientHeight || 1);
+      mouse.tx = 0.34 * a * Math.sin(clock * 0.21) + 0.08 * Math.sin(clock * 0.53);
+      mouse.ty = 0.22 * Math.cos(clock * 0.27) + 0.05 * Math.cos(clock * 0.61);
+    }
+    if (!CFG.cursor) {
       mouse.tx = mouse.rest.x;
       mouse.ty = mouse.rest.y;
     }
@@ -3029,7 +3195,7 @@ const opalesce = (wrapper) => {
     if (!REDUCED) stopFrame = loop(frame);
   });
 
-  if (CONFIG.cursor) {
+  if (CFG.cursor) {
     window.addEventListener("pointermove", aim, { passive: true });
     window.addEventListener("pointerdown", aim, { passive: true });
   }
@@ -3068,7 +3234,7 @@ const whenNear = (el, start, margin = "1500px 0px") => {
     setTimeout(() => idle(go, { timeout: 4000 }), 1500);
   });
 };
-$$("[data-opal]").forEach((w) => (w.closest("#hero") ? opalesce(w) : whenNear(w, () => opalesce(w))));
+$$("[data-opal]").forEach((w) => (w.closest("#hero") ? opalesce(w, heroConfig()) : whenNear(w, () => opalesce(w))));
 
 /* ═══════════ three.js layers ═══════════ */
 const threeReady = Promise.resolve({ ...THREE, GLTFLoader, DRACOLoader, RoomEnvironment });
@@ -4780,12 +4946,23 @@ $("#menu-cta").addEventListener("click", (e) => {
   openFullMenu();
 });
 
-/* hero quick-add button adds slow roast to bag with liquid droplet */
+/* The hero card's quick add puts in the bag whichever product the card shows. */
 const heroQuickAddBtn = $("#hero-quick-add");
 if (heroQuickAddBtn) {
   heroQuickAddBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    quickAdd("slow-roast", heroQuickAddBtn);
+    const p = heroProduct(heroRole);
+    if (!p) return;
+    flyLiquidDrop(heroQuickAddBtn);
+    cart.add(p.id, defaultSel(p));
+    toast(`ADDED — ${p.name}`, "VIEW BAG", () => openBag());
+    heroQuickAddBtn.classList.add("done");
+    heroQuickAddBtn.innerHTML = "<span>✓ ADDED TO BAG</span>";
+    clearTimeout(heroQuickAddBtn._reset);
+    heroQuickAddBtn._reset = setTimeout(() => {
+      heroQuickAddBtn.classList.remove("done");
+      setCard(heroRole);
+    }, 1400);
   });
 }
 
@@ -6243,6 +6420,8 @@ function paintHeroWaits() {
   if (!list || !shops?.length) return;
   const names = ["GULBERG", "DHA", "JOHAR TOWN"];
   const open = nowMin() >= OPEN_MIN && nowMin() + PREP_MIN <= CLOSE_MIN;
+  // Closed everywhere, three "opens 07:00" lines only repeat the live line: show waits when there are some.
+  if (!open && !shops.some((sh) => sh?.paused)) { list.hidden = true; return; }
   list.innerHTML = names
     .map((name, i) => {
       const sh = shops[i] || {};
@@ -7462,7 +7641,6 @@ coEl.addEventListener("submit", (e) => {
      Reviews written on the site (from the section, or "rate your order" after an
      order) are kept and shown first; one written from an order carries a
      VERIFIED ORDER stamp. Stored in the browser until a backend collects them. */
-  const BASE_SCORE = { avg: 4.9, count: 1284 };
   const revCards = $("#rev-cards");
   const myReviews = () => readStore("brewns-reviews", []);
   const stars = (n) => `<p class="rev-stars" role="img" aria-label="Rated ${n} out of 5">${"★".repeat(n)}<span class="rev-stars-off">${"★".repeat(5 - n)}</span></p>`;
@@ -7497,14 +7675,9 @@ coEl.addEventListener("submit", (e) => {
         })
         .join(""),
     );
+    // The visitor's own reviews show first; the "no reviews yet" card goes once there is one.
+    if (list.length) $(".rev-empty", revCards)?.remove();
     fillSnaps(revCards);
-    const sum = list.reduce((a, r) => a + r.stars, 0);
-    const count = BASE_SCORE.count + list.length;
-    const avg = (BASE_SCORE.avg * BASE_SCORE.count + sum) / count;
-    const n = $(".rev-score-n span", document);
-    if (n && list.length) n.textContent = avg.toFixed(1);
-    const c = $(".rev-score-meta .blk span", document);
-    if (c && list.length) c.textContent = count.toLocaleString("en-US");
     refreshRevBar();
   };
   refreshRevBar = () => {};

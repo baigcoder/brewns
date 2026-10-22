@@ -1,6 +1,7 @@
 import { after } from 'next/server';
 import { clientIp, json, rateLimit, readBody, route, str } from '@/lib/server/http';
 import { agentName, processVoiceCallPrompt, type ScriptState, type VoiceTurn } from '@/lib/server/voiceCall';
+import { asCaller, readCaller } from '@/lib/server/voiceContext';
 import { endVoiceCall, logVoiceTurn, validCallId } from '@/lib/server/voiceLog';
 
 export const maxDuration = 30;
@@ -32,9 +33,10 @@ export const POST = route(async (req) => {
     .filter((t: VoiceTurn) => t.content);
   const state = b.state && typeof b.state === 'object' ? (b.state as ScriptState) : {};
   const lang = b.lang === 'ur' ? 'ur' : 'en';
+  const channel = b.channel === 'text' ? 'text' : 'voice';
 
   const message = prompt || 'call_init';
-  const result = await processVoiceCallPrompt(message, history, gender, state, lang);
+  const result = await asCaller(await readCaller(), () => processVoiceCallPrompt(message, history, gender, state, lang, channel));
 
   if (callId) {
     const caller = message === 'call_init' || message === 'language_switch' ? undefined : message === 'voice_switch' ? `(switched to ${agentName(gender)})` : message;

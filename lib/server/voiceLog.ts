@@ -6,7 +6,7 @@ import { kv } from './store';
 import { bumpLive } from './orders';
 import type { VoiceAction, VoiceGender, VoiceLang } from './voiceCall';
 
-export type VoiceOutcome = { kind: 'table' | 'party' | 'bag' | 'email' | 'whatsapp'; code?: string; summary: string; total?: number; email?: string; whatsappUrl?: string; sent?: boolean };
+export type VoiceOutcome = { kind: 'table' | 'party' | 'bag' | 'email' | 'whatsapp' | 'callback'; code?: string; summary: string; total?: number; email?: string; whatsappUrl?: string; sent?: boolean };
 
 export interface VoiceCallLog {
   id: string;
@@ -36,6 +36,7 @@ function outcomesOf(actions: VoiceAction[]): VoiceOutcome[] {
     if (a.type === 'ADD_TO_BAG') return [{ kind: 'bag', summary: a.data.items.map((l) => `${l.qty} × ${l.name}`).join(', '), total: a.data.total }];
     if (a.type === 'SAVED_EMAIL') return [{ kind: 'email', code: a.data.code, summary: a.data.sent ? `Confirmation email sent to ${a.data.email}${a.data.code ? ` (${a.data.code})` : ''}` : `Email saved to booking; delivery not confirmed (${a.data.email})`, email: a.data.email, sent: a.data.sent }];
     if (a.type === 'WHATSAPP_VOUCHER') return [{ kind: 'whatsapp', code: a.data.code, summary: a.data.sent ? `WhatsApp voucher sent to ${a.data.phone}` : `WhatsApp voucher ready to share with ${a.data.phone}`, whatsappUrl: a.data.whatsappUrl, sent: a.data.sent }];
+    if (a.type === 'CALLBACK') return [{ kind: 'callback', summary: `Call back ${a.data.name} on ${a.data.phone}${a.data.reason ? `: ${a.data.reason}` : ''}` }];
     return [];
   });
 }

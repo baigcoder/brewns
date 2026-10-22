@@ -6,8 +6,8 @@ const isDev = process.env.NODE_ENV !== 'production';
    this one, or post a form somewhere else.
 
    What the site really uses is short: its own files, Cloudinary pictures, the
-   order-form service if one is set, and the Draco 3D decoder (WebAssembly in a blob
-   worker). Inline scripts and styles stay allowed because Next writes inline
+   order-form service if one is set, the Draco 3D decoder (WebAssembly in a blob
+   worker), and the concierge's live voice line to Gemini (a WebSocket). Inline scripts and styles stay allowed because Next writes inline
    hydration scripts and the page builds a lot of inline style. */
 const orderEndpointOrigin = (() => {
   try {
@@ -24,7 +24,9 @@ const csp = [
   `img-src 'self' data: blob: ${IMG_HOSTS}`,
   `media-src 'self' data: blob: ${IMG_HOSTS}`,
   "font-src 'self' data:",
-  `connect-src 'self' blob: data: https://res.cloudinary.com ${orderEndpointOrigin}${isDev ? ' ws://localhost:* http://localhost:*' : ''}`.trim(),
+  `connect-src 'self' blob: data: https://res.cloudinary.com wss://generativelanguage.googleapis.com ${orderEndpointOrigin}${isDev ? ' ws://localhost:* http://localhost:*' : ''}`.trim(),
+  // The locations pages embed a Google map of each counter.
+  "frame-src https://www.google.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "object-src 'none'",

@@ -1,0 +1,87 @@
+/* Dual-screen and foldable devices, on every page.
+
+   When the browser window spans two screens side by side (a Surface Duo, a fold
+   opened like a book with the browser spanned), the middle of the page is the
+   hinge: nothing should be cut in half by it. Each two-part layout becomes two
+   equal columns with the gap laid over the hinge; the logo moves off the centre
+   line; long reading pages flow into two columns, like an open book.
+   --hinge is the gap between the screens; pages are centred, so with two equal
+   screens the middle of every column pair lands on the hinge. Browsers and
+   devices without screen segments never match these queries. */
+
+@media (horizontal-viewport-segments: 2) {
+  :root { --hinge: calc(env(viewport-segment-left 1 0, 50vw) - env(viewport-segment-right 0 0, 50vw)); --hinge-gap: calc(var(--hinge) + 3rem); }
+
+  /* The shared header: logo beside the actions on the right screen, links on the left. */
+  .gh { display: flex !important; justify-content: space-between; gap: 16px; }
+  .gh-nav { display: flex !important; gap: 14px; order: 1; }
+  .gh-toggle { display: none !important; }
+  .gh-mark { order: 2; margin-left: auto; }
+  .gh-right { order: 3; }
+  .gh-hide-sm { display: none !important; }
+
+  /* The home page header: its logo is centred on the hinge; put it on the right screen. */
+  .hdr-mark { left: calc(env(viewport-segment-left 1 0, 50vw) + 2.5rem) !important; transform: none !important; }
+
+  /* Two-part layouts: one part per screen. */
+  .ip-hero-row, .pd, .ip-split, .ip-contact, .gf-top, .season-in, .subband-in, .pillars-in, .why-head {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    column-gap: var(--hinge-gap) !important;
+  }
+  .ip-loc { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; column-gap: var(--hinge-gap) !important; }
+  .ip-loc-n { display: none; }
+  .gf-cols { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  /* Grids of cards: an even number of columns, with the hinge between the halves. */
+  .pc-grid, .ip-grid, .ip-posts, .why-grid, .season-grid, .subband-perks {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: var(--hinge-gap) !important;
+  }
+  .ip-post.lead { grid-column: auto; }
+  .ip-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; column-gap: var(--hinge-gap); }
+
+  /* Headlines that would run across the hinge stay on the left screen. */
+  .ip-head, .ip-hero > .ip-head, .shop-group-head, .why-head > * { max-width: calc(env(viewport-segment-width 0 0, 50vw) - 2.5rem); }
+  .ip-hero-row .ip-head, .ip-split .ip-head { max-width: none; }
+
+  /* Reading pages (policies): two columns, like the pages of a book. */
+  .legal-main { max-width: none !important; padding-inline: 1.5rem !important; }
+  .legal-main > .legal-eyebrow, .legal-main > .legal-h1, .legal-main > .legal-updated { max-width: calc(env(viewport-segment-width 0 0, 50vw) - 3rem); }
+  .legal-body { column-count: 2; column-gap: var(--hinge-gap); }
+  .legal-body h2 { break-after: avoid; }
+  .legal-body > * { break-inside: avoid; }
+
+  /* The home page: the hero's words fit the left screen; its hours strip goes, as on phones. */
+  .hero-copy, .hero-grid, .hero-head { max-width: calc(env(viewport-segment-width 0 0, 50vw) - 3rem) !important; }
+  .hero-h1 { font-size: clamp(2.6rem, 5.4vw, 4rem) !important; }
+  .hero-bar { display: none !important; }
+  .menu-h2, .menu-head, .shop-head, .rev-head, .locs-head { max-width: calc(env(viewport-segment-width 0 0, 50vw) - 3rem); }
+  .cards, .shop-grid, .locs-list, .loc-cards, .rev-slips {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: var(--hinge-gap) !important;
+  }
+
+  /* One-word headlines can't wrap: size them to one screen. */
+  .ip-h1 { font-size: clamp(2.4rem, 4.6vw, 4.4rem) !important; }
+  .pd-h1 { font-size: clamp(2.2rem, 3.8vw, 3.4rem) !important; }
+
+  /* The story timeline and other long lines stay on one screen. */
+  .ip-time p, .ip-time h3, .ip-lede, .pd-desc { max-width: calc(env(viewport-segment-width 0 0, 50vw) - 4rem) !important; }
+  .ip-split .ip-lede, .pd .pd-desc { max-width: none !important; }
+
+  /* The footer's café row and small print: two columns either side of the hinge. */
+  .gf-cafes { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; column-gap: var(--hinge-gap) !important; }
+  .gf-bottom { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; column-gap: var(--hinge-gap) !important; }
+  .gf-bottom > * { min-width: 0; }
+  .gf-contact { grid-column: 2; }
+
+  /* The concierge: a call or chat on one screen, not split by the hinge. */
+  .vcall { justify-items: start; padding-left: max(16px, calc((env(viewport-segment-width 0 0, 50vw) - 26.5rem) / 2)); }
+}
+
+/* Folded halfway with the screen split top and bottom (tabletop posture): keep
+   fixed bars and the concierge out of the fold. */
+@media (vertical-viewport-segments: 2) {
+  .vcall-card { height: min(46rem, calc(env(viewport-segment-height 0 0, 50vh) - 24px)) !important; }
+  .vcall { place-items: start center; padding-top: 12px; }
+}

@@ -16,12 +16,18 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { kv, withLock } from './store';
 import { CATALOG, CLOSE_MIN, DELIVERY, LOC_TITLES, OPEN_MIN, SHOP_COUNT, catalogItem, defaultSel, money, pkMobile, unitPrice, validSel, type Product, type Sel } from '@/lib/catalog';
 import { cafeHoursReply, getCafeOpeningStatus } from '@/lib/openingHours';
+import { speechChunks } from '@/lib/voiceChunks';
 import type { Reservation } from '@/app/api/reservations/route';
 import { sendBookingConfirmationEmail } from './email';
 import { sendBookingWhatsappNotification, buildBookingWhatsappMessage, getWhatsappDirectLink } from './smsWhatsapp';
-import { bumpLive } from './orders';
+import { activeOrders, bumpLive, getOrder } from './orders';
+import { alertOwners } from './alerts';
+import { customerOrderRefs } from './customers';
+import { voiceCaller } from './voiceContext';
+import { BREWNS_KNOWLEDGE } from './voiceKnowledge';
+import { STATUS_LABEL, clock, customerStage } from '@/lib/orderFlow';
 import { getSettings } from './settings';
-import { bookingProblem, uniqueBookingCode } from '@/lib/booking';
+import { bookingMinutes, bookingProblem, uniqueBookingCode } from '@/lib/booking';
 
 export type VoiceGender = 'female' | 'male';
 
@@ -43,6 +49,7 @@ export type VoiceAction =
   | { type: 'BOOK_PARTY'; data: PartyBooking }
   | { type: 'SAVED_EMAIL'; data: { email: string; code?: string; sent: boolean } }
   | { type: 'WHATSAPP_VOUCHER'; data: { phone: string; code: string; whatsappUrl: string; sent: boolean } }
+  | { type: 'CALLBACK'; data: { name: string; phone: string; reason: string } }
   | { type: 'END_CALL' };
 
 export interface PartyBooking {
@@ -80,14 +87,25 @@ export interface ScriptState {
 
 export interface VoiceCallResponse {
   reply: string;
-  /** Where the browser streams the ElevenLabs voice from; absent without a key. */
+  /** Where the browser streams the voice from; absent without a voice key. */
   audioUrl?: string;
+  /** The same reply, a sentence or two at a time, so the first words play while the rest is voiced. */
+  audioChunks?: { text: string; url: string }[];
   actions: VoiceAction[];
   state?: ScriptState;
   brain: 'groq' | 'gemini' | 'script';
   /** The language the caller spoke, so the browser listens in it next turn. */
   lang: VoiceLang;
 }
+
+/** A phone call is heard; a message is read. They want different writing. */
+export type VoiceChannel = 'voice' | 'text';
+const channelNote = (channel: VoiceChannel, lang: VoiceLang) =>
+  channel === 'text'
+    ? `
+
+This turn is a TEXT CHAT, not a phone call: the guest reads your reply on screen. Write naturally, like a friendly café team member replying to a message: 1 to 3 short sentences. Write prices as "Rs 1,050" and times as "7 PM", not spelled out. No markdown, no bullet points, no headings; one emoji at most, only if it fits.${lang === 'ur' ? ' Write in Urdu script, in the warm everyday Urdu people text in Lahore.' : ''}`
+    : '';
 
 export const agentName = (g: VoiceGender, l: VoiceLang = 'en') =>
   l === 'ur' ? (g === 'male' ? 'حمزہ' : 'سارہ') : (g === 'male' ? 'Hamza' : 'Sarah');
@@ -145,8 +163,8 @@ export function forSpeech(text: string, lang: VoiceLang = 'en') {
     .trim();
 }
 
-const voiceSigningSecret = () => process.env.SESSION_SECRET || ELEVENLABS_API_KEY || process.env.GEMINI_API_KEY || '';
-export const ttsEnabled = () => Boolean(ELEVENLABS_API_KEY || process.env.GEMINI_API_KEY);
+const voiceSigningSecret = () => process.env.SESSION_SECRET || ELEVENLABS_API_KEY || process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
+export const ttsEnabled = () => Boolean(ELEVENLABS_API_KEY || process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY);
 
 /* The browser fetches the voice from /api/voice/tts, so it can start playing
    the first words while ElevenLabs is still speaking the rest. The URL carries
@@ -192,10 +210,23 @@ const voiceSettings = (model: string) => ({
   speed: 0.98,             // Unhurried, composed, polished pacing
 });
 
+/* A voice provider that refuses us (unpaid invoice, revoked key, quota) will
+   refuse every line for a while; trying it first each time only adds a round
+   trip before the fallback. So it sits out for a few minutes, and the reason
+   is logged once rather than on every sentence. */
+const BENCHED_MS = 5 * 60_000;
+const benched = new Map<string, number>();
+const isBenched = (provider: string) => (benched.get(provider) || 0) > Date.now();
+function bench(provider: string, status: number, detail: string) {
+  if (status !== 401 && status !== 402 && status !== 403 && status !== 429) return;
+  if (!isBenched(provider)) console.error(`[Voice] ${provider} refused (${status}), using the next voice for 5 minutes:`, detail.slice(0, 240));
+  benched.set(provider, Date.now() + BENCHED_MS);
+}
+
 export async function streamElevenLabsVoice(text: string, gender: VoiceGender, lang: VoiceLang = 'en'): Promise<ReadableStream<Uint8Array> | null> {
-  if (!ELEVENLABS_API_KEY || !text) return null;
+  if (!ELEVENLABS_API_KEY || !text || isBenched('ElevenLabs')) return null;
   try {
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_IDS[gender]}/stream?output_format=mp3_44100_128`, {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_IDS[gender]}/stream?output_format=mp3_44100_128&optimize_streaming_latency=3`, {
       method: 'POST',
       headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
       body: JSON.stringify({
@@ -206,7 +237,9 @@ export async function streamElevenLabsVoice(text: string, gender: VoiceGender, l
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok || !res.body) {
-      console.error('[ElevenLabs TTS]', res.status, (await res.text().catch(() => '')).slice(0, 300));
+      const detail = await res.text().catch(() => '');
+      bench('ElevenLabs', res.status, detail);
+      if (!isBenched('ElevenLabs')) console.error('[ElevenLabs TTS]', res.status, detail.slice(0, 300));
       return null;
     }
     return res.body;
@@ -216,41 +249,103 @@ export async function streamElevenLabsVoice(text: string, gender: VoiceGender, l
   }
 }
 
-/** Gemini's conversational TTS is a server-side Urdu-capable fallback when the
-    selected ElevenLabs voice or account cannot produce the requested language. */
+/** Groq's Orpheus: a natural English voice on the same key as the call's brain
+    and ears. English only, so Urdu lines go on to Gemini. */
+const GROQ_VOICES: Record<VoiceGender, string> = {
+  female: process.env.GROQ_TTS_VOICE_FEMALE || 'autumn',
+  male: process.env.GROQ_TTS_VOICE_MALE || 'troy',
+};
+
+export async function generateGroqVoice(text: string, gender: VoiceGender, lang: VoiceLang): Promise<Uint8Array | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || !text || lang !== 'en' || isBenched('Groq Orpheus')) return null;
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: process.env.GROQ_TTS_MODEL || 'canopylabs/orpheus-v1-english', voice: GROQ_VOICES[gender], input: text.slice(0, 900), response_format: 'wav' }),
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      // A model whose terms nobody has accepted answers 400 to every line; sit it out like a refusal.
+      bench('Groq Orpheus', /terms acceptance/i.test(detail) ? 403 : res.status, detail);
+      if (!isBenched('Groq Orpheus')) console.error('[Groq TTS]', res.status, detail.slice(0, 300));
+      return null;
+    }
+    return new Uint8Array(await res.arrayBuffer());
+  } catch (err) {
+    console.error('[Groq TTS]', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/** Raw 16-bit mono PCM, as Gemini speaks it, wrapped so a browser can play it. */
+function pcmToWav(pcm: Buffer, rate: number): Uint8Array {
+  const head = Buffer.alloc(44);
+  head.write('RIFF', 0);
+  head.writeUInt32LE(36 + pcm.length, 4);
+  head.write('WAVEfmt ', 8);
+  head.writeUInt32LE(16, 16);
+  head.writeUInt16LE(1, 20);
+  head.writeUInt16LE(1, 22);
+  head.writeUInt32LE(rate, 24);
+  head.writeUInt32LE(rate * 2, 28);
+  head.writeUInt16LE(2, 32);
+  head.writeUInt16LE(16, 34);
+  head.write('data', 36);
+  head.writeUInt32LE(pcm.length, 40);
+  return new Uint8Array(Buffer.concat([head, pcm]));
+}
+
+/** Gemini is the step-by-step line's primary voice, and speaks with the live
+    line's voice (LIVE_VOICES), so Sarah sounds the same whichever line answers.
+    The flash model first, then the lite one; a model that refuses sits out.
+    Plain generateContent answers a short line in about a second, where the
+    interactions API with a style note took four to six: the TTS models read a
+    style prompt aloud and take no system instruction, so the line goes as is. */
 export async function generateGeminiVoice(text: string, gender: VoiceGender, lang: VoiceLang): Promise<Uint8Array | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || !text) return null;
-  try {
-    const speaker = gender === 'female' ? 'Kore' : 'Puck';
-    const style = lang === 'ur'
-      ? 'Warm, relaxed, friendly Pakistani Urdu, like a helpful Lahore café concierge speaking naturally on a phone call.'
-      : 'Warm, relaxed, friendly natural English, like a helpful café concierge speaking on a phone call.';
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
-      method: 'POST',
-      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-lite-tts',
-        input: [{
-          type: 'user_input',
-          content: [{ type: 'text', text: forSpeech(text, lang).slice(0, 900), annotations: [{ type: 'speech_metadata', style }] }],
-        }],
-        response_format: { type: 'audio' },
-        generation_config: { speech_config: [{ voice: speaker }] },
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) {
-      console.warn('[Gemini TTS]', response.status, (await response.text().catch(() => '')).slice(0, 300));
-      return null;
+  const models = [...new Set([process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts'])];
+  for (const model of models) {
+    if (isBenched(`Gemini TTS ${model}`)) continue;
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: forSpeech(text, lang).slice(0, 900) }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: LIVE_VOICES[gender] } } },
+          },
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        bench(`Gemini TTS ${model}`, response.status, detail);
+        if (!isBenched(`Gemini TTS ${model}`)) console.error('[Gemini TTS]', model, response.status, detail.slice(0, 300));
+        continue;
+      }
+      const data = await response.json();
+      const parts: { inlineData?: { mimeType?: string; data?: string } }[] = data.candidates?.[0]?.content?.parts || [];
+      const audio = parts.filter((p) => p.inlineData?.data);
+      if (!audio.length) {
+        console.error('[Gemini TTS]', model, 'no audio:', data.candidates?.[0]?.finishReason || data.promptFeedback?.blockReason || 'empty');
+        continue;
+      }
+      const bytes = Buffer.concat(audio.map((p) => Buffer.from(p.inlineData!.data!, 'base64')));
+      // Some models answer with a finished WAV, others with raw PCM ("audio/l16; rate=24000").
+      if (bytes.subarray(0, 4).toString('latin1') === 'RIFF') return new Uint8Array(bytes);
+      const rate = Number(/rate=(\d+)/.exec(audio[0].inlineData?.mimeType || '')?.[1]) || 24_000;
+      return pcmToWav(bytes, rate);
+    } catch (err) {
+      console.error('[Gemini TTS]', model, err instanceof Error ? err.message : err);
     }
-    const data = await response.json();
-    const audio = data.output_audio?.data || data.steps?.flatMap((step: any) => step.content || []).filter((part: any) => part.type === 'audio').at(-1)?.data;
-    return typeof audio === 'string' ? new Uint8Array(Buffer.from(audio, 'base64')) : null;
-  } catch (err) {
-    console.error('[Gemini TTS]', err instanceof Error ? err.message : err);
-    return null;
   }
+  return null;
 }
 
 /* ═══════════ dates and times, in Lahore ═══════════ */
@@ -741,6 +836,7 @@ function checkBag(items: unknown): Check<{ items: BagLine[]; total: number }> {
     const p = catalogItem(s(it.id, 40));
     if (!p) return { ok: false, error: `Unknown menu id "${s(it.id, 40)}". Use an id from the menu.` };
     if (p.gift) return { ok: false, error: 'Gift cards are bought on the website, not on a call.' };
+    if (voiceCaller().soldOut.includes(p.id)) return { ok: false, error: `${titleCase(p.name)} is sold out today. Say sorry and suggest something close.` };
     const qty = Math.min(20, Math.max(1, Math.round(Number(it.qty) || 1)));
     const sel = pickOptions(p, it.options);
     lines.push({ id: p.id, qty, sel, name: p.name });
@@ -788,12 +884,54 @@ const MENU_TEXT = CATALOG.filter((p) => !p.gift)
   })
   .join('\n');
 
-const persona = (g: VoiceGender) => {
+/* On a live call she should sound like the person who actually answers the
+   phone at a busy Lahore café, not a hotel concierge reading a script. */
+const PHONE_STYLE = (g: VoiceGender, liveHours: string) => `You are ${agentName(g)}. You work the front counter at brewns, a specialty coffee house in Lahore, and you've picked up the café phone. You're good at your job, friendly, quick, and you actually like coffee. You talk like a real person from Lahore on a phone call, not like a hotel or a call centre.
+
+How you talk:
+- Casual and warm. Contractions always ("you're", "we've", "I'll"). Short sentences. Usually one or two per turn, rarely more than 25 words.
+- Answer the phone the way a café does: "Hi, brewns, ${agentName(g)} here!" or "Assalam-o-Alaikum, brewns!" Never "How may I assist you".
+- Never say "Certainly", "My absolute pleasure", "I would be delighted", "Allow me to", "Is there anything else I can assist you with". Say what a person would: "Sure!", "Yeah, of course", "Got it", "Perfect", "Anything else?".
+- React like a person first, then answer: "Oh nice", "Ah okay", "Mm-hm", "Haan ji", "Achha". Vary it.
+- Real opinions when asked: if someone asks what's good, recommend something you'd order and say why in a few words.
+- If you didn't catch something, just say "Sorry, didn't catch that, one more time?" and never pretend you heard.
+- It's a phone call: no lists, no reading out the whole menu. Mention two or three things at most and ask what they're in the mood for.
+- Never output markdown, asterisks, bullet points, emojis or URLs. Never read out ids or codes in brackets.
+- Prices the way people say them: "ten fifty" or "a thousand and fifty rupees", "Rs" never spoken as letters. Times as "7 PM", dates as "tomorrow" or "this Friday".
+- If asked whether you're a real person or an AI, be honest and light about it: you're brewns's AI assistant, and you can still book tables and orders.
+- Live hours now (Asia/Karachi): ${liveHours} Never say the café is open when it's closed; say when it opens.
+
+Don't make things up. You only know what's in this briefing, the menu below and what your tools return. Don't describe the room, seats, Wi-Fi, parking, how busy it is or staff by name unless it's written here; if you don't know, say so like a person ("Honestly not sure, I'd have to check") and offer what you can do. Before promising a table, check it with check_table. If they ask where their order is, use check_order. If they're unhappy, want a refund, or need something you can't do, say sorry once, sincerely, and offer a call back from the team with request_callback.
+
+How real calls with you sound (match the manner, never copy the words):
+
+Caller: Hi, are you guys open right now?
+You: Hey! Not right now, we open at 7 tomorrow morning. Want me to set something up for then?
+
+Caller: What's good? I don't really like bitter coffee.
+You: Then you'd love the Spanish Latte, it's sweet and creamy. Or the Cardamom Bun if you're hungry. Iced or hot?
+
+Caller: Umm, I'm not sure what I want yet...
+You: No rush at all. Coffee, something cold, or food?
+
+Caller: Is there a table for six tonight at eight at DHA?
+You: Let me check... [check_table] Eight's full, sorry, but seven-thirty's free. Does that work?
+
+Caller: My order still hasn't come, it's been an hour!
+You: Oh no, I'm really sorry. What's the order number? [check_order] Okay, it's with the rider now, should be with you in about ten minutes. Want someone from the team to call you as well?
+
+Caller (Urdu): یار کوئی اچھی کولڈ کافی ہے؟
+You: جی بالکل! نائٹرو کولڈ برو ٹرائی کریں، بہت سمودھ ہے۔ میٹھا پسند ہو تو آئسڈ اسپینش لاٹے۔
+
+Caller (Urdu): شکریہ، اللہ حافظ
+You: آپ کا بھی شکریہ، اللہ حافظ! [end_call]`;
+
+const persona = (g: VoiceGender, style: 'concierge' | 'phone' = 'concierge') => {
   const hours = getCafeOpeningStatus();
   const liveHours = hours.isOpen
     ? `The counters are open now until ${hours.closeTime}; seating and kitchen service are ${hours.isSeatingOpen ? 'open until 8 PM' : 'closed for today'}.`
     : `The counters are closed now and reopen ${hours.isBeforeOpening ? 'today' : 'tomorrow'} at ${hours.todayTime}.`;
-  return `You are ${agentName(g)}, Head Concierge at Brewns Specialty Coffee House in Lahore. You are answering a direct voice phone call with a guest. Every reply you generate is spoken aloud live through studio text-to-speech.
+  return `${style === 'phone' ? PHONE_STYLE(g, liveHours) : `You are ${agentName(g)}, Head Concierge at Brewns Specialty Coffee House in Lahore. You are answering a direct voice phone call with a guest. Every reply you generate is spoken aloud live through studio text-to-speech.
 
 Professional Concierge Standards:
 - Demeanor & Politeness: Speak with the poise, warmth, and refined hospitality of a 5-star luxury boutique concierge. Be attentive, courteous, respectful, and calm.
@@ -808,7 +946,7 @@ Professional Concierge Standards:
 - Greetings: If the guest offers "Assalam-o-Alaikum", respond warmly with "Wa Alaikum Assalam! Welcome to Brewns."
 - Active Listening: If the caller changes their mind, corrects a detail, or interrupts, adapt immediately with "Of course, no problem at all."
 - Don't say you're an AI unless explicitly asked; if asked, answer cheerfully and courteously.
-- Live hours now (Asia/Karachi): ${liveHours} Never claim the café is open when this status says closed; give the exact next opening day and time.
+- Live hours now (Asia/Karachi): ${liveHours} Never claim the café is open when this status says closed; give the exact next opening day and time.`}
 
 What you can do:
 1. Book a table (1 to 20 guests). Collect: name, mobile number, which counter, date, time, number of guests, and indoor, terrace or bar seating (default indoor). Seating is 7 AM to 8 PM; we close at 9 PM.
@@ -829,7 +967,7 @@ Booking rules:
 - If the caller declines or has no email (says "no", "skip", "nah", "it's fine", "nahi"):
   Say "No problem at all! You can simply give your code or name when you arrive. Anything else I can help with?"
 - If a tool returns an error, explain it simply and ask for what's needed. Never invent a code or say something is booked unless the tool succeeded.
-- Never invent menu items, prices, origins, roast days or tasting notes; describe things only from the menu below, and pass the exact ids to add_to_bag. If they ask for something we don't make (a flat white, a Spanish latte), say so kindly and suggest the closest thing we do.
+- Never invent menu items, prices, origins, roast days or tasting notes; describe things only from the menu below, and pass the exact ids to add_to_bag. If they ask for something we don't make (a frappuccino, masala chai, a macchiato), say so kindly and suggest the closest thing we do.
 - Only add to the bag when the caller asks for it ("I'll have", "add", "order", "get me"). A question like "tell me about your coffee" is not an order: answer it, then ask if they'd like one.
 - Mention the price total after adding. If they want delivery and name an area, give that area's fee and time from the facts below.
 - When the caller says goodbye or is clearly done, say a short friendly goodbye and call end_call.
@@ -843,7 +981,7 @@ brewns facts:
 - Founder: Hassan Baig, a software engineer from Lahore. Brand ambassador: Hania Aamir; her order is the iced matcha latte and a cinnamon roll.
 
 Menu (id | name | price | options):
-${MENU_TEXT}`;
+${MENU_TEXT}${BREWNS_KNOWLEDGE}${voiceCaller().note}`;
 };
 
 const bookingProps = {
@@ -910,6 +1048,44 @@ const TOOLS = [
             },
           },
           required: ['items'],
+        },
+      },
+      {
+        name: 'check_order',
+        description: "Look up how an order is doing right now (being made, ready, rider on the way). Use when the caller asks about an order they placed. A signed-in caller's own orders need nothing; otherwise ask for the order number and the mobile number it was placed with.",
+        parameters: {
+          type: 'object',
+          properties: {
+            number: { type: 'integer', description: 'The order number, e.g. 25 for order #00025; omit if not given' },
+            phone: { type: 'string', description: 'The mobile number the order was placed with; empty if not given' },
+          },
+        },
+      },
+      {
+        name: 'check_table',
+        description: 'Check, before promising anything, whether a table is free at a counter on a date and time. Returns available true/false and, if it is full, the nearest free times.',
+        parameters: {
+          type: 'object',
+          properties: {
+            shop: { type: 'integer', description: '0 MM Alam Road, 1 DHA Phase 5, 2 Johar Town' },
+            date: { type: 'string', description: 'YYYY-MM-DD, resolved from today in Lahore' },
+            time: { type: 'string', description: 'HH:MM, 24-hour' },
+            guests: { type: 'integer' },
+          },
+          required: ['shop', 'date', 'time', 'guests'],
+        },
+      },
+      {
+        name: 'request_callback',
+        description: "Hand the caller over to a real person on the team: a complaint, a refund, a problem with an order, a question you can't answer, or they ask to speak to someone. Get their name and mobile number first. The team calls them back.",
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            phone: { type: 'string', description: 'Pakistani mobile number to call back' },
+            reason: { type: 'string', description: 'One sentence on what they need, in English, for the team' },
+          },
+          required: ['name', 'phone', 'reason'],
         },
       },
       { name: 'end_call', description: 'Hang up after you have said goodbye.' },
@@ -1002,12 +1178,93 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
     actions.push({ type: 'ADD_TO_BAG', data: r.value });
     return { content: JSON.stringify({ added: r.value.items.map((l) => `${l.qty} × ${titleCase(l.name)}`), total: money(r.value.total), note: 'Tax and any delivery fee are added at checkout on the website.' }) };
   }
+  if (name === 'check_order') return checkOrder(input);
+  if (name === 'check_table') return checkTable(input);
+  if (name === 'request_callback') {
+    const phone = pkMobile(s(input.phone, 20)) || voiceCaller().phone || '';
+    const who = s(input.name, 60) || voiceCaller().firstName || '';
+    const reason = s(input.reason, 300);
+    if (!phone) return { content: 'Ask for a Pakistani mobile number to call back, like 0300 1234567.', isError: true };
+    if (!who) return { content: 'Ask for their name first.', isError: true };
+    await kv.push('voice-callbacks', { name: who, phone, reason, t: Date.now() }, 200);
+    actions.push({ type: 'CALLBACK', data: { name: who, phone, reason } });
+    await alertOwners(`Call back ${who}`, `The AI concierge promised a call back.\n\nName: ${who}\nMobile: ${phone}\nWhy: ${reason || '(not given)'}\n\nThe full call is under Bookings & AI calls.`, `callback:${phone}`, 600).catch(() => 0);
+    const open = getCafeOpeningStatus().isOpen;
+    return { content: JSON.stringify({ saved: true, tell_caller: open ? 'Someone from the team will call them back shortly, today.' : 'Someone from the team will call them back when we open, from 7 AM.' }) };
+  }
   if (name === 'end_call') {
     actions.push({ type: 'END_CALL' });
     return { content: 'ok' };
   }
   return { content: `Unknown tool ${name}`, isError: true };
 }
+
+/** Order status for the caller: their own signed-in order, or an order number plus the mobile it was placed with. */
+async function checkOrder(input: Record<string, unknown>): Promise<ToolOut> {
+  const me = voiceCaller();
+  const number = Math.round(Number(input.number) || 0);
+  const phone = pkMobile(s(input.phone, 20));
+  let order = number ? await getOrder(number) : null;
+  if (number && !order) return { content: `There is no order #${number}. Ask them to check the number on their receipt or text message.`, isError: true };
+  if (!order && me.userId) {
+    const refs = await customerOrderRefs(me.userId, 5);
+    const mine = (await Promise.all(refs.map((r) => getOrder(r.number)))).filter((o) => o && o.customerId === me.userId);
+    order = mine.find((o) => o && !['collected', 'delivered', 'served', 'cancelled'].includes(o.status)) || mine[0] || null;
+  }
+  if (!order && phone) order = (await activeOrders()).filter((o) => pkMobile(o.phone) === phone).at(-1) || null;
+  if (!order) return { content: 'No order found. Ask for the order number from their receipt and the mobile number it was placed with.', isError: true };
+  const theirs = (me.userId && order.customerId === me.userId) || (phone && pkMobile(order.phone) === phone);
+  if (!theirs) return { content: 'Found the order, but the mobile number does not match. Ask for the mobile number it was placed with. Never share details of an order that is not theirs.', isError: true };
+  const stage: Record<string, string> = {
+    received: 'just come in, waiting for the bar to accept it',
+    accepted: 'accepted, about to be made',
+    preparing: 'being made right now',
+    rider: `out with the rider${order.rider ? ` (${order.rider.name.split(' ')[0]})` : ''}`,
+    ready: order.mode === 'pickup' ? 'ready to collect at the counter' : 'ready',
+    onway: 'on its way', arriving: 'arriving any minute', delivered: 'delivered', collected: 'collected', served: 'served at the table', cancelled: 'cancelled',
+  };
+  const key = customerStage(order);
+  return {
+    content: JSON.stringify({
+      order: `#${order.number}`,
+      status: stage[key] || STATUS_LABEL[order.status],
+      kind: order.mode,
+      counter: LOC_TITLES[order.loc],
+      placed_at: clock(order.placed),
+      expected_by: ['collected', 'delivered', 'served', 'cancelled'].includes(order.status) ? '' : clock(order.target),
+      items: order.items.map((i) => `${i.qty} × ${titleCase(i.name)}`).join(', '),
+      note: 'Tell them simply, like a person checking the screen ("It is being made now, should be ready around 7:40").',
+    }),
+  };
+}
+
+/** Is a table free? If not, the nearest free times either side, within seating hours. */
+async function checkTable(input: Record<string, unknown>): Promise<ToolOut> {
+  const loc = Math.round(Number(input.shop));
+  const guests = Math.round(Number(input.guests) || 0);
+  const date = s(input.date, 10);
+  const time = s(input.time, 5);
+  if (!(loc >= 0 && loc < SHOP_COUNT)) return { content: 'Which counter: MM Alam Road, DHA Phase 5 or Johar Town?', isError: true };
+  if (!(guests >= 1 && guests <= 20)) return { content: 'Tables are for 1 to 20 guests; bigger groups are a party booking.', isError: true };
+  const at = bookingMinutes(time);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || at === null) return { content: 'Give the date as YYYY-MM-DD and the time as HH:MM.', isError: true };
+  const now = lahoreNow();
+  if (date < now.date || (date === now.date && at <= now.minutes)) return { content: 'That time has already passed. Ask for a later time.', isError: true };
+  const last = CLOSE_MIN - 60;
+  if (at < OPEN_MIN || at > last) return { content: `Seating is from ${spokenTime(clockOf(OPEN_MIN))} to ${spokenTime(clockOf(last))}.`, isError: true };
+  const tables = (await getSettings()).shops[loc]?.tables ?? 0;
+  const taken = Object.values((await kv.hall<Reservation>('reservations')) || {});
+  const free = (m: number) => !bookingProblem(taken, { loc, date, time: clockOf(m), guests, phone: 'availability-check' }, tables);
+  if (free(at)) return { content: JSON.stringify({ available: true, counter: LOC_TITLES[loc], date: spokenDate(date), time: spokenTime(time), guests }) };
+  const options = [-30, 30, -60, 60, 90, -90]
+    .map((d) => at + d)
+    .filter((m) => m >= OPEN_MIN && m <= last && (date !== now.date || m > now.minutes) && free(m))
+    .slice(0, 3)
+    .map((m) => spokenTime(clockOf(m)));
+  return { content: JSON.stringify({ available: false, counter: LOC_TITLES[loc], free_nearby: options, note: options.length ? 'Offer these times, or another counter.' : 'Fully booked around then; offer another counter or day.' }) };
+}
+
+const clockOf = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 const BYE = /\b(bye|goodbye|that's all|thats all|nothing else|no thanks|khuda hafiz|allah hafiz)\b/i;
 
@@ -1064,7 +1321,7 @@ async function geminiAny(body: GeminiBody, stick: { model?: string }) {
   throw last;
 }
 
-async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGender, lang: VoiceLang): Promise<{ reply: string; actions: VoiceAction[] }> {
+async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGender, lang: VoiceLang, channel: VoiceChannel = 'voice'): Promise<{ reply: string; actions: VoiceAction[] }> {
   const now = lahoreNow();
   const contents: GeminiContent[] = [];
   // Turns start with the caller; the greeting is folded in as context.
@@ -1080,7 +1337,7 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
 
   for (let hop = 0; hop < 4; hop++) {
     const res = await geminiAny({
-      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.\n${lang === 'ur' ? 'For this turn, reply only in natural Urdu written in Urdu script. Do not answer in English, including for short confirmations such as haan, ji, or theek.' : 'For this turn, reply in natural English unless the caller clearly switches to Urdu.'}` }] },
+      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.\n${lang === 'ur' ? 'For this turn, reply only in natural Urdu written in Urdu script. Do not answer in English, including for short confirmations such as haan, ji, or theek.' : 'For this turn, reply in natural English unless the caller clearly switches to Urdu.'}${channelNote(channel, lang)}` }] },
       contents,
       tools: TOOLS,
       generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
@@ -1139,6 +1396,7 @@ async function groqTurn(
   history: VoiceTurn[],
   gender: VoiceGender,
   lang: VoiceLang,
+  channel: VoiceChannel = 'voice',
 ): Promise<{ reply: string; actions: VoiceAction[] }> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('No Groq API key');
@@ -1149,7 +1407,7 @@ async function groqTurn(
     : 'Reply in natural conversational English. If the caller switches to Urdu, follow their language.';
   const systemPrompt =
     persona(gender) +
-    `\nCurrent time in Lahore: ${now.clock}, date: ${now.date}.\n${languageInstruction}\nMenu items:\n${MENU_TEXT}\nIMPORTANT: Keep answers short (1 to 2 spoken sentences, usually under 35 words). Never use markdown, bullet points, headings, or emojis. Call tools when reserving a table, party, saving email, or ordering.`;
+    `\nCurrent time in Lahore: ${now.clock}, date: ${now.date}.\n${languageInstruction}\nIMPORTANT: Keep answers short (1 to 2 spoken sentences, usually under 35 words). Never use markdown, bullet points, headings, or emojis. Call tools when reserving a table, party, saving email, or ordering.` + channelNote(channel, lang);
 
   const messages: any[] = [
     { role: 'system', content: systemPrompt },
@@ -1715,6 +1973,7 @@ export async function processVoiceCallPrompt(
   gender: VoiceGender = 'female',
   state: ScriptState = {},
   hint: VoiceLang = 'en',
+  channel: VoiceChannel = 'voice',
 ): Promise<VoiceCallResponse> {
   const special = prompt === 'call_init' || prompt === 'voice_switch' || prompt === 'language_switch';
   const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !clearlyEnglish(prompt) ? 'ur' : 'en';
@@ -1738,36 +1997,24 @@ export async function processVoiceCallPrompt(
     };
   } else if (!state.flow && !state.waitingForEmail && isCafeHoursQuestion(prompt)) {
     turn = { reply: cafeHoursReply(getCafeOpeningStatus(), lang), actions: [], state };
-  } else if (groqEnabled()) {
-    try {
-      turn = await groqTurn(prompt, history, gender, lang);
-      brain = 'groq';
-    } catch (err) {
-      console.error('[Voice Groq]', err instanceof Error ? err.message : err);
-      if (geminiEnabled()) {
-        try {
-          turn = await geminiTurn(prompt, history, gender, lang);
-          brain = 'gemini';
-        } catch {
-          turn = await scriptTurn(prompt, gender, state, history, lang);
-          brain = 'script';
-        }
-      } else {
-        turn = await scriptTurn(prompt, gender, state, history, lang);
-        brain = 'script';
+  } else {
+    // Gemini first when there's a key (its limits are far higher than Groq's
+    // free tier, which refuses a second message inside a minute), then Groq,
+    // then the scripted answers so the guest always gets a reply.
+    const brains: [VoiceCallResponse['brain'], () => Promise<{ reply: string; actions: VoiceAction[] }>][] = [];
+    if (geminiEnabled()) brains.push(['gemini', () => geminiTurn(prompt, history, gender, lang, channel)]);
+    if (groqEnabled()) brains.push(['groq', () => groqTurn(prompt, history, gender, lang, channel)]);
+    let answered: { reply: string; actions: VoiceAction[] } | null = null;
+    for (const [name, run] of brains) {
+      try {
+        answered = await run();
+        brain = name;
+        break;
+      } catch (err) {
+        console.error(`[Voice ${name}]`, err instanceof Error ? err.message : err);
       }
     }
-  } else if (geminiEnabled()) {
-    try {
-      turn = await geminiTurn(prompt, history, gender, lang);
-      brain = 'gemini';
-    } catch (err) {
-      console.error('[Voice Gemini]', err instanceof Error ? err.message : err);
-      turn = await scriptTurn(prompt, gender, state, history, lang);
-      brain = 'script';
-    }
-  } else {
-    turn = await scriptTurn(prompt, gender, state, history, lang);
+    turn = answered ?? (await scriptTurn(prompt, gender, state, history, lang));
   }
 
   const emailInPrompt = parseEmail(prompt);
@@ -1784,6 +2031,104 @@ export async function processVoiceCallPrompt(
     }
   }
 
-  const audioUrl = ttsEnabled() ? ttsUrl(turn.reply, gender, replyLang(turn.reply)) : undefined;
-  return { reply: turn.reply, audioUrl, actions: turn.actions, state: turn.state, brain, lang };
+  const spoken = replyLang(turn.reply);
+  const audioUrl = ttsEnabled() ? ttsUrl(turn.reply, gender, spoken) : undefined;
+  const audioChunks = ttsEnabled() ? speechChunks(turn.reply).map((text) => ({ text, url: ttsUrl(text, gender, spoken) })) : undefined;
+  return { reply: turn.reply, audioUrl, audioChunks, actions: turn.actions, state: turn.state, brain, lang };
+}
+
+/* ═══════════ Gemini Live: native audio in, native audio out ═══════════
+   On a live call the browser streams the caller's voice straight to Gemini
+   and plays its voice straight back, with no transcribe → think → speak
+   hops in between. This server only mints a one-use token with Sarah's
+   instructions and tools locked into it, and runs the tools (bookings, the
+   bag) when the model calls them, so the same rules guard every booking. */
+
+export const LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || 'gemini-3.8-live';
+const LIVE_VOICES: Record<VoiceGender, string> = {
+  // Warm and friendly; Kore and Charon read like announcers.
+  female: process.env.GEMINI_LIVE_VOICE_FEMALE || 'Sulafat',
+  male: process.env.GEMINI_LIVE_VOICE_MALE || 'Achird',
+};
+
+const urduHello = (g: VoiceGender) =>
+  g === 'male' ? 'السلام علیکم! brewns، حمزہ بات کر رہا ہوں۔ جی بتائیے؟' : 'السلام علیکم! brewns، سارہ بات کر رہی ہوں۔ جی بتائیے؟';
+
+const LIVE_NOTES = (g: VoiceGender, lang: VoiceLang) => `
+
+Right now in Lahore it is ${lahoreNow().weekday} ${lahoreNow().date}, ${lahoreNow().clock}. Work out "today", "tomorrow" and "this Friday" from this, and pass dates to tools as YYYY-MM-DD.
+
+On this call your voice is generated directly; you hear the caller's voice directly.
+- Language: the caller chose ${lang === 'ur' ? 'Urdu' : 'English'}. Answer in the language the caller is speaking right now. For Urdu, speak natural Pakistani Urdu as said in Lahore.
+- When a message says the caller has just picked up, answer like the café phone: one short, friendly line as ${agentName(g)} at brewns, then let them talk${lang === 'ur' ? `, in Urdu (for example: "${urduHello(g)}")` : ''}. Do not say anything else first.
+- Text that arrives typed is the caller typing on their keypad; answer it out loud like anything they said.
+- While a tool is running, say a short natural filler such as "One moment, let me check that" only if it takes a while. Never read out ids, JSON, codes in brackets or field names.
+- Bookings: a booking tool refuses unless your previous turn read the details back and asked "shall I confirm?", and the caller then clearly said yes. So always read back and ask first.
+
+Sound like a real person on the phone, not a recording:
+- Relaxed, unhurried pace with natural pauses between thoughts. Warm and a little informal; smile in your voice.
+- React before you answer, the way people do: a short "Mm-hm", "Oh nice", "Right", "Sure", or in Urdu "جی", "اچھا", "جی بالکل", "ہمم". Vary them; never the same opener twice in a row.
+- Keep turns short. One question at a time, then stop and let the caller talk.
+- If the caller hesitates or trails off, wait; if they say "umm" give them a moment, or offer gently, "No rush."
+- If you need to look something up or book it, say so naturally first ("One sec, let me book that in", "ایک منٹ، میں چیک کرتی ہوں").
+- Use the caller's name once you know it, now and then, not every turn.
+- Never say "As an AI" or describe your tools. Never repeat the caller's whole sentence back unless you are confirming a booking.
+
+Urdu, when the caller speaks Urdu:
+- Speak the everyday Urdu of Lahore, polite and warm, with "آپ". Keep the English words people actually use in a café: latte, cappuccino, table, booking, order, delivery, menu, card.
+- Grammar matches you: ${g === 'male' ? 'you are Hamza, so use masculine forms (کرتا ہوں، سکتا ہوں، دیکھتا ہوں).' : 'you are Sarah, so use feminine forms (کرتی ہوں، سکتی ہوں، دیکھتی ہوں).'}
+- Say prices the Urdu way ("ایک ہزار پچاس روپے") and times as people say them ("شام سات بجے", "صبح نو بجے"), and dates as "کل", "پرسوں", "جمعہ کو".
+- Stay in Urdu until the caller switches to English.`;
+
+/** The Live session's configuration, as the WebSocket setup message wants it. */
+export function liveSetup(g: VoiceGender, lang: VoiceLang, recap = '') {
+  const system = persona(g, 'phone') + LIVE_NOTES(g, lang) + (recap ? `\n\nThe conversation so far, typed by message before this call:\n${recap.slice(0, 3000)}` : '');
+  return {
+    model: `models/${LIVE_MODEL}`,
+    generationConfig: {
+      responseModalities: ['AUDIO'],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: LIVE_VOICES[g] } } },
+    },
+    systemInstruction: { parts: [{ text: system }] },
+    tools: TOOLS,
+    // Patient: a caller who pauses to think mid-sentence isn't talked over.
+    realtimeInputConfig: { automaticActivityDetection: { endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', silenceDurationMs: 1000, prefixPaddingMs: 300 } },
+    inputAudioTranscription: {},
+    outputAudioTranscription: {},
+  };
+}
+
+/** A one-use Live token for one call, valid to start for a minute and to run for 15. */
+export async function createLiveToken(setup: ReturnType<typeof liveSetup>): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  const now = Date.now();
+  const base = { uses: 1, expireTime: new Date(now + 16 * 60_000).toISOString(), newSessionExpireTime: new Date(now + 60_000).toISOString() };
+  // Locked to Sarah's model and instructions, so the token can't be used for anything else.
+  for (const body of [{ ...base, bidiGenerateContentSetup: setup }, { ...base, bidiGenerateContentSetup: { model: setup.model } }]) {
+    try {
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+        method: 'POST',
+        headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(8000),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && typeof data.name === 'string') return data.name;
+      console.error('[Gemini Live token]', res.status, JSON.stringify(data).slice(0, 300));
+      if (res.status !== 400) return null;
+    } catch (err) {
+      console.error('[Gemini Live token]', err instanceof Error ? err.message : err);
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Run one tool the Live model called. `transcript` is what the caller last said,
+    `previousAssistant` what the model last said, for the booking read-back check. */
+export async function runLiveTool(name: string, args: Record<string, unknown>, transcript: string, previousAssistant: string) {
+  const actions: VoiceAction[] = [];
+  const out = await runTool(name, args || {}, transcript, actions, previousAssistant);
+  return { output: out.isError ? { error: out.content } : { result: out.content }, actions };
 }
