@@ -5119,6 +5119,103 @@ menuMoreBtn.addEventListener("click", () => {
 updateMenuDisplay(true);
 paintFavs();
 
+/* ═══════════ Menu: a drag-to-explore strip of what is on the counter ═══════════
+   One row of every drink and bake, under the grid. A mouse drags it and lets go with
+   a glide; a finger or a trackpad scrolls it natively. Tapping an item opens it. */
+(() => {
+  const items = ALL_MENU_CARDS.filter((c) => c.file && c.cat !== "beans");
+  menuMoreWrap.insertAdjacentHTML(
+    "afterend",
+    `<div class="menu-strip" id="menu-strip">
+      <div class="menu-strip-head"><p class="mono-fine"><span class="dot"></span>AT THE COUNTER TODAY · ${String(items.length).padStart(2, "0")}</p><p class="menu-strip-hint mono-fine" aria-hidden="true">DRAG<span class="ms-long"> TO EXPLORE</span> <span>⟷</span></p></div>
+      <ul class="menu-strip-track" id="menu-strip-track" data-lenis-prevent-horizontal aria-label="Everything on the counter today">${items
+        .map(
+          (c) => `<li><button type="button" class="ms-item" data-ms="${c.id}"><span class="ms-img"><img loading="lazy" decoding="async" draggable="false" src="${ASSET_BASE_URL}menu/${c.file}?v=${ASSET_CACHE_VERSION}" alt="" width="${c.size[0]}" height="${c.size[1]}"></span><span class="ms-name">${c.name}</span><span class="ms-price mono-fine">${c.price}</span></button></li>`,
+        )
+        .join("")}</ul>
+      <div class="menu-strip-progress" aria-hidden="true"><i></i></div>
+    </div>`,
+  );
+  const track = $("#menu-strip-track");
+  let drag = null;
+  let glide = 0;
+  let dragged = false;
+  track.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    cancelAnimationFrame(glide);
+    drag = { id: e.pointerId, x: e.clientX, left: track.scrollLeft, last: e.clientX, t: e.timeStamp, v: 0 };
+    dragged = false;
+  });
+  track.addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (!dragged && Math.abs(dx) < 5) return;
+    if (!dragged) {
+      // Captured only once it is a drag, so a plain click still reaches the item.
+      dragged = true;
+      track.setPointerCapture(e.pointerId);
+      track.classList.add("is-drag");
+    }
+    const dt = Math.max(1, e.timeStamp - drag.t);
+    drag.v = 0.8 * ((drag.last - e.clientX) / dt) + 0.2 * drag.v;
+    drag.last = e.clientX;
+    drag.t = e.timeStamp;
+    track.scrollLeft = drag.left - dx;
+  });
+  const release = () => {
+    if (!drag) return;
+    let v = drag.v * 16;
+    drag = null;
+    if (!dragged) return;
+    const step = () => {
+      v *= 0.94;
+      track.scrollLeft += v;
+      if (Math.abs(v) > 0.4) glide = requestAnimationFrame(step);
+      else track.classList.remove("is-drag"); // snapping comes back for the last bit
+    };
+    glide = requestAnimationFrame(step);
+  };
+  track.addEventListener("pointerup", release);
+  track.addEventListener("pointercancel", release);
+  track.addEventListener(
+    "click",
+    (e) => {
+      if (dragged) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragged = false;
+        return;
+      }
+      const item = (e.target as HTMLElement).closest("[data-ms]") as HTMLElement | null;
+      if (item) openProduct(item.dataset.ms);
+    },
+    true,
+  );
+})();
+
+/* ═══════════ Between sections: a soft wipe, and photos with depth ═══════════
+   Where a light section meets a dark one, the colour above reaches down into the new
+   section in a soft curve and pulls back as it scrolls in. The café photos drift a
+   little slower than the page. Both are CSS scroll-driven animations (transform only,
+   off the main thread); a section gets them only while it is near the screen, so
+   there are never more than a couple of extra layers. */
+(() => {
+  if (REDUCED || !CSS.supports("animation-timeline: view()")) return;
+  const sections = $$("section[id]").filter((el) => !el.parentElement.closest("section"));
+  const rgb = (el) => (getComputedStyle(el).backgroundColor.match(/[\d.]+/g) || []).map(Number);
+  sections.forEach((el, i) => {
+    const prev = sections[i - 1];
+    if (!prev || prev.nextElementSibling !== el) return;
+    const [r1, g1, b1, a1 = 1] = rgb(prev);
+    const [r2, g2, b2] = rgb(el);
+    if (!a1 || Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2) < 60) return;
+    el.insertAdjacentHTML("afterbegin", `<div class="sx-wipe" aria-hidden="true" style="--sx-c: rgb(${r1} ${g1} ${b1})"></div>`);
+    el.classList.add("sx-wiped");
+  });
+  const near = new IntersectionObserver((entries) => entries.forEach((e) => e.target.classList.toggle("sx-near", e.isIntersecting)), { rootMargin: "35% 0px 35% 0px" });
+  sections.forEach((el) => near.observe(el));
+})();
+
 $("#menu-cta").addEventListener("click", (e) => {
   e.preventDefault();
   setFilter("all");
