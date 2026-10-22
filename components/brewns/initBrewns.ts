@@ -412,16 +412,15 @@ let liveLocationsTimer = 0;
 /* ═══════════ smooth scroll ═══════════ */
 if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 window.scrollTo(0, 0);
-/* Wheel and touch scrolling stay native: the browser scrolls on its compositor
-   thread, so the page keeps moving smoothly even while the main thread is busy
-   with 3D, video or layout. With Lenis driving every frame from JavaScript
-   (smoothWheel, syncTouch), any main-thread hiccup froze the scroll and then made
-   it jump. Lenis still animates in-page jumps (scrollTo), emits the scroll events
-   the effects listen to, and locks the page behind overlays. */
+/* A mouse wheel or trackpad gets the smooth glide; touch screens keep the phone's
+   own scrolling and momentum (syncTouch off), which JavaScript can't match. The
+   glide only stays even if each frame is cheap, which is why the hero's shader
+   runs at half resolution: at full size it kept the GPU three-quarters busy and
+   every scroll near the top stuttered. */
 const lenis = new Lenis({
-  smoothWheel: false,
+  smoothWheel: !REDUCED && window.matchMedia("(pointer: fine)").matches,
   syncTouch: false,
-  lerp: 0.14,
+  lerp: 0.12,
 });
 window.lenis = lenis;
 /* Everything that follows the scroll runs in two passes per frame: every handler
@@ -2683,10 +2682,12 @@ const setCard = (role) => {
 };
 setCard("bag");
 const heroHandle = $("#hero-handle");
-/* The card opens over the products and stays open while the pointer is on the
-   products or on the card itself (with a moment's grace crossing between them),
-   so its buttons can actually be clicked. It only takes clicks while showing. */
-(() => {
+/* The card opens while the pointer is on the bag or the cup themselves (the 3D
+   model reports which piece is under it) and stays open while the pointer is on
+   the card, with a moment's grace crossing between them, so its buttons can be
+   clicked. It used to follow the whole hero media area, so it stayed up after the
+   pointer had left the products for the empty space around them. */
+const heroCardHover = (() => {
   const spring = new Spring({ opacity: 0, y: 18 }, styler(heroCard));
   let hide;
   /* The card sits in the clear space above the cup: under the header (never over
@@ -2732,12 +2733,12 @@ const heroHandle = $("#hero-handle");
       spring.start({ opacity: 0, y: 18 }, { config: C(210, 26) });
     }, 320);
   };
-  for (const el of [heroHandle, heroCard]) {
-    el.addEventListener("mouseenter", show);
-    el.addEventListener("mouseleave", later);
-  }
+  heroCard.addEventListener("mouseenter", show);
+  heroCard.addEventListener("mouseleave", later);
+  heroHandle?.addEventListener("mouseleave", later);
   heroCard.addEventListener("focusin", show);
   heroCard.addEventListener("focusout", later);
+  return { show, later };
 })();
 
 /* ═══════════ order block: the thermal printer ═══════════ */
@@ -2936,6 +2937,10 @@ const CONFIG = {
   thickness: 1.2, iridescence: 0.22, spread: 0.28, sheen: 0.05, contrast: 1.35, midpoint: 0.54,
   glow: 0.08, sink: 0.35, grain: 0.045, grainAnim: 1, dither: 1.55, vignette: 0.26, cursor: 1,
   pointerRadius: 0.3, pointerStrength: 1.2, parallax: 0.01, maxDpr: 1.0,
+  // The shader paints soft gradients, so it runs at half resolution and the browser
+  // scales it up: a quarter of the pixels to shade. At full size it kept the GPU
+  // three-quarters busy on the hero alone, which is what made the first screen lag.
+  renderScale: 0.5,
 };
 
 /* The hero's own colours and pace: livelier than the other opal sections, and
@@ -3126,7 +3131,7 @@ const opalesce = (wrapper, overrides = {}) => {
   let dpr = 1;
   const resize = () => {
     if (!linked) return;
-    dpr = Math.min(window.devicePixelRatio || 1, CFG.maxDpr);
+    dpr = Math.min(window.devicePixelRatio || 1, CFG.maxDpr) * (CFG.renderScale ?? 1);
     const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
     const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) {
@@ -3160,7 +3165,8 @@ const opalesce = (wrapper, overrides = {}) => {
     u1f("uMidpoint", CFG.midpoint);
     u1f("uGlow", CFG.glow);
     u1f("uSink", CFG.sink);
-    u1f("uGrain", CFG.grain);
+    // At half resolution each grain speck covers four screen pixels, so it is turned down to read the same.
+    u1f("uGrain", CFG.grain * ((CFG.renderScale ?? 1) < 1 ? 0.5 : 1));
     u1f("uGrainAnim", CFG.grainAnim);
     u1f("uDither", CFG.dither);
     u1f("uVignette", CFG.vignette);
@@ -3363,7 +3369,12 @@ whenReady(() => setTimeout(() => idleQueue.push(pauseLoopsOffscreen), 800));
 const threeReady = Promise.resolve({ ...THREE, GLTFLoader, DRACOLoader, RoomEnvironment });
 threeReady
   .then((T) => {
-    heroModel(T, $("#hero-mount"), heroHandle, (role) => role && setCard(role));
+    heroModel(T, $("#hero-mount"), heroHandle, (role) => {
+      if (role) {
+        setCard(role);
+        heroCardHover.show();
+      } else heroCardHover.later();
+    });
     whenNear($("#phil-scene"), () => philosophyScene(T, $("#phil-scene")));
   })
   .catch((error) => {
