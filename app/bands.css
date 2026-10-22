@@ -378,3 +378,14 @@
   .season .season-grid::-webkit-scrollbar { display: none; }
   .season .season-grid > * { flex: 0 0 80%; scroll-snap-align: start; }
 }
+
+/* Phones: the products begin under the hero text (--hero-copy-end is set from the
+   text's height), so on a short screen the bag never sits on the last lines. */
+@media (max-width: 639.98px) {
+  .hero-media { top: max(40%, calc(var(--hero-copy-end, 0px) + 0.75rem)) !important; }
+}
+/* The products are sized and centred by the script on phones; no extra nudges. */
+@media (max-width: 639.98px) {
+  .hero-media .hero-mount { transform: none !important; }
+  .hero-media::after { left: 30%; right: 22%; bottom: 4%; }
+}
