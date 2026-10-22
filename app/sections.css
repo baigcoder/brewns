@@ -873,3 +873,10 @@
   .menu-lede { top: auto; bottom: 0.2rem; width: 17rem; }
 }
 .menu-page { white-space: nowrap; }
+
+/* Step names wrap instead of being cut off ("SECOND P…"). */
+.brew-steps li b { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.15; }
+
+/* Fixed-width digits, so a rolling number never spills into its unit ("14" ran into "HRS"). */
+.journey-stat { font-variant-numeric: tabular-nums; }
+.journey-stat small { margin-left: 0.15rem; }

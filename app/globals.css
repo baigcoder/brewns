@@ -4148,3 +4148,63 @@ body:has(#pre) .voice-call-floating {
 /* Looping animations out of view stay still (see pauseLoopsOffscreen in initBrewns). */
 .loop-off, .loop-off::before, .loop-off::after { animation-play-state: paused !important; }
 
+
+
+/* ═══════════ home page audit fixes ═══════════ */
+/* Headings break into even lines (no single word left on the last one) and
+   paragraphs avoid a lone last word. */
+h1, h2, h3, .club-panel-h, .rev-empty-h { text-wrap: balance; }
+p { text-wrap: pretty; }
+.nw { white-space: nowrap; }
+
+/* Hero bar: its second divider only belongs before the live waits; without them it dangled. */
+.hero-rule.b:has(+ .hero-waits[hidden]) { display: none; }
+
+/* Prices never split ("FROM Rs / 4,800"). */
+.pcard-price { white-space: nowrap; }
+
+/* Film: the label sits above its heading, like every other section. */
+.film-head { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 0.9rem; }
+
+/* Locations: a heading under the label, as in the other sections. */
+.locs-h2 { order: -9998; font-family: var(--font-geist); font-weight: 800; text-transform: uppercase; font-size: clamp(2.1rem, 4.2vw, 3.6rem); line-height: 0.92; letter-spacing: -0.035em; color: #11110f; }
+.locs-h2 em { display: block; font-family: var(--font-allura); font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 0.9em; line-height: 1.05; color: #a8763a; }
+@media (max-width: 1023.98px) { .locs-h2 { order: 2; grid-column: 1 / -1; } }
+@media (min-width: 1024px) { .locs-h2 { position: absolute; z-index: 2; left: 2.5rem; top: calc(var(--size-locations-dial-y) + 2.25rem); max-width: 22rem; } }
+@media (min-width: 1440px) { .locs-h2 { left: clamp(2.5rem, 4vw, 5rem); top: 7.25rem; } }
+
+/* Reviews, before the first one: one invitation, no empty filters or pager. */
+.rev.rev-none .rev-bar, .rev.rev-none .rev-dist { display: none; }
+.rev.rev-none #rev-cards { display: block; }
+.rev.rev-none #rev-cards > .rev-empty { width: 100%; max-width: 46rem; border: 1px solid rgb(16 12 10 / 0.12); background: linear-gradient(135deg, #fffaf3, #f3e7d6); box-shadow: 0 1.5rem 3rem -2rem rgb(16 12 10 / 0.35); padding: 2.25rem 2.25rem 2rem; text-align: left; gap: 0.75rem; }
+.rev-empty-k { color: #a8763a; letter-spacing: 0.16em; }
+.rev-empty-cta { justify-self: start; margin-top: 0.5rem; padding: 0.85rem 1.2rem; border-radius: 999px; background: #100c0a; color: #f5f0e8; font-family: var(--font-space-mono); font-size: 0.75rem; letter-spacing: 0.12em; cursor: pointer; transition: transform 200ms var(--ease-entrance, ease), background-color 200ms ease; }
+.rev-empty-cta:hover { background: #a8763a; transform: translateY(-2px); }
+
+/* Moments: five photos fill the grid evenly (three, then two wide ones). The
+   cards sit on a solid dark ground, so their backdrop blur only cost GPU time. */
+.moments-card { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgb(24 20 17); }
+@media (min-width: 1024px) {
+  .moments-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .moments-grid > * { grid-column: span 2; }
+  .moments-grid > :nth-last-child(2):nth-child(3n + 1), .moments-grid > :last-child:nth-child(3n + 2) { grid-column: span 3; }
+}
+
+/* Phones: the moments swipe sideways instead of stacking into screens of scrolling. */
+@media (max-width: 639.98px) {
+  .moments-grid { display: flex; gap: 0.875rem; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .moments-grid::-webkit-scrollbar { display: none; }
+  .moments-grid { margin-inline: -1.5rem; padding: 0.25rem 1.5rem 1rem; scroll-padding-inline: 1.5rem; }
+  .moments-grid > * { flex: 0 0 80%; scroll-snap-align: start; }
+}
+
+/* Cards lift on hover; no tilt. */
+.season-card:hover { transform: translateY(-6px); }
+
+/* The floating call button steps aside while reading down. */
+.voice-call-floating { transition: transform 350ms var(--ease-entrance, cubic-bezier(0.16, 1, 0.3, 1)), opacity 300ms ease; }
+.voice-call-floating.is-away { transform: translateY(140%); opacity: 0; pointer-events: none; }
+
+/* The invitation button keeps its arrow on the same line. */
+.rev-empty-cta { white-space: nowrap; }
+@media (max-width: 639.98px) { .rev-empty-cta { font-size: 0.6875rem; letter-spacing: 0.08em; padding: 0.8rem 1rem; } }

@@ -1182,10 +1182,12 @@ const renderScore = (avg: number, total: number) => {
     const p = countEl.querySelector("p:last-child");
     if (p) p.innerHTML = total
       ? `<span class="blk"><span data-dr data-d="520">${total.toLocaleString()}</span> review${total === 1 ? "" : "s"}</span><span class="blk">from real orders</span>`
-      : '<span class="blk">No reviews yet</span><span class="blk">be the first to leave one</span>';
+      : '<span class="blk">Freshly opened</span><span class="blk">be the first to review</span>';
   }
   // Empty star bars read as broken, so the spread only shows once there are reviews.
   $("#rev-dist")?.toggleAttribute("hidden", !total);
+  // With nothing to filter or page through, the section becomes one invitation (see .rev-none).
+  $("#reviews")?.classList.toggle("rev-none", !total);
   // The hero quotes the same score, and only once there is one.
   const hero = $("#hero-rating");
   if (hero) {
@@ -1200,7 +1202,7 @@ const renderScore = (avg: number, total: number) => {
 
 /** Star counts → the percentage bars, from the real reviews. */
 const pctDist = (counts: number[], total: number) => counts.map((n) => (total ? Math.round((n / total) * 100) : 0));
-const emptyReviewsHTML = `<li class="rev-empty"><p class="rev-empty-h">No reviews yet</p><p class="rev-empty-p">After your order you get a link to say how it was. The first ones will show here, word for word.</p></li>`;
+const emptyReviewsHTML = `<li class="rev-empty"><p class="rev-empty-k mono-fine">FRESH ON THE BAR</p><p class="rev-empty-h">Your words could be the first here.</p><p class="rev-empty-p">Every review comes from a real order and shows up word for word. Had a cup with us? Tell the next person what to order.</p><button type="button" class="rev-empty-cta" data-review>WRITE THE FIRST REVIEW <span aria-hidden="true">↗</span></button></li>`;
 
 /* ── first paint, before the real numbers arrive: nothing invented ── */
 renderRatings({ dist: [0, 0, 0, 0, 0] });
@@ -2162,7 +2164,11 @@ readHeaderTheme()?.();
     }
     return () => {
       header.classList.toggle("scrolled", y > 24);
-      if (tuck !== null) header.classList.toggle("tucked", tuck);
+      if (tuck !== null) {
+        header.classList.toggle("tucked", tuck);
+        // On a phone it sat over the text being read; it steps aside with the header.
+        $("#voice-call-float")?.classList.toggle("is-away", tuck);
+      }
       for (const a of links) a.classList.toggle("is-active", a === current);
     };
   };
@@ -8112,7 +8118,7 @@ coEl.addEventListener("submit", (e) => {
           <div><dt class="mono-fine">RATIO</dt><dd>1:${a.ratio}</dd></div>
         </dl>
         <dl class="brew-spec mono-fine"><div><dt>GRIND</dt><dd>${m.grind}</dd></div><div><dt>WATER</dt><dd>${m.temp}</dd></div><div><dt>YOU NEED</dt><dd>${m.kit}</dd></div></dl>
-        <button type="button" class="brew-beans" data-brew-beans><span><small class="mono-fine">THE BEANS FOR THIS</small><b>${bean.name}</b><small class="mono-fine">GROUND FOR ${m.short} · FROM ${money(bean.price)}</small></span>${ARROW_SVG}</button>
+        <button type="button" class="brew-beans" data-brew-beans><span><small class="mono-fine">THE BEANS FOR THIS</small><b>${bean.name}</b><small class="mono-fine">GROUND FOR ${m.short} · <span class="nw">FROM ${money(bean.price)}</span></small></span>${ARROW_SVG}</button>
       </div>
       <div class="brew-timer">
         <div class="brew-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="brew-bar" cx="50" cy="50" r="46" stroke-dasharray="${BREW_RING}" stroke-dashoffset="${BREW_RING * (1 - Math.min(1, brew.t / m.total))}"/></svg>
