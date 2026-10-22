@@ -368,3 +368,13 @@
 @keyframes film-eq { from { transform: scaleY(0.21); } to { transform: scaleY(1); } }
 @media (prefers-reduced-motion: reduce) { .film-sound[aria-pressed]::after { animation: none; } .film-sound[aria-pressed="true"] .film-eq i { animation: none; transform: scaleY(0.71); } }
 @media (max-width: 639.98px) { .film-sound { left: 0.6rem; bottom: 0.6rem; height: 2.5rem; padding: 0 0.9rem 0 0.8rem; font-size: 0.6875rem; } .film-toggle { right: 0.6rem; bottom: 0.6rem; width: 2.5rem; height: 2.5rem; } }
+
+/* The "from bean to cup" label sits above the first step instead of staying pinned: pinned, each big word scrolled up through it. */
+@media (min-width: 900px) { .pillars-eyebrow { position: static; } }
+
+/* Phones: the season picks swipe sideways instead of stacking into screens of scrolling. */
+@media (max-width: 639.98px) {
+  .season .season-grid { display: flex; gap: 0.875rem; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; margin-inline: -1.25rem; padding: 0.25rem 1.25rem 1.5rem; scroll-padding-inline: 1.25rem; }
+  .season .season-grid::-webkit-scrollbar { display: none; }
+  .season .season-grid > * { flex: 0 0 80%; scroll-snap-align: start; }
+}
