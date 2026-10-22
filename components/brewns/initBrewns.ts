@@ -3371,6 +3371,21 @@ const idleQueue = (() => {
 $$("[data-opal]").forEach((w) => (w.closest("#hero") ? opalesce(w, heroConfig()) : whenNear(w, () => opalesce(w))));
 whenReady(() => setTimeout(() => idleQueue.push(pauseLoopsOffscreen), 800));
 
+/* Phones: the products start just under the hero text, wherever it ends (a short
+   screen, a longer line), instead of at a fixed 40% where the bag covered the last lines. */
+(() => {
+  const media = $("#hero-media");
+  const copy = $(".hero-copy");
+  if (!media || !copy || !("ResizeObserver" in window)) return;
+  const place = () => {
+    const box = media.offsetParent;
+    let top = copy.offsetHeight;
+    for (let e = copy; e && e !== box; e = e.offsetParent) top += e.offsetTop;
+    media.style.setProperty("--hero-copy-end", `${Math.round(top)}px`);
+  };
+  new ResizeObserver(place).observe(copy);
+})();
+
 /* ═══════════ three.js layers ═══════════ */
 const threeReady = Promise.resolve({ ...THREE, GLTFLoader, DRACOLoader, RoomEnvironment });
 threeReady
@@ -3400,6 +3415,7 @@ function heroModel(T, mount, handle, onPiece) {
   const FRAME = { left: 0.2697, right: 0.8439, top: 0.0502, bottom: 0.7695 };
   const ASSET = { width: 1153, height: 976 };
   const COVER_FROM = 1024;
+  const PHONE_TO = 640;
   const PLACEMENT = [
     { from: 1024, to: 1280, scale: 0.928, x: 0.01, y: 0 },
     { from: 768, to: 1024, scale: 1.02, x: 0.0454, y: 0.05 },
@@ -3609,7 +3625,21 @@ function heroModel(T, mount, handle, onPiece) {
     };
 
     const place = PLACEMENT.find((band) => window.innerWidth >= band.from && window.innerWidth < band.to);
-    if (place) {
+    if (window.innerWidth < PHONE_TO) {
+      // Phones: the bag and cup fill the space between the text and the bottom of the
+      // screen, centred, as large as the height (or 90% of the width) allows.
+      const aspect = ((FRAME.right - FRAME.left) * ASSET.width) / ((FRAME.bottom - FRAME.top) * ASSET.height);
+      const tall = Math.min(height * 1.02, (window.innerWidth * 0.9) / aspect);
+      // Laid-out position, not the bounding box: the entrance zoom may still be running.
+      let laidLeft = 0;
+      for (let e = mount; e; e = e.offsetParent) laidLeft += e.offsetLeft;
+      const middle = (window.innerWidth / 2 - laidLeft) / width;
+      const half = (tall * aspect) / 2 / width;
+      rect.top = ((height - tall) * 0.3) / height - 0.08; // the frame has air above the bag
+      rect.bottom = rect.top + tall / height;
+      rect.left = middle - half;
+      rect.right = middle + half;
+    } else if (place) {
       const tall = rect.bottom - rect.top;
       const half = (rect.right - rect.left) / 2;
       const middle = (rect.left + rect.right) / 2 + place.x;
