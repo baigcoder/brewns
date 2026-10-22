@@ -1,21 +1,23 @@
 'use client';
 
+import { hasDevanagari, toUrduScript } from '@/lib/devanagari';
 import { cafeHoursStatusLabel, getCafeOpeningStatus } from '@/lib/openingHours';
+import { LiveSession, type LiveEvent } from './liveSession';
 
-/* The AI voice call, in the browser.
+/* The brewns concierge in the browser, two ways to reach the same person:
 
-   It behaves like a phone call rather than a walkie-talkie:
-   - hands-free: when Sarah / Hamza finishes a sentence the mic opens by itself,
-     and it sends what you said once you pause, so you just talk;
-   - you can interrupt: speak over the voice and it stops to listen (a level
-     meter on an echo-cancelled mic, so it doesn't hear itself);
-   - it thinks out loud a little: the wave pulses while the reply is on its way;
-   - it always has a voice: ElevenLabs, streamed so it starts speaking as soon
-     as the first words are ready, or the browser's own speech otherwise.
-   - it speaks your language: talk in Urdu and it listens and answers in Urdu,
-     switch to English and it follows (or pick EN / اردو on the call);
-   The mic button mutes and unmutes; the keypad, typing and the quick chips
-   still work. A ringback tone plays while the line connects. */
+   CALL — it rings like a phone (a real UK-style double ring) while the line
+   connects in the background, then Sarah picks up and says hello. On the live
+   line her voice is Gemini's own native audio: the caller's voice goes in and
+   hers comes out, no transcribe → think → speak relay, so she answers in well
+   under a second and stops the moment you talk over her. Bookings and the bag
+   run on our server mid-call, on the same open line. If the live line isn't
+   available, the call still works step by step: we hear you (Groq Whisper),
+   she thinks (the same brain as messages), she speaks (ElevenLabs, Orpheus or
+   Gemini voices, a sentence at a time so the first words come quickly).
+
+   MESSAGE — the same conversation as a chat. Switch either way at any time;
+   the conversation carries over, so a call can pick up where a chat left off. */
 
 export interface VoiceCallingDeps {
   cart: {
@@ -31,803 +33,959 @@ export interface VoiceCallingDeps {
   triggerHaptic?: (ms?: number) => void;
 }
 
-type Phase = 'idle' | 'connecting' | 'speaking' | 'listening' | 'thinking' | 'muted';
+type Mode = 'call' | 'message';
+type Phase = 'idle' | 'ringing' | 'connecting' | 'listening' | 'speaking' | 'thinking' | 'muted' | 'ended';
 type Turn = { role: 'user' | 'assistant'; content: string };
 type Action = { type: string; data?: any };
+type Engine = 'live' | 'steps';
+type AudioChunk = { text: string; url: string };
 
-/** How long a pause means "I'm done talking", after some words have come in. */
-const END_OF_SPEECH_MS = 450;
-/** Mic level (RMS, 0..1) and how long it must hold to count as talking over the voice. */
-// Phone mics report much quieter RMS levels than desktop mics. 0.06 only
-// detected shouting on several mobile devices, making interruption feel dead.
-const BARGE_IN_LEVEL = 0.018;
-const BARGE_IN_MS = 360;
-/** True on phones and iPads (including iPadOS desktop-mode Safari). */
-const IS_MOBILE = typeof navigator !== 'undefined' && (
-  /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
-  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-);
+/** Picked up after one ring or two, like someone reaching for the phone, never instantly. */
+const ringFor = () => (Math.random() < 0.55 ? 2600 : 5600) + Math.random() * 500;
+/** A breath before each reply on the live line, never quite the same. */
+const humanBeat = () => 0.28 + Math.random() * 0.42;
+/** Speech louder than the room for this long counts as the caller talking. */
+const SPEECH_START_MS = 150;
+/** A pause this long after speaking means "I'm done", on the step-by-step line. */
+const SPEECH_END_MS = 700;
+const SPEECH_MAX_MS = 15000;
+const BARGE_IN_MS = 320;
+const PICKUP_CUE = 'The caller has just picked up the phone.';
+
+type Lang = 'en' | 'ur';
+type Who = 'female' | 'male';
+const NAMES: Record<Lang, Record<Who, string>> = { en: { female: 'Sarah', male: 'Hamza' }, ur: { female: 'سارہ', male: 'حمزہ' } };
+const UI = {
+  en: {
+    call: 'Call', message: 'Message', type: 'Type', end: 'End', mute: 'Mute', unmute: 'Unmute',
+    dial: (n: string) => `Call ${n}`, talkTo: (n: string) => `Talk to ${n}`,
+    subtitle: (g: Who) => (g === 'female' ? 'Front desk · brewns Lahore' : 'Roastery & bar · brewns Lahore'),
+    replies: 'Usually replies instantly', ringing: 'Ringing…', connecting: 'Connecting…', connected: 'Connected',
+    listening: 'Listening', speaking: (n: string) => `${n} is speaking`, thinking: 'One moment…', muted: 'You’re muted', ended: 'Call ended',
+    typing: (n: string) => `${n} is typing…`, pickedUp: (n: string) => `${n} picked up`, callEnded: (t: string) => `Call ended · ${t}`, dropped: (t: string) => `The line dropped · ${t}`,
+    transferring: (n: string) => `Transferring to ${n}…`, transferred: (n: string) => `Transferred to ${n}`,
+    hello: (n: string) => `Hi! It’s ${n} at brewns. Ask me anything, or tap a suggestion below.`,
+    placeholder: 'Type a message…', tryMic: 'Try the mic again', msgInstead: 'Message instead', noConnect: 'Call didn’t connect',
+    micBlocked: 'Your microphone is blocked for this site. Allow it from the icon in the address bar, or keep going by message.',
+    micMissing: 'We couldn’t reach your microphone. Check it isn’t in use by another app, or keep going by message.',
+    chips: [
+      ['Order a classic smash burger and an iced latte for delivery', 'Burger & iced latte'],
+      ['I want to book a table for 4 at Gulberg tomorrow evening', 'Book a table'],
+      ['I want to book a private party for 15 guests at the DHA terrace', 'Plan a party'],
+      ['Order a bag of Slow Roast whole beans', 'Slow Roast beans'],
+      ['What are your hours and where are you?', 'Hours & locations'],
+    ],
+  },
+  ur: {
+    call: 'کال', message: 'پیغام', type: 'لکھیں', end: 'ختم', mute: 'خاموش', unmute: 'آواز کھولیں',
+    dial: (n: string) => `${n} کو کال کریں`, talkTo: (n: string) => `${n} سے بات کریں`,
+    subtitle: (g: Who) => (g === 'female' ? 'فرنٹ ڈیسک · brewns لاہور' : 'روسٹری اور بار · brewns لاہور'),
+    replies: 'عموماً فوراً جواب دیتے ہیں', ringing: 'گھنٹی جا رہی ہے…', connecting: 'ملا رہے ہیں…', connected: 'کال مل گئی',
+    listening: 'سن رہے ہیں', speaking: (n: string) => `${n} بات کر رہی ہیں`, thinking: 'ایک لمحہ…', muted: 'آپ کا مائیک بند ہے', ended: 'کال ختم ہو گئی',
+    typing: (n: string) => `${n} لکھ رہی ہیں…`, pickedUp: (n: string) => `${n} نے کال اٹھا لی`, callEnded: (t: string) => `کال ختم · ${t}`, dropped: (t: string) => `لائن کٹ گئی · ${t}`,
+    transferring: (n: string) => `${n} سے ملا رہے ہیں…`, transferred: (n: string) => `${n} کو منتقل`,
+    hello: (n: string) => `السلام علیکم! میں ${n} ہوں، brewns سے۔ جو چاہیں پوچھیے، یا نیچے سے کوئی آپشن چنیے۔`,
+    placeholder: 'پیغام لکھیں…', tryMic: 'مائیک دوبارہ آزمائیں', msgInstead: 'پیغام بھیجیں', noConnect: 'کال نہیں مل سکی',
+    micBlocked: 'اس سائٹ کے لیے آپ کا مائیک بند ہے۔ ایڈریس بار کے آئیکن سے اجازت دیں، یا پیغام سے بات جاری رکھیں۔',
+    micMissing: 'آپ کا مائیک نہیں مل سکا۔ دیکھ لیں کہ کوئی اور ایپ اسے استعمال تو نہیں کر رہی، یا پیغام سے بات جاری رکھیں۔',
+    chips: [
+      ['مجھے ایک اسمیش برگر اور ایک آئسڈ لاٹے ڈیلیوری کے لیے آرڈر کرنا ہے', 'برگر اور آئسڈ لاٹے'],
+      ['کل شام گلبرگ میں چار لوگوں کے لیے ٹیبل بک کرنی ہے', 'ٹیبل بک کریں'],
+      ['ڈی ایچ اے ٹیرس پر پندرہ مہمانوں کی پرائیویٹ پارٹی بک کرنی ہے', 'پارٹی پلان کریں'],
+      ['سلو روسٹ کافی بینز کا ایک بیگ چاہیے', 'سلو روسٹ بینز'],
+      ['آپ کب کھلتے ہیں اور آپ کی برانچز کہاں ہیں؟', 'اوقات اور پتے'],
+    ],
+  },
+};
+
+const uuid = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const isUrdu = (t: string) => /[\u0600-\u06FF]/.test(t);
+/** Urdu written in English letters ("mujhe kal table chahiye"): two of these words is enough. */
+const romanUrdu = (t: string) => (t.match(/\b(mujhe|mujhay|hai|hain|kya|kia|aap|ap|chahiye|chahie|kal|sham|baje|nahi|nahin|haan|ji|jee|theek|thik|acha|achha|shukriya|karna|karni|kar|dein|logon|liye|mein|ke|ki|ka)\b/gi) || []).length >= 2;
+/** Whisper sometimes "hears" these in silence. */
+const PHANTOM = /^(thank you|thanks for watching|subtitles.*|transcription.*|you|bye|\.+)\.?$/i;
+
+function rms(an: AnalyserNode, buf: Float32Array<ArrayBuffer>) {
+  an.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  return Math.sqrt(sum / buf.length);
+}
 
 export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast, playChime, playSoftClick, triggerHaptic }: VoiceCallingDeps) {
   if (typeof window === 'undefined') return () => {};
-
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T | null;
   const modal = $('voice-call-modal');
   if (!modal) return () => {};
 
+  const logEl = $('vc-log')!;
+  const phaseEl = $('voice-caption-status');
   const timerEl = $('voice-call-timer');
-  const voiceCurrentEl = $('vc-voice-current');
-  const agentTitleEl = $('vc-agent-title');
-  const agentSubtitleEl = $('vc-agent-subtitle');
-  const businessStatusEl = $('voice-hours-status');
-  const businessStatusLabelEl = $('voice-hours-label');
-  const avatarRing = $('vc-avatar-ring');
-  const avatarPulse = $('vc-avatar-pulse');
-  const avatarContainer = $('vc-avatar-container');
-  const avatarMono = $('vc-avatar-mono');
-  const inputRow = $('voice-input-row');
-  const soundwave = $('voice-soundwave');
-  const captionBox = $('voice-caption-box');
-  const captionStatus = $('voice-caption-status');
-  const captionText = $('voice-caption-text');
-  const unblockActions = $('voice-unblock-actions');
-  const unblockBtn = $('voice-unblock-btn');
-  const typeModeBtn = $('voice-type-mode-btn');
+  const hoursEl = $('voice-hours-status');
+  const hoursLabel = $('voice-hours-label');
+  const nameEl = $('vc-agent-title');
+  const subtitleEl = $('vc-agent-subtitle');
+  const monoEl = $('vc-avatar-mono');
+  const voiceTagEl = $('vc-voice-tag');
+  const alertEl = $('voice-unblock-actions');
+  const alertText = $('vc-alert-text');
+  const chipsEl = $('voice-chips-wrap');
+  const inputRow = $<HTMLFormElement>('voice-input-row');
   const textInput = $<HTMLInputElement>('voice-text-input');
-  const micToggleBtn = $('voice-mic-toggle');
+  const micBtn = $('voice-mic-toggle');
   const micLabel = $('voice-mic-label');
+  const keypadBtn = $('voice-keypad-toggle');
+  const langBtn = $('vc-lang-toggle');
+  const tabs = [...modal.querySelectorAll<HTMLButtonElement>('.vcall-tab')];
 
-  const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const ac = new AbortController();
   const on = (el: EventTarget | null, ev: string, fn: (e: any) => void) => el?.addEventListener(ev, fn, { signal: ac.signal });
 
-  let callActive = false;
+  /* ── state ── */
+  let mode: Mode = 'call';
   let phase: Phase = 'idle';
-  let muted = false;
   let gender: 'female' | 'male' = 'female';
-  /** The language the line listens in; follows the caller, or the EN / اردو switch. */
-  let lang: 'en' | 'ur' = 'en';
-  let manualLangRevision = 0;
-  const langBtn = $('vc-lang-toggle');
+  let lang: 'en' | 'ur' = /^ur/i.test(navigator.language) ? 'ur' : 'en';
   let history: Turn[] = [];
   let scriptState: unknown = {};
+  /** One id per call or chat, so the café's call log can follow it live. */
+  let callId = uuid();
+  let inCall = false;
+  /** Bumped whenever a call starts or ends, so work for an old call stops. */
+  let callSeq = 0;
+  let engine: Engine = 'steps';
+  let muted = false;
   let hangUpAfterSpeech = false;
-  /** Names this call in the café's call log, so the dashboard can follow it live. */
-  let callId = '';
-  /** Bumped on every new turn, hang-up or interruption; late replies for an old turn are dropped. */
-  let turnId = 0;
-
+  let seconds = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
   let hoursTimer: ReturnType<typeof setInterval> | undefined;
-  let seconds = 0;
+  let stopRing: (() => void) | null = null;
 
-  let recognition: any = null;
-  let heard = '';
-  let silenceTimer: ReturnType<typeof setTimeout> | undefined;
-  /** Counts rapid listen() restarts – prevents tight no-speech loops on mobile. */
-  let listenRestartCount = 0;
-  let listenRestartResetTimer: ReturnType<typeof setTimeout> | undefined;
-  /** Tracks the last time recognition.onend fired – guards against instant-end loop. */
-  let lastOnEndTs = 0;
-  /** How many times RETRY MICROPHONE has been pressed this call without success. */
-  let micRetryCount = 0;
-  let lastMobileRecoveryAt = 0;
-  /** Live watcher: fires the instant the browser flips mic permission to 'granted'. */
-  let permissionWatcher: { status: PermissionStatus | null; cleanup: () => void } | null = null;
+  /* audio */
+  let ctx: AudioContext | null = null;
+  let outGain: GainNode | null = null;
+  let outAnalyser: AnalyserNode | null = null;
+  let micStream: MediaStream | null = null;
+  let micAnalyser: AnalyserNode | null = null;
+  const outBuf = new Float32Array(1024);
+  const micBuf = new Float32Array(1024);
+  let raf = 0;
+  let level = 0;
 
-  let audioEl: HTMLAudioElement | null = null;
+  /* live line */
+  let live: LiveSession | null = null;
+  let userBuf = '';
+  let agentBuf = '';
+  let userLi: HTMLLIElement | null = null;
+  let agentLi: HTMLLIElement | null = null;
+  let lastCaller = '';
+  let lastAgent = '';
+  let liveTurnDone = true;
+  /** The chat's welcome line; it follows the language until the guest writes something. */
+  let welcomeLi: HTMLLIElement | null = null;
+
+  /* step-by-step line */
+  let turnId = 0;
+  let recorder: MediaRecorder | null = null;
+  let chunks: Blob[] = [];
+  const vad = { talking: false, since: 0, quietSince: 0, startedAt: 0, floor: 0.004, armedAt: 0, loudSince: 0 };
+  let player: HTMLAudioElement | null = null;
+  let playerRouted = false;
   let utterance: SpeechSynthesisUtterance | null = null;
 
-  let micStream: MediaStream | null = null;
-  let meterCtx: AudioContext | null = null;
-  let meterRaf = 0;
+  const agent = () => NAMES.en[gender];
+  /** The agent's name as the panel shows it, in the panel's language. */
+  const shown = (g: Who = gender) => NAMES[lang][g];
+  const ui = () => UI[lang];
+  /** Urdu labels follow who's on the line: Sarah "کر رہی ہیں", Hamza "کر رہے ہیں". */
+  const gendered = (s: string) => (lang === 'ur' && gender === 'male' ? s.replace('رہی ہیں', 'رہے ہیں') : s);
 
-  let mediaRecorder: MediaRecorder | null = null;
-  let audioChunks: Blob[] = [];
-  let vadSilenceTimer: ReturnType<typeof setTimeout> | undefined;
-  let vadSpeechDetected = false;
-  let vadMeterRaf = 0;
-  let vadActive = false;
+  /* ═════════ the screen ═════════ */
 
-  const agent = () => (gender === 'female' ? 'Sarah' : 'Hamza');
-
-  /* ── what the screen says ── */
-
-  function setPhase(next: Phase, status?: string) {
+  function setPhase(next: Phase, label?: string) {
     phase = next;
-    soundwave?.classList.toggle('speaking', next === 'speaking');
-    soundwave?.classList.toggle('thinking', next === 'thinking' || next === 'connecting');
-    soundwave?.classList.toggle('listening', next === 'listening');
-    avatarRing?.classList.toggle('active', next === 'speaking');
-    avatarPulse?.classList.toggle('active', next === 'speaking');
-    avatarContainer?.classList.toggle('speaking', next === 'speaking');
     modal!.dataset.phase = next;
-    const label =
-      status ||
-      { idle: 'READY', connecting: 'DIALING DIRECT LINE…', speaking: `${agent().toUpperCase()} ON LINE`, listening: 'LISTENING…', thinking: `${agent().toUpperCase()} IS THINKING…`, muted: 'MIC MUTED' }[next];
-    if (captionStatus) captionStatus.textContent = label;
-    if (next === 'listening') {
-      unblockActions?.setAttribute('hidden', '');
-      captionBox?.classList.remove('mic-alert');
+    const t = ui();
+    const text =
+      label ??
+      {
+        idle: mode === 'message' ? t.replies : '',
+        ringing: t.ringing,
+        connecting: t.connecting,
+        listening: t.listening,
+        speaking: gendered(t.speaking(shown())),
+        thinking: t.thinking,
+        muted: t.muted,
+        ended: t.ended,
+      }[next];
+    if (phaseEl) phaseEl.textContent = text;
+    micBtn?.setAttribute('aria-pressed', String(muted));
+    micBtn?.setAttribute('aria-label', muted ? t.unmute : t.mute);
+    if (micLabel) micLabel.textContent = muted ? t.unmute : t.mute;
+  }
+
+  function setMode(next: Mode) {
+    mode = next;
+    modal!.dataset.mode = next;
+    for (const t of tabs) t.setAttribute('aria-selected', String(t.dataset.mode === next));
+    if (next === 'message') {
+      inputRow?.classList.add('open');
+      if (!logEl.children.length) welcomeLi = say(ui().hello(shown()));
+      if (!inCall) setPhase('idle');
+      setTimeout(() => textInput?.focus(), 50);
+    } else {
+      inputRow?.classList.remove('open');
+      keypadBtn?.setAttribute('aria-expanded', 'false');
+      if (!inCall) setPhase(phase === 'ended' ? 'ended' : 'idle');
     }
-    updateMicUI();
+    updateChips();
   }
 
-  function caption(text: string, who: 'agent' | 'you' = 'agent') {
-    if (!captionText) return;
-    captionText.dir = /[\u0600-\u06FF]/.test(text) ? 'rtl' : 'ltr';
-    captionText.textContent = who === 'you' ? `You: “${text}”` : text;
+  function updateChips() {
+    // Starters are for the first question; after that the conversation speaks for itself.
+    const asked = history.some((t) => t.role === 'user');
+    chipsEl?.toggleAttribute('hidden', asked || (mode === 'call' && !inCall));
   }
 
-  function updateMicUI() {
-    const live = phase === 'listening';
-    const canCaptureAudio = typeof navigator.mediaDevices?.getUserMedia === 'function' && typeof MediaRecorder !== 'undefined';
-    const canListen = Boolean(SpeechRec || canCaptureAudio);
-    micToggleBtn?.classList.toggle('active', live);
-    micToggleBtn?.classList.toggle('muted', muted || !canListen);
-    micToggleBtn?.setAttribute('aria-pressed', String(!muted));
-    if (micLabel) {
-      micLabel.textContent = !canListen
-        ? 'USE KEYPAD'
-        : phase === 'listening'
-        ? 'LISTENING…'
-        : phase === 'connecting'
-        ? 'CONNECTING…'
-        : 'SPEAK LIVE';
+  function bubble(kind: 'agent' | 'you' | 'note', text = '', pending = false) {
+    const li = document.createElement('li');
+    li.className = kind + (pending ? ' pending' : '');
+    if (kind !== 'note') {
+      logEl.querySelector('li.current')?.classList.remove('current');
+      li.classList.add('current');
+      li.dataset.who = kind;
+    }
+    setText(li, text);
+    logEl.append(li);
+    logEl.scrollTop = logEl.scrollHeight;
+    return li;
+  }
+  function setText(li: HTMLElement, text: string) {
+    li.textContent = text;
+    li.dir = isUrdu(text) ? 'rtl' : 'auto';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  const say = (text: string) => bubble('agent', text);
+  const note = (text: string) => bubble('note', text);
+  function typing() {
+    const li = bubble('agent');
+    li.classList.add('typing');
+    li.innerHTML = '<span class="vcall-dots" aria-label="typing"><i></i><i></i><i></i></span>';
+    return li;
+  }
+
+  function setAgent(next: Who) {
+    gender = next;
+    paintLabels();
+  }
+
+  /** Every fixed word on the panel, in the current language and for the current agent. */
+  function paintLabels() {
+    const t = ui();
+    const other: Who = gender === 'female' ? 'male' : 'female';
+    modal!.dataset.lang = lang;
+    if (welcomeLi?.isConnected && !history.some((t) => t.role === 'user')) setText(welcomeLi, t.hello(shown()));
+    if (nameEl) nameEl.textContent = shown();
+    if (subtitleEl) subtitleEl.textContent = t.subtitle(gender);
+    if (monoEl) monoEl.textContent = shown()[0];
+    if (voiceTier) setVoiceTag(voiceTier);
+    modal!.style.setProperty('--you', JSON.stringify(lang === 'ur' ? 'آپ' : 'You'));
+    modal!.style.setProperty('--agent', JSON.stringify(shown()));
+    const label = (sel: string, text: string) => {
+      const el = modal!.querySelector(sel);
+      if (el) el.textContent = text;
+    };
+    label('.vcall-tab[data-mode="call"] span', t.call);
+    label('.vcall-tab[data-mode="message"] span', t.message);
+    label('#vc-dial > span', t.dial(shown()));
+    label('#vc-voice-switch > span', t.talkTo(shown(other)));
+    label('#voice-keypad-toggle span', t.type);
+    label('#voice-hangup-btn span', t.end);
+    label('#voice-unblock-btn', t.tryMic);
+    label('#voice-type-mode-btn', t.msgInstead);
+    if (chipsEl) {
+      chipsEl.dir = lang === 'ur' ? 'rtl' : 'ltr';
+      chipsEl.replaceChildren(
+        ...t.chips.map(([prompt, text]) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'voice-chip';
+          b.dataset.prompt = prompt;
+          b.textContent = text;
+          return b;
+        }),
+      );
     }
   }
 
-  function tick() {
-    seconds++;
-    if (timerEl) timerEl.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  let voiceTier: 'live' | 'studio' | 'natural' | 'device' | null = null;
+  function setVoiceTag(tier: 'live' | 'studio' | 'natural' | 'device' | null) {
+    voiceTier = tier;
+    if (!voiceTagEl) return;
+    voiceTagEl.hidden = !tier;
+    if (!tier) return;
+    voiceTagEl.dataset.tier = tier === 'live' || tier === 'studio' ? 'studio' : tier;
+    voiceTagEl.textContent = (lang === 'ur'
+      ? { live: 'لائیو آواز', studio: 'اسٹوڈیو آواز', natural: 'قدرتی آواز', device: 'ڈیوائس کی آواز' }
+      : { live: 'Live voice', studio: 'Studio voice', natural: 'Natural voice', device: 'Device voice' })[tier];
   }
 
-  function updateBusinessStatus() {
-    const status = getCafeOpeningStatus();
-    if (businessStatusLabelEl) businessStatusLabelEl.textContent = cafeHoursStatusLabel(status, lang);
-    if (businessStatusEl) {
-      businessStatusEl.dataset.state = status.isOpen ? (status.isSeatingOpen ? 'open' : 'late') : 'closed';
-      businessStatusEl.setAttribute('aria-label', `Café ${status.isOpen ? 'open' : 'closed'} in Lahore`);
-      businessStatusEl.dir = lang === 'ur' ? 'rtl' : 'ltr';
+  function updateHours() {
+    const s = getCafeOpeningStatus();
+    if (hoursLabel) hoursLabel.textContent = cafeHoursStatusLabel(s, lang);
+    if (hoursEl) {
+      hoursEl.dataset.state = s.isOpen ? (s.isSeatingOpen ? 'open' : 'late') : 'closed';
+      hoursEl.dir = lang === 'ur' ? 'rtl' : 'ltr';
     }
   }
 
-  /* ── speaking ── */
+  function setLang(next: 'en' | 'ur') {
+    lang = next;
+    if (langBtn) {
+      langBtn.dataset.lang = next;
+      langBtn.setAttribute('aria-label', next === 'ur' ? 'Speaking Urdu. Switch to English' : 'Speaking English. Switch to Urdu');
+    }
+    if (textInput) {
+      textInput.dir = next === 'ur' ? 'rtl' : 'auto';
+      textInput.placeholder = UI[next].placeholder;
+    }
+    updateHours();
+    paintLabels();
+    setPhase(phase);
+  }
+
+  function showAlert(text: string | null) {
+    if (!alertEl) return;
+    alertEl.hidden = !text;
+    if (text && alertText) alertText.textContent = text;
+  }
+
+  /* ═════════ sound ═════════ */
+
+  function ensureAudio() {
+    if (!ctx || ctx.state === 'closed') {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      ctx = new Ctx();
+      outGain = ctx.createGain();
+      outAnalyser = ctx.createAnalyser();
+      outAnalyser.fftSize = 1024;
+      outGain.connect(outAnalyser);
+      outAnalyser.connect(ctx.destination);
+      player = null;
+      playerRouted = false;
+    }
+    // Must happen inside the tap that opened the call, or browsers keep it silent.
+    ctx.resume().catch(() => {});
+    return ctx;
+  }
+
+  /** The ringback the caller hears: 400 + 450 Hz, ring-ring, pause — the sound of a phone ringing out. */
+  function ringback() {
+    const c = ensureAudio();
+    const gain = c.createGain();
+    gain.gain.value = 0;
+    gain.connect(c.destination);
+    const oscs = [400, 450].map((f) => {
+      const o = c.createOscillator();
+      o.frequency.value = f;
+      o.connect(gain);
+      o.start();
+      return o;
+    });
+    const cycle = (t: number) => {
+      const g = gain.gain;
+      for (const [on, off] of [[0, 0.4], [0.6, 1.0]]) {
+        g.setValueAtTime(0, t + on);
+        g.linearRampToValueAtTime(0.07, t + on + 0.02);
+        g.setValueAtTime(0.07, t + off - 0.02);
+        g.linearRampToValueAtTime(0, t + off);
+      }
+    };
+    let next = c.currentTime + 0.05;
+    cycle(next);
+    const iv = setInterval(() => {
+      next += 3;
+      cycle(next);
+    }, 3000);
+    return () => {
+      clearInterval(iv);
+      gain.gain.cancelScheduledValues(0);
+      gain.gain.setValueAtTime(0, c.currentTime);
+      for (const o of oscs) {
+        try {
+          o.stop(c.currentTime + 0.05);
+        } catch {}
+      }
+      setTimeout(() => gain.disconnect(), 120);
+    };
+  }
+
+  /** The soft click of a handset being picked up, or the falling tone of a hang-up. */
+  function blip(kind: 'pickup' | 'hangup') {
+    try {
+      const c = ensureAudio();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      const t = c.currentTime;
+      o.frequency.setValueAtTime(kind === 'pickup' ? 660 : 420, t);
+      o.frequency.exponentialRampToValueAtTime(kind === 'pickup' ? 990 : 150, t + 0.14);
+      g.gain.setValueAtTime(0.07, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.connect(g);
+      g.connect(c.destination);
+      o.start(t);
+      o.stop(t + 0.18);
+    } catch {}
+  }
+
+  async function getMic() {
+    if (micStream?.getAudioTracks().every((t) => t.readyState === 'live')) return micStream;
+    if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('No microphone API'), { name: 'NotSupportedError' });
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    const c = ensureAudio();
+    micAnalyser = c.createAnalyser();
+    micAnalyser.fftSize = 1024;
+    c.createMediaStreamSource(micStream).connect(micAnalyser);
+    return micStream;
+  }
+
+  function releaseMic() {
+    micStream?.getTracks().forEach((t) => t.stop());
+    micStream = null;
+    micAnalyser = null;
+  }
+
+  /* One loop drives everything that follows sound: the orb, who's talking on
+     the live line, and on the step-by-step line when you start and stop. */
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    let target = 0;
+    const mic = micAnalyser && !muted ? rms(micAnalyser, micBuf) : 0;
+    if (phase === 'speaking' && outAnalyser) target = Math.min(1, rms(outAnalyser, outBuf) * 5);
+    else if ((phase === 'listening' || phase === 'thinking') && mic) target = Math.min(1, mic * 9);
+    level = level * 0.65 + target * 0.35;
+    modal!.style.setProperty('--lvl', level.toFixed(3));
+
+    if (!inCall) return;
+    if (engine === 'live' && live) {
+      if (live.speaking) {
+        if (phase !== 'speaking') setPhase('speaking');
+      } else if (phase === 'speaking') {
+        if (hangUpAfterSpeech && liveTurnDone) endCall();
+        else setPhase(muted ? 'muted' : 'listening');
+      }
+    } else if (engine === 'steps') stepsListenTick(mic);
+  }
+
+  /* ═════════ the call ═════════ */
+
+  async function startCall() {
+    if (inCall) return;
+    inCall = true;
+    const seq = ++callSeq;
+    callId = uuid();
+    muted = false;
+    hangUpAfterSpeech = false;
+    liveTurnDone = true;
+    showAlert(null);
+    setVoiceTag(null);
+    setMode('call');
+    updateChips();
+    ensureAudio();
+    triggerHaptic?.(30);
+    setPhase('ringing');
+    stopRing = ringback();
+    const ringStarted = performance.now();
+    const ringMs = ringFor();
+
+    const recap = history.slice(-12).map((t) => `${t.role === 'user' ? 'Caller' : agent()}: ${t.content}`).join('\n');
+    const lineP = fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, recap }) })
+      .then((r) => r.json())
+      .catch(() => ({ live: false }));
+
+    let mic: MediaStream | null = null;
+    try {
+      mic = await getMic();
+    } catch (err: any) {
+      if (seq !== callSeq) return;
+      stopRing?.();
+      stopRing = null;
+      inCall = false;
+      const blocked = err?.name === 'NotAllowedError' || err?.name === 'SecurityError';
+      showAlert(blocked ? ui().micBlocked : ui().micMissing);
+      setPhase('ended', ui().noConnect);
+      updateChips();
+      return;
+    }
+
+    // Connect the live line while it rings; if it can't, the step-by-step line takes the call.
+    let chosen: Engine = 'steps';
+    const line = await lineP;
+    if (seq !== callSeq) return;
+    if (line?.live && line.url) {
+      const session = new LiveSession(ensureAudio(), outGain!, onLive);
+      session.beat = humanBeat;
+      try {
+        await session.connect(line.url, line.setup);
+        live = session;
+        chosen = 'live';
+      } catch (err) {
+        console.warn('[brewns-call] live line unavailable, using step-by-step voice:', err);
+        session.close();
+      }
+    }
+    const wait = ringMs - (performance.now() - ringStarted);
+    if (wait > 0) await sleep(wait);
+    if (seq !== callSeq) {
+      live?.close();
+      live = null;
+      return;
+    }
+
+    // Picked up.
+    stopRing?.();
+    stopRing = null;
+    blip('pickup');
+    triggerHaptic?.(40);
+    engine = chosen;
+    seconds = 0;
+    if (timerEl) {
+      timerEl.hidden = false;
+      timerEl.textContent = '00:00';
+    }
+    clearInterval(timer);
+    timer = setInterval(() => {
+      seconds++;
+      if (timerEl) timerEl.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }, 1000);
+    note(ui().pickedUp(shown()));
+    updateChips();
+
+    if (engine === 'live' && live) {
+      setVoiceTag('live');
+      setPhase('thinking', ui().connected);
+      await live.startMic(mic);
+      live.sendText(PICKUP_CUE);
+    } else {
+      const id = ++turnId;
+      setPhase('thinking', ui().connected);
+      const data = await ask('call_init').catch(() => null);
+      if (id !== turnId || seq !== callSeq) return;
+      const hello = data?.reply || (lang === 'ur' ? `السلام علیکم، brewns سے ${agent()} بات کر رہی ہوں۔ میں آپ کی کیا مدد کر سکتی ہوں؟` : `Hi, thanks for calling brewns, this is ${agent()}. How can I help?`);
+      history.push({ role: 'assistant', content: hello });
+      await speakReply(hello, data?.audioChunks, id);
+    }
+  }
+
+  function endCall(how: 'hangup' | 'dropped' | 'switch' = 'hangup') {
+    if (!inCall) return;
+    inCall = false;
+    callSeq++;
+    turnId++;
+    stopRing?.();
+    stopRing = null;
+    if (live) {
+      commitLiveTurn();
+      live.close();
+      live = null;
+    }
+    stopRecorder(false);
+    stopSpeaking();
+    releaseMic();
+    clearInterval(timer);
+    if (timerEl) timerEl.hidden = true;
+    fetch('/api/voice/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'call_end', callId }), keepalive: true }).catch(() => {});
+    const length = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+    if (seconds > 0) note(how === 'dropped' ? ui().dropped(length) : ui().callEnded(length));
+    seconds = 0;
+    callId = uuid();
+    if (how !== 'switch') blip('hangup');
+    setPhase('ended');
+    updateChips();
+  }
+
+  /* ── the live line ── */
+
+  function onLive(e: LiveEvent) {
+    if (e.type === 'user-text') {
+      userBuf += e.text;
+      if (!userLi) userLi = bubble('you', '', true);
+      const heard = toUrduScript(userBuf.trim());
+      setText(userLi, heard);
+      if (!heard) return;
+      if (isUrdu(heard) && lang !== 'ur') setLang('ur');
+      liveTurnDone = false;
+    } else if (e.type === 'agent-text') {
+      agentBuf += e.text;
+      if (!agentLi) agentLi = bubble('agent');
+      const said = toUrduScript(agentBuf.trim());
+      setText(agentLi, said);
+      if (isUrdu(said) && lang !== 'ur') setLang('ur');
+      liveTurnDone = false;
+    } else if (e.type === 'interrupted') {
+      if (agentLi && agentBuf.trim()) setText(agentLi, `${toUrduScript(agentBuf.trim())} …`);
+      commitLiveTurn();
+      setPhase(muted ? 'muted' : 'listening');
+    } else if (e.type === 'turn-complete') {
+      commitLiveTurn();
+      liveTurnDone = true;
+    } else if (e.type === 'tool-call') {
+      void runLiveTools(e.calls);
+    } else if (e.type === 'closed') {
+      if (inCall) endCall('dropped');
+    }
+  }
+
+  function commitLiveTurn() {
+    const raw = userBuf.trim();
+    const caller = toUrduScript(raw);
+    const said = toUrduScript(agentBuf.trim());
+    const li = userLi;
+    li?.classList.remove('pending');
+    if (caller) {
+      const turn: Turn = { role: 'user', content: caller };
+      history.push(turn);
+      lastCaller = caller;
+      // The caption already reads as Urdu letter by letter; swap in properly spelled Urdu when it's back.
+      if (hasDevanagari(raw) || (lang === 'ur' && !isUrdu(raw) && romanUrdu(raw))) void tidyUrdu(raw, li, turn);
+    }
+    if (said) {
+      history.push({ role: 'assistant', content: said });
+      lastAgent = said;
+    }
+    if (caller || said) {
+      fetch('/api/voice/live/turn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, caller, agent: said, gender, lang }) }).catch(() => {});
+    }
+    userBuf = agentBuf = '';
+    userLi = agentLi = null;
+    updateChips();
+  }
+
+  async function tidyUrdu(raw: string, li: HTMLLIElement | null, turn: Turn) {
+    try {
+      const r = await fetch('/api/voice/urdu', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: raw }) });
+      const { text } = await r.json();
+      if (!text || !isUrdu(text)) return;
+      if (li?.isConnected) setText(li, text);
+      if (lastCaller === turn.content) lastCaller = text;
+      turn.content = text;
+    } catch {}
+  }
+
+  async function runLiveTools(calls: { id: string; name: string; args: Record<string, unknown> }[]) {
+    setPhase('thinking');
+    // The words the caller just said can trail the tool call by a beat; the booking check needs their "yes".
+    for (let i = 0; i < 8 && !userBuf.trim(); i++) await sleep(80);
+    const transcript = toUrduScript(userBuf.trim()) || lastCaller;
+    const seq = callSeq;
+    const responses = await Promise.all(
+      calls.map(async (c) => {
+        try {
+          const r = await fetch('/api/voice/live/tool', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callId, name: c.name, args: c.args, transcript, previousAssistant: lastAgent, gender, lang }),
+          });
+          const d = await r.json();
+          if (seq === callSeq) for (const a of (d.actions || []) as Action[]) handleAction(a);
+          return { id: c.id, name: c.name, response: d.output ?? { error: d.error || 'The system did not answer.' } };
+        } catch {
+          return { id: c.id, name: c.name, response: { error: 'The booking system did not respond. Apologise and offer to try again.' } };
+        }
+      }),
+    );
+    if (seq === callSeq) live?.sendToolResponses(responses);
+  }
+
+  /* ── the step-by-step line (when the live line isn't available) ── */
+
+  async function ask(message: string, channel: 'voice' | 'text' = 'voice') {
+    const res = await fetch('/api/voice/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, gender, history, state: scriptState, lang, callId, channel }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `The line is busy (${res.status})`);
+    scriptState = data.state || {};
+    if ((data.lang === 'ur' || data.lang === 'en') && data.lang !== lang) setLang(data.lang);
+    return data as { reply: string; audioChunks?: AudioChunk[]; audioUrl?: string; actions?: Action[] };
+  }
+
+  /** Something the caller said or typed on the step-by-step line. */
+  async function stepsTurn(said: string) {
+    const id = ++turnId;
+    const seq = callSeq;
+    stopRecorder(false);
+    stopSpeaking();
+    setPhase('thinking');
+    try {
+      const data = await ask(said);
+      if (id !== turnId || seq !== callSeq) return;
+      history.push({ role: 'user', content: said }, { role: 'assistant', content: data.reply });
+      updateChips();
+      for (const a of data.actions || []) handleAction(a);
+      await speakReply(data.reply, data.audioChunks ?? (data.audioUrl ? [{ text: data.reply, url: data.audioUrl }] : undefined), id);
+    } catch (err) {
+      if (id !== turnId || seq !== callSeq) return;
+      const sorry = err instanceof Error && /busy/i.test(err.message) ? err.message : 'Sorry, the line broke up for a second. Could you say that again?';
+      await speakReply(sorry, undefined, id);
+    }
+  }
+
+  async function fetchVoice(url: string) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      return { blob: await r.blob(), tier: (r.headers.get('X-Voice') as 'studio' | 'natural') || 'natural' };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Say a reply a chunk at a time; the next chunk's voice is fetched while this one plays. */
+  async function speakReply(reply: string, audio: AudioChunk[] | undefined, id: number) {
+    const parts: AudioChunk[] = audio?.length ? audio : [{ text: reply, url: '' }];
+    const li = bubble('agent');
+    let shown = '';
+    let next = parts[0].url ? fetchVoice(parts[0].url) : Promise.resolve(null);
+    setPhase('speaking');
+    // Talking over the voice only counts once it is actually playing.
+    vad.armedAt = Infinity;
+    vad.loudSince = 0;
+    for (let i = 0; i < parts.length; i++) {
+      // The words appear as they are about to be said, not after the audio arrives.
+      shown = `${shown} ${parts[i].text}`.trim();
+      setText(li, shown);
+      const voice = await next;
+      if (id !== turnId) return;
+      next = parts[i + 1]?.url ? fetchVoice(parts[i + 1].url) : Promise.resolve(null);
+      vad.armedAt = performance.now() + 450;
+      setVoiceTag(voice ? voice.tier : 'device');
+      if (voice) await playBlob(voice.blob, id);
+      else await speakWithDevice(parts[i].text, id);
+      if (id !== turnId) return;
+    }
+    if (shown !== reply && !audio?.length) setText(li, reply);
+    if (hangUpAfterSpeech) return void setTimeout(() => inCall && endCall(), 300);
+    stepsListen();
+  }
+
+  function playBlob(blob: Blob, id: number) {
+    return new Promise<void>((resolve) => {
+      if (!player) {
+        player = new Audio();
+        player.setAttribute('playsinline', '');
+      }
+      // Route the voice through the level meter once the context is running; a
+      // suspended context would otherwise swallow the sound entirely.
+      if (!playerRouted && ctx && ctx.state === 'running' && outGain) {
+        try {
+          ctx.createMediaElementSource(player).connect(outGain);
+          playerRouted = true;
+        } catch {}
+      }
+      const url = URL.createObjectURL(blob);
+      const done = () => {
+        URL.revokeObjectURL(url);
+        if (player) player.onended = player.onerror = null;
+        resolve();
+      };
+      player.onended = done;
+      player.onerror = done;
+      player.src = url;
+      player.play().catch(done);
+      const watch = setInterval(() => {
+        if (id !== turnId) {
+          clearInterval(watch);
+          player?.pause();
+          done();
+        } else if (!player || player.ended || player.paused) clearInterval(watch);
+      }, 100);
+    });
+  }
+
+  function speakWithDevice(text: string, id: number) {
+    return new Promise<void>((resolve) => {
+      if (!('speechSynthesis' in window)) return void setTimeout(resolve, Math.min(6000, 400 + text.length * 50));
+      const voices = speechSynthesis.getVoices();
+      const urdu = isUrdu(text);
+      // The best voice the device has: the natural/neural ones sound far less robotic.
+      const v = urdu
+        ? voices.find((x) => /^ur/i.test(x.lang))
+        : voices.find((x) => /^en/i.test(x.lang) && /natural|neural|online/i.test(x.name) && (gender === 'female' ? !/\bmale\b|guy|ryan|davis/i.test(x.name) : /\bmale\b|guy|ryan|davis|christopher/i.test(x.name))) ||
+          voices.find((x) => /^en-(GB|US|IN)/i.test(x.lang) && /google|samantha|daniel|aria|jenny|sonia/i.test(x.name)) ||
+          voices.find((x) => /^en/i.test(x.lang));
+      if (urdu && !v) return void setTimeout(resolve, Math.min(7000, 600 + text.length * 60));
+      const u = new SpeechSynthesisUtterance(text);
+      if (v) u.voice = v;
+      u.lang = v?.lang || (urdu ? 'ur-PK' : 'en-GB');
+      u.rate = 1.02;
+      u.onend = u.onerror = () => resolve();
+      utterance = u;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+      const watch = setInterval(() => {
+        if (id !== turnId) {
+          speechSynthesis.cancel();
+          clearInterval(watch);
+          resolve();
+        } else if (!speechSynthesis.speaking) clearInterval(watch);
+      }, 100);
+    });
+  }
 
   function stopSpeaking() {
-    if (audioEl) {
-      audioEl.onended = audioEl.onerror = null;
-      audioEl.pause();
-      audioEl = null;
+    if (player) {
+      player.pause();
+      player.removeAttribute('src');
     }
     if (utterance) {
-      utterance.onend = utterance.onerror = null;
       utterance = null;
       try {
         speechSynthesis.cancel();
       } catch {}
     }
-    stopMeter();
   }
 
-  function pickBrowserVoice(urdu = false): SpeechSynthesisVoice | null {
-    if (urdu) return speechSynthesis.getVoices().find((v) => /^ur/i.test(v.lang)) || null;
-    const voices = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
-    if (!voices.length) return null;
-    const female = /female|samantha|victoria|karen|moira|tessa|serena|zira|aria|jenny|sonia|libby|google uk english female|google us english/i;
-    const male = /male|daniel|alex|fred|oliver|arthur|george|guy|ryan|david|mark|google uk english male/i;
-    const want = gender === 'female' ? female : male;
-    return voices.find((v) => want.test(v.name) && !(gender === 'female' && /\bmale\b/i.test(v.name))) || voices.find((v) => /en-(GB|IN|PK)/i.test(v.lang)) || voices[0];
-  }
-
-  /** Speak one reply, then carry on the call (listen, or hang up if it said goodbye). */
-  function speak(text: string, audioUrl: string | undefined, id: number) {
-    stopSpeaking();
-    const done = () => {
-      if (id !== turnId || !callActive) return;
-      audioEl = null;
-      utterance = null;
-      stopMeter();
-      if (hangUpAfterSpeech) return void setTimeout(() => callActive && endCall(), 350);
-      listen();
-    };
-    setPhase('speaking');
-    startMeter(id);
-
-    if (audioUrl) {
-      const a = new Audio(audioUrl);
-      a.preload = 'auto';
-      // Safari on iOS can route a dynamically-created audio element as video
-      // unless it is explicitly marked inline. That can hide call controls or
-      // refuse playback after an asynchronous server response.
-      a.setAttribute('playsinline', '');
-      a.setAttribute('webkit-playsinline', '');
-      audioEl = a;
-      a.onended = done;
-      a.onerror = () => speakWithBrowser(text, done);
-      a.play().catch(() => speakWithBrowser(text, done));
-      return;
-    }
-    speakWithBrowser(text, done);
-  }
-
-  function speakWithBrowser(text: string, done: () => void) {
-    audioEl = null;
-    if (!('speechSynthesis' in window)) return void setTimeout(done, Math.min(6000, 400 + text.length * 45));
+  function stepsListen() {
+    if (!inCall || engine !== 'steps') return;
+    if (muted || !micStream) return setPhase('muted');
+    stopRecorder(false);
+    chunks = [];
+    const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t));
     try {
-      speechSynthesis.cancel();
-      const urdu = /[\u0600-\u06FF]/.test(text);
-      const v = pickBrowserVoice(urdu);
-      // No Urdu voice on this device: show the words and carry on rather than mangle them.
-      if (urdu && !v) return void setTimeout(done, Math.min(7000, 600 + text.length * 60));
-      const u = new SpeechSynthesisUtterance(text);
-      if (v) u.voice = v;
-      u.lang = v?.lang || (urdu ? 'ur-PK' : 'en-GB');
-      u.rate = 1.04;
-      u.pitch = gender === 'female' ? 1.05 : 0.95;
-      u.onend = done;
-      u.onerror = done;
-      utterance = u;
-      speechSynthesis.speak(u);
+      recorder = type ? new MediaRecorder(micStream, { mimeType: type }) : new MediaRecorder(micStream);
     } catch {
-      done();
+      showAlert('This browser can’t record from the microphone. Keep going by message instead.');
+      return setPhase('muted');
     }
-  }
-
-  /* ── line tones ── */
-
-  function playHangupTone() {
-    try {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!Ctx) return;
-      const ctx: AudioContext = new Ctx();
-      ctx.resume().catch(() => {});
-      const o = ctx.createOscillator();
-      const gain = ctx.createGain();
-      o.frequency.setValueAtTime(380, ctx.currentTime);
-      o.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.16);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.16);
-      o.connect(gain);
-      gain.connect(ctx.destination);
-      o.start();
-      o.stop(ctx.currentTime + 0.18);
-      setTimeout(() => ctx.close().catch(() => {}), 220);
-    } catch {}
-  }
-
-  /* ── barge-in: hear the caller talk over the voice ── */
-
-  async function ensureMic() {
-    // On mobile, streams that report 'live' can be stale after backgrounding – verify by checking
-    // all tracks, not just some, and also test that the stream has at least one audio track.
-    if (micStream) {
-      const tracks = micStream.getAudioTracks();
-      const allLive = tracks.length > 0 && tracks.every((t) => t.readyState === 'live' && t.enabled);
-      if (allLive) return micStream;
-      // Stream is stale – stop old tracks so the hardware is freed before re-acquiring.
-      micStream.getTracks().forEach((t) => t.stop());
-      micStream = null;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) return null;
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      muted = false;
-      return micStream;
-    } catch {
-      try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        muted = false;
-        return micStream;
-      } catch (err: any) {
-        console.warn('[brewns-mic] getUserMedia failed:', err?.name, err?.message);
-        return null;
-      }
-    }
-  }
-
-  /** Ensure AudioContext is alive; on mobile it must be resumed inside a user-gesture. */
-  async function resumeAudioCtx() {
-    try {
-      if (!meterCtx || meterCtx.state === 'closed') {
-        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) return;
-        meterCtx = new Ctx();
-      }
-      if (meterCtx.state === 'suspended') await meterCtx.resume();
-    } catch {}
-  }
-
-  function startMeter(id: number) {
-    if (!micStream || muted) return;
-    try {
-      // On mobile, meterCtx may have been closed after backgrounding; recreate if needed.
-      if (!meterCtx || meterCtx.state === 'closed') {
-        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) return;
-        meterCtx = new Ctx();
-      }
-      meterCtx.resume().catch(() => {});
-      const src = meterCtx.createMediaStreamSource(micStream);
-      const an = meterCtx.createAnalyser();
-      an.fftSize = 1024;
-      src.connect(an);
-      const buf = new Float32Array(an.fftSize);
-      let loudSince = 0;
-      // Give the voice a moment to start so its first syllable isn't mistaken for the caller.
-      const armAt = performance.now() + 450;
-      const loop = () => {
-        if (id !== turnId || phase !== 'speaking') return src.disconnect();
-        an.getFloatTimeDomainData(buf);
-        let sum = 0;
-        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-        const rms = Math.sqrt(sum / buf.length);
-        const now = performance.now();
-        if (now > armAt && rms > BARGE_IN_LEVEL) {
-          loudSince ||= now;
-          if (now - loudSince > BARGE_IN_MS) {
-            src.disconnect();
-            interrupt();
-            return;
-          }
-        } else loudSince = 0;
-        meterRaf = requestAnimationFrame(loop);
-      };
-      meterRaf = requestAnimationFrame(loop);
-    } catch (e) {
-      console.warn('[brewns-mic] startMeter error:', e);
-    }
-  }
-
-  function stopMeter() {
-    cancelAnimationFrame(meterRaf);
-  }
-
-  function interrupt() {
-    turnId++;
-    stopSpeaking();
-    hangUpAfterSpeech = false;
-    triggerHaptic?.(15);
-    listen();
-  }
-
-  /* ── listening ── */
-
-  function stopListening() {
-    clearTimeout(silenceTimer);
-    clearTimeout(vadSilenceTimer);
-    cancelAnimationFrame(vadMeterRaf);
-    vadActive = false;
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      try { mediaRecorder.stop(); } catch {}
-    }
-    mediaRecorder = null;
-    const r = recognition;
-    recognition = null;
-    if (r) {
-      r.onresult = r.onerror = r.onend = r.onstart = null;
-      try {
-        r.abort();
-      } catch {}
-    }
-  }
-
-  async function listenWithRecorder() {
-    if (!callActive) return;
-    stopListening();
-    vadActive = true;
-    audioChunks = [];
-    vadSpeechDetected = false;
-
-    const stream = await ensureMic();
-    if (!stream) {
-      muted = true;
-      setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
-      unblockActions?.removeAttribute('hidden');
-      inputRow?.classList.add('open');
-      textInput?.focus();
-      return;
-    }
-
-    muted = false;
+    recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    recorder.start(250);
+    Object.assign(vad, { talking: false, since: 0, quietSince: 0, startedAt: performance.now() });
     setPhase('listening');
-    caption('Listening… speak into mic / headset', 'agent');
-    unblockActions?.setAttribute('hidden', '');
-
-    let mimeType = '';
-    for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']) {
-      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) {
-        mimeType = t;
-        break;
-      }
-    }
-
-    try {
-      mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-    } catch {
-      try {
-        mediaRecorder = new MediaRecorder(stream);
-      } catch (e) {
-        console.warn('[brewns-recorder] MediaRecorder initialization error:', e);
-        muted = true;
-        setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
-        caption('Your browser could not start voice capture. Tap Connect & Test Mic or type your message below.', 'agent');
-        unblockActions?.removeAttribute('hidden');
-        inputRow?.classList.add('open');
-        return;
-      }
-    }
-
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) audioChunks.push(e.data);
-    };
-
-    mediaRecorder.onstop = async () => {
-      cancelAnimationFrame(vadMeterRaf);
-      clearTimeout(vadSilenceTimer);
-      if (!callActive || !vadActive) return;
-
-      const chunks = audioChunks;
-      audioChunks = [];
-      const hadSpeech = vadSpeechDetected;
-      vadSpeechDetected = false;
-
-      if (!hadSpeech || chunks.length === 0) {
-        if (callActive && phase === 'listening' && !muted) {
-          setTimeout(() => phase === 'listening' && listenWithRecorder(), 150);
-        }
-        return;
-      }
-
-      const audioType = chunks.find((chunk) => chunk.type)?.type || mediaRecorder?.mimeType || 'audio/webm';
-      const blob = new Blob(chunks, { type: audioType });
-      if (blob.size < 1200) {
-        if (callActive && phase === 'listening' && !muted) {
-          setTimeout(() => phase === 'listening' && listenWithRecorder(), 150);
-        }
-        return;
-      }
-
-      setPhase('thinking', `${agent().toUpperCase()} IS THINKING…`);
-      caption('Processing voice…', 'you');
-
-      try {
-        const formData = new FormData();
-        const extension = audioType.includes('mp4') ? 'mp4' : audioType.includes('ogg') ? 'ogg' : 'webm';
-        formData.append('file', blob, `voice.${extension}`);
-        formData.append('language', lang);
-        formData.append('callId', callId);
-        const res = await fetch('/api/voice/transcribe', { method: 'POST', body: formData });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || `Transcription unavailable (${res.status})`);
-        const text = (data.text || '').trim();
-        if (text && text.length > 1 && !/^(thank you|subtitles|transcription|you|bye)\.?$/i.test(text)) {
-          caption(text, 'you');
-          sendPrompt(text);
-        } else {
-          if (callActive && !muted) {
-            setPhase('listening');
-            caption('I didn’t catch that. Please speak again, or type your message below.', 'agent');
-            listenWithRecorder();
-          }
-        }
-      } catch (err) {
-        console.warn('[brewns-transcribe] Error:', err);
-        if (callActive && !muted) {
-          setPhase('muted', 'VOICE TRANSCRIPTION UNAVAILABLE');
-          caption('Voice transcription is unavailable right now. Type your message below and Sarah will reply.', 'agent');
-          unblockActions?.removeAttribute('hidden');
-          inputRow?.classList.add('open');
-          textInput?.focus();
-        }
-      }
-    };
-
-    try {
-      await resumeAudioCtx();
-      if (meterCtx) {
-        const src = meterCtx.createMediaStreamSource(stream);
-        const an = meterCtx.createAnalyser();
-        an.fftSize = 512;
-        src.connect(an);
-        const data = new Float32Array(an.fftSize);
-        let silenceStart = 0;
-        const speechLevel = 0.006; // Quiet phone/headset input needs a lower floor than desktop.
-
-        const vadLoop = () => {
-          if (!callActive || phase !== 'listening' || !vadActive || mediaRecorder?.state !== 'recording') {
-            try { src.disconnect(); } catch {}
-            return;
-          }
-          an.getFloatTimeDomainData(data);
-          let sum = 0;
-          for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-          const rms = Math.sqrt(sum / data.length);
-          const now = performance.now();
-
-          if (rms > speechLevel) {
-            vadSpeechDetected = true;
-            silenceStart = 0;
-            caption('Listening to you…', 'you');
-          } else if (vadSpeechDetected) {
-            if (!silenceStart) silenceStart = now;
-            else if (now - silenceStart > (IS_MOBILE ? 520 : 600)) {
-              try { mediaRecorder?.stop(); } catch {}
-              try { src.disconnect(); } catch {}
-              return;
-            }
-          }
-          vadMeterRaf = requestAnimationFrame(vadLoop);
-        };
-
-        mediaRecorder.start(200);
-        vadMeterRaf = requestAnimationFrame(vadLoop);
-        return;
-      }
-    } catch {}
-
-    // Fallback if AudioContext analyser is unavailable: record in 3.5s slices
-    mediaRecorder.start();
-    vadSilenceTimer = setTimeout(() => {
-      if (mediaRecorder?.state === 'recording') {
-        vadSpeechDetected = true;
-        try { mediaRecorder.stop(); } catch {}
-      }
-    }, 3500);
   }
 
-  async function listen() {
-    if (!callActive) return;
-    if (muted) return setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
-
-    // Mobile SpeechRecognition is frequently missing, stops after one phrase, or
-    // reports a transcript without reliably retaining the live microphone stream.
-    // Capture directly from the permitted mic on phones/tablets; keep recognition
-    // as a fast path on desktop and as a fallback when mobile recording is absent.
-    if (IS_MOBILE && typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
-      return listenWithRecorder();
-    }
-
-    // Use native live recognition first when the browser supports it. This avoids
-    // waiting for a recording to finish and uploading it for a separate transcript.
-    // MediaRecorder + Whisper stays available as a fallback.
-    if (!SpeechRec) {
-      if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
-        return listenWithRecorder();
-      }
-      return setPhase('idle', 'TYPE YOUR REPLY BELOW');
-    }
-    stopListening();
-    heard = '';
-
-    // Pre-warm mic stream in background for barge-in analyser if available
-    if (!micStream && typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia)) {
-      ensureMic().catch(() => {});
-    }
-    setPhase('listening');
-
-    // Rate-limit restarts: after 6 rapid restarts (usually no-speech loops on mobile),
-    // back off for 2 seconds so the UI stays responsive and battery isn't drained.
-    listenRestartCount++;
-    clearTimeout(listenRestartResetTimer);
-    listenRestartResetTimer = setTimeout(() => { listenRestartCount = 0; }, 5000);
-    if (listenRestartCount > 6) {
-      caption('Still listening… speak whenever you\'re ready.', 'agent');
-      setTimeout(() => {
-        listenRestartCount = 0;
-        if (callActive && phase === 'listening' && !muted) listen();
-      }, 2000);
+  /** Called every frame on the step-by-step line: when did the caller start and stop talking? */
+  function stepsListenTick(mic: number) {
+    const now = performance.now();
+    if (phase === 'speaking') {
+      // Talking over the voice stops it, like on a real call.
+      if (now < vad.armedAt || muted) return;
+      if (mic > Math.max(0.035, vad.floor * 6)) {
+        vad.loudSince ||= now;
+        if (now - vad.loudSince > BARGE_IN_MS) {
+          turnId++;
+          stopSpeaking();
+          stepsListen();
+        }
+      } else vad.loudSince = 0;
       return;
     }
-
-    let r: any;
-    try {
-      r = new SpeechRec();
-    } catch (e) {
-      console.warn('[brewns-mic] SpeechRec instantiation error:', e);
-      setPhase('muted', 'MIC MUTED');
-      return;
-    }
-    recognition = r;
-    // On iOS Safari, continuous mode can cause immediate onend; use non-continuous there.
-    r.continuous = !IS_MOBILE;
-    r.interimResults = true;
-    r.maxAlternatives = 1;
-    // en-IN copes with Pakistani English and Roman Urdu; ur-PK writes proper Urdu.
-    r.lang = lang === 'ur' ? 'ur-PK' : /^en-(GB|IN|PK|US|AU)/i.test(navigator.language) ? navigator.language : 'en-IN';
-
-    const startedAt = performance.now();
-
-    r.onstart = () => {
-      if (recognition !== r) return;
-      listenRestartCount = 0; // successful start — reset the rate-limiter
-      setPhase('listening');
-      caption('Listening… Speak now', 'agent');
-    };
-
-    r.onresult = (event: any) => {
-      let finalText = '';
-      let interim = '';
-      for (let i = 0; i < event.results.length; i++) {
-        const res = event.results[i];
-        if (res.isFinal) finalText += res[0].transcript;
-        else interim += res[0].transcript;
+    if (phase !== 'listening' || !recorder) return;
+    const threshold = Math.max(0.012, vad.floor * 3);
+    if (mic > threshold) {
+      vad.since ||= now;
+      vad.quietSince = 0;
+      if (!vad.talking && now - vad.since > SPEECH_START_MS) {
+        vad.talking = true;
+        vad.startedAt = now;
       }
-      heard = (finalText + ' ' + interim).replace(/\s+/g, ' ').trim();
-      if (!heard) return;
-      if (textInput) textInput.value = heard;
-      caption(heard + '…', 'you');
-      // Wait for a real pause rather than the first "final" chunk, so a caller
-      // who stops to think mid-sentence isn't cut off.
-      clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(() => {
-        const said = heard;
-        stopListening();
-        if (said) sendPrompt(said);
-      }, interim ? END_OF_SPEECH_MS + 200 : END_OF_SPEECH_MS);
-    };
-
-    r.onerror = (event: any) => {
-      console.warn('[brewns-mic] Speech recognition error:', event.error);
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
-        if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
-          console.log('[brewns-mic] Switching to MediaRecorder engine');
-          listenWithRecorder();
-          return;
-        }
-        muted = true;
-        stopListening();
-        setPhase('muted', 'MIC MUTED · KEYPAD ACTIVE');
-        unblockActions?.removeAttribute('hidden');
-        inputRow?.classList.add('open');
-        textInput?.focus();
-      } else if (event.error === 'no-speech') {
-        // Normal pause; onend will automatically cycle listening cleanly
-      } else if (event.error === 'network') {
-        if (typeof MediaRecorder !== 'undefined' && Boolean(navigator?.mediaDevices?.getUserMedia)) {
-          listenWithRecorder();
-          return;
-        }
-        muted = true;
-        stopListening();
-        setPhase('muted', 'VOICE INPUT OFFLINE');
-        unblockActions?.removeAttribute('hidden');
-        inputRow?.classList.add('open');
-        textInput?.focus();
-      } else if (event.error === 'aborted') {
-        // Ignore – this fires when we call r.abort() ourselves
+    } else {
+      if (!vad.talking) {
+        vad.since = 0;
+        vad.floor = vad.floor * 0.97 + mic * 0.03;
       } else {
-        console.warn('[brewns-mic] Unhandled speech error:', event.error);
-        if (callActive && phase === 'listening' && !muted) {
-          setTimeout(() => {
-            if (callActive && phase === 'listening' && !muted) listen();
-          }, 800);
-        }
+        vad.quietSince ||= now;
+        if (now - vad.quietSince > SPEECH_END_MS) return void stopRecorder(true);
       }
-    };
-
-    // Browsers close recognition after a stretch of silence; on a call the line stays open.
-    r.onend = () => {
-      if (recognition !== r) return;
-      recognition = null;
-      if (heard) {
-        clearTimeout(silenceTimer);
-        const said = heard;
-        heard = '';
-        return void sendPrompt(said);
-      }
-      // Guard: if onend fires within 120ms of start it means recognition never actually
-      // started (common on iOS Safari). Back off longer before retrying.
-      const elapsed = performance.now() - startedAt;
-      const now = Date.now();
-      if (elapsed < 120 || now - lastOnEndTs < 200) {
-        lastOnEndTs = now;
-        if (callActive && phase === 'listening' && !muted) {
-          setTimeout(() => {
-            if (callActive && phase === 'listening' && !muted) listen();
-          }, IS_MOBILE ? 1200 : 500);
-        }
-        return;
-      }
-      lastOnEndTs = now;
-      if (callActive && phase === 'listening' && !muted) {
-        // Small delay on mobile to let the speech service fully release
-        setTimeout(() => phase === 'listening' && listen(), IS_MOBILE ? 350 : 150);
-      }
-    };
-
-    // On mobile, wait a tick after abort so the previous instance is fully released
-    const startDelay = IS_MOBILE ? 120 : 0;
-    setTimeout(() => {
-      if (!callActive || recognition !== r || muted) return;
-      try {
-        r.start();
-      } catch (err: any) {
-        if (err?.name === 'InvalidStateError') {
-          // Previous instance not yet fully stopped – retry after a longer delay
-          setTimeout(() => {
-            if (callActive && phase === 'listening' && !muted) {
-              try { r.start(); } catch (e2) {
-                console.warn('[brewns-mic] retry start failed:', e2);
-                // Last resort: create a brand new instance
-                setTimeout(() => {
-                  if (callActive && phase === 'listening' && !muted) listen();
-                }, 400);
-              }
-            }
-          }, IS_MOBILE ? 500 : 250);
-        } else {
-          console.warn('[brewns-mic] Could not start recognition:', err);
-          setPhase('muted', 'MIC UNAVAILABLE');
-          caption('Voice input is temporarily unavailable. You can type your reply below.');
-          inputRow?.classList.add('open');
-          textInput?.focus();
-        }
-      }
-    }, startDelay);
-  }
-
-  async function recoverMobileListener() {
-    const now = Date.now();
-    // focus and visibilitychange commonly fire together on mobile browsers.
-    if (now - lastMobileRecoveryAt < 1200) return;
-    lastMobileRecoveryAt = now;
-    await resumeAudioCtx();
-    if (!callActive || muted || phase !== 'listening') return;
-    stopListening();
-    listen();
-  }
-
-  /* ── talking to the concierge ── */
-
-  async function post(body: Record<string, unknown>) {
-    const res = await fetch('/api/voice/call', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gender, history, state: scriptState, lang, callId, ...body }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `Voice server responded with ${res.status}`);
-    return data;
-  }
-
-  async function sendPrompt(text: string) {
-    const said = text.trim();
-    if (!said || !callActive) return;
-    const id = ++turnId;
-    const languageRevisionAtStart = manualLangRevision;
-    stopSpeaking();
-    stopListening();
-    hangUpAfterSpeech = false;
-    playSoftClick?.();
-    if (textInput) textInput.value = '';
-    caption(said, 'you');
-    setPhase('thinking');
-
-    try {
-      const data = await post({ message: said });
-      if (id !== turnId || !callActive) return;
-      history.push({ role: 'user', content: said }, { role: 'assistant', content: data.reply });
-      if ((data.lang === 'ur' || data.lang === 'en') && languageRevisionAtStart === manualLangRevision) setLang(data.lang);
-      scriptState = data.state || {};
-      caption(data.reply);
-      // When Sarah asks for email / Gmail address, slide keypad open with clear placeholder
-      if (/email|gmail|ای میل|جی میل/i.test(data.reply)) {
-        inputRow?.classList.add('open');
-        if (textInput) textInput.placeholder = 'Type your email or speak with mic…';
-      }
-      for (const a of (data.actions || []) as Action[]) handleAction(a);
-      speak(data.reply, data.audioUrl, id);
-    } catch (err) {
-      if (id !== turnId || !callActive) return;
-      console.warn('Voice call error:', err);
-      const msg = err instanceof Error && /busy/i.test(err.message) ? err.message : "Sorry, the line broke up for a second there. Could you say that again?";
-      caption(msg);
-      speak(msg, undefined, id);
     }
+    if (vad.talking && now - vad.startedAt > SPEECH_MAX_MS) return void stopRecorder(true);
+    // Nothing said for a while: start a fresh recording so it doesn't grow forever.
+    if (!vad.talking && now - vad.startedAt > 25000) stepsListen();
   }
+
+  function stopRecorder(send: boolean) {
+    const r = recorder;
+    recorder = null;
+    if (!r || r.state === 'inactive') return;
+    const seq = callSeq;
+    r.onstop = async () => {
+      if (!send || seq !== callSeq || !inCall) return;
+      const blob = new Blob(chunks, { type: r.mimeType || 'audio/webm' });
+      chunks = [];
+      if (blob.size < 1500) return stepsListen();
+      setPhase('thinking');
+      const li = bubble('you', '…', true);
+      try {
+        const form = new FormData();
+        form.append('file', blob, `voice.${blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm'}`);
+        form.append('language', lang);
+        form.append('callId', callId);
+        const res = await fetch('/api/voice/transcribe', { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        const text = String(data.text || '').trim();
+        if (seq !== callSeq) return;
+        if (!res.ok || !text || PHANTOM.test(text)) {
+          li.remove();
+          return stepsListen();
+        }
+        li.classList.remove('pending');
+        setText(li, text);
+        void stepsTurn(text);
+      } catch {
+        li.remove();
+        stepsListen();
+      }
+    };
+    try {
+      r.stop();
+    } catch {}
+  }
+
+  /* ═════════ messages ═════════ */
+
+  async function sendMessage(text: string) {
+    const said = text.trim();
+    if (!said) return;
+    if (textInput) textInput.value = '';
+    playSoftClick?.();
+    showAlert(null);
+
+    if (mode === 'call' && inCall) {
+      // Typed during a call: the person on the line answers it out loud.
+      bubble('you', said);
+      if (engine === 'live' && live) {
+        commitLiveTurn();
+        userBuf = said;
+        live.sendText(said);
+        lastCaller = said;
+      } else void stepsTurn(said);
+      return;
+    }
+    if (mode === 'call') setMode('message');
+    if (isUrdu(said) && lang !== 'ur') setLang('ur');
+
+    bubble('you', said);
+    const dots = typing();
+    setPhase('thinking', gendered(ui().typing(shown())));
+    try {
+      const data = await ask(said, 'text');
+      history.push({ role: 'user', content: said }, { role: 'assistant', content: data.reply });
+      dots.classList.remove('typing');
+      setText(dots, data.reply);
+      for (const a of data.actions || []) if (a.type !== 'END_CALL') handleAction(a);
+    } catch (err) {
+      setText(dots, err instanceof Error && /busy/i.test(err.message) ? err.message : 'Sorry, that didn’t send. Try again in a moment.');
+      dots.classList.remove('typing');
+    }
+    updateChips();
+    setPhase('idle');
+  }
+
+  /* ═════════ what the conversation does ═════════ */
 
   function handleAction(action: Action) {
     if (action.type === 'ADD_TO_BAG') {
@@ -846,7 +1004,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         playChime?.();
         triggerHaptic?.(40);
         toast(`ADDED ${added} ITEM${added > 1 ? 'S' : ''} TO YOUR BAG`, 'VIEW BAG', () => {
-          endCall();
+          closeModal();
           openBag();
         });
       }
@@ -859,415 +1017,196 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       triggerHaptic?.(50);
       toast(`PARTY BOOKED · ${action.data?.code || 'CONFIRMED'} · WE'LL CALL YOU`);
     } else if (action.type === 'WHATSAPP_VOUCHER') {
-      triggerHaptic?.(40);
-      toast(`${action.data?.sent ? 'WHATSAPP VOUCHER SENT' : 'WHATSAPP VOUCHER READY TO SHARE'} · ${action.data?.code || ''}`, 'OPEN WHATSAPP', () => {
-        if (action.data?.whatsappUrl) {
-          window.open(action.data.whatsappUrl, '_blank', 'noopener,noreferrer');
-        }
+      toast(`${action.data?.sent ? 'WHATSAPP VOUCHER SENT' : 'WHATSAPP VOUCHER READY'} · ${action.data?.code || ''}`, 'OPEN WHATSAPP', () => {
+        if (action.data?.whatsappUrl) window.open(action.data.whatsappUrl, '_blank', 'noopener,noreferrer');
       });
+    } else if (action.type === 'CALLBACK') {
+      triggerHaptic?.(40);
+      toast(lang === 'ur' ? 'ٹیم آپ کو واپس کال کرے گی' : `WE'LL CALL YOU BACK · ${action.data?.phone || ''}`);
     } else if (action.type === 'END_CALL') {
       hangUpAfterSpeech = true;
     }
   }
 
-  function setLang(next: 'en' | 'ur', manual = false) {
-    if (next === lang) return;
-    lang = next;
-    if (manual) manualLangRevision++;
-    if (langBtn) {
-      langBtn.dataset.lang = next;
-      langBtn.setAttribute('aria-label', next === 'ur' ? 'Speaking Urdu. Switch to English' : 'Speaking English. Switch to Urdu');
-    }
-    if (textInput) textInput.dir = next === 'ur' ? 'rtl' : 'auto';
-    updateBusinessStatus();
-  }
+  /* ═════════ open, close, switch ═════════ */
 
-  function setVoiceGender(next: 'female' | 'male') {
-    gender = next;
-    const female = next === 'female';
-    if (voiceCurrentEl) voiceCurrentEl.textContent = agent().toUpperCase();
-    if (agentTitleEl) agentTitleEl.textContent = female ? 'Sarah · Brewns Front Desk' : 'Hamza · Roastery & Bar';
-    if (agentSubtitleEl) agentSubtitleEl.textContent = female ? 'Guest Concierge · Urdu & English' : 'Specialty Roaster & Hospitality Lead';
-    if (avatarMono) avatarMono.textContent = agent()[0];
-    updateBusinessStatus();
-  }
-
-  /* ── the call ── */
-
-  async function startCall() {
-    if (callActive) return;
-    callActive = true;
-    muted = !(SpeechRec || (typeof navigator.mediaDevices?.getUserMedia === 'function' && typeof MediaRecorder !== 'undefined'));
-    history = [];
-    scriptState = {};
-    callId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    setLang(/^ur/i.test(navigator.language) ? 'ur' : 'en');
-    hangUpAfterSpeech = false;
+  function openModal(next: Mode) {
     modal!.hidden = false;
     document.body.classList.add('modal-open');
     document.body.style.overflow = 'hidden';
-    seconds = -1;
-    tick();
-    clearInterval(timer);
-    timer = setInterval(tick, 1000);
-    updateBusinessStatus();
+    setAgent(gender);
+    setLang(lang);
+    updateHours();
     clearInterval(hoursTimer);
-    hoursTimer = setInterval(updateBusinessStatus, 30_000);
-    playChime?.();
-    triggerHaptic?.(50);
-    caption(`Connecting to ${agent()} at brewns…`);
-    if (!SpeechRec && !(typeof navigator.mediaDevices?.getUserMedia === 'function' && typeof MediaRecorder !== 'undefined')) inputRow?.classList.add('open');
-    setPhase('connecting');
-    // Voices load lazily in some browsers; ask early so the first reply has one.
-    try {
-      speechSynthesis.getVoices();
-    } catch {}
-
-    // Made inside the click so autoplay rules don't leave it suspended.
-    // On mobile, AudioContext MUST be created + resumed inside a user gesture.
-    try {
-      if (!meterCtx || meterCtx.state === 'closed') {
-        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-        if (Ctx) meterCtx = new Ctx();
-      }
-      if (meterCtx && meterCtx.state === 'suspended') meterCtx.resume().catch(() => {});
-    } catch {}
-
-    // Request microphone access synchronously during this user click gesture!
-    // This provides the essential user gesture token required by modern browsers to prompt for mic permission.
-    if (navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      })
-        .then((stream) => {
-          micStream = stream;
-          muted = false;
-          updateMicUI();
-        })
-        .catch((err) => {
-          console.warn('[brewns-mic] Initial user-gesture mic check:', err?.name);
-        });
-    }
-
-    const id = ++turnId;
-    // Start the greeting as soon as the call endpoint responds; a fixed ringback
-    // tone previously added more than a second of artificial setup delay.
-    const data = await post({ message: 'call_init', history: [] }).catch(() => null);
-
-    // Set up a live permission watcher so if the user allows mic in Chrome settings while
-    // the call is active, we instantly recover without needing to reload.
-    if (!permissionWatcher) {
-      try {
-        const status = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
-        if (status) {
-          const onChange = () => {
-            if (status.state === 'granted' && callActive) {
-              muted = false;
-              micRetryCount = 0;
-              unblockActions?.setAttribute('hidden', '');
-              captionBox?.classList.remove('mic-alert');
-              caption("Microphone allowed! Speak now — Sarah is listening!", 'agent');
-              toast("MICROPHONE ALLOWED", "SPEAK NOW");
-              toggleMic();
-            }
-          };
-          status.addEventListener('change', onChange);
-          permissionWatcher = { status, cleanup: () => status.removeEventListener('change', onChange) };
-        }
-      } catch {}
-    }
-    if (id !== turnId || !callActive) return;
-    const hello = data?.reply || `Hi, thanks for calling brewns! This is ${agent()}. What can I do for you?`;
-    history.push({ role: 'assistant', content: hello });
-    caption(hello);
-    speak(hello, data?.audioUrl, id);
+    hoursTimer = setInterval(updateHours, 30_000);
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(loop);
+    setMode(next);
+    if (next === 'call') void startCall();
   }
 
-  function endCall() {
-    if (!callActive) return;
-    callActive = false;
-    turnId++;
-    // Tell the log the call is over; keepalive lets it go out even as the page closes.
-    if (callId) {
-      fetch('/api/voice/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'call_end', callId }), keepalive: true }).catch(() => {});
-      callId = '';
-    }
-    clearInterval(timer);
-    clearInterval(hoursTimer);
+  function closeModal() {
+    endCall();
     stopSpeaking();
-    stopListening();
-    micStream?.getTracks().forEach((t) => t.stop());
-    micStream = null;
-    try { meterCtx?.close().catch(() => {}); } catch {}
-    meterCtx = null;
-    // Clean up permission watcher
-    permissionWatcher?.cleanup();
-    permissionWatcher = null;
-    micRetryCount = 0;
+    cancelAnimationFrame(raf);
+    clearInterval(hoursTimer);
     modal!.hidden = true;
     document.body.classList.remove('modal-open');
     document.body.style.removeProperty('overflow');
+    try {
+      ctx?.close().catch(() => {});
+    } catch {}
+    ctx = null;
     setPhase('idle');
-    playHangupTone();
   }
 
-  async function toggleMic() {
-    playSoftClick?.();
-    triggerHaptic?.(40);
-
-    // If Sarah/Hamza is currently speaking, tapping mic interrupts concierge to listen
-    if (phase === 'speaking') {
-      interrupt();
+  async function transferTo(next: 'female' | 'male') {
+    if (!inCall || engine !== 'live') {
+      setAgent(next);
+      if (inCall) {
+        const id = ++turnId;
+        stopRecorder(false);
+        stopSpeaking();
+        setPhase('thinking');
+        const data = await ask('voice_switch').catch(() => null);
+        if (id !== turnId) return;
+        await speakReply(data?.reply || `Hi, ${agent()} here. Where were we?`, data?.audioChunks, id);
+      }
       return;
     }
-
-    // If currently listening and unmuted, clicking mutes it
-    if (phase === 'listening' && !muted) {
-      muted = true;
-      stopListening();
-      setPhase('muted', 'MIC MUTED');
-      caption('Microphone muted. Tap SPEAK LIVE to speak.');
-      return;
-    }
-
-    // Otherwise caller wants to UNMUTE and SPEAK LIVE!
-    if (captionStatus) captionStatus.textContent = 'CONNECTING MIC…';
-    if (micLabel) micLabel.textContent = 'CONNECTING…';
-    unblockActions?.setAttribute('hidden', '');
-
-    // Resume AudioContext inside this user-gesture (critical for iOS)
-    await resumeAudioCtx();
-
-    micRetryCount++;
-
-    // Request or resume microphone stream inside this direct user gesture
-    if (navigator.mediaDevices?.getUserMedia) {
+    // A live voice is fixed for its session: hand the call to a new line with the conversation so far.
+    const from = agent();
+    commitLiveTurn();
+    live?.close();
+    live = null;
+    setAgent(next);
+    setPhase('connecting', ui().transferring(shown()));
+    note(ui().transferred(shown()));
+    const seq = callSeq;
+    const recap = history.slice(-12).map((t) => `${t.role === 'user' ? 'Caller' : from}: ${t.content}`).join('\n');
+    const line = await fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, recap }) })
+      .then((r) => r.json())
+      .catch(() => ({ live: false }));
+    if (seq !== callSeq) return;
+    if (line?.live) {
+      const session = new LiveSession(ensureAudio(), outGain!, onLive);
+      session.beat = humanBeat;
       try {
-        let stream: MediaStream | null = micStream;
-        const alive = stream && stream.getAudioTracks().length > 0 &&
-                      stream.getAudioTracks().every((t) => t.readyState === 'live' && t.enabled);
-        if (!alive) {
-          stream?.getTracks().forEach((t) => t.stop());
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            });
-          } catch {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          }
-        }
-        micStream = stream;
-      } catch (err: any) {
-        console.warn('[brewns-mic] Microphone permission request in toggleMic:', err?.name, err?.message);
-        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-          caption('Microphone access is blocked for this site. Allow it in your browser’s site settings, then tap Connect & test mic.', 'agent');
-          toast('ALLOW MICROPHONE IN SITE SETTINGS', 'GOT IT');
-        }
-        muted = true;
-        setPhase('muted', err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError' ? 'MIC BLOCKED · KEYPAD ACTIVE' : 'MIC UNAVAILABLE · KEYPAD ACTIVE');
-        if (err?.name !== 'NotAllowedError' && err?.name !== 'PermissionDeniedError') {
-          caption('We couldn’t start your microphone. Check that it is connected and not being used by another app, then try again or type below.', 'agent');
-        }
-        unblockActions?.removeAttribute('hidden');
-        inputRow?.classList.add('open');
-        textInput?.focus();
+        await session.connect(line.url, line.setup);
+        if (seq !== callSeq) return session.close();
+        live = session;
+        await live.startMic(micStream!);
+        live.setMuted(muted);
+        live.sendText(`The caller was just transferred to you from ${from}. Introduce yourself in one short sentence and carry on from where the conversation was.`);
         return;
+      } catch {
+        session.close();
       }
-    } else {
-      muted = true;
-      setPhase('muted', 'MIC UNAVAILABLE · KEYPAD ACTIVE');
-      caption('This browser cannot access a microphone. Type your message below and Sarah will reply.', 'agent');
-      unblockActions?.removeAttribute('hidden');
-      inputRow?.classList.add('open');
-      return;
     }
-
-    muted = false;
-    micRetryCount = 0;
-    listenRestartCount = 0;
-    captionBox?.classList.remove('mic-alert');
-    unblockActions?.setAttribute('hidden', '');
-
-    stopListening();
-    setPhase('listening');
-    caption('Listening… Speak now', 'agent');
-    setTimeout(() => {
-      if (callActive && !muted) {
-        listen();
-      }
-    }, IS_MOBILE ? 200 : 80);
+    engine = 'steps';
+    setVoiceTag(null);
+    const id = ++turnId;
+    const data = await ask('voice_switch').catch(() => null);
+    if (id === turnId) await speakReply(data?.reply || `Hi, ${agent()} here. Where were we?`, data?.audioChunks, id);
   }
 
-  /* ── wiring ── */
+  function toggleMute() {
+    if (!inCall || phase === 'ringing') return;
+    playSoftClick?.();
+    triggerHaptic?.(20);
+    muted = !muted;
+    if (engine === 'live') live?.setMuted(muted);
+    else if (muted) stopRecorder(false);
+    if (muted) setPhase('muted');
+    else if (engine === 'live') setPhase(live?.speaking ? 'speaking' : 'listening');
+    else if (phase !== 'speaking' && phase !== 'thinking') stepsListen();
+    else setPhase(phase);
+  }
+
+  /* ═════════ wiring ═════════ */
 
   const openCall = (e: Event) => {
     e.preventDefault();
-    startCall();
+    openModal('call');
   };
-  on($('hdr-voice-btn'), 'click', openCall);
-  on($('hero-call-btn'), 'click', openCall);
-  on($('voice-call-float'), 'click', openCall);
-  on($('menu-voice-call-link'), 'click', openCall);
-  for (const id of ['voice-call-close', 'voice-hangup-btn', 'voice-call-backdrop'])
-    on($(id), 'click', (e: Event) => {
-      e.preventDefault();
-      endCall();
-    });
+  for (const id of ['hdr-voice-btn', 'hero-call-btn', 'voice-call-float', 'menu-voice-call-link']) on($(id), 'click', openCall);
+  for (const id of ['voice-call-close', 'voice-call-backdrop']) on($(id), 'click', (e: Event) => {
+    e.preventDefault();
+    closeModal();
+  });
+  on($('voice-hangup-btn'), 'click', (e: Event) => {
+    e.preventDefault();
+    endCall();
+  });
+  on($('vc-dial'), 'click', (e: Event) => {
+    e.preventDefault();
+    void startCall();
+  });
   on(document, 'keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && callActive) endCall();
+    if (e.key === 'Escape' && !modal!.hidden) closeModal();
   });
-  // Closing the tab mid-call still ends the call in the café's log.
-  on(window, 'pagehide', () => callActive && endCall());
+  on(window, 'pagehide', () => inCall && endCall());
 
-  // If user switched to Site settings to allow mic and returned to this tab, auto-resume.
-  // Also re-check even if we don't have a permission query (some browsers skip it).
-  on(window, 'focus', async () => {
-    if (!callActive) return;
-    if (!muted) {
-      // Mobile browsers can suspend both the mic track and AudioContext while
-      // the caller switches apps. Rebuild the recorder after returning so the
-      // call does not look live while silently listening to a dead track.
-      if (phase === 'listening' && IS_MOBILE) void recoverMobileListener();
-      return;
-    }
-    try {
-      const p = await navigator.permissions?.query?.({ name: 'microphone' as any }).catch(() => null);
-      if (p && p.state === 'granted') {
-        micRetryCount = 0;
-        toggleMic();
-        return;
-      }
-      // Even if permission query says 'prompt' (not denied), try getUserMedia directly
-      // — some browsers update the mic permission without updating the Permissions API.
-      if (!p || p.state === 'prompt') {
-        const test = await navigator.mediaDevices?.getUserMedia({ audio: true }).catch(() => null);
-        if (test) {
-          test.getTracks().forEach((t) => t.stop());
-          micRetryCount = 0;
-          toggleMic();
-        }
-      }
-    } catch {}
-  });
+  for (const t of tabs)
+    on(t, 'click', (e: Event) => {
+      e.preventDefault();
+      const next = t.dataset.mode as Mode;
+      if (next === mode) return;
+      playSoftClick?.();
+      if (next === 'message' && inCall) endCall('switch');
+      setMode(next);
+    });
 
-  on(document, 'visibilitychange', () => {
-    if (!callActive || document.visibilityState !== 'visible' || muted || phase !== 'listening' || !IS_MOBILE) return;
-    void recoverMobileListener();
-  });
-
-  on($('vc-voice-switch'), 'click', async (e: Event) => {
+  on(micBtn, 'click', (e: Event) => {
     e.preventDefault();
-    setVoiceGender(gender === 'female' ? 'male' : 'female');
-    playSoftClick?.();
-    if (!callActive) return;
-    const id = ++turnId;
-    stopSpeaking();
-    stopListening();
-    setPhase('thinking');
-    const data = await post({ message: 'voice_switch' }).catch(() => null);
-    if (id !== turnId || !callActive) return;
-    const line = data?.reply || `Hi, ${agent()} here. Where were we?`;
-    caption(line);
-    speak(line, data?.audioUrl, id);
+    toggleMute();
   });
-
-  on(micToggleBtn, 'click', (e: Event) => {
+  on(keypadBtn, 'click', (e: Event) => {
     e.preventDefault();
-    toggleMic();
-  });
-
-  on(unblockBtn, 'click', (e: Event) => {
-    e.preventDefault();
-    toggleMic();
-  });
-
-  on(typeModeBtn, 'click', (e: Event) => {
-    e.preventDefault();
-    playSoftClick?.();
-    triggerHaptic?.(25);
-    muted = true;
-    stopListening();
-    setPhase('muted', 'KEYPAD ACTIVE · SARAH SPEAKS LIVE');
-    caption('Type your question or tap any option below. Sarah will answer in live voice!');
-    unblockActions?.setAttribute('hidden', '');
-    captionBox?.classList.remove('mic-alert');
-    inputRow?.classList.add('open');
-    textInput?.focus();
-  });
-
-  on($('voice-keypad-toggle'), 'click', (e: Event) => {
-    e.preventDefault();
-    const open = inputRow ? inputRow.classList.toggle('open') : true;
+    const open = !!inputRow?.classList.toggle('open');
+    keypadBtn?.setAttribute('aria-expanded', String(open));
     if (open) textInput?.focus();
-    playSoftClick?.();
   });
-
+  on($('vc-voice-switch'), 'click', (e: Event) => {
+    e.preventDefault();
+    playSoftClick?.();
+    void transferTo(gender === 'female' ? 'male' : 'female');
+  });
   on(langBtn, 'click', (e: Event) => {
     e.preventDefault();
-    setLang(lang === 'en' ? 'ur' : 'en', true);
     playSoftClick?.();
-    // Restart capture in the selected language. If the concierge is speaking,
-    // acknowledge the switch in the new voice immediately rather than finishing
-    // an entire sentence in the old language.
-    if (callActive && phase === 'listening') listen();
-    else if (callActive && phase === 'speaking') {
-      const id = ++turnId;
-      stopSpeaking();
-      stopListening();
-      setPhase('thinking');
-      post({ message: 'language_switch' }).then((data) => {
-        if (id !== turnId || !callActive) return;
-        const line = data?.reply || (lang === 'ur' ? 'جی، اب ہم اردو میں بات کریں گے۔ فرمائیے، میں آپ کی کیا مدد کروں؟' : 'Sure, I’ll speak English. What can I help you with?');
-        history.push({ role: 'assistant', content: line });
-        caption(line);
-        speak(line, data?.audioUrl, id);
-      }).catch(() => {
-        if (id === turnId && callActive) speak(lang === 'ur' ? 'جی، اب ہم اردو میں بات کریں گے۔ فرمائیے؟' : 'Sure, I’ll speak English. What can I help you with?', undefined, id);
-      });
-    }
+    setLang(lang === 'en' ? 'ur' : 'en');
+    if (inCall && engine === 'live') live?.sendText(lang === 'ur' ? 'The caller would like to continue in Urdu.' : 'The caller would like to continue in English.');
   });
-
-  const sendTyped = () => {
-    const txt = textInput?.value.trim() || '';
-    if (txt) {
-      unblockActions?.setAttribute('hidden', '');
-      captionBox?.classList.remove('mic-alert');
-      sendPrompt(txt);
-    }
-  };
-  on($('voice-send-btn'), 'click', (e: Event) => {
+  on(inputRow, 'submit', (e: Event) => {
     e.preventDefault();
-    sendTyped();
+    void sendMessage(textInput?.value || '');
   });
-  on(textInput, 'keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendTyped();
-    }
+  on(chipsEl, 'click', (e: Event) => {
+    const chip = (e.target as HTMLElement).closest<HTMLElement>('.voice-chip');
+    if (!chip?.dataset.prompt) return;
+    e.preventDefault();
+    void sendMessage(chip.dataset.prompt);
   });
-  // Typing pauses the mic so it doesn't talk over what you're writing.
-  on(textInput, 'focus', () => {
-    if (phase === 'listening') {
-      stopListening();
-      setPhase('muted', 'TYPING…');
-    }
+  on($('voice-unblock-btn'), 'click', (e: Event) => {
+    e.preventDefault();
+    showAlert(null);
+    void startCall();
   });
-
-  on($('voice-chips-wrap'), 'click', (e: Event) => {
-    const chip = (e.target as HTMLElement).closest('.voice-chip') as HTMLElement | null;
-    if (chip?.dataset.prompt) {
-      e.preventDefault();
-      unblockActions?.setAttribute('hidden', '');
-      captionBox?.classList.remove('mic-alert');
-      sendPrompt(chip.dataset.prompt);
-    }
+  on($('voice-type-mode-btn'), 'click', (e: Event) => {
+    e.preventDefault();
+    showAlert(null);
+    setMode('message');
   });
 
-  setVoiceGender('female');
-  updateMicUI();
+  setAgent('female');
+  setLang(lang);
+  try {
+    speechSynthesis.getVoices();
+  } catch {}
 
   return () => {
-    endCall();
+    closeModal();
     ac.abort();
   };
 }

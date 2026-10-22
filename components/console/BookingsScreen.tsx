@@ -9,7 +9,7 @@ import { useRun } from './Toasts';
 
 type Reservation = { id: string; code: string; name: string; phone: string; email?: string; emailSent?: boolean; whatsappSent?: boolean; whatsappUrl?: string; loc: number; date: string; time: string; guests: number; area: string; notes: string; status: string; createdAt: number };
 type Party = { id: string; code: string; type: string; name?: string; phone?: string; email?: string; whatsappSent?: boolean; whatsappUrl?: string; loc?: number; location: string; date?: string; time?: string; guests: number; status: string; notes: string; source?: string; createdAt: number };
-type Outcome = { kind: 'table' | 'party' | 'bag' | 'email' | 'whatsapp'; code?: string; summary: string; total?: number; email?: string; whatsappUrl?: string };
+type Outcome = { kind: 'table' | 'party' | 'bag' | 'email' | 'whatsapp' | 'callback'; code?: string; summary: string; total?: number; email?: string; whatsappUrl?: string };
 type CallLog = { id: string; startedAt: number; lastAt: number; endedAt?: number; agent: string; langs: ('en' | 'ur')[]; brain: string; turns: { who: 'caller' | 'agent'; text: string; t: number }[]; outcomes: Outcome[]; live: boolean };
 type Data = { v: number; now: number; reservations: Reservation[]; parties: Party[]; calls: CallLog[]; canSeeCalls: boolean };
 
@@ -52,8 +52,8 @@ function CallCard({ c, now, open, onToggle }: { c: CallLog; now: number; open: b
         </span>
         <span className="cx-row" style={{ gap: 6, flexWrap: 'wrap' }}>
           {c.outcomes.map((o, i) => (
-            <span key={i} className={`cx-pill ${o.kind === 'bag' ? 'preparing' : o.kind === 'email' || o.kind === 'whatsapp' ? 'ready' : 'received'}`}>
-              {o.kind === 'table' ? `Table ${o.code}` : o.kind === 'party' ? `Party ${o.code}` : o.kind === 'email' ? `✉️ ${o.email || o.summary.replace(/^Confirmation email sent to /, '')}` : o.kind === 'whatsapp' ? `💬 WhatsApp` : `Bag ${o.total ? rs(o.total) : ''}`}
+            <span key={i} className={`cx-pill ${o.kind === 'bag' ? 'preparing' : o.kind === 'email' || o.kind === 'whatsapp' ? 'ready' : o.kind === 'callback' ? 'cancelled' : 'received'}`}>
+              {o.kind === 'callback' ? '📞 Call back' : o.kind === 'table' ? `Table ${o.code}` : o.kind === 'party' ? `Party ${o.code}` : o.kind === 'email' ? `✉️ ${o.email || o.summary.replace(/^Confirmation email sent to /, '')}` : o.kind === 'whatsapp' ? `💬 WhatsApp` : `Bag ${o.total ? rs(o.total) : ''}`}
             </span>
           ))}
           {!c.outcomes.length && !c.live && <span className="cx-small cx-faint">No booking</span>}
@@ -63,7 +63,7 @@ function CallCard({ c, now, open, onToggle }: { c: CallLog; now: number; open: b
         <div className="cx-transcript" ref={tail}>
           {c.outcomes.map((o, i) => (
             <p key={`o${i}`} className="cx-small cx-outcome">
-              {o.kind === 'bag' ? 'Put in bag: ' : o.kind === 'email' ? 'Email: ' : o.kind === 'whatsapp' ? 'WhatsApp: ' : 'Booked: '}
+              {o.kind === 'callback' ? 'Needs a person: ' : o.kind === 'bag' ? 'Put in bag: ' : o.kind === 'email' ? 'Email: ' : o.kind === 'whatsapp' ? 'WhatsApp: ' : 'Booked: '}
               {o.summary}
               {o.whatsappUrl && (
                 <a href={o.whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#25D366', marginLeft: 8, textDecoration: 'underline' }}>
@@ -147,7 +147,7 @@ export function BookingsScreen() {
     return {
       live: calls.filter((c) => c.live).length,
       calls: todays.length,
-      booked: outcomes.filter((o) => o.kind !== 'bag').length,
+      booked: outcomes.filter((o) => o.kind !== 'bag' && o.kind !== 'callback').length,
       bag: outcomes.filter((o) => o.kind === 'bag').reduce((s, o) => s + (o.total || 0), 0),
       urdu: todays.filter((c) => c.langs.includes('ur')).length,
       avg: ended.length ? ended.reduce((s, c) => s + ((c.endedAt || c.lastAt) - c.startedAt), 0) / ended.length : 0,

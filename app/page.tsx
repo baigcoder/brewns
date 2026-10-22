@@ -3,6 +3,8 @@ import path from 'node:path';
 import type { Metadata } from 'next';
 import { preload } from 'react-dom';
 import './sections.css';
+import './bands.css';
+import './voice-call.css';
 import { BrewnsApp } from '@/components/brewns/BrewnsApp';
 import { publicPageMetadata } from '@/lib/siteMetadata';
 

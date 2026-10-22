@@ -73,7 +73,7 @@ export default function ReviewForm({ number, keyToken }: { number: string; keyTo
             {error}
           </p>
         )}
-        <button disabled={!ready || state === 'sending'} style={{ marginTop: 16, background: '#d58c3d', color: '#070707', border: 0, borderRadius: 999, padding: '12px 28px', font: 'inherit', fontWeight: 600, cursor: 'pointer', opacity: ready ? 1 : 0.5 }}>
+        <button disabled={!ready || state === 'sending'} style={{ marginTop: 16, background: '#d58c3d', color: '#100c0a', border: 0, borderRadius: 999, padding: '12px 28px', font: 'inherit', fontWeight: 600, cursor: 'pointer', opacity: ready ? 1 : 0.5 }}>
           {state === 'sending' ? 'Sending…' : 'Post my review'}
         </button>
       </form>
