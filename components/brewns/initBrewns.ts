@@ -45,6 +45,7 @@ import { usualOf } from '@/lib/usual';
 import { pairOf } from '@/lib/pairings';
 import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
 import { dressPackaging, loadPrint } from './packaging';
+import { environmentFromScene } from './pmremAsync';
 import { initVoiceCalling } from './voiceCalling';
 import { viewMode } from "./viewPolicy";
 
@@ -2372,7 +2373,7 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   const nextEvent = (m = pkMin()) => (isOpen(m) ? { open: false, at: CLOSE_MIN, in: CLOSE_MIN - m } : { open: true, at: OPEN_MIN, in: (OPEN_MIN - m + 1440) % 1440 });
 
   /* the ring: what's left of today, or the wait until tomorrow */
-  const arc = $("#dial-arc");
+  const arc = $("#dial-arc"), halo = $("#dial-halo");
   const point = (deg, r = RING) => {
     const a = (deg * Math.PI) / 180;
     return [CX + Math.sin(a) * r, CY - Math.cos(a) * r];
@@ -2386,6 +2387,8 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
     section.classList.toggle("shut", !open);
     const [nx, ny] = point(from);
     $("#dial-now").setAttribute("transform", `translate(${nx.toFixed(1)} ${ny.toFixed(1)})`);
+    halo.style.setProperty("--nx", (nx / 1308).toFixed(4));
+    halo.style.setProperty("--ny", (ny / 1308).toFixed(4));
   };
 
   /* the badges and the line under the hands */
@@ -2498,7 +2501,14 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
     evening: { src: "cup-cortado.webp", kind: "hot", name: "CORTADO", alt: "A brewns cortado in a faceted glass" },
   };
   const partOfDay = (m = pkMin()) => (m >= 5 * 60 && m < 12 * 60 ? "morning" : m >= 12 * 60 && m < 18 * 60 ? "afternoon" : "evening");
-  Object.values(CUPS).forEach((c) => (new Image().src = `${ASSET_BASE_URL}locations/${c.src}`));
+  // The other cups load as the section comes near, not with the page: three photos, 360 KB,
+  // were downloading alongside the hero on a phone's first load.
+  const cupsNear = new IntersectionObserver(([e]) => {
+    if (!e.isIntersecting) return;
+    cupsNear.disconnect();
+    Object.values(CUPS).forEach((c) => (new Image().src = `${ASSET_BASE_URL}locations/${c.src}`));
+  }, { rootMargin: "1500px 0px" });
+  cupsNear.observe(section);
   const cupImg = $("#loc-cup-img"), fx = $("#loc-fx"), pouring = $("#loc-pouring");
   let cupNow = "afternoon";
   const flip = new Spring({ ry: 0 }, (o) => ($("#loc-swap").style.transform = `rotateY(${o.ry}deg)`));
@@ -3241,6 +3251,11 @@ const opalesce = (wrapper, overrides = {}) => {
   io.observe(canvas);
   window.addEventListener("resize", () => { canvasRect = null; }, { passive: true });
 
+  // The canvas's shape, kept by a ResizeObserver: read in the frame, after the page's springs
+  // had written their styles, it forced a style recalc on every frame of the intro.
+  let aspect = canvas.clientWidth / (canvas.clientHeight || 1);
+  if ("ResizeObserver" in window) new ResizeObserver(([e]) => (aspect = e.contentRect.width / (e.contentRect.height || 1))).observe(canvas);
+
   let prevT = performance.now();
   let clock = 0;
   const frame = (now) => {
@@ -3260,8 +3275,7 @@ const opalesce = (wrapper, overrides = {}) => {
     u1f("iTime", clock);
     if (mouse.rest === undefined) mouse.rest = { x: mouse.tx, y: mouse.ty };
     if (CFG.drift && (coarse || now - lastAim > 4000)) {
-      const a = canvas.clientWidth / (canvas.clientHeight || 1);
-      mouse.tx = 0.34 * a * Math.sin(clock * 0.21) + 0.08 * Math.sin(clock * 0.53);
+      mouse.tx = 0.34 * aspect * Math.sin(clock * 0.21) + 0.08 * Math.sin(clock * 0.53);
       mouse.ty = 0.22 * Math.cos(clock * 0.27) + 0.05 * Math.cos(clock * 0.61);
     }
     if (!CFG.cursor) {
@@ -3398,7 +3412,7 @@ threeReady
 function heroModel(T, mount, handle, onPiece) {
   const {
     WebGLRenderer, SRGBColorSpace, NeutralToneMapping, Scene, PerspectiveCamera, Color, Mesh, PlaneGeometry,
-    MeshBasicMaterial, PMREMGenerator, DirectionalLight, Group, Box3, Vector3, Vector2, Raycaster, GLTFLoader, DRACOLoader,
+    MeshBasicMaterial, DirectionalLight, Group, Box3, Vector3, Vector2, Raycaster, GLTFLoader, DRACOLoader,
   } = T;
 
   /* Pulled back from the board's bleed (x 0.125, z 1, ×1.155) so the bag and cup stand whole in frame. */
@@ -3493,14 +3507,14 @@ function heroModel(T, mount, handle, onPiece) {
     studio.add(panel);
   }
 
-  const pmrem = new PMREMGenerator(renderer);
-  const environment = pmrem.fromScene(studio, 0.04);
-  scene.environment = environment.texture;
-  scene.environmentIntensity = ENVIRONMENT;
-
-  studio.traverse((node) => {
-    node.geometry?.dispose();
-    node.material?.dispose();
+  // The model's shaders depend on the environment, so they compile once it is in.
+  const environmentReady = environmentFromScene(T, renderer, studio, 0.04).then((environment) => {
+    scene.environment = environment.texture;
+    scene.environmentIntensity = ENVIRONMENT;
+    studio.traverse((node) => {
+      node.geometry?.dispose();
+      node.material?.dispose();
+    });
   });
 
   for (const { position, intensity } of KEYS) {
@@ -3686,11 +3700,18 @@ function heroModel(T, mount, handle, onPiece) {
   // scroll handlers have written their styles, forced a full layout on every frame.
   let heroHeight = hero?.offsetHeight || 0;
   if (hero && "ResizeObserver" in window) new ResizeObserver(([e]) => (heroHeight = e.target.offsetHeight)).observe(hero);
+  // The scroll position too, read with the other scroll handlers before anything is written:
+  // read here, after the frame's springs had written their styles, it forced a style recalc on
+  // every frame of the intro (half a second of a phone's first load).
+  let heroScrollY = window.scrollY;
+  onScrollFrame(() => {
+    heroScrollY = window.scrollY;
+  });
   const frame = () => {
     if (!model || !compiled || !onScreen || document.hidden) return;
 
     if (hero && !reduced && productHeight) {
-      const sy = window.scrollY || window.pageYOffset || 0;
+      const sy = heroScrollY;
       if (sy !== lastHeroScrollY) {
         lastHeroScrollY = sy;
         cachedHeroAway = Math.min(1, Math.max(0, sy / (heroHeight || window.innerHeight)));
@@ -3867,8 +3888,8 @@ function heroModel(T, mount, handle, onPiece) {
       }
       measure();
       applyStage();
-      renderer
-        .compileAsync(scene, camera)
+      environmentReady
+        .then(() => renderer.compileAsync(scene, camera))
         .catch(() => {})
         .then(() => {
           compiled = true;
@@ -3963,7 +3984,7 @@ function heroModel(T, mount, handle, onPiece) {
 /* ─────────── the philosophy scene ─────────── */
 function philosophyScene(T, mount) {
   const {
-    WebGLRenderer, SRGBColorSpace, NeutralToneMapping, Scene, Fog, PerspectiveCamera, PMREMGenerator, RoomEnvironment,
+    WebGLRenderer, SRGBColorSpace, NeutralToneMapping, Scene, Fog, PerspectiveCamera, RoomEnvironment,
     DirectionalLight, Group, Vector3, Matrix4, Box3, InstancedMesh, Quaternion, GLTFLoader, DRACOLoader,
     Sprite, SpriteMaterial, CanvasTexture,
   } = T;
@@ -4213,12 +4234,13 @@ function philosophyScene(T, mount) {
   camera.position.set(0, 0, VIEW.distance);
   camera.lookAt(0, 0, 0);
 
-  const pmrem = new PMREMGenerator(renderer);
+  // The cup's shaders depend on the environment, so they compile once it is in.
   const room = new RoomEnvironment();
-  const environment = pmrem.fromScene(room, 0.04);
-  room.dispose();
-  scene.environment = environment.texture;
-  scene.environmentIntensity = LIGHT.environment;
+  const environmentReady = environmentFromScene(T, renderer, room, 0.04).then((environment) => {
+    room.dispose();
+    scene.environment = environment.texture;
+    scene.environmentIntensity = LIGHT.environment;
+  });
 
   for (const { colour, intensity, position } of [LIGHT.key, LIGHT.rim, LIGHT.gold]) {
     const light = new DirectionalLight(colour, intensity);
@@ -4456,7 +4478,7 @@ function philosophyScene(T, mount) {
           for (const value of Object.values(material)) if (value?.isTexture) renderer.initTexture(value);
         }
       }
-      renderer.compileAsync(scene, camera).then(() => {
+      environmentReady.then(() => renderer.compileAsync(scene, camera)).then(() => {
         const entering = rise;
         rise = 0;
         poseCup();
@@ -7976,16 +7998,30 @@ coEl.addEventListener("submit", (e) => {
     // offsetWidth, not the bounding box: the slips are tilted a little
     return li ? li.offsetWidth + parseFloat(getComputedStyle(revCards).columnGap || "0") : revCards.clientWidth;
   };
+  // Every measurement first, then the writes: a read after the counter's text changed forced a second layout.
   const updateRevNav = () => {
     const shown = revShown();
     const step = revStepWidth();
-    const first = Math.min(shown.length - 1, Math.round(revCards.scrollLeft / step));
-    const perView = Math.max(1, Math.round(revCards.clientWidth / step));
+    const { scrollLeft, clientWidth, scrollWidth } = revCards;
+    const first = Math.min(shown.length - 1, Math.round(scrollLeft / step));
+    const perView = Math.max(1, Math.round(clientWidth / step));
     $("#rev-pos", revBar).textContent = String(Math.max(0, first) + 1).padStart(2, "0") + (perView > 1 && shown.length > 1 ? `–${String(Math.min(shown.length, first + perView)).padStart(2, "0")}` : "");
     $("#rev-total", revBar).textContent = String(shown.length).padStart(2, "0");
     const [prev, next] = $$(".rev-arrow", revBar);
-    prev.disabled = revCards.scrollLeft < 4;
-    next.disabled = revCards.scrollLeft + revCards.clientWidth >= revCards.scrollWidth - 4;
+    prev.disabled = scrollLeft < 4;
+    next.disabled = scrollLeft + clientWidth >= scrollWidth - 4;
+  };
+  // After a change to the cards, measure just after the next paint, when layout is already
+  // done: measured straight away, while the page was still being built, it cost a phone a
+  // full-page layout each time. Calls in the same frame share one update.
+  let revNavQueued = false;
+  const queueRevNav = () => {
+    if (revNavQueued) return;
+    revNavQueued = true;
+    requestAnimationFrame(() => setTimeout(() => {
+      revNavQueued = false;
+      updateRevNav();
+    }));
   };
   refreshRevBar = () => {
     $$(":scope > li", revCards).forEach((li) => {
@@ -7998,7 +8034,7 @@ coEl.addEventListener("submit", (e) => {
       b.setAttribute("aria-pressed", String(on));
       $("b", b).textContent = String(+b.dataset.base + (on ? 1 : 0));
     });
-    updateRevNav();
+    queueRevNav();
   };
   revBar.addEventListener("click", (e) => {
     const f = e.target.closest("[data-rev-filter]");
