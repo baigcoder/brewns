@@ -343,7 +343,7 @@
 .film-eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: #d39a62; box-shadow: 0 0 0 4px rgb(211 154 98 / 0.18); }
 .film-h { font-family: var(--font-geist); font-weight: 800; text-transform: uppercase; letter-spacing: -0.03em; line-height: 0.95; font-size: clamp(2.2rem, 5.4vw, 5rem); max-width: 16ch; }
 .film-h em { display: block; font-family: var(--font-allura); font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0; color: #d39a62; font-size: 1.05em; line-height: 1.1; }
-.film-frame { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 1.5rem; overflow: hidden; background: #0a0706 url("/assets/film/brewns-film-poster.webp") center / cover no-repeat; border: 1px solid rgb(211 154 98 / 0.22); box-shadow: 0 40px 120px -40px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.03) inset; }
+.film-frame { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 1.5rem; overflow: hidden; background: #0a0706 url("/assets/film/brewns-tour-poster.webp") center / cover no-repeat; border: 1px solid rgb(211 154 98 / 0.22); box-shadow: 0 40px 120px -40px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.03) inset; }
 @media (max-width: 639.98px) { .film-frame { border-radius: 1rem; } }
 .film-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .film-toggle { position: absolute; right: 1rem; bottom: 1rem; width: 3rem; height: 3rem; border-radius: 50%; border: 1px solid rgb(245 240 232 / 0.25); background: rgb(16 12 10 / 0.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); display: grid; place-items: center; cursor: pointer; transition: background 200ms ease, transform 200ms ease; }
