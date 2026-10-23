@@ -993,18 +993,6 @@ const lean = (target, scope, max = 14) => {
   }, { passive: true });
 };
 
-const pulse = (el) => {
-  if (REDUCED) return;
-  const s = new Spring({ opacity: 1 }, styler(el));
-  const config = { duration: 700, easing: easeInOutSine };
-  (async () => {
-    for (;;) {
-      await s.start({ opacity: 0.15 }, { config });
-      await s.start({ opacity: 1 }, { config });
-    }
-  })();
-};
-
 const PRESET = {
   rise: (el) => [{ opacity: 0, y: +el.dataset.y }, { opacity: 1, y: 0 }],
   print: () => [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0 0 0)" }],
@@ -1879,7 +1867,6 @@ $$("[data-iv]").forEach((el) => {
   const config = clip ? { duration: kind === "script" ? 1300 : 900, easing: easeOutCubic } : C(t, f);
   inview(el, from, to, { config, delay: +(el.dataset.d || 0), gate: el.dataset.gate !== "0" });
 });
-$$("[data-pulse]").forEach(pulse);
 // Cards stay flat on hover (the 3D tilt is gone): they lift and light instead, in CSS.
 
 /* The footer's giant wordmark rises out of the bottom edge. It starts below the
@@ -2142,21 +2129,17 @@ onScrollFrame(readHeaderTheme);
 readHeaderTheme()?.();
 
 /* The bar itself: see-through over the hero, a frosted capsule once the page
-   moves, out of the way while reading down and back the moment you scroll up.
+   moves, and always on screen, as on every other page (it used to slide away
+   while reading down, and on a phone it was gone until you scrolled back up).
    The link for the section on screen gets a gold dot. */
 (() => {
   const links = $$(".hdr-nav a[href^='#']");
   const targetPairs = links.map((a) => [a, document.getElementById(a.getAttribute("href").slice(1))]);
-  let lastY = -1, travelled = 0;
+  let lastY = -1;
   const readHeaderNav = () => {
     const y = window.scrollY;
     if (Math.abs(y - lastY) < 6) return;
-    const dy = y - (lastY === -1 ? y : lastY);
     lastY = y;
-    // Hide after a real downward run, never with the menu open or focus inside the bar.
-    travelled = Math.sign(dy) === Math.sign(travelled) ? travelled + dy : dy;
-    const busy = header.classList.contains("open") || header.contains(document.activeElement);
-    const tuck = busy || y < 320 || travelled < -8 ? false : travelled > 64 ? true : null;
     const probe = window.innerHeight * 0.35;
     let current = null;
     for (const [a, el] of targetPairs) {
@@ -2166,11 +2149,6 @@ readHeaderTheme()?.();
     }
     return () => {
       header.classList.toggle("scrolled", y > 24);
-      if (tuck !== null) {
-        header.classList.toggle("tucked", tuck);
-        // On a phone it sat over the text being read; it steps aside with the header.
-        $("#voice-call-float")?.classList.toggle("is-away", tuck);
-      }
       for (const a of links) a.classList.toggle("is-active", a === current);
     };
   };
@@ -2493,12 +2471,16 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   const backToNow = () => swingTo(nowNear(), C(60, 17)).then(() => focused < 0 && (live = true));
   setHands(shown, 0);
 
-  let onScreen = false, woke = false, lastOpen = isOpen();
+  let onScreen = false, woke = false, lastOpen = isOpen(), lastSec = -1;
   new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
   loop(() => {
     if (!woke || !onScreen) return;
     const ms = pkMs();
-    const sec = REDUCED ? Math.floor(ms / 1000) % 60 : (ms / 1000) % 60;
+    /* The second hand ticks, like a wall clock. Sweeping, it moved on every frame, and each
+       move repainted the whole dial: on a phone the section scrolled at 30 frames a second. */
+    const sec = Math.floor(ms / 1000) % 60;
+    if (sec === lastSec) return;
+    lastSec = sec;
     if (live) {
       // keep the unwrapped count near where it is, so the next swing starts from here
       let t = ms / 60000;

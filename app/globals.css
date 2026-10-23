@@ -484,6 +484,12 @@ address { font-style: normal; }
 .blk { display: block; }
 .mono { font-family: var(--font-space-mono); }
 .dot { display: block; width: var(--size-dot); height: var(--size-dot); flex-shrink: 0; border-radius: 9999px; background: var(--accent); }
+/* The live dots breathe on the compositor. A script spring wrote their opacity every
+   frame, on screen or not, and kept a phone repainting the whole page while it scrolled. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-pulse] { animation: dot-pulse 0.7s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate; }
+}
+@keyframes dot-pulse { to { opacity: 0.15; } }
 
 /* shared type */
 .t-eyebrow { font-family: var(--font-space-mono); font-size: var(--font-size-fine); line-height: var(--line-height-copy); letter-spacing: var(--letter-spacing-label); text-transform: uppercase; }
@@ -3303,7 +3309,7 @@ body:has(#moments-lightbox:not([hidden])) .voice-call-floating {
 }
 
 
-/* ═══════════ header: glass bar, tuck on scroll, active section ═══════════ */
+/* ═══════════ header: glass bar, active section ═══════════ */
 .hdr {
   border: 1px solid transparent;
   border-radius: 9999px;
@@ -3328,7 +3334,6 @@ body:has(#moments-lightbox:not([hidden])) .voice-call-floating {
   .hdr.scrolled .hdr-mark { top: 0.625rem; height: calc(100% - 1.25rem); }
 }
 .hdr.open { background: transparent; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.hdr.tucked:not(.open) { transform: translateY(calc(-100% - 2rem)); }
 @media (max-width: 639.98px) { .hdr.scrolled { padding-inline: 1rem; } }
 
 /* The section on screen: a small gold dot under its link. */
@@ -3368,7 +3373,6 @@ body:has(#moments-lightbox:not([hidden])) .voice-call-floating {
 
 @media (prefers-reduced-motion: reduce) {
   .hdr, .hdr-nav a::after, .hdr-order { transition: none; }
-  .hdr.tucked:not(.open) { transform: none; }
 }
 
 /* Phones: the bar keeps to one line. The concierge and sound buttons go to
@@ -4200,10 +4204,6 @@ p { text-wrap: pretty; }
 
 /* Cards lift on hover; no tilt. */
 .season-card:hover { transform: translateY(-6px); }
-
-/* The floating call button steps aside while reading down. */
-.voice-call-floating { transition: transform 350ms var(--ease-entrance, cubic-bezier(0.16, 1, 0.3, 1)), opacity 300ms ease; }
-.voice-call-floating.is-away { transform: translateY(140%); opacity: 0; pointer-events: none; }
 
 /* The invitation button keeps its arrow on the same line. */
 .rev-empty-cta { white-space: nowrap; }
