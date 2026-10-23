@@ -643,10 +643,11 @@ const atRest = (o) =>
   !parseFloat(o.x ?? 0) && !parseFloat(o.y ?? 0) &&
   (!("scale" in o) || +o.scale === 1) &&
   (!("rotate" in o) || !parseFloat(o.rotate));
-const styler = (el) => (o) => {
+const styler = (el, flat = false) => (o) => {
   let t = "";
   // Hidden (still waiting for its reveal) it moves in 2D, so it doesn't hold a GPU layer while it waits.
-  const hidden = "opacity" in o && +o.opacity === 0;
+  // A flat element always moves in 2D: on a layer of its own, a masked one costs more than repainting it.
+  const hidden = flat || ("opacity" in o && +o.opacity === 0);
   if ("x" in o || "y" in o) t += hidden ? `translate(${unit(o.x ?? 0)}, ${unit(o.y ?? 0)})` : `translate3d(${unit(o.x ?? 0)}, ${unit(o.y ?? 0)}, 0)`;
   if ("scale" in o) t += ` scale(${o.scale})`;
   if ("rotate" in o) t += ` rotate(${unit(o.rotate, "deg")})`;
@@ -762,8 +763,8 @@ const progressOf = (el, start, end) => {
   return Math.min(Math.max(0, 1 - (scrollStart + length) / length), 1);
 };
 
-const scrub = (el, trigger, start, end, from, to, reducedProgress = 1) => {
-  const apply = styler(el);
+const scrub = (el, trigger, start, end, from, to, reducedProgress = 1, flat = false) => {
+  const apply = styler(el, flat);
   if (REDUCED) return apply(interpolate(from, to, reducedProgress));
   let last = -1;
   const read = () => {
@@ -2321,14 +2322,21 @@ $$("[data-swirl]").forEach((frame) => {
   const section = frame.closest("section");
   const box = $(".swirl-box", frame);
   const fill = $(".swirl-fill", frame);
+  /* The swirl drifts flat (2D, no layer of its own). Lifted onto a GPU layer, its two
+     masks were redrawn off screen every frame, and the menu, locations and reviews
+     scrolled at about 30 frames a second. */
+  scrub(box.firstElementChild, box, "top bottom", "bottom top", { y: -100 }, { y: 100 }, 0.5, true);
+  if (REDUCED) return;
   const mask = blobMask(frame.dataset.swirl);
   fill.style.webkitMaskImage = mask;
   fill.style.maskImage = mask;
-  const set = (v) => fill.style.setProperty("--fill", v);
-  scrub(box.firstElementChild, box, "top bottom", "bottom top", { y: -100 }, { y: 100 }, 0.5);
-  if (REDUCED) return set(100);
-  const s = new Spring({ v: 0 }, (o) => set(o.v));
-  onceVisible(section, () => s.start({ v: 100 }, { config: { duration: 3400, easing: easeInOutSine }, delay: 100 }), { threshold: 0.12 });
+  const s = new Spring({ v: 0 }, (o) => fill.style.setProperty("--fill", o.v));
+  // Once full, the blobs cover the whole swirl, so the mask goes and each repaint is lighter.
+  const unmask = () => {
+    fill.style.webkitMaskImage = "";
+    fill.style.maskImage = "";
+  };
+  onceVisible(section, () => s.start({ v: 100 }, { config: { duration: 3400, easing: easeInOutSine }, delay: 100 }).then(unmask), { threshold: 0.12 });
 });
 
 /* ═══════════ menu: still lag, receipt ═══════════ */
@@ -5193,25 +5201,13 @@ paintFavs();
   );
 })();
 
-/* ═══════════ Between sections: a soft wipe, and photos with depth ═══════════
-   Where a light section meets a dark one, the colour above reaches down into the new
-   section in a soft curve and pulls back as it scrolls in. The café photos drift a
-   little slower than the page. Both are CSS scroll-driven animations (transform only,
-   off the main thread); a section gets them only while it is near the screen, so
-   there are never more than a couple of extra layers. */
+/* ═══════════ Photos with depth ═══════════
+   The café photos drift a little slower than the page. A CSS scroll-driven animation
+   (transform only, off the main thread); a section gets it only while it is near the
+   screen, so there are never more than a couple of extra layers. */
 (() => {
   if (REDUCED || !CSS.supports("animation-timeline: view()")) return;
   const sections = $$("section[id]").filter((el) => !el.parentElement.closest("section"));
-  const rgb = (el) => (getComputedStyle(el).backgroundColor.match(/[\d.]+/g) || []).map(Number);
-  sections.forEach((el, i) => {
-    const prev = sections[i - 1];
-    if (!prev || prev.nextElementSibling !== el) return;
-    const [r1, g1, b1, a1 = 1] = rgb(prev);
-    const [r2, g2, b2] = rgb(el);
-    if (!a1 || Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2) < 60) return;
-    el.insertAdjacentHTML("afterbegin", `<div class="sx-wipe" aria-hidden="true" style="--sx-c: rgb(${r1} ${g1} ${b1})"></div>`);
-    el.classList.add("sx-wiped");
-  });
   const near = new IntersectionObserver((entries) => entries.forEach((e) => e.target.classList.toggle("sx-near", e.isIntersecting)), { rootMargin: "35% 0px 35% 0px" });
   sections.forEach((el) => near.observe(el));
 })();
