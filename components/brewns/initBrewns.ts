@@ -993,18 +993,6 @@ const lean = (target, scope, max = 14) => {
   }, { passive: true });
 };
 
-const pulse = (el) => {
-  if (REDUCED) return;
-  const s = new Spring({ opacity: 1 }, styler(el));
-  const config = { duration: 700, easing: easeInOutSine };
-  (async () => {
-    for (;;) {
-      await s.start({ opacity: 0.15 }, { config });
-      await s.start({ opacity: 1 }, { config });
-    }
-  })();
-};
-
 const PRESET = {
   rise: (el) => [{ opacity: 0, y: +el.dataset.y }, { opacity: 1, y: 0 }],
   print: () => [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0 0 0)" }],
@@ -1879,7 +1867,6 @@ $$("[data-iv]").forEach((el) => {
   const config = clip ? { duration: kind === "script" ? 1300 : 900, easing: easeOutCubic } : C(t, f);
   inview(el, from, to, { config, delay: +(el.dataset.d || 0), gate: el.dataset.gate !== "0" });
 });
-$$("[data-pulse]").forEach(pulse);
 // Cards stay flat on hover (the 3D tilt is gone): they lift and light instead, in CSS.
 
 /* The footer's giant wordmark rises out of the bottom edge. It starts below the
@@ -2484,12 +2471,16 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   const backToNow = () => swingTo(nowNear(), C(60, 17)).then(() => focused < 0 && (live = true));
   setHands(shown, 0);
 
-  let onScreen = false, woke = false, lastOpen = isOpen();
+  let onScreen = false, woke = false, lastOpen = isOpen(), lastSec = -1;
   new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
   loop(() => {
     if (!woke || !onScreen) return;
     const ms = pkMs();
-    const sec = REDUCED ? Math.floor(ms / 1000) % 60 : (ms / 1000) % 60;
+    /* The second hand ticks, like a wall clock. Sweeping, it moved on every frame, and each
+       move repainted the whole dial: on a phone the section scrolled at 30 frames a second. */
+    const sec = Math.floor(ms / 1000) % 60;
+    if (sec === lastSec) return;
+    lastSec = sec;
     if (live) {
       // keep the unwrapped count near where it is, so the next swing starts from here
       let t = ms / 60000;

@@ -484,6 +484,12 @@ address { font-style: normal; }
 .blk { display: block; }
 .mono { font-family: var(--font-space-mono); }
 .dot { display: block; width: var(--size-dot); height: var(--size-dot); flex-shrink: 0; border-radius: 9999px; background: var(--accent); }
+/* The live dots breathe on the compositor. A script spring wrote their opacity every
+   frame, on screen or not, and kept a phone repainting the whole page while it scrolled. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-pulse] { animation: dot-pulse 0.7s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate; }
+}
+@keyframes dot-pulse { to { opacity: 0.15; } }
 
 /* shared type */
 .t-eyebrow { font-family: var(--font-space-mono); font-size: var(--font-size-fine); line-height: var(--line-height-copy); letter-spacing: var(--letter-spacing-label); text-transform: uppercase; }
