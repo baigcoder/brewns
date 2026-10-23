@@ -153,27 +153,36 @@
 .inside { position: relative; overflow: hidden; background: radial-gradient(60% 50% at 80% 0%, rgb(216 150 72 / 0.18), transparent 70%), radial-gradient(50% 40% at 0% 100%, rgb(216 183 119 / 0.1), transparent 70%), #0b0806; color: #fff; }
 .inside-in { display: grid; gap: 2.5rem; padding: 6rem 1.25rem 5rem; max-width: 110rem; margin-inline: auto; }
 @media (min-width: 640px) { .inside-in { padding: 7rem 2.5rem 6rem; } }
-@media (min-width: 1100px) { .inside-in { grid-template-columns: minmax(18rem, 0.32fr) 1fr; gap: 3.5rem; align-items: start; } .inside-head { position: sticky; top: 7rem; } }
-.inside-head { display: flex; flex-direction: column; gap: 1.25rem; }
+/* One full-width column: the title and its intro side by side, the photos in a
+   single row under them, then the "right now" card as a strip along the bottom. */
+.inside-head { display: grid; gap: 1.75rem; }
+.inside-title, .inside-intro { display: flex; flex-direction: column; gap: 1.25rem; }
+@media (min-width: 1000px) { .inside-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 3.5rem; } .inside-intro { padding-bottom: 0.35rem; } }
 .inside-eyebrow { font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: var(--letter-spacing-label); color: rgb(255 255 255 / 0.7); }
 .inside-eyebrow .sl { color: #d8b777; }
 .inside-h2 { font-family: var(--font-geist); font-weight: 700; font-size: clamp(2.6rem, 5vw, 4.25rem); line-height: 0.92; letter-spacing: var(--letter-spacing-tight); }
-.inside-lede { max-width: 26rem; font-family: var(--font-geist); font-weight: 600; line-height: 1.55; color: rgb(255 255 255 / 0.75); }
+.inside-lede { max-width: 36rem; font-family: var(--font-geist); font-weight: 600; line-height: 1.55; color: rgb(255 255 255 / 0.75); }
 .inside-shops { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .inside-shops a { padding: 0.4rem 0.75rem; border: 1px solid rgb(216 183 119 / 0.45); border-radius: 999px; font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.12em; color: #d8b777; transition: background-color 200ms, color 200ms; }
 .inside-shops a:hover, .inside-shops a:focus-visible { background: #d8b777; color: #0b0806; outline: none; }
-.inside-foot { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 0.5rem; padding-top: 1.25rem; border-top: 1px solid rgb(216 183 119 / 0.2); }
+.inside-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem 2rem; padding-top: 1.1rem; border-top: 1px solid rgb(216 183 119 / 0.2); }
 .inside-hint { font-family: var(--font-space-mono); font-size: var(--font-size-fine); letter-spacing: 0.14em; color: rgb(255 255 255 / 0.5); }
 .inside-cta { display: inline-flex; align-items: center; gap: 0.5rem; width: fit-content; padding-bottom: 0.3rem; border-bottom: 1px solid currentColor; font-family: var(--font-space-mono); font-size: var(--font-size-label); letter-spacing: 0.14em; color: #d8b777; transition: color 200ms, gap 200ms; }
 .inside-cta:hover, .inside-cta:focus-visible { color: #fff; gap: 0.8rem; outline: none; }
 .inside-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 11rem; gap: 0.75rem; }
-@media (min-width: 800px) { .inside-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 12.5rem; gap: 1rem; } }
+/* three photos, one row, no gaps left over: the storefront a little wider */
+@media (min-width: 800px) { .inside-grid { grid-template-columns: 1.35fr 1fr 1fr; grid-auto-rows: clamp(20rem, 32vw, 34rem); gap: 1rem; } }
 .inside-tile { position: relative; margin: 0; overflow: hidden; border-radius: 6px; background: #1a130e; }
-.inside-tile.big { grid-column: span 2; grid-row: span 2; }
-.inside-tile.wide { grid-column: span 2; }
-/* a second big square beside the front once the grid has four columns */
-@media (min-width: 800px) { .inside-tile.tall { grid-row: span 2; } }
-@media (max-width: 799.98px) { .inside-tile.big { grid-row: span 2; } }
+@media (max-width: 799.98px) { .inside-tile.big { grid-column: span 2; grid-row: span 2; } }
+.inside-bar { display: flex; flex-direction: column; gap: 0.9rem; }
+.inside-bar .inside-hint { align-self: flex-end; }
+/* wide screens: the card lies flat, status | popular times | what's there */
+@media (min-width: 900px) {
+  .inside-bar .inside-now { display: grid; grid-template-columns: minmax(13rem, 0.8fr) minmax(0, 1.6fr) minmax(0, 1.2fr); align-items: center; gap: 2.25rem; padding: 1.4rem 1.75rem; }
+  .inside-bar .inside-now-head { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.45rem 0.6rem; }
+  .inside-bar .inside-now-head #in-close { grid-column: 2; }
+  .inside-bar .inside-amen { padding: 0 0 0 2.25rem; border-top: 0; border-left: 1px solid rgb(255 255 255 / 0.08); }
+}
 .inside-open { display: block; width: 100%; height: 100%; cursor: zoom-in; }
 .inside-tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 900ms var(--ease-entrance), filter 600ms; }
 .inside-tile:hover img { transform: scale(1.06); filter: saturate(1.1); }
@@ -189,7 +198,7 @@
 @media (max-width: 799.98px) {
   .inside-grid { grid-auto-rows: 12rem; gap: 0.5rem; }
   .inside-tile figcaption { padding: 2.25rem 0.75rem 0.7rem; background: linear-gradient(to top, rgb(0 0 0 / 0.8), transparent); }
-  .inside-tile:not(.big):not(.wide) figcaption > span:last-child { display: none; }
+  .inside-tile:not(.big) figcaption > span:last-child { display: none; }
 }
 .inside-n { color: #d8b777; }
 .inside-box { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: 4.5rem 1rem 2rem; background: rgb(16 12 10 / 0.92); backdrop-filter: blur(6px); }
@@ -461,15 +470,9 @@
   .inside-thumbs { justify-content: flex-start; }
   .inside-thumbs button { width: 3.5rem; height: 2.5rem; }
 }
-/* desktop: a taller gallery beside the heading and the card, tags on one line */
+/* desktop: the "right now" strip a little tighter */
 @media (min-width: 1100px) {
-  /* the gallery's three rows stretch to the heading column, so both sides end together */
-  .inside-in { align-items: stretch; }
-  .inside-head { position: static; }
-  .inside-grid { grid-auto-rows: unset; grid-template-rows: repeat(3, minmax(clamp(12.5rem, 16.5vw, 17rem), 1fr)); }
   .inside-bars { height: 2.6rem; }
-  .inside-now { gap: 0.9rem; }
-  .inside-shops a { padding: 0.35rem 0.6rem; letter-spacing: 0.08em; }
 }
 @media (hover: hover) and (pointer: fine) { .inside-hint { display: none; } }
 /* the photos fill their tiles without sizing them: the grid alone decides the rows */
