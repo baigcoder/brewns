@@ -1951,8 +1951,9 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   };
   const AMENITIES = [["wifi", "FAST WI-FI"], ["plug", "CHARGING POINTS"], ["sun", "OUTDOOR SEATING"], ["car", "PARKING NEARBY"]];
   const svg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
-  $(".inside-foot", section)?.insertAdjacentHTML(
-    "beforebegin",
+  // The card runs across the bottom of the section, under the photos.
+  $(".inside-bar", section)?.insertAdjacentHTML(
+    "afterbegin",
     `<div class="inside-now" data-iv="rise" data-y="16" data-d="300">
       <p class="inside-now-head"><span class="inside-now-dot" aria-hidden="true"></span><b id="in-open">OPEN NOW</b><span id="in-close"></span></p>
       <div class="inside-busy">
@@ -5193,25 +5194,13 @@ paintFavs();
   );
 })();
 
-/* ═══════════ Between sections: a soft wipe, and photos with depth ═══════════
-   Where a light section meets a dark one, the colour above reaches down into the new
-   section in a soft curve and pulls back as it scrolls in. The café photos drift a
-   little slower than the page. Both are CSS scroll-driven animations (transform only,
-   off the main thread); a section gets them only while it is near the screen, so
-   there are never more than a couple of extra layers. */
+/* ═══════════ Photos with depth ═══════════
+   The café photos drift a little slower than the page: a CSS scroll-driven animation
+   (transform only, off the main thread) that a section gets only while it is near
+   the screen. Sections meet edge to edge, with no curve between them. */
 (() => {
   if (REDUCED || !CSS.supports("animation-timeline: view()")) return;
   const sections = $$("section[id]").filter((el) => !el.parentElement.closest("section"));
-  const rgb = (el) => (getComputedStyle(el).backgroundColor.match(/[\d.]+/g) || []).map(Number);
-  sections.forEach((el, i) => {
-    const prev = sections[i - 1];
-    if (!prev || prev.nextElementSibling !== el) return;
-    const [r1, g1, b1, a1 = 1] = rgb(prev);
-    const [r2, g2, b2] = rgb(el);
-    if (!a1 || Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2) < 60) return;
-    el.insertAdjacentHTML("afterbegin", `<div class="sx-wipe" aria-hidden="true" style="--sx-c: rgb(${r1} ${g1} ${b1})"></div>`);
-    el.classList.add("sx-wiped");
-  });
   const near = new IntersectionObserver((entries) => entries.forEach((e) => e.target.classList.toggle("sx-near", e.isIntersecting)), { rootMargin: "35% 0px 35% 0px" });
   sections.forEach((el) => near.observe(el));
 })();
