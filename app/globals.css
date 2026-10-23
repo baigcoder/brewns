@@ -3303,7 +3303,7 @@ body:has(#moments-lightbox:not([hidden])) .voice-call-floating {
 }
 
 
-/* ═══════════ header: glass bar, tuck on scroll, active section ═══════════ */
+/* ═══════════ header: glass bar, active section ═══════════ */
 .hdr {
   border: 1px solid transparent;
   border-radius: 9999px;
@@ -3328,7 +3328,6 @@ body:has(#moments-lightbox:not([hidden])) .voice-call-floating {
   .hdr.scrolled .hdr-mark { top: 0.625rem; height: calc(100% - 1.25rem); }
 }
 .hdr.open { background: transparent; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.hdr.tucked:not(.open) { transform: translateY(calc(-100% - 2rem)); }
 @media (max-width: 639.98px) { .hdr.scrolled { padding-inline: 1rem; } }
 
 /* The section on screen: a small gold dot under its link. */
@@ -3368,7 +3367,6 @@ body:has(#moments-lightbox:not([hidden])) .voice-call-floating {
 
 @media (prefers-reduced-motion: reduce) {
   .hdr, .hdr-nav a::after, .hdr-order { transition: none; }
-  .hdr.tucked:not(.open) { transform: none; }
 }
 
 /* Phones: the bar keeps to one line. The concierge and sound buttons go to
@@ -4200,10 +4198,6 @@ p { text-wrap: pretty; }
 
 /* Cards lift on hover; no tilt. */
 .season-card:hover { transform: translateY(-6px); }
-
-/* The floating call button steps aside while reading down. */
-.voice-call-floating { transition: transform 350ms var(--ease-entrance, cubic-bezier(0.16, 1, 0.3, 1)), opacity 300ms ease; }
-.voice-call-floating.is-away { transform: translateY(140%); opacity: 0; pointer-events: none; }
 
 /* The invitation button keeps its arrow on the same line. */
 .rev-empty-cta { white-space: nowrap; }

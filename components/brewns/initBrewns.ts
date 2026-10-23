@@ -2142,21 +2142,17 @@ onScrollFrame(readHeaderTheme);
 readHeaderTheme()?.();
 
 /* The bar itself: see-through over the hero, a frosted capsule once the page
-   moves, out of the way while reading down and back the moment you scroll up.
+   moves, and always on screen, as on every other page (it used to slide away
+   while reading down, and on a phone it was gone until you scrolled back up).
    The link for the section on screen gets a gold dot. */
 (() => {
   const links = $$(".hdr-nav a[href^='#']");
   const targetPairs = links.map((a) => [a, document.getElementById(a.getAttribute("href").slice(1))]);
-  let lastY = -1, travelled = 0;
+  let lastY = -1;
   const readHeaderNav = () => {
     const y = window.scrollY;
     if (Math.abs(y - lastY) < 6) return;
-    const dy = y - (lastY === -1 ? y : lastY);
     lastY = y;
-    // Hide after a real downward run, never with the menu open or focus inside the bar.
-    travelled = Math.sign(dy) === Math.sign(travelled) ? travelled + dy : dy;
-    const busy = header.classList.contains("open") || header.contains(document.activeElement);
-    const tuck = busy || y < 320 || travelled < -8 ? false : travelled > 64 ? true : null;
     const probe = window.innerHeight * 0.35;
     let current = null;
     for (const [a, el] of targetPairs) {
@@ -2166,11 +2162,6 @@ readHeaderTheme()?.();
     }
     return () => {
       header.classList.toggle("scrolled", y > 24);
-      if (tuck !== null) {
-        header.classList.toggle("tucked", tuck);
-        // On a phone it sat over the text being read; it steps aside with the header.
-        $("#voice-call-float")?.classList.toggle("is-away", tuck);
-      }
       for (const a of links) a.classList.toggle("is-active", a === current);
     };
   };
