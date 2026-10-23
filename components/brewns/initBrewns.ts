@@ -1951,8 +1951,9 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   };
   const AMENITIES = [["wifi", "FAST WI-FI"], ["plug", "CHARGING POINTS"], ["sun", "OUTDOOR SEATING"], ["car", "PARKING NEARBY"]];
   const svg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
-  $(".inside-foot", section)?.insertAdjacentHTML(
-    "beforebegin",
+  // The card runs across the bottom of the section, under the photos.
+  $(".inside-bar", section)?.insertAdjacentHTML(
+    "afterbegin",
     `<div class="inside-now" data-iv="rise" data-y="16" data-d="300">
       <p class="inside-now-head"><span class="inside-now-dot" aria-hidden="true"></span><b id="in-open">OPEN NOW</b><span id="in-close"></span></p>
       <div class="inside-busy">
