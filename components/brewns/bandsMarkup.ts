@@ -113,18 +113,20 @@ export const SPOTLIGHT_MARKUP = `
 /** The line across the top of the home page, as on every other page. */
 export const NOTE_MARKUP = `<p class="gh-note home-note"><span>${ANNOUNCEMENT.text}</span><span class="gh-note-more">${ANNOUNCEMENT.more}</span><a href="${ANNOUNCEMENT.href}">${ANNOUNCEMENT.cta} →</a></p>`;
 
-/* The brewns film: a 46 second narrated motion piece, right after the hero. Nothing
-   loads until it is near the screen; it plays muted while in view, and "Sound on"
-   starts it again from the top with the voice-over (see initBrewns). */
+/* The brewns tour: a narrated walk through the real site, right after the hero:
+   the menu and 3D products, ordering ahead and live tracking, the club and the
+   extras, Sarah on the phone, and the staff console. Subtitled, because it plays
+   muted while in view; "Sound on" starts it again from the top with the
+   voice-over (see initBrewns). Nothing loads until it is near the screen. */
 export const FILM_MARKUP = `
-<section aria-label="The brewns film" id="film" data-header-theme="dark" class="film">
+<section aria-label="The brewns tour" id="film" data-header-theme="dark" class="film">
   <div class="film-in">
     <div class="film-head" data-iv="rise" data-y="16">
-      <p class="film-eyebrow"><span aria-hidden="true"></span>46 seconds at brewns</p>
-      <h2 class="film-h">From the first shot <em>to your moment.</em></h2>
+      <p class="film-eyebrow"><span aria-hidden="true"></span>The brewns tour · 1 min 45</p>
+      <h2 class="film-h">See how brewns works, <em>front to back.</em></h2>
     </div>
     <figure class="film-frame" data-iv="rise" data-y="24" data-d="120">
-      <video class="film-video" id="film-video" muted playsinline loop preload="none" poster="/assets/film/brewns-film-poster.webp" aria-label="The brewns film: 7 a.m. in Lahore, 92 degree water and 27 second shots, beans sourced and roasted weekly in Lahore, the menu, order ahead and ready in four minutes, three counters across the city."></video>
+      <video class="film-video" id="film-video" muted playsinline loop preload="none" poster="/assets/film/brewns-tour-poster.webp" aria-label="The brewns tour, recorded on the real site: the menu and 3D products, a product page, ordering ahead with a printed receipt and live tracking, the club card, brew timer, subscriptions, gift cards and table bookings, a table booked with Sarah the AI concierge, and the staff console: sales, the till, the kitchen screen, tables, deliveries, staff sign-up and approval, and access by role."></video>
       <button type="button" class="film-toggle" id="film-toggle" aria-label="Play the film" data-state="paused"><span class="film-ico" aria-hidden="true"></span></button>
       <button type="button" class="film-sound" id="film-sound" aria-pressed="false"><span class="film-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="film-sound-l">Sound on</span></button>
     </figure>

@@ -2618,7 +2618,7 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   const load = () => {
     if (loaded) return;
     loaded = true;
-    video.innerHTML = `<source src="/assets/film/brewns-film-${size}.webm" type="video/webm"><source src="/assets/film/brewns-film-${size}.mp4" type="video/mp4">`;
+    video.innerHTML = `<source src="/assets/film/brewns-tour-${size}.webm" type="video/webm"><source src="/assets/film/brewns-tour-${size}.mp4" type="video/mp4">`;
     video.load();
   };
   const paint = () => {

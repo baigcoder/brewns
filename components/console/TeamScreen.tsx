@@ -357,6 +357,16 @@ function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClo
                 >
                   {member.active ? 'Switch off' : 'Switch on'}
                 </button>
+              ) : !member.active && member.invitedBy === 'Self sign-up' ? (
+                // A self sign-up has never signed in, so "Switch on" above never shows: approving is how it starts.
+                <>
+                  <button type="button" className="cx-btn sm primary" onClick={() => action({ active: true }, `${member.name} is approved and can sign in.`)}>
+                    Approve
+                  </button>
+                  <button type="button" className="cx-btn sm danger" onClick={() => action({ remove: true }, 'Sign-up turned down.', `Turn down ${member.name}'s sign-up?`)}>
+                    Turn down
+                  </button>
+                </>
               ) : (
                 <button type="button" className="cx-btn sm danger" onClick={() => action({ remove: true }, 'Invite withdrawn.', `Withdraw the invite for ${member.name}?`)}>
                   Withdraw invite
