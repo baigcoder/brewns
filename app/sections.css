@@ -916,25 +916,11 @@
 .menu-strip-progress { height: 2px; background: rgb(16 12 10 / 0.1); overflow: hidden; }
 .menu-strip-progress i { display: block; height: 100%; background: #d58c3d; transform-origin: 0 50%; transform: scaleX(0.12); }
 
-/* ═══════════ Cinematic: section wipes, photos with depth, strip parallax ═══════════
+/* ═══════════ Cinematic: photos with depth, strip parallax ═══════════
    Scroll-driven, transform only, and only on sections near the screen (.sx-near).
    Browsers without scroll-driven animations, and reduced motion, see none of it. */
-.sx-wipe { display: none; }
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    .sx-wiped { view-timeline: --sx block; }
-    .sx-near > .sx-wipe {
-      display: block; position: absolute; z-index: 6; top: -1px; left: 0; right: 0; height: clamp(6rem, 24vh, 15rem); pointer-events: none;
-      background: var(--sx-c); border-radius: 0 0 50% 50% / 0 0 100% 100%; transform-origin: 50% 0;
-      animation: sx-wipe linear both; animation-timeline: --sx; animation-range: entry 0% entry 85%;
-    }
-    /* A narrow screen gets a shallower curve, so it never sits over a heading. */
-    @media (max-width: 767.98px) { .sx-near > .sx-wipe { height: clamp(3rem, 9vh, 5.5rem); } }
-    @keyframes sx-wipe {
-      0% { transform: scaleY(1); }
-      100% { transform: scaleY(0); }
-    }
-
     /* Café and community photos drift slower than the page. */
     .sx-near .inside-tile img, .sx-near .moments-photo-wrap img, .sx-near .hania-shot .hania-photo {
       animation: sx-depth linear both; animation-timeline: view(); animation-range: cover;
