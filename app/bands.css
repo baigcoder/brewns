@@ -333,9 +333,20 @@
 .rev-empty-h { font-size: clamp(1.4rem, 2vw, 1.9rem); }
 .rev-empty-p { margin-inline: 0; font-size: 1rem; }
 
-/* ── The brewns film ── */
-.film { position: relative; background: #100c0a; color: #f5f0e8; padding: 5.5rem 1.25rem 6rem; overflow: hidden; }
-.film::before { content: ""; position: absolute; inset: -20% -10% auto; height: 70%; background: radial-gradient(50% 60% at 50% 30%, rgb(122 74 40 / 0.35), transparent 70%); pointer-events: none; }
+/* ── Hero into film ──
+   Both are the same espresso, so the hero dissolves into the film instead of stopping on
+   a hard line through the bag: a plain gradient over the product, under the words. */
+.hero-copy { z-index: 2; }
+.hero-in::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; height: clamp(8rem, 26vh, 16rem); background: linear-gradient(to bottom, rgb(16 12 10 / 0), rgb(16 12 10 / 0.75) 60%, #100c0a); pointer-events: none; }
+@media (max-width: 639.98px) { .hero-in::after { height: clamp(7rem, 18vh, 10rem); } }
+
+/* ── The brewns film ──
+   A screening room in the film's own mahogany (its frames are near-black with deep
+   red-brown), so the dark screen reads as lit and the section is its own place, not more
+   hero. It picks up the hero's espresso at the top edge, and the warm light sits behind
+   the title and the screen rather than being cut off at the top. */
+.film { position: relative; background: linear-gradient(to bottom, #100c0a, #341a12 clamp(9rem, 18vw, 15rem), #2a140e); color: #f5f0e8; padding: 5.5rem 1.25rem 6rem; overflow: hidden; }
+.film::before { content: ""; position: absolute; left: -10%; right: -10%; top: clamp(3rem, 8vw, 7rem); height: min(80%, 60rem); background: radial-gradient(closest-side, rgb(196 112 64 / 0.34), rgb(160 80 48 / 0.12) 55%, transparent); pointer-events: none; }
 @media (min-width: 640px) { .film { padding: 7rem 2.5rem 7.5rem; } }
 .film-in { position: relative; max-width: 88rem; margin-inline: auto; display: grid; gap: 2rem; }
 .film-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem 2rem; }
@@ -343,7 +354,7 @@
 .film-eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: #d39a62; box-shadow: 0 0 0 4px rgb(211 154 98 / 0.18); }
 .film-h { font-family: var(--font-geist); font-weight: 800; text-transform: uppercase; letter-spacing: -0.03em; line-height: 0.95; font-size: clamp(2.2rem, 5.4vw, 5rem); max-width: 16ch; }
 .film-h em { display: block; font-family: var(--font-allura); font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0; color: #d39a62; font-size: 1.05em; line-height: 1.1; }
-.film-frame { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 1.5rem; overflow: hidden; background: #0a0706 url("/assets/film/brewns-tour-poster.webp") center / cover no-repeat; border: 1px solid rgb(211 154 98 / 0.22); box-shadow: 0 40px 120px -40px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.03) inset; }
+.film-frame { position: relative; margin: 0; aspect-ratio: 16 / 9; border-radius: 1.5rem; overflow: hidden; background: #0a0706 url("/assets/film/brewns-tour-poster.webp") center / cover no-repeat; border: 1px solid rgb(232 170 110 / 0.28); box-shadow: 0 40px 120px -40px rgb(10 4 2 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.04) inset; }
 @media (max-width: 639.98px) { .film-frame { border-radius: 1rem; } }
 .film-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .film-toggle { position: absolute; right: 1rem; bottom: 1rem; width: 3rem; height: 3rem; border-radius: 50%; border: 1px solid rgb(245 240 232 / 0.25); background: rgb(16 12 10 / 0.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); display: grid; place-items: center; cursor: pointer; transition: background 200ms ease, transform 200ms ease; }
