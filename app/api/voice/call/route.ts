@@ -39,7 +39,11 @@ export const POST = route(async (req) => {
   const result = await asCaller(await readCaller(), () => processVoiceCallPrompt(message, history, gender, state, lang, channel));
 
   if (callId) {
-    const caller = message === 'call_init' || message === 'language_switch' ? undefined : message === 'voice_switch' ? `(switched to ${agentName(gender)})` : message;
+    const caller =
+      message === 'call_init' || message === 'language_switch' ? undefined
+      : message === 'voice_switch' ? `(switched to ${agentName(gender)})`
+      : message === 'line_resume' ? '(the line dropped; carried on over the backup line)'
+      : message;
     // Dashboard logging should not hold the caller's spoken reply behind storage.
     after(() => logVoiceTurn(callId, { caller, agent: result.reply, gender, agentName: agentName(gender), lang: result.lang, brain: result.brain, actions: result.actions }).catch((err) =>
       console.error('[Voice log]', err instanceof Error ? err.message : err),

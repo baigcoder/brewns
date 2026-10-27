@@ -42,14 +42,19 @@ type AudioChunk = { text: string; url: string };
 
 /** Picked up after one ring or two, like someone reaching for the phone, never instantly. */
 const ringFor = () => (Math.random() < 0.55 ? 2600 : 5600) + Math.random() * 500;
-/** A breath before each reply on the live line, never quite the same. */
-const humanBeat = () => 0.28 + Math.random() * 0.42;
+/** A breath before each reply on the live line, never quite the same. Short: Gemini
+    already waits 1.5 s of silence before it answers, so callers can pause mid-thought. */
+const humanBeat = () => 0.12 + Math.random() * 0.22;
 /** Speech louder than the room for this long counts as the caller talking. */
 const SPEECH_START_MS = 150;
-/** A pause this long after speaking means "I'm done", on the step-by-step line. */
-const SPEECH_END_MS = 700;
+/** A pause this long after speaking means "I'm done", on the step-by-step line.
+    At 0.7 s, "Sorry, one more thing. [breath] Do you have oat milk?" lost its question. */
+const SPEECH_END_MS = 1100;
 const SPEECH_MAX_MS = 15000;
 const BARGE_IN_MS = 320;
+/** On the live line: this loud, for this long, over Sarah's voice is the caller cutting in. */
+const LIVE_BARGE_LEVEL = 0.03;
+const LIVE_BARGE_MS = 250;
 const PICKUP_CUE = 'The caller has just picked up the phone.';
 
 type Lang = 'en' | 'ur';
@@ -64,6 +69,7 @@ const UI = {
     listening: 'Listening', speaking: (n: string) => `${n} is speaking`, thinking: 'One moment…', muted: 'You’re muted', ended: 'Call ended',
     typing: (n: string) => `${n} is typing…`, pickedUp: (n: string) => `${n} picked up`, callEnded: (t: string) => `Call ended · ${t}`, dropped: (t: string) => `The line dropped · ${t}`,
     transferring: (n: string) => `Transferring to ${n}…`, transferred: (n: string) => `Transferred to ${n}`,
+    reconnecting: 'Reconnecting…', reconnected: 'Line restored', fellBack: 'The line broke up, so we’re carrying on over the backup line.', micBack: 'Microphone reconnected',
     hello: (n: string) => `Hi! It’s ${n} at brewns. Ask me anything, or tap a suggestion below.`,
     placeholder: 'Type a message…', tryMic: 'Try the mic again', msgInstead: 'Message instead', noConnect: 'Call didn’t connect',
     micBlocked: 'Your microphone is blocked for this site. Allow it from the icon in the address bar, or keep going by message.',
@@ -84,6 +90,7 @@ const UI = {
     listening: 'سن رہے ہیں', speaking: (n: string) => `${n} بات کر رہی ہیں`, thinking: 'ایک لمحہ…', muted: 'آپ کا مائیک بند ہے', ended: 'کال ختم ہو گئی',
     typing: (n: string) => `${n} لکھ رہی ہیں…`, pickedUp: (n: string) => `${n} نے کال اٹھا لی`, callEnded: (t: string) => `کال ختم · ${t}`, dropped: (t: string) => `لائن کٹ گئی · ${t}`,
     transferring: (n: string) => `${n} سے ملا رہے ہیں…`, transferred: (n: string) => `${n} کو منتقل`,
+    reconnecting: 'دوبارہ ملا رہے ہیں…', reconnected: 'لائن بحال ہو گئی', fellBack: 'لائن کمزور ہو گئی تھی، اس لیے بیک اپ لائن پر بات جاری ہے۔', micBack: 'مائیک دوبارہ مل گیا',
     hello: (n: string) => `السلام علیکم! میں ${n} ہوں، brewns سے۔ جو چاہیں پوچھیے، یا نیچے سے کوئی آپشن چنیے۔`,
     placeholder: 'پیغام لکھیں…', tryMic: 'مائیک دوبارہ آزمائیں', msgInstead: 'پیغام بھیجیں', noConnect: 'کال نہیں مل سکی',
     micBlocked: 'اس سائٹ کے لیے آپ کا مائیک بند ہے۔ ایڈریس بار کے آئیکن سے اجازت دیں، یا پیغام سے بات جاری رکھیں۔',
@@ -183,6 +190,16 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let lastCaller = '';
   let lastAgent = '';
   let liveTurnDone = true;
+  /** The live line is being re-established after a drop, or swapped before Gemini recycles it. */
+  let reconnecting = false;
+  /** Gemini warned it will recycle the connection: swap lines at the next quiet moment. */
+  let recycleDue = false;
+  /** The room's level between turns, and since when the caller has been talking over Sarah. */
+  let liveFloor = 0.004;
+  let liveLoudSince = 0;
+  /** When "You …" went up, and when the caller last made a sound. */
+  let hearingSince = 0;
+  let lastVoiceAt = 0;
   /** The chat's welcome line; it follows the language until the guest writes something. */
   let welcomeLi: HTMLLIElement | null = null;
 
@@ -263,9 +280,19 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     return li;
   }
   function setText(li: HTMLElement, text: string) {
-    li.textContent = text;
+    // On a call the caption box shows the newest lines of a long reply, like a
+    // phone's live captions; the wrapper is what lets the start scroll away.
+    const cap = document.createElement('span');
+    cap.className = 'cap';
+    const words = document.createElement('span');
+    words.textContent = text;
+    cap.append(words);
+    li.replaceChildren(cap);
+    li.classList.remove('hearing');
     li.dir = isUrdu(text) ? 'rtl' : 'auto';
     logEl.scrollTop = logEl.scrollHeight;
+    // Overflow at the top isn't scrollable, so it doesn't show in scrollHeight: measure the words.
+    requestAnimationFrame(() => cap.classList.toggle('over', words.offsetHeight > cap.clientHeight + 2));
   }
   const say = (text: string) => bubble('agent', text);
   const note = (text: string) => bubble('note', text);
@@ -373,6 +400,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       outAnalyser.fftSize = 1024;
       outGain.connect(outAnalyser);
       outAnalyser.connect(ctx.destination);
+      ctx.onstatechange = wakeAudio;
       player = null;
       playerRouted = false;
     }
@@ -443,12 +471,34 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   async function getMic() {
     if (micStream?.getAudioTracks().every((t) => t.readyState === 'live')) return micStream;
     if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('No microphone API'), { name: 'NotSupportedError' });
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    micStream = stream;
     const c = ensureAudio();
     micAnalyser = c.createAnalyser();
     micAnalyser.fftSize = 1024;
-    c.createMediaStreamSource(micStream).connect(micAnalyser);
-    return micStream;
+    c.createMediaStreamSource(stream).connect(micAnalyser);
+    // A headset unplugged or a Bluetooth earbud gone flat ends the track: pick up whatever mic is left.
+    for (const t of stream.getAudioTracks()) t.addEventListener('ended', () => micStream === stream && void recoverMic(), { once: true });
+    return stream;
+  }
+
+  async function recoverMic() {
+    if (!inCall) return;
+    micStream = null;
+    try {
+      const stream = await getMic();
+      if (!inCall) return;
+      if (engine === 'live' && live) await live.swapMic(stream);
+      else if (phase === 'listening') stepsListen();
+      note(ui().micBack);
+    } catch {
+      showAlert(ui().micMissing);
+    }
+  }
+
+  /* A phone that locks, or a call coming in, can pause the page's audio; wake it when the caller is back. */
+  function wakeAudio() {
+    if (inCall && ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {});
   }
 
   function releaseMic() {
@@ -470,6 +520,28 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
     if (!inCall) return;
     if (engine === 'live' && live) {
+      if (reconnecting) return;
+      // Gemini is about to recycle the line: swap while nobody is mid-sentence.
+      if (recycleDue && !live.speaking && liveTurnDone && !userBuf.trim()) return void reconnectLive('recycle');
+      // Talking over Sarah stops her at once. Gemini notices too, but while she's
+      // talking its signal reached us seconds late in testing; the mic level doesn't.
+      // (Echo cancellation keeps her own voice far below this.)
+      const now = performance.now();
+      const loud = !muted && mic > Math.max(LIVE_BARGE_LEVEL, liveFloor * 6);
+      if (loud) {
+        lastVoiceAt = now;
+        liveLoudSince ||= now;
+        if (live.speaking && now - liveLoudSince > LIVE_BARGE_MS) {
+          liveLoudSince = 0;
+          return cutAgentOff();
+        }
+        // Between turns the same sound puts up "You …", so the caller sees they're heard.
+        if (!live.speaking && phase === 'listening' && now - liveLoudSince > 200) hearCaller();
+      } else {
+        liveLoudSince = 0;
+        if (!live.speaking && mic && !userBuf) liveFloor = liveFloor * 0.98 + Math.min(mic, 0.02) * 0.02;
+      }
+      if (userLi && now - hearingSince > 5000 && now - lastVoiceAt > 4000) forgetHearing();
       if (live.speaking) {
         if (phase !== 'speaking') setPhase('speaking');
       } else if (phase === 'speaking') {
@@ -489,6 +561,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     muted = false;
     hangUpAfterSpeech = false;
     liveTurnDone = true;
+    reconnecting = recycleDue = false;
     showAlert(null);
     setVoiceTag(null);
     setMode('call');
@@ -582,6 +655,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   function endCall(how: 'hangup' | 'dropped' | 'switch' = 'hangup') {
     if (!inCall) return;
     inCall = false;
+    reconnecting = recycleDue = false;
     callSeq++;
     turnId++;
     stopRing?.();
@@ -624,27 +698,66 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       setText(agentLi, said);
       if (isUrdu(said) && lang !== 'ur') setLang('ur');
       liveTurnDone = false;
+    } else if (e.type === 'caller-start') {
+      // The caller started talking: Sarah stops now, not when her queued words run out.
+      if (live?.speaking) cutAgentOff();
+      else if (!muted) hearCaller();
     } else if (e.type === 'interrupted') {
-      if (agentLi && agentBuf.trim()) setText(agentLi, `${toUrduScript(agentBuf.trim())} …`);
-      commitLiveTurn();
-      setPhase(muted ? 'muted' : 'listening');
+      cutAgentOff();
     } else if (e.type === 'turn-complete') {
       commitLiveTurn();
       liveTurnDone = true;
     } else if (e.type === 'tool-call') {
       void runLiveTools(e.calls);
+    } else if (e.type === 'go-away') {
+      recycleDue = true;
+      if (e.ms < 4000) void reconnectLive('recycle');
     } else if (e.type === 'closed') {
-      if (inCall) endCall('dropped');
+      if (inCall) void reconnectLive('dropped');
     }
   }
 
-  function commitLiveTurn() {
-    const raw = userBuf.trim();
+  /** The caller talked over Sarah: her voice stops mid-word and her line ends in "…".
+      Her words arrive ahead of her voice, so the line is cut back to about as far
+      as she actually got, and that's what the conversation remembers she said.
+      What the caller is saying stays open; it's still being heard. */
+  function cutAgentOff() {
+    const played = live?.hush() ?? 1;
+    const words = agentBuf.trim().split(/\s+/).filter(Boolean);
+    if (words.length && played < 1) agentBuf = words.slice(0, Math.max(1, Math.ceil(words.length * played))).join(' ');
+    if (agentLi && agentBuf.trim()) setText(agentLi, `${toUrduScript(agentBuf.trim())} …`);
+    commitLiveTurn('agent');
+    if (!reconnecting) {
+      setPhase(muted ? 'muted' : 'listening');
+      if (!muted) hearCaller();
+    }
+  }
+
+  /** The caller is talking: show "You …" straight away, before Gemini's words for it arrive. */
+  function hearCaller() {
+    if (userLi || reconnecting) return;
+    userLi = bubble('you', '', true);
+    userLi.classList.add('hearing');
+    hearingSince = performance.now();
+  }
+
+  /** A "You …" that never got any words (a cough, a door): put the last line back. */
+  function forgetHearing() {
+    if (!userLi || userBuf.trim() || !userLi.classList.contains('hearing')) return;
+    userLi.remove();
+    userLi = null;
+    const last = [...logEl.querySelectorAll<HTMLLIElement>('li:not(.note)')].at(-1);
+    last?.classList.add('current');
+  }
+
+  function commitLiveTurn(only?: 'agent') {
+    if (!only) forgetHearing();
+    const raw = only ? '' : userBuf.trim();
     const caller = toUrduScript(raw);
     const said = toUrduScript(agentBuf.trim());
     const li = userLi;
-    li?.classList.remove('pending');
     if (caller) {
+      li?.classList.remove('pending');
       const turn: Turn = { role: 'user', content: caller };
       history.push(turn);
       lastCaller = caller;
@@ -658,9 +771,89 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (caller || said) {
       fetch('/api/voice/live/turn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, caller, agent: said, gender, lang }) }).catch(() => {});
     }
-    userBuf = agentBuf = '';
-    userLi = agentLi = null;
+    agentBuf = '';
+    agentLi = null;
+    if (!only) {
+      userBuf = '';
+      userLi = null;
+    }
     updateChips();
+  }
+
+  /** A Gemini Live token for this call; `resume` carries a dropped conversation over to the new line. */
+  function openLine(resume = '') {
+    const recap = history.slice(-12).map((t) => `${t.role === 'user' ? 'Caller' : agent()}: ${t.content}`).join('\n');
+    return fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, recap, resume }) })
+      .then((r) => r.json())
+      .catch(() => ({ live: false }));
+  }
+
+  /** Back online, or a few seconds gone by: whichever comes first. */
+  const waitOnline = (ms: number) =>
+    navigator.onLine ? Promise.resolve() : new Promise<void>((r) => {
+      const t = setTimeout(r, ms);
+      window.addEventListener('online', () => (clearTimeout(t), r()), { once: true });
+    });
+
+  /* The line dropped (a train, a lift, wifi to 4G), or Gemini is recycling it:
+     carry the same conversation over to a new connection. With Gemini's
+     resumption handle it continues mid-thought; without one, Sarah gets the
+     conversation so far and picks up from it. The mic and speakers never stop.
+     Three tries, then the step-by-step line takes over: the call never just ends. */
+  async function reconnectLive(why: 'dropped' | 'recycle') {
+    const session = live;
+    if (!session || reconnecting || !inCall) return;
+    reconnecting = true;
+    recycleDue = false;
+    const seq = callSeq;
+    const dropped = why === 'dropped';
+    if (dropped) {
+      cutAgentOff();
+      commitLiveTurn();
+      setPhase('connecting', ui().reconnecting);
+    }
+    const stale = () => seq !== callSeq || live !== session;
+    const attempt = async (): Promise<'ok' | 'stale' | 'failed'> => {
+      for (let i = 0; i < 3; i++) {
+        if (i) await sleep(i === 1 ? 800 : 2500);
+        await waitOnline(8000);
+        if (stale()) return 'stale';
+        const resume = session.resumeHandle;
+        const line = await openLine(resume);
+        if (stale()) return 'stale';
+        if (!line?.live || !line.url) continue;
+        try {
+          await session.connect(line.url, line.setup);
+          if (stale()) return 'stale';
+          if (!resume) session.sendText('The phone line dropped for a moment and is back now. In a few words, say you can hear the caller again, then carry on from where the conversation was.');
+          return 'ok';
+        } catch (err) {
+          console.warn('[brewns-call] reconnect failed:', err);
+        }
+      }
+      return 'failed';
+    };
+    const result = await attempt();
+    reconnecting = false;
+    if (result === 'stale') return;
+    if (result === 'ok') {
+      if (dropped) {
+        note(ui().reconnected);
+        // On the call screen only the status line shows it; the next phase change clears it.
+        setPhase(muted ? 'muted' : 'listening', muted ? undefined : ui().reconnected);
+      }
+      return;
+    }
+    // The live line is gone for now: the step-by-step line carries on with the same conversation.
+    session.close();
+    live = null;
+    engine = 'steps';
+    setVoiceTag(null);
+    note(ui().fellBack);
+    const id = ++turnId;
+    setPhase('thinking');
+    const data = await ask('line_resume').catch(() => null);
+    if (id === turnId && seq === callSeq) await speakReply(data?.reply || 'Sorry about that, the line broke up for a second. Where were we?', data?.audioChunks, id);
   }
 
   async function tidyUrdu(raw: string, li: HTMLLIElement | null, turn: Turn) {
@@ -687,6 +880,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ callId, name: c.name, args: c.args, transcript, previousAssistant: lastAgent, gender, lang }),
+            // A hung request would leave Sarah silent on the line; she apologises instead.
+            signal: AbortSignal.timeout(15000),
           });
           const d = await r.json();
           if (seq === callSeq) for (const a of (d.actions || []) as Action[]) handleAction(a);
@@ -696,7 +891,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         }
       }),
     );
-    if (seq === callSeq) live?.sendToolResponses(responses);
+    if (seq !== callSeq) return;
+    live?.sendToolResponses(responses);
+    // "One moment…" shouldn't outstay the moment if the answer comes back without words.
+    setTimeout(() => {
+      if (seq === callSeq && engine === 'live' && phase === 'thinking' && !reconnecting && !live?.speaking) setPhase(muted ? 'muted' : 'listening');
+    }, 6000);
   }
 
   /* ── the step-by-step line (when the live line isn't available) ── */
@@ -752,8 +952,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     let shown = '';
     let next = parts[0].url ? fetchVoice(parts[0].url) : Promise.resolve(null);
     setPhase('speaking');
-    // Talking over the voice only counts once it is actually playing.
-    vad.armedAt = Infinity;
+    // While her voice is still loading nothing is playing, so a caller who starts
+    // talking is heard (after a beat, so their own last word doesn't count) rather
+    // than lost: before, anything said in those seconds went nowhere.
+    vad.armedAt = performance.now() + 400;
     vad.loudSince = 0;
     for (let i = 0; i < parts.length; i++) {
       // The words appear as they are about to be said, not after the audio arrives.
@@ -874,7 +1076,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (phase === 'speaking') {
       // Talking over the voice stops it, like on a real call.
       if (now < vad.armedAt || muted) return;
-      if (mic > Math.max(0.035, vad.floor * 6)) {
+      if (mic > Math.max(LIVE_BARGE_LEVEL, vad.floor * 6)) {
         vad.loudSince ||= now;
         if (now - vad.loudSince > BARGE_IN_MS) {
           turnId++;
@@ -1146,6 +1348,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (e.key === 'Escape' && !modal!.hidden) closeModal();
   });
   on(window, 'pagehide', () => inCall && endCall());
+  on(document, 'visibilitychange', () => !document.hidden && wakeAudio());
+  // Back online after a dead spot: don't wait for the old socket to time out.
+  on(window, 'online', () => {
+    if (inCall && engine === 'live' && live && !live.open) void reconnectLive('dropped');
+  });
 
   for (const t of tabs)
     on(t, 'click', (e: Event) => {

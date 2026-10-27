@@ -1975,7 +1975,7 @@ export async function processVoiceCallPrompt(
   hint: VoiceLang = 'en',
   channel: VoiceChannel = 'voice',
 ): Promise<VoiceCallResponse> {
-  const special = prompt === 'call_init' || prompt === 'voice_switch' || prompt === 'language_switch';
+  const special = prompt === 'call_init' || prompt === 'voice_switch' || prompt === 'language_switch' || prompt === 'line_resume';
   const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !clearlyEnglish(prompt) ? 'ur' : 'en';
   let brain: VoiceCallResponse['brain'] = 'script';
   let turn: { reply: string; actions: VoiceAction[]; state?: ScriptState };
@@ -1987,6 +1987,13 @@ export async function processVoiceCallPrompt(
       ? [`جی، میں ${agentName(gender, 'ur')} ہوں۔ اب میں آپ کی کال سنبھالتی ہوں، ہم کہاں تک پہنچے تھے؟`, `السلام علیکم، ${agentName(gender, 'ur')} حاضر ہے۔ بتائیے میں کیا مدد کروں؟`]
       : [`Hi, ${agentName(gender)} here, I'll take it from here. Where were we?`, `Hey there! ${agentName(gender)} stepping in. How can I help?`, `Hello, ${agentName(gender)} on the line now. What were you thinking?`];
     turn = { reply: sw[Math.floor(Math.random() * sw.length)], actions: [], state };
+  } else if (prompt === 'line_resume') {
+    // The live line dropped and this one picked the call up: the same person, carrying on.
+    turn = {
+      reply: lang === 'ur' ? 'معذرت، لائن ایک لمحے کے لیے کٹ گئی تھی۔ جی، ہم کہاں تک پہنچے تھے؟' : 'Sorry about that, the line broke up for a second. Where were we?',
+      actions: [],
+      state,
+    };
   } else if (prompt === 'language_switch') {
     turn = {
       reply: lang === 'ur'
@@ -2063,7 +2070,7 @@ On this call your voice is generated directly; you hear the caller's voice direc
 - When a message says the caller has just picked up, answer like the café phone: one short, friendly line as ${agentName(g)} at brewns, then let them talk${lang === 'ur' ? `, in Urdu (for example: "${urduHello(g)}")` : ''}. Do not say anything else first.
 - Text that arrives typed is the caller typing on their keypad; answer it out loud like anything they said.
 - While a tool is running, say a short natural filler such as "One moment, let me check that" only if it takes a while. Never read out ids, JSON, codes in brackets or field names.
-- Bookings: a booking tool refuses unless your previous turn read the details back and asked "shall I confirm?", and the caller then clearly said yes. So always read back and ask first.
+- Bookings: a booking tool refuses unless your previous turn read the details back and asked "shall I confirm?", and the caller then clearly said yes. So always read back and ask first, then stop and wait for the answer: never call the booking tool in the same turn as asking.
 
 Sound like a real person on the phone, not a recording:
 - Relaxed, unhurried pace with natural pauses between thoughts. Warm and a little informal; smile in your voice.
@@ -2080,8 +2087,10 @@ Urdu, when the caller speaks Urdu:
 - Say prices the Urdu way ("ایک ہزار پچاس روپے") and times as people say them ("شام سات بجے", "صبح نو بجے"), and dates as "کل", "پرسوں", "جمعہ کو".
 - Stay in Urdu until the caller switches to English.`;
 
-/** The Live session's configuration, as the WebSocket setup message wants it. */
-export function liveSetup(g: VoiceGender, lang: VoiceLang, recap = '') {
+/** The Live session's configuration, as the WebSocket setup message wants it.
+    `resume` is the handle of a session whose line dropped: the new connection
+    picks up that conversation exactly where it was, instead of starting over. */
+export function liveSetup(g: VoiceGender, lang: VoiceLang, recap = '', resume = '') {
   const system = persona(g, 'phone') + LIVE_NOTES(g, lang) + (recap ? `\n\nThe conversation so far, typed by message before this call:\n${recap.slice(0, 3000)}` : '');
   return {
     model: `models/${LIVE_MODEL}`,
@@ -2091,14 +2100,21 @@ export function liveSetup(g: VoiceGender, lang: VoiceLang, recap = '') {
     },
     systemInstruction: { parts: [{ text: system }] },
     tools: TOOLS,
-    // Patient: a caller who pauses to think mid-sentence isn't talked over.
-    realtimeInputConfig: { automaticActivityDetection: { endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', silenceDurationMs: 1000, prefixPaddingMs: 300 } },
+    // Patient: a caller who pauses to think mid-sentence ("for, umm, five people")
+    // isn't talked over. A second's silence cut callers off in testing; 1.5 s doesn't.
+    realtimeInputConfig: { automaticActivityDetection: { endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', silenceDurationMs: 1500, prefixPaddingMs: 300 } },
     inputAudioTranscription: {},
     outputAudioTranscription: {},
+    // A long call outlives one connection (Gemini recycles each after about ten
+    // minutes) and would outgrow the context: the oldest turns are summarised
+    // away, and every few turns Gemini hands over a handle to resume from.
+    contextWindowCompression: { slidingWindow: {} },
+    sessionResumption: resume ? { handle: resume } : {},
   };
 }
 
-/** A one-use Live token for one call, valid to start for a minute and to run for 15. */
+/** A one-use Live token for one connection, valid to start for a minute and to run for 15.
+    A call that reconnects (a dropped line, or Gemini recycling the connection) gets a fresh one. */
 export async function createLiveToken(setup: ReturnType<typeof liveSetup>): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;

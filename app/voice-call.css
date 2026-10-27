@@ -277,3 +277,13 @@
 .vcall[data-mode="call"] .vcall-log li.current[dir="rtl"] { font-size: clamp(1.15rem, 4.6vw, 1.35rem); line-height: 2.05; text-align: center; }
 .vcall[data-mode="call"][data-lang="ur"] .vcall-log li.current::before { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; letter-spacing: 0; font-size: 12px; }
 .vcall[data-mode="call"] .vcall-log li.current.pending { color: var(--gold-hi); opacity: 0.85; }
+/* A long reply keeps its newest four lines in view (three in Urdu); the start
+   fades away above them, and who's speaking stays on top. */
+.vcall[data-mode="call"] .vcall-log li.current .cap { display: flex; flex-direction: column; justify-content: flex-end; max-height: calc(1.45em * 4); overflow: hidden; }
+.vcall[data-mode="call"] .vcall-log li.current[dir="rtl"] .cap { max-height: calc(2.05em * 3); }
+.vcall[data-mode="call"] .vcall-log li.current .cap.over { -webkit-mask-image: linear-gradient(transparent, #000 1.3em); mask-image: linear-gradient(transparent, #000 1.3em); }
+.vcall[data-mode="call"] .vcall-log { -webkit-mask-image: none; mask-image: none; }
+/* "You …": the caller is being heard, before their words come back. */
+.vcall-log li.hearing::after { content: ""; display: inline-block; width: 2.2em; height: 0.5em; background: radial-gradient(circle closest-side, currentColor 70%, transparent 74%) 0 50% / 0.7em 0.5em repeat-x; animation: vcall-hear 1.1s steps(3, jump-none) infinite; vertical-align: middle; }
+@keyframes vcall-hear { from { clip-path: inset(0 66% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@media (prefers-reduced-motion: reduce) { .vcall-log li.hearing::after { animation: none; } }
