@@ -4,14 +4,23 @@
    PCM, the model's voice comes back as 24 kHz PCM and is scheduled gap-free
    on the page's AudioContext. Gemini hears the caller talk over it and says
    "interrupted"; we drop whatever is still queued so it stops mid-word, like
-   a person would. Tool calls arrive on the same open line. */
+   a person would. Tool calls arrive on the same open line.
+
+   One session can outlive its connection: Gemini hands over a resumption
+   handle every few turns, warns ("goAway") before it recycles a connection,
+   and connect() can be called again on the same session, keeping the mic and
+   the speakers running, to carry on the same conversation on a new line. */
 
 export type LiveEvent =
   | { type: 'agent-text'; text: string }
   | { type: 'user-text'; text: string }
   | { type: 'turn-complete' }
   | { type: 'interrupted' }
+  /** Gemini heard the caller start talking (its own voice activity detection). */
+  | { type: 'caller-start' }
   | { type: 'tool-call'; calls: { id: string; name: string; args: Record<string, unknown> }[] }
+  /** The connection will be recycled in `ms`; reconnect with the resume handle before then. */
+  | { type: 'go-away'; ms: number }
   | { type: 'closed'; code: number; reason: string };
 
 const IN_RATE = 16000;
@@ -40,6 +49,8 @@ export class LiveSession {
   private pending: number[] = [];
   private carry = 0;
   muted = false;
+  /** The latest handle Gemini gave for resuming this conversation on a new connection. */
+  resumeHandle = '';
   /** Seconds to wait before a reply starts playing (0.05 is just a jitter cushion). */
   beat: () => number = () => 0.05;
 
@@ -50,8 +61,11 @@ export class LiveSession {
     private onEvent: (e: LiveEvent) => void,
   ) {}
 
-  /** Open the line and send the setup; resolves once Gemini says it's ready. */
+  /** Open the line and send the setup; resolves once Gemini says it's ready.
+      Called again on a live session, it replaces the connection: the old one
+      is let go quietly and the mic carries on into the new one. */
   connect(url: string, setup: unknown, timeoutMs = 12000) {
+    this.dropSocket();
     return new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(url);
       this.ws = ws;
@@ -59,7 +73,9 @@ export class LiveSession {
       const timer = setTimeout(() => {
         if (!ready) {
           reject(new Error('Live setup timed out'));
+          ws.onclose = null;
           ws.close();
+          if (this.ws === ws) this.ws = null;
         }
       }, timeoutMs);
       ws.onopen = () => ws.send(JSON.stringify({ setup }));
@@ -71,9 +87,9 @@ export class LiveSession {
       };
       ws.onclose = (e) => {
         clearTimeout(timer);
+        if (this.ws === ws) this.ws = null;
         if (!ready) reject(new Error(`Live closed before setup (${e.code}) ${e.reason}`));
         else this.onEvent({ type: 'closed', code: e.code, reason: e.reason });
-        this.ws = null;
       };
       ws.onmessage = async (ev) => {
         let msg: any;
@@ -97,14 +113,25 @@ export class LiveSession {
     const sc = msg.serverContent;
     if (sc) {
       if (sc.interrupted) {
-        this.stopPlayback();
+        // Report first, so the caption can still be cut back to what was heard.
         this.onEvent({ type: 'interrupted' });
+        this.stopPlayback();
+        this.endReply();
       }
       for (const part of sc.modelTurn?.parts ?? []) if (part.inlineData?.data) this.play(part.inlineData.data);
       if (sc.inputTranscription?.text) this.onEvent({ type: 'user-text', text: sc.inputTranscription.text });
-      if (sc.outputTranscription?.text) this.onEvent({ type: 'agent-text', text: sc.outputTranscription.text });
+      // A hushed reply's words aren't shown either: the caller never heard them.
+      if (sc.outputTranscription?.text && !this.hushed) this.onEvent({ type: 'agent-text', text: sc.outputTranscription.text });
+      if (sc.turnComplete) this.endReply();
+      // Generation done: nothing more of this reply will arrive, so nothing more to drop.
+      else if (sc.generationComplete) this.replying = this.hushed = false;
       if (sc.turnComplete) this.onEvent({ type: 'turn-complete' });
     }
+    const activity = msg.voiceActivity || sc?.voiceActivity;
+    if (activity?.type === 'ACTIVITY_START' || activity?.voiceActivityType === 'ACTIVITY_START') this.onEvent({ type: 'caller-start' });
+    const update = msg.sessionResumptionUpdate;
+    if (update?.newHandle && update.resumable !== false) this.resumeHandle = update.newHandle;
+    if (msg.goAway) this.onEvent({ type: 'go-away', ms: parseDuration(msg.goAway.timeLeft) });
     if (msg.toolCall?.functionCalls?.length) {
       this.onEvent({ type: 'tool-call', calls: msg.toolCall.functionCalls.map((c: any) => ({ id: c.id, name: c.name, args: c.args || {} })) });
     }
@@ -112,7 +139,33 @@ export class LiveSession {
 
   /* ── voice out ── */
 
+  /** Mid-reply: true from the reply's first audio until its turn completes or is interrupted. */
+  private replying = false;
+  /** The caller cut in: what's left of this reply is dropped as it arrives. */
+  private hushed = false;
+
+  /** This reply so far: seconds of voice received, and when its first words started playing. */
+  private replySeconds = 0;
+  private replyStart = 0;
+
+  /** Stop talking now, and don't pick the same reply up again as more of it streams in.
+      The next reply plays as normal. Returns how much of what had arrived was
+      actually heard (0–1), since the words run ahead of the voice. */
+  hush() {
+    const heard = this.replySeconds ? Math.min(1, Math.max(0, (this.ctx.currentTime - this.replyStart) / this.replySeconds)) : 1;
+    this.stopPlayback();
+    if (this.replying) this.hushed = true;
+    return heard;
+  }
+
+  private endReply() {
+    this.replying = this.hushed = false;
+    this.replySeconds = 0;
+  }
+
   private play(b64: string) {
+    this.replying = true;
+    if (this.hushed) return;
     const bin = atob(b64);
     const n = bin.length >> 1;
     if (!n) return;
@@ -129,6 +182,8 @@ export class LiveSession {
     // never quite the same twice. The rest follow on without a gap.
     const fresh = this.playAt <= this.ctx.currentTime;
     const at = fresh ? this.ctx.currentTime + this.beat() : this.playAt;
+    if (!this.replySeconds) this.replyStart = at;
+    this.replySeconds += buf.duration;
     src.start(at);
     this.playAt = at + buf.duration;
     this.sources.add(src);
@@ -230,17 +285,11 @@ export class LiveSession {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  close() {
-    this.stopPlayback();
-    try {
-      this.micSource?.disconnect();
-      this.capture?.disconnect();
-    } catch {}
-    if (this.capture && 'port' in this.capture) this.capture.port.onmessage = null;
-    this.capture = null;
-    this.micSource = null;
+  /** Let the current connection go without reporting it as a drop. */
+  private dropSocket() {
     const ws = this.ws;
     this.ws = null;
+    this.pending = [];
     if (ws) {
       ws.onclose = ws.onmessage = ws.onerror = null;
       try {
@@ -248,4 +297,32 @@ export class LiveSession {
       } catch {}
     }
   }
+
+  /** A new microphone (the old one was unplugged, or a headset connected): the line carries on from it. */
+  async swapMic(stream: MediaStream) {
+    this.stopMic();
+    await this.startMic(stream);
+  }
+
+  private stopMic() {
+    try {
+      this.micSource?.disconnect();
+      this.capture?.disconnect();
+    } catch {}
+    if (this.capture && 'port' in this.capture) this.capture.port.onmessage = null;
+    this.capture = null;
+    this.micSource = null;
+  }
+
+  close() {
+    this.stopPlayback();
+    this.stopMic();
+    this.dropSocket();
+  }
+}
+
+/** "12.5s" (a protobuf Duration as JSON) → 12500 ms; unknown means "soon". */
+function parseDuration(d: unknown) {
+  const s = typeof d === 'string' ? parseFloat(d) : typeof d === 'object' && d ? Number((d as any).seconds || 0) : NaN;
+  return Number.isFinite(s) ? s * 1000 : 5000;
 }
