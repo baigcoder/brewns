@@ -1041,7 +1041,7 @@ document.addEventListener(
 const CLOUDINARY_CLOUD = "e4j256t4";
 const ASSET_CACHE_VERSION = "cutout_v5";
 const cldProductUrl = (path: string) => {
-  if (!path || path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (!path || path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://") || path.startsWith("/api/")) return path;
   const clean = path.replace(/^\/?assets\//, "").replace(/^\//, "");
   const base = `${ASSET_BASE_URL}${clean}`;
   return `${base}${base.includes("?") ? "&" : "?"}v=${ASSET_CACHE_VERSION}`;
@@ -1086,7 +1086,7 @@ const ALL_MENU_CARDS = [
    (so everything drawn later uses them) and on every picture of the item already on the page. */
 const applyMenuPhotos = (photos) => {
   Object.entries(photos).forEach(([id, url]) => {
-    if (!/^[a-z0-9-]+$/.test(id) || typeof url !== "string" || !url.startsWith("https://res.cloudinary.com/")) return;
+    if (!/^[a-z0-9-]+$/.test(id) || typeof url !== "string" || !/^(https:\/\/res\.cloudinary\.com\/|\/api\/public\/photo\/)/.test(url)) return;
     const p = productById(id);
     const old = p?.photo ? photoSrc(p.photo) : "";
     if (p) Object.assign(p, { photo: url, cutout: false });

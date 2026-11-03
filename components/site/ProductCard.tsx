@@ -18,7 +18,7 @@ export async function ProductCard({ p }: { p: Product }) {
     <Link href={`/shop/${p.id}`} className="pc">
       {p.tag ? <span className="pc-tag">{p.tag}</span> : null}
       <span className={`pc-img${photo ? ' photo' : ''}`}>
-        {img ? <Image src={img} alt={p.alt || title(p.name)} width={480} height={480} loading="lazy" /> : p.gift ? <GiftCardArt amount={p.price} /> : <span className="pc-none">{p.name[0]}</span>}
+        {img ? <Image src={img} alt={p.alt || title(p.name)} width={480} height={480} loading="lazy" unoptimized={!!photos[p.id]} /> : p.gift ? <GiftCardArt amount={p.price} /> : <span className="pc-none">{p.name[0]}</span>}
       </span>
       <span className="pc-body">
         <span className="pc-meta">{p.meta || p.notes?.slice(0, 2).join(' · ') || ''}</span>

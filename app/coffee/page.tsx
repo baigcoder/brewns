@@ -72,7 +72,7 @@ export default async function CoffeePage() {
               return (
                 <Link key={p.id} href={`/shop/${p.id}`} className="ip-card" style={{ gap: 16, textDecoration: 'none', color: 'inherit' }}>
                   <span className="pc-img" style={{ borderRadius: 16 }}>
-                    {img ? <Image src={img} alt={p.alt || title(p.name)} width={520} height={520} loading="lazy" /> : null}
+                    {img ? <Image src={img} alt={p.alt || title(p.name)} width={520} height={520} loading="lazy" unoptimized={!!photos[p.id]} /> : null}
                   </span>
                   <span className="ip-n">{p.tag}</span>
                   <h3>{title(p.name)}</h3>

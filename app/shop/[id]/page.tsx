@@ -65,7 +65,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <article className="ip">
         <section className="pd">
           <div className={`pd-media${photo ? ' photo' : ''}`}>
-            {img ? <Image src={img} alt={p.alt || title(p.name)} width={900} height={900} loading="eager" /> : p.gift ? <GiftCardArt amount={p.price} size="large" /> : <span className="pc-none">{p.name[0]}</span>}
+            {img ? <Image src={img} alt={p.alt || title(p.name)} width={900} height={900} loading="eager" unoptimized={!!photos[p.id]} /> : p.gift ? <GiftCardArt amount={p.price} size="large" /> : <span className="pc-none">{p.name[0]}</span>}
           </div>
           <div className="pd-info">
             <nav className="pd-crumbs" aria-label="Breadcrumb">

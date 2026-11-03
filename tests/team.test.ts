@@ -61,3 +61,19 @@ describe('staff sign-up', () => {
     expect((await auth.allUsers('staff')).filter((u) => u.email === 'sara@brewns.test')).toHaveLength(1);
   });
 });
+
+describe('a menu photo kept in the database', () => {
+  const get = async (id: string) => (await import('@/app/api/public/photo/[id]/route')).GET(new Request(`http://localhost/api/public/photo/${id}`), { params: Promise.resolve({ id }) });
+
+  it('is served only as the picture it was checked to be', async () => {
+    const { kv } = await import('@/lib/server/store');
+    await kv.set('menuphoto:latte', { mime: 'image/jpeg', b64: Buffer.from([0xff, 0xd8, 0xff]).toString('base64'), v: '1' });
+    const r = await get('latte');
+    expect(r.status).toBe(200);
+    expect(r.headers.get('content-type')).toBe('image/jpeg');
+    expect(r.headers.get('x-content-type-options')).toBe('nosniff');
+    await kv.set('menuphoto:mocha', { mime: 'text/html', b64: Buffer.from('<script>alert(1)</script>').toString('base64'), v: '1' });
+    expect((await get('mocha')).status).toBe(404);
+    expect((await get('../settings')).status).toBe(404);
+  });
+});
