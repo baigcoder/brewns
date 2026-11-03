@@ -42,6 +42,8 @@ export const POST = route(async (req) => {
     return json({ settings: { online: s.online, signedTables: s.signedTables, shops: s.shops } });
   }
   if (b.prepay && typeof b.prepay === 'object') {
+    // Where customers send money: changing it could send payments to someone else's wallet.
+    if (ctx.role !== 'owner') fail(403, 'Only an owner can change pay-first delivery and where customers send the money.');
     const p = b.prepay as Record<string, unknown>;
     const min = p.minTotal === null ? null : int(p.minTotal, 100, 100000);
     const hold = int(p.holdMin, 3, 60);

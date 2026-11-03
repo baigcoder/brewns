@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { safeEqual } from '@/lib/server/http';
+import { checkOrigin, safeEqual, safeNextPath } from '@/lib/server/http';
 
 describe('safeEqual', () => {
   it('matches equal secrets only', () => {
@@ -35,5 +35,32 @@ describe('reportCsv', () => {
     const csv = reportCsv({ ...base, top: [{ ...base.top[0], name: 'Latte, large' }, base.top[0]] });
     expect(csv).toContain('"Latte, large"');
     expect(csv).toContain(`"'=HYPERLINK(""evil"")"`);
+  });
+});
+
+describe('safeNextPath', () => {
+  it('keeps a place on this site', () => {
+    expect(safeNextPath('/dashboard/orders?x=1#top', '/home')).toBe('/dashboard/orders?x=1#top');
+  });
+
+  it('refuses anything a browser would take to another site', () => {
+    for (const evil of ['//evil.com', '/\\evil.com', '/\\/evil.com', '/\t/evil.com', '/\n/evil.com', 'https://evil.com', 'javascript:alert(1)', '', 42])
+      expect(safeNextPath(evil, '/home')).toBe('/home');
+  });
+
+  it('never sends someone to an API route', () => {
+    expect(safeNextPath('/api/staff/backup', '/home')).toBe('/home');
+    expect(safeNextPath('/./api/staff/backup', '/home')).toBe('/home');
+  });
+});
+
+describe('checkOrigin', () => {
+  const req = (headers: Record<string, string>) => new Request('https://brewns.pk/api/x', { method: 'POST', headers: { host: 'brewns.pk', ...headers } });
+  it('lets the site itself through', () => {
+    expect(() => checkOrigin(req({ origin: 'https://brewns.pk', 'sec-fetch-site': 'same-origin' }))).not.toThrow();
+  });
+  it('refuses another site, by Origin or by fetch metadata', () => {
+    expect(() => checkOrigin(req({ origin: 'https://evil.com' }))).toThrow();
+    expect(() => checkOrigin(req({ 'sec-fetch-site': 'cross-site' }))).toThrow();
   });
 });

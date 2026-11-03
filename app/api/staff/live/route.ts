@@ -58,6 +58,7 @@ export const GET = route(async (req) => {
     upcomingBookings,
     soldOut: ctx.settings.soldOut,
     stock: ctx.settings.stock,
+    photos: ctx.settings.photos,
     prepay: ctx.settings.prepay,
     digest: ctx.role === 'owner' ? ctx.settings.digest : undefined,
     signedTables: canAny(p, 'shops.manage') ? ctx.settings.signedTables : undefined,

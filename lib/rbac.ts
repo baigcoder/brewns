@@ -37,6 +37,7 @@ export const PERMISSIONS = {
   'delivery.ride': { group: 'Stations', label: 'Ride deliveries', desc: 'Take a delivery, ride it, hand it over.' },
   'delivery.assign': { group: 'Stations', label: 'Dispatch riders', desc: 'Give deliveries to riders.' },
   'menu.availability': { group: 'Menu and shops', label: 'Sold out', desc: 'Take items off the menu when they run out.' },
+  'menu.photos': { group: 'Menu and shops', label: 'Menu photos', desc: 'Upload and replace the photo of each item on the site.' },
   'menu.promos': { group: 'Menu and shops', label: 'Promo codes', desc: 'Create and switch off promo codes.' },
   'shops.manage': { group: 'Menu and shops', label: 'Shop settings', desc: 'Pause online orders, wait times, tables and QR codes.' },
   'staff.view': { group: 'Team', label: 'See the team', desc: 'Everyone on staff and their roles.' },
@@ -53,7 +54,8 @@ export type RolePerms = Record<Role, Permission[]>;
 
 export const DEFAULT_ROLE_PERMS: RolePerms = {
   owner: ALL_PERMISSIONS,
-  manager: ALL_PERMISSIONS.filter((p) => !OWNER_ONLY.includes(p)),
+  // The site's photos are the owner's call until they tick the box for managers on the Access page.
+  manager: ALL_PERMISSIONS.filter((p) => !OWNER_ONLY.includes(p) && p !== 'menu.photos'),
   cashier: ['orders.view', 'orders.create', 'orders.manage', 'orders.pay', 'messages.reply', 'delivery.assign', 'menu.availability'],
   barista: ['kitchen.bar', 'menu.availability'],
   chef: ['kitchen.food', 'menu.availability'],
@@ -105,7 +107,7 @@ export const SECTIONS: Section[] = [
   { key: 'bookings', href: '/dashboard/bookings', label: 'Bookings & AI calls', any: ['reports.view', 'floor.tables', 'orders.view'], group: 'Run' },
   { key: 'deliveries', href: '/dashboard/deliveries', label: 'Deliveries', any: ['delivery.ride', 'delivery.assign'], group: 'Run' },
   { key: 'refunds', href: '/dashboard/refunds', label: 'Refunds', any: ['orders.pay'], group: 'Run' },
-  { key: 'menu', href: '/dashboard/menu', label: 'Menu', any: ['menu.availability', 'menu.promos'], group: 'Manage' },
+  { key: 'menu', href: '/dashboard/menu', label: 'Menu', any: ['menu.availability', 'menu.promos', 'menu.photos'], group: 'Manage' },
   { key: 'shops', href: '/dashboard/shops', label: 'Shops', any: ['shops.manage'], group: 'Manage' },
   { key: 'staff', href: '/dashboard/staff', label: 'Team', any: ['staff.view'], group: 'Manage' },
   { key: 'access', href: '/dashboard/access', label: 'Access', any: ['access.manage'], group: 'Manage' },

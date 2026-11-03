@@ -69,6 +69,9 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
     if (!target || target.kind !== 'staff' || target.role === 'customer') return fail(404, 'No such team member.') as never;
     const self = target.id === ctx.user.id;
     if (!self && !outranks(ctx.role, target.role)) fail(403, `Only someone above a ${ROLE_INFO[target.role].label.toLowerCase()} can change their account.`);
+    // A manager tied to some shops runs only the people of those shops (someone at every shop is beyond them).
+    const mine = ctx.user.shops;
+    if (!self && mine.length && (!target.shops.length || target.shops.some((s) => !mine.includes(s)))) fail(403, `You can only change people who work at your shops: ${mine.map((s) => LOC_TITLES[s]).join(', ')}.`);
     const next: User = { ...target };
     const done: string[] = [];
     let token = '';
@@ -122,6 +125,8 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
       resetTwoStep = true;
     }
     if (b.reset) {
+      // Your own password changes on My account, with the current one: a link would skip that check.
+      if (self) fail(403, 'Change your own password from My account.');
       if (!next.active) fail(409, 'Switch the account on first.');
       const fresh = inviteFor();
       token = fresh.token;

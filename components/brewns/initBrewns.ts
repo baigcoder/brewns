@@ -1082,6 +1082,21 @@ const ALL_MENU_CARDS = [
   ...KITCHEN.map((k) => ({ shot: true, id: k.id, cat: k.menuCat, name: k.name, price: rs(k.price), art: cldProductUrl(k.photo), size: [1000, 1000], frame: [225, 225, 0, 0.5], crop: ["0%", "0%", "100%", "100%"], cover: false, clip: true, alt: k.alt })),
 ];
 
+/* The owner's own photos from the console, by item id. They replace the built-in picture in the data
+   (so everything drawn later uses them) and on every picture of the item already on the page. */
+const applyMenuPhotos = (photos) => {
+  Object.entries(photos).forEach(([id, url]) => {
+    if (!/^[a-z0-9-]+$/.test(id) || typeof url !== "string" || !url.startsWith("https://res.cloudinary.com/")) return;
+    const p = productById(id);
+    const old = p?.photo ? photoSrc(p.photo) : "";
+    if (p) Object.assign(p, { photo: url, cutout: false });
+    const card = ALL_MENU_CARDS.find((c) => c.id === id);
+    if (card) Object.assign(card, { art: url, shot: true, snap: undefined });
+    if (old) $$("img").forEach((img) => img.getAttribute("src") === old && (img.src = url));
+    $$(`#cards [data-menu-id="${id}"] .card-media`).forEach((m) => m.classList.add("shot"));
+  });
+};
+
 const cardHTML = (c, o, n = o) => {
   const [w, h, bottom, offsetX] = c.frame;
   const [top, left, width, height] = c.crop;
@@ -2405,6 +2420,7 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
       // Pay-first delivery: read again at checkout.
       window.__brewnsPrepay = s.prepay || null;
       window.__brewnsStatus = { soldOut: Array.isArray(s.soldOut) ? s.soldOut : [], shops: Array.isArray(s.shops) ? s.shops : [] };
+      if (s.photos && typeof s.photos === "object") applyMenuPhotos(s.photos);
       syncAvailability();
       paintHeroWaits();
       if (Array.isArray(s.soldOut)) {

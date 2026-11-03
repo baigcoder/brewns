@@ -21,6 +21,8 @@ export type LiveData = {
   upcomingBookings?: number;
   soldOut: string[];
   stock: Record<string, number>;
+  /** Item id → the owner's own photo of it. */
+  photos?: Record<string, string>;
   refundsDue: number;
   prepay: { minTotal: number | null; holdMin: number; payTo: string };
   /** Owner only: is the evening summary email on? */

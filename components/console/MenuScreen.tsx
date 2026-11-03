@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CATALOG } from '@/lib/catalog';
+import { productImage } from '@/lib/products';
 import { promoRulesLabel } from '@/lib/promos';
 import { api, pkDate } from './api';
 import { useLive } from './Live';
@@ -34,6 +35,7 @@ export function MenuScreen() {
       </div>
       <div className="cx-stack" style={{ gap: 20 }}>
         {can('menu.availability') && <SoldOut />}
+        {can('menu.photos') && <Photos />}
         {can('menu.promos') && <Promos />}
       </div>
     </>
@@ -107,6 +109,103 @@ function SoldOut() {
                   />
                 </div>
               ))}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Phone photos are often bigger than the upload limit: anything large, or not a JPG, PNG or WebP, is redrawn at most 2000 px wide. */
+async function shrink(file: File): Promise<Blob> {
+  if (file.size <= 3.5 * 1024 * 1024 && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return file;
+  const img = await createImageBitmap(file);
+  const scale = Math.min(1, 2000 / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const as = (type: string) => new Promise<Blob | null>((res) => canvas.toBlob(res, type, 0.88));
+  const webp = await as('image/webp'); // keeps a cut-out's transparent background
+  return webp?.type === 'image/webp' ? webp : (await as('image/jpeg'))!;
+}
+
+function Photos() {
+  const { data, refresh } = useLive();
+  const run = useRun();
+  const [q, setQ] = useState('');
+  const [pending, setPending] = useState('');
+  const photos = data?.photos || {};
+  const list = useMemo(() => CATALOG.filter((p) => !p.gift && (!q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase()))), [q]);
+  const nice = (name: string) => name.charAt(0) + name.slice(1).toLowerCase();
+  const upload = async (id: string, name: string, file: File | undefined) => {
+    if (!file) return;
+    setPending(id);
+    await run(async () => {
+      const form = new FormData();
+      form.append('id', id);
+      form.append('file', await shrink(file), file.name);
+      const res = await fetch('/api/staff/menu/photo', { method: 'POST', body: form, cache: 'no-store' });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || `The upload failed (${res.status}).`);
+      await refresh();
+    }, `${name} has its new photo on the site.`);
+    setPending('');
+  };
+  const reset = async (id: string, name: string) => {
+    setPending(id);
+    await run(() => api('/api/staff/menu/photo', { id, reset: true }).then(refresh), `${name} is back to its original photo.`);
+    setPending('');
+  };
+  return (
+    <section className="cx-card">
+      <div className="cx-card-h">
+        <div className="cx-stack" style={{ gap: 4 }}>
+          <p className="cx-h2">Menu photos</p>
+          <p className="cx-small cx-muted">Your own photo of an item replaces the one on the site, everywhere on the home page: the menu, the item&apos;s details and the bag. JPG, PNG, WebP or AVIF; big phone photos are shrunk before they upload. A square photo looks best.</p>
+        </div>
+        <input className="cx-input" style={{ maxWidth: 220 }} placeholder="Find an item" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="cx-grid three">
+        {list.map((p) => {
+          const own = photos[p.id];
+          const src = own || productImage(p);
+          return (
+            <div key={p.id} className="cx-row" style={{ flexWrap: 'nowrap', gap: 12 }}>
+              {src ? (
+                // eslint-disable-next-line @next/next/no-img-element -- a small preview of a picture that may be on Cloudinary
+                <img src={src} alt="" width={56} height={56} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, background: 'var(--cx-line, #222)', flex: 'none' }} />
+              ) : (
+                <span style={{ width: 56, height: 56, borderRadius: 8, background: 'var(--cx-line, #222)', flex: 'none' }} />
+              )}
+              <div className="cx-stack" style={{ gap: 4, minWidth: 0 }}>
+                <span>
+                  {nice(p.name)}
+                  {own && <span className="cx-small cx-muted"> · your photo</span>}
+                </span>
+                <div className="cx-row" style={{ gap: 6 }}>
+                  <label className="cx-btn sm" aria-disabled={pending === p.id} style={{ cursor: 'pointer', opacity: pending === p.id ? 0.5 : 1 }}>
+                    {pending === p.id ? 'Uploading…' : own ? 'Replace' : 'Upload'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif,image/*"
+                      hidden
+                      disabled={pending === p.id}
+                      aria-label={`Photo of ${p.name}`}
+                      onChange={(e) => {
+                        upload(p.id, nice(p.name), e.target.files?.[0]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {own && (
+                    <button type="button" className="cx-btn sm" disabled={pending === p.id} onClick={() => reset(p.id, nice(p.name))}>
+                      Use original
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           );
         })}

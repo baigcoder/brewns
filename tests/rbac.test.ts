@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { can, canAny, outranks, DEFAULT_ROLE_PERMS, OWNER_ONLY, ROLES } from '@/lib/rbac';
+import { can, canAny, outranks, normaliseRolePerms, DEFAULT_ROLE_PERMS, OWNER_ONLY, ROLES } from '@/lib/rbac';
 
 describe('Role-Based Access Control (RBAC)', () => {
   it('gives owner all permissions', () => {
@@ -39,5 +39,13 @@ describe('Role-Based Access Control (RBAC)', () => {
     const waiterPerms = DEFAULT_ROLE_PERMS.waiter;
     expect(canAny(waiterPerms, 'reports.view', 'floor.tables')).toBe(true);
     expect(canAny(waiterPerms, 'reports.view', 'staff.manage')).toBe(false);
+  });
+});
+
+describe('menu photos', () => {
+  it("are the owner's until they give them to a role", () => {
+    expect(can(DEFAULT_ROLE_PERMS.owner, 'menu.photos')).toBe(true);
+    for (const role of ROLES.filter((r) => r !== 'owner')) expect(can(DEFAULT_ROLE_PERMS[role], 'menu.photos')).toBe(false);
+    expect(can(normaliseRolePerms({ manager: ['menu.photos'] }).manager, 'menu.photos')).toBe(true);
   });
 });

@@ -37,6 +37,8 @@ export type Settings = {
   soldOut: string[];
   /** Units left of the items the café counts. An item at zero is sold out on its own; items not listed are unlimited. */
   stock: Record<string, number>;
+  /** The owner's own photo of an item (a Cloudinary link), shown on the site instead of the built-in picture. */
+  photos: Record<string, string>;
   /** Pay-first for delivery: orders of at least `minTotal` (before tax and fees) are held until the café confirms the payment. `minTotal: null` switches it off. */
   prepay: Prepay;
   promos: Promo[];
@@ -54,6 +56,7 @@ export const defaultSettings = (): Settings => ({
   shops: Array.from({ length: SHOP_COUNT }, (_, i) => ({ ...DEFAULT_SHOP, tables: [14, 10, 12][i] ?? 10 })),
   soldOut: [],
   stock: {},
+  photos: {},
   prepay: { ...DEFAULT_PREPAY },
   promos: [{ code: 'BREWNS10', pct: 10, active: true, hint: true, uses: 0, createdAt: 0, note: 'The code the checkout suggests' }],
   rolePerms: normaliseRolePerms(null),
@@ -72,6 +75,7 @@ export async function getSettings(): Promise<Settings> {
     shops: base.shops.map((s, i) => ({ ...s, ...(raw.shops?.[i] || {}) })),
     soldOut: Array.isArray(raw.soldOut) ? raw.soldOut : [],
     stock: raw.stock && typeof raw.stock === 'object' ? raw.stock : {},
+    photos: raw.photos && typeof raw.photos === 'object' ? raw.photos : {},
     prepay: { ...DEFAULT_PREPAY, ...(raw.prepay || {}) },
     // Before the flag existed the site suggested BREWNS10: keep that, and nothing else, as the suggestion.
     promos: Array.isArray(raw.promos) ? raw.promos.map((p) => (p.hint === undefined && p.code === 'BREWNS10' ? { ...p, hint: true } : p)) : base.promos,
