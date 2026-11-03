@@ -78,3 +78,16 @@ export function safeMediaUrl(raw: unknown): string | null {
     return null;
   }
 }
+
+/** A menu photo goes through the host's 4.5 MB request limit, so it stays under 4 MB (the console shrinks big ones first). */
+export const MAX_MENU_PHOTO_BYTES = 4 * 1024 * 1024;
+
+/** An item's photo: a picture by its bytes (never a video, SVG or HTML) and small enough to upload. */
+export async function checkMenuPhoto(file: { size: number; arrayBuffer(): Promise<ArrayBuffer> }): Promise<Checked> {
+  if (file.size > MAX_MENU_PHOTO_BYTES) return { ok: false, status: 413, error: 'That photo is too large (max 4 MB).' };
+  const up = await checkUpload(file);
+  if (!up.ok) return up;
+  if (up.media.kind !== 'image') return { ok: false, status: 415, error: 'Use a photo: JPG, PNG, WebP or AVIF.' };
+  if (up.buffer.length > MAX_MENU_PHOTO_BYTES) return { ok: false, status: 413, error: 'That photo is too large (max 4 MB).' };
+  return up;
+}

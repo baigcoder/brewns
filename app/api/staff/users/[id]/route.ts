@@ -12,5 +12,5 @@ export const POST = route(async (req: Request, c: Ctx) => {
   if (!token || !user) return json({ user, emailed: false, link: '' });
   const origin = new URL(req.url).origin;
   const emailed = await emailStaffLink(user, token, 'new-link', ctx.user.name, origin);
-  return json({ user, emailed, link: emailed ? '' : staffLink(token, origin) });
+  return json({ user, emailed, link: emailed || ctx.role !== 'owner' ? '' : staffLink(token, origin) });
 });

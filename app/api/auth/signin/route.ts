@@ -2,17 +2,12 @@ import { homeFor, permsFor, type Role } from '@/lib/rbac';
 import { findByEmail, findCustomerByPhone, startSession, verifyPassword } from '@/lib/server/auth';
 import { audit, securityOnce } from '@/lib/server/audit';
 import { checkSecondFactor } from '@/lib/server/twostep';
-import { clientIp, fail, json, normEmail, rateLimit, readBody, route, str } from '@/lib/server/http';
+import { clientIp, fail, json, normEmail, rateLimit, readBody, route, safeNextPath, str } from '@/lib/server/http';
 import { getSettings } from '@/lib/server/settings';
 import { pkMobile } from '@/lib/catalog';
 
 /** "sara@brewns.test" becomes "s***@brewns.test": enough to recognise, not enough to harvest. */
 const maskEmail = (v: string) => (v.includes('@') ? `${v[0]}***${v.slice(v.indexOf('@'))}` : `${v.slice(0, 1)}***`);
-
-const safeNext = (v: unknown, fallback: string) => {
-  const n = str(v, 300);
-  return n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/api/') ? n : fallback;
-};
 
 /** Staff (email) or customer (email or mobile) sign-in. */
 export const POST = route(async (req) => {
@@ -64,7 +59,7 @@ export const POST = route(async (req) => {
     const role = user!.role as Role; // a staff account never has the customer role
     const actor = { id: user!.id, name: user!.name, role };
     await audit(actor, how === 'recovery' ? 'Signed in with a recovery code' : 'Signed in', how === 'recovery' ? `${user!.totp?.recovery.length ?? 0} recovery codes left` : how ? 'Two-step code' : '', 'security');
-    return json({ ok: true, next: safeNext(b.next, homeFor(role, permsFor(role, settings.rolePerms))) });
+    return json({ ok: true, next: safeNextPath(b.next, homeFor(role, permsFor(role, settings.rolePerms))) });
   }
-  return json({ ok: true, next: safeNext(b.next, '/account') });
+  return json({ ok: true, next: safeNextPath(b.next, '/account') });
 });

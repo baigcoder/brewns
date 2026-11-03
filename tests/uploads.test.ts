@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { MAX_IMAGE_BYTES, checkUpload, safeMediaUrl, sniffMedia } from '@/lib/server/uploads';
+import { MAX_IMAGE_BYTES, MAX_MENU_PHOTO_BYTES, checkMenuPhoto, checkUpload, safeMediaUrl, sniffMedia } from '@/lib/server/uploads';
 
 const pad = (head: number[], len = 32) => Uint8Array.from([...head, ...new Array(Math.max(0, len - head.length)).fill(0)]);
 const text = (s: string, at = 0, len = 32) => {
@@ -89,5 +89,26 @@ describe('safeMediaUrl', () => {
   it('refuses a data link whose bytes are not what its label says', () => {
     expect(safeMediaUrl(`data:image/png;base64,${b64(JPEG)}`)).toBeNull(); // says PNG, is a JPEG
     expect(safeMediaUrl(`data:image/jpeg;base64,${b64(text('<script>x</script>', 0, 64))}`)).toBeNull();
+  });
+});
+
+describe('checkMenuPhoto', () => {
+  const file = (a: Uint8Array, size = a.length) => ({ size, arrayBuffer: async () => a.buffer.slice(a.byteOffset, a.byteOffset + a.byteLength) as ArrayBuffer });
+
+  it('takes a JPG, PNG or WebP photo', async () => {
+    for (const a of [JPEG, PNG, WEBP]) expect((await checkMenuPhoto(file(a))).ok).toBe(true);
+  });
+
+  it('refuses a video, an SVG and HTML, whatever they are called', async () => {
+    expect(await checkMenuPhoto(file(MP4))).toMatchObject({ ok: false, status: 415 });
+    expect(await checkMenuPhoto(file(text('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">', 0, 80)))).toMatchObject({ ok: false, status: 415 });
+    expect(await checkMenuPhoto(file(text('<html><script>x</script>', 0, 64)))).toMatchObject({ ok: false, status: 415 });
+  });
+
+  it('refuses a photo over the 4 MB upload limit, before reading it', async () => {
+    let read = false;
+    const r = await checkMenuPhoto({ size: MAX_MENU_PHOTO_BYTES + 1, arrayBuffer: async () => ((read = true), JPEG.buffer as ArrayBuffer) });
+    expect(r).toMatchObject({ ok: false, status: 413 });
+    expect(read).toBe(false);
   });
 });

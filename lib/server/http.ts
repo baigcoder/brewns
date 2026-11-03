@@ -36,7 +36,9 @@ export function route<A extends unknown[]>(fn: (req: Request, ...rest: A) => Pro
 }
 
 /** A browser always sends Origin on a cross-site POST; if it names another site, refuse. */
-function checkOrigin(req: Request) {
+export function checkOrigin(req: Request) {
+  // Fetch metadata says it outright when the page that sent this is another site, Origin header or not.
+  if (req.headers.get('sec-fetch-site') === 'cross-site') fail(403, 'Requests must come from this site.');
   const origin = req.headers.get('origin');
   if (!origin) return;
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
@@ -45,6 +47,22 @@ function checkOrigin(req: Request) {
     from = new URL(origin).host;
   } catch {}
   if (!host || from !== host) fail(403, 'Requests must come from this site.');
+}
+
+/**
+ * A `next=` place to go after signing in, only if it stays on this site: parsed the way a browser would, so
+ * `//evil.com`, `/\evil.com` and a tab or newline hidden in the slashes all fall back. Never an API route.
+ */
+export function safeNextPath(v: unknown, fallback: string) {
+  const raw = str(v, 300);
+  if (!raw.startsWith('/')) return fallback;
+  try {
+    const u = new URL(raw, 'https://brewns.invalid');
+    if (u.origin !== 'https://brewns.invalid' || u.pathname.startsWith('/api/')) return fallback;
+    return u.pathname + u.search + u.hash;
+  } catch {
+    return fallback;
+  }
 }
 
 export async function readBody<T = Record<string, unknown>>(req: Request, maxBytes = 64_000): Promise<T> {

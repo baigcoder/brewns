@@ -8,7 +8,7 @@ import { SitePage } from '@/components/site/SitePage';
 import { CATALOG, catalogItem, money } from '@/lib/catalog';
 import { dietBadges } from '@/lib/diet';
 import { fromPrice, groupOf, related, title } from '@/lib/products';
-import { imageFor } from '@/lib/server/productImage';
+import { imageFor, ownPhotos } from '@/lib/server/productImage';
 import { GiftCardArt } from '@/components/site/GiftCardArt';
 import { SITE_URL } from '@/lib/site';
 import { publicPageMetadata } from '@/lib/siteMetadata';
@@ -40,8 +40,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const p = catalogItem((await params).id);
   if (!p) notFound();
   const group = groupOf(p);
-  const img = imageFor(p);
-  const photo = !p.cutout && !!img;
+  const photos = await ownPhotos();
+  const img = imageFor(p, photos);
+  const photo = (!p.cutout || !!photos[p.id]) && !!img;
   const badges = dietBadges(p.id);
   const varies = p.options.some((o) => o.choices.some((c) => c[1] !== 0));
   const isBeans = p.cat === 'beans';
@@ -64,7 +65,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <article className="ip">
         <section className="pd">
           <div className={`pd-media${photo ? ' photo' : ''}`}>
-            {img ? <Image src={img} alt={p.alt || title(p.name)} width={900} height={900} loading="eager" /> : p.gift ? <GiftCardArt amount={p.price} size="large" /> : <span className="pc-none">{p.name[0]}</span>}
+            {img ? <Image src={img} alt={p.alt || title(p.name)} width={900} height={900} loading="eager" unoptimized={!!photos[p.id]} /> : p.gift ? <GiftCardArt amount={p.price} size="large" /> : <span className="pc-none">{p.name[0]}</span>}
           </div>
           <div className="pd-info">
             <nav className="pd-crumbs" aria-label="Breadcrumb">

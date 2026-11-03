@@ -94,7 +94,7 @@ export function ShopsScreen() {
 
       {data?.business && <BusinessCard business={data.business} save={save} />}
 
-      {data?.prepay && <PrepayCard prepay={data.prepay} save={save} />}
+      {me.role === 'owner' && data?.prepay && <PrepayCard prepay={data.prepay} save={save} />}
 
       <div className="cx-grid three cx-noprint">
         {shops.map((i) => {
