@@ -47,9 +47,8 @@ export const POST = route(async (req) => {
   }
 
   const user = await withLock('team', async () => {
-    if (await findByEmail('staff', email)) {
-      fail(409, 'Someone on the team is already using that email. Sign in instead.');
-    }
+    // Same answer as a new request, so this form can't be used to find out who works here.
+    if (await findByEmail('staff', email)) return null;
 
     const passHash = await hashPassword(password);
     const created = newUser({
@@ -68,8 +67,10 @@ export const POST = route(async (req) => {
     return saveUser(created);
   });
 
-  await audit({ id: user.id, name: user.name, role: user.role }, `Asked to join the team as ${role}`, email);
-  await bumpLive();
+  if (user) {
+    await audit({ id: user.id, name: user.name, role: user.role }, `Asked to join the team as ${role}`, email);
+    await bumpLive();
+  }
 
   return json({ ok: true, pending: true }, 201);
 });

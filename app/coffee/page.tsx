@@ -6,7 +6,7 @@ import { SitePage } from '@/components/site/SitePage';
 import '@/components/site/shop.css';
 import { CATALOG, money } from '@/lib/catalog';
 import { title } from '@/lib/products';
-import { imageFor } from '@/lib/server/productImage';
+import { imageFor, ownPhotos } from '@/lib/server/productImage';
 import { publicPageMetadata } from '@/lib/siteMetadata';
 
 export const metadata = publicPageMetadata(
@@ -24,7 +24,8 @@ const STEPS = [
   ['04', 'Brewed', 'Every shot pulled at 92°C for 27 seconds, and milk steamed to 65°C so it stays sweet. The same at all three counters.'],
 ];
 
-export default function CoffeePage() {
+export default async function CoffeePage() {
+  const photos = await ownPhotos();
   const beans = CATALOG.filter((p) => p.cat === 'beans');
   return (
     <SitePage current="coffee" width={1180}>
@@ -67,7 +68,7 @@ export default function CoffeePage() {
             {beans.map((p) => {
               const roastLabel = p.details?.find(([k]) => k === 'ROAST')?.[1] || '';
               const level = ROAST[roastLabel.toUpperCase()] || 0;
-              const img = imageFor(p);
+              const img = imageFor(p, photos);
               return (
                 <Link key={p.id} href={`/shop/${p.id}`} className="ip-card" style={{ gap: 16, textDecoration: 'none', color: 'inherit' }}>
                   <span className="pc-img" style={{ borderRadius: 16 }}>

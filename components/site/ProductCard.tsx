@@ -2,15 +2,16 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { money, type Product } from '@/lib/catalog';
 import { fromPrice, title } from '@/lib/products';
-import { imageFor } from '@/lib/server/productImage';
+import { imageFor, ownPhotos } from '@/lib/server/productImage';
 import { GiftCardArt } from './GiftCardArt';
 import './shop.css';
 
 /** One product in a grid: picture, name, a line about it, and the price. */
-export function ProductCard({ p }: { p: Product }) {
-  const img = imageFor(p);
-  // Cut-outs stand on the card; real photos fill it.
-  const photo = !p.cutout && !!img;
+export async function ProductCard({ p }: { p: Product }) {
+  const photos = await ownPhotos();
+  const img = imageFor(p, photos);
+  // Cut-outs stand on the card; real photos (the owner's own among them) fill it.
+  const photo = (!p.cutout || !!photos[p.id]) && !!img;
   const from = fromPrice(p);
   const varies = p.options.some((o) => o.choices.some((c) => c[1] !== 0));
   return (

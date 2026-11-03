@@ -47,3 +47,17 @@ describe('editMember', () => {
     await expect(team.editMember(owner, owner.user.id, { reset: true })).rejects.toThrow(/My account/);
   });
 });
+
+describe('staff sign-up', () => {
+  it('answers the same for a new email and one already on the team, so nobody can find out who works here', async () => {
+    const { POST } = await import('@/app/api/auth/staff-signup/route');
+    const ask = () =>
+      POST(new Request('http://localhost/api/auth/staff-signup', { method: 'POST', body: JSON.stringify({ name: 'Sara Khan', email: 'sara@brewns.test', password: 'coffee123', role: 'barista' }) }));
+    const first = await ask();
+    const again = await ask();
+    expect(first.status).toBe(201);
+    expect(again.status).toBe(first.status);
+    expect(await again.json()).toEqual(await first.json());
+    expect((await auth.allUsers('staff')).filter((u) => u.email === 'sara@brewns.test')).toHaveLength(1);
+  });
+});

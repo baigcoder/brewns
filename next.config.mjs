@@ -43,6 +43,11 @@ const securityHeaders = [
   ...(isDev ? [] : [{ key: 'Strict-Transport-Security', value: 'max-age=31536000' }]),
 ];
 
+const privateHeaders = [
+  { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+  { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -70,6 +75,8 @@ const nextConfig = {
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },
+      // Signed-in screens and the doors to them: never cached by a browser or proxy, never in search results.
+      ...['/dashboard', '/dashboard/:path*', '/staff/:path*', '/owner/:path*', '/account', '/account/:path*'].map((source) => ({ source, headers: privateHeaders })),
       { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }] },
       {
         source: '/assets/:path*',

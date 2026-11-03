@@ -16,6 +16,8 @@ export const POST = route(async (req) => {
   const ctx = await requireStaff(['shops.manage']);
   const b = await readBody(req);
   const actor = { id: ctx.user.id, name: ctx.user.name, role: ctx.role };
+  // Sample orders land in the real reports, so only an owner adds or clears them.
+  if ((b.action === 'seed' || b.action === 'clear') && ctx.role !== 'owner') fail(403, 'Only an owner can add or clear sample data.');
 
   if (b.action === 'unpause_all') {
     await updateSettings((s) => {

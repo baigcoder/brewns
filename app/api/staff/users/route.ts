@@ -10,12 +10,12 @@ export const GET = route(async () => {
 
 /**
  * Invites someone. The one-time link goes to their own email; only when no email service is set up is it handed back
- * (as `link`) to be sent by hand, so the person inviting never holds a link that sets someone else's password.
+ * (as `link`) to be sent by hand, and then only to an owner: a manager never holds a link that sets someone else's password.
  */
 export const POST = route(async (req) => {
   const ctx = await requireStaff(['staff.manage']);
   const { user, token } = await invite(ctx, await readBody(req));
   const origin = new URL(req.url).origin;
   const emailed = await emailStaffLink(user, token, 'invite', ctx.user.name, origin);
-  return json({ user, emailed, link: emailed ? '' : staffLink(token, origin) }, 201);
+  return json({ user, emailed, link: emailed || ctx.role !== 'owner' ? '' : staffLink(token, origin) }, 201);
 });

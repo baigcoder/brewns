@@ -45,7 +45,9 @@ export function TeamScreen() {
   }, [data?.v]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const manage = can('staff.manage');
-  const canEdit = (m: Member) => manage && (m.id === me.id || outranks(me.role, m.role));
+  // The same rule as the server: a manager tied to some shops changes only the people of those shops.
+  const myShops = (m: Member) => !me.shops.length || (m.shops.length > 0 && m.shops.every((s) => me.shops.includes(s)));
+  const canEdit = (m: Member) => manage && (m.id === me.id || (outranks(me.role, m.role) && myShops(m)));
   const list = (team || []).filter((m) => filter === 'all' || m.role === filter);
   const now = useNow(30000);
 
@@ -234,8 +236,8 @@ function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClo
       const r = await run(() => api<{ link: string; emailed: boolean }>('/api/staff/users', f));
       setBusy(false);
       if (!r) return;
-      toast(r.emailed ? `The invite was emailed to ${f.email}.` : `${f.name} is invited. No email service is set up, so send them the link yourself.`, 'good');
-      onSaved(r.emailed ? {} : { link: { name: f.name, url: r.link, reset: false } });
+      toast(r.emailed ? `The invite was emailed to ${f.email}.` : r.link ? `${f.name} is invited. No email service is set up, so send them the link yourself.` : `${f.name} is invited, but the email didn't go out. Ask the owner to send them a new link.`, r.emailed || r.link ? 'good' : 'bad');
+      onSaved(r.link ? { link: { name: f.name, url: r.link, reset: false } } : {});
       return;
     }
     const body: Record<string, unknown> = { name: f.name, phone: f.phone, plate: f.plate };
@@ -252,6 +254,7 @@ function MemberForm({ member, onClose, onSaved }: { member: Member | null; onClo
     const r = await run(() => api<{ link: string; emailed: boolean }>(`/api/staff/users/${member!.id}`, body));
     if (r) {
       if (r.emailed) toast(`A new link was emailed to ${member!.email}.`, 'good');
+      else if (body.reset && !r.link) toast("The email didn't go out. Ask the owner to send the new link.", 'bad');
       else toast(done, 'good');
       onSaved(r.link ? { link: { name: member!.name, url: r.link, reset: !!member!.lastLoginAt } } : {});
     }
