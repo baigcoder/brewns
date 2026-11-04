@@ -48,7 +48,7 @@ export function AuthForm({ eyebrow, heading, fields, action, extra, submit, foot
       }}
     >
       <p className="cx-eyebrow">
-        <b>{'//'}</b> {eyebrow}
+        {eyebrow}
       </p>
       <h2>{heading}</h2>
       {fields.map((f) => (

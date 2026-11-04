@@ -160,7 +160,7 @@ export class TasteCalibrator {
         <div class="calibrator-dialog">
           <button type="button" class="x-btn calibrator-close" aria-label="Close calibrator"></button>
           <div class="calibrator-header">
-            <p class="mono-fine" style="color: var(--accent-amber)">// CALIBRATION 0${q.step} OF 03</p>
+            <p class="mono-fine" style="color: var(--accent-amber)">CALIBRATION 0${q.step} OF 03</p>
             <h3 class="calibrator-title">${q.title}</h3>
             <p class="mono-fine" style="color: rgba(255,255,255,0.65)">${q.subtitle}</p>
           </div>

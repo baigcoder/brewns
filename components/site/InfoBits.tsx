@@ -2,13 +2,10 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import './info-page.css';
 
-/** "// LABEL", the site's mono eyebrow. */
+/** The small label above a heading. */
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <p className="ip-eyebrow">
-      <b>{'//'}</b>
-      {children}
-    </p>
+    <p className="ip-eyebrow">{children}</p>
   );
 }
 

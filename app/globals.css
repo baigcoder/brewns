@@ -479,8 +479,9 @@ address { font-style: normal; }
 .mask { -webkit-mask-position: center; mask-position: center; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
 .wordmark { -webkit-mask-image: url("/assets/shared/wordmark-mask.webp"); mask-image: url("/assets/shared/wordmark-mask.webp"); background-color: currentColor; }
 .swirl-mask { -webkit-mask-image: url("/assets/shared/swirl-mask.webp"); mask-image: url("/assets/shared/swirl-mask.webp"); }
-.sl { letter-spacing: var(--letter-spacing-slash); }
-.sls { letter-spacing: var(--letter-spacing-slash-space); }
+/* The "//" before labels read as a template; the spans stay in the markup, unseen. */
+.sl { display: none; }
+.sls { display: none; }
 .blk { display: block; }
 .mono { font-family: var(--font-space-mono); }
 .dot { display: block; width: var(--size-dot); height: var(--size-dot); flex-shrink: 0; border-radius: 9999px; background: var(--accent); }
@@ -585,6 +586,32 @@ address { font-style: normal; }
 @media (max-width: 1023.98px) { .hdr-order { order: -9999; } .hdr-order .dot { order: -9999; } }
 @media (min-width: 640px) and (max-width: 1023.98px) { .hdr-order .dot { width: 0.5rem; height: 0.5rem; } }
 
+/* "Add brewns to your home screen" (components/site/InstallPrompt.tsx): above the phone dock, bottom-left on a desktop. */
+.install-card {
+  position: fixed; z-index: 60; left: 1rem; bottom: 1.5rem; display: grid; gap: 0.75rem; width: min(22rem, calc(100% - 2rem));
+  padding: 1rem 1.1rem; border-radius: 14px; background: #17130f; color: #f5ede3; box-shadow: 0 1.25rem 2.5rem rgb(0 0 0 / 0.45);
+  font-family: var(--font-geist); font-size: 0.875rem; line-height: 1.45;
+}
+.install-card p { margin: 0; color: rgb(245 237 227 / 0.72); }
+.install-card b { display: block; margin-bottom: 0.2rem; color: #f5ede3; font-size: 0.95rem; }
+.install-card div { display: flex; gap: 0.5rem; }
+.install-card button { height: 2.5rem; padding: 0 1rem; border: 0; border-radius: 999px; font: inherit; font-weight: 600; cursor: pointer; }
+.install-yes { background: #d58c3d; color: #140d06; }
+.install-no { background: rgb(245 237 227 / 0.08); color: #f5ede3; }
+@media (max-width: 760px) { .install-card { bottom: 5.25rem; } }
+/* Phones: ordering is always one thumb away, beside the call button and under every panel. */
+.order-dock { display: none; }
+@media (max-width: 760px) {
+  .order-dock {
+    position: fixed; z-index: 39; left: 1rem; right: 5.5rem; bottom: max(1.5rem, env(safe-area-inset-bottom));
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem; height: 3rem; border-radius: 999px;
+    background: #d58c3d; color: #140d06; font-family: var(--font-space-mono); font-size: 0.8125rem; letter-spacing: 0.12em;
+    text-decoration: none; text-transform: uppercase; transition: transform 200ms var(--ease-entrance, ease);
+  }
+  .order-dock:active { transform: scale(0.97); }
+  .order-dock:focus-visible { outline: 2px solid #f5ede3; outline-offset: 3px; }
+  body:has(.veil:not([hidden]), .panel:not([hidden]), .gh-menu:not([hidden])) .order-dock { display: none; }
+}
 .panel { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--background); padding: 5rem 1.25rem 3.5rem; color: var(--foreground); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 @media (max-width: 639.98px) {
   .panel { padding-top: 4.75rem; padding-bottom: 4.5rem; }
