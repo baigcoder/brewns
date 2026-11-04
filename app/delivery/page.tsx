@@ -51,7 +51,7 @@ export default function Delivery() {
       <h2>How it works</h2>
       <ul>
         <li>
-          <b>Order ahead</b> on the <Link href="/#order">menu</Link>, choose delivery and your area. You see the fee before you place the order.
+          <b>Order ahead</b> on the <Link href="/#menu">menu</Link>, choose delivery and your area. You see the fee before you place the order.
         </li>
         <li>
           <b>Follow it live:</b> your order page shows every stage, from the bar to the rider, with real times.

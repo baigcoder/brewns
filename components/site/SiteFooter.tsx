@@ -14,7 +14,7 @@ export function SiteFooter() {
           </Link>
           <p className="gf-line">Specialty coffee, made with care and handed over fast. Three counters across Lahore, open every day 07:00–21:00.</p>
           <div className="gf-actions">
-            <Link href="/#order" className="gf-btn">
+            <Link href="/#menu" className="gf-btn">
               Order online →
             </Link>
             <Link href="/reserve" className="gf-btn ghost">

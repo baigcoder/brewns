@@ -61,7 +61,7 @@ export const POSTS: Post[] = [
       'Each order carries the time you expect to arrive. The queue on the bar is sorted by that time, not by when the order came in, and the barista starts the shot so it lands just before you walk through the door.',
       'That is where the four minutes comes from: the average time between a customer walking in and the cup in their hand, across all three counters.',
     ],
-    cta: { href: '/#order', label: 'Order ahead' },
+    cta: { href: '/#menu', label: 'Order ahead' },
   },
   {
     slug: 'subscription-math',

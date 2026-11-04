@@ -158,6 +158,16 @@ function Photos() {
     await run(() => api('/api/staff/menu/photo', { id, reset: true }).then(refresh), `${name} is back to its original photo.`);
     setPending('');
   };
+  const builtIn = CATALOG.filter((p) => !p.gift && !photos[p.id] && productImage(p)).length;
+  const copyAll = async () => {
+    setPending('all');
+    await run(async () => {
+      const out = await api<{ copied: number; failed: string[] }>('/api/staff/menu/photo', { copyAll: true });
+      await refresh();
+      if (out.failed.length) throw new Error(`${out.copied} copied; these did not go: ${out.failed.map(nice).join(', ')}. Try again.`);
+    }, 'Every menu photo is now on Cloudinary, ready to replace.');
+    setPending('');
+  };
   return (
     <section className="cx-card">
       <div className="cx-card-h">
@@ -165,7 +175,14 @@ function Photos() {
           <p className="cx-h2">Menu photos</p>
           <p className="cx-small cx-muted">Your own photo of an item replaces the one on the site, everywhere on the home page: the menu, the item&apos;s details and the bag. JPG, PNG, WebP or AVIF; big phone photos are shrunk before they upload. A square photo looks best.</p>
         </div>
-        <input className="cx-input" style={{ maxWidth: 220 }} placeholder="Find an item" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="cx-row" style={{ gap: 8 }}>
+          {builtIn > 0 && (
+            <button type="button" className="cx-btn sm" disabled={pending === 'all'} onClick={copyAll}>
+              {pending === 'all' ? 'Copying…' : `Copy ${builtIn} built-in photos to Cloudinary`}
+            </button>
+          )}
+          <input className="cx-input" style={{ maxWidth: 220 }} placeholder="Find an item" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
       </div>
       <div className="cx-grid three">
         {list.map((p) => {

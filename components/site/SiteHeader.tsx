@@ -75,7 +75,7 @@ export function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
           <Link href="/reserve" className="gh-link gh-hide-sm" aria-current={current('/reserve') ? 'page' : undefined}>
             Reserve
           </Link>
-          <Link href="/#order" className="gh-order">
+          <Link href="/#menu" className="gh-order">
             <i aria-hidden="true" />
             Order online
           </Link>
