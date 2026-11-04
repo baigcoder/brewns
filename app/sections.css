@@ -844,3 +844,11 @@
 .club-perks li > span:last-child { max-width: 15rem; font-family: var(--font-geist); font-size: 0.975rem; line-height: 1.45; color: rgb(255 255 255 / 0.72); }
 .club-keep { margin: 0; font-family: var(--font-geist); font-size: 0.925rem; line-height: 1.5; color: rgb(255 255 255 / 0.72); }
 .club-keep a { color: #d8b777; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── The hero's link to the film of the site (/tour) ── */
+.hero-tour { display: inline-flex; align-items: center; gap: 0.65rem; width: fit-content; margin-top: 1rem; font-family: var(--font-geist); font-size: 0.975rem; font-weight: 600; color: #f5ede3; text-decoration: none; }
+.hero-tour-play { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 50%; background: rgb(245 237 227 / 0.12); transition: background-color 200ms, transform 200ms; }
+.hero-tour-play::before { content: ""; margin-left: 2px; border-left: 0.6rem solid #d8b777; border-block: 0.38rem solid transparent; }
+.hero-tour:hover .hero-tour-play, .hero-tour:focus-visible .hero-tour-play { background: #d8b777; transform: scale(1.06); }
+.hero-tour:hover .hero-tour-play::before, .hero-tour:focus-visible .hero-tour-play::before { border-left-color: #0b0806; }
+.hero-tour:focus-visible { outline: 2px solid #d8b777; outline-offset: 4px; border-radius: 999px; }
