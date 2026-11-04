@@ -51,3 +51,6 @@ export const LEGAL_LINKS: NavLink[] = [
 
 /** The line across the top of every page. Change it here for a new offer. */
 export const ANNOUNCEMENT = { text: 'Free delivery over Rs 3,000', more: 'Beans roasted every week in Lahore', href: '/delivery', cta: 'Delivery areas' };
+
+/** The film of the site, linked from the line across the top and the phone menu. */
+export const TOUR_LINK: NavLink = { href: '/tour', label: 'Watch the 1-min tour' };

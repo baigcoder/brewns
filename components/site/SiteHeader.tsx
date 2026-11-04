@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ANNOUNCEMENT, HEADER_LINKS } from '@/lib/siteNav';
+import { ANNOUNCEMENT, HEADER_LINKS, TOUR_LINK } from '@/lib/siteNav';
 import './chrome.css';
 
 /** How many things are in the bag, from the same storage the home page's bag uses. */
@@ -55,6 +55,9 @@ export function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
         <span>{ANNOUNCEMENT.text}</span>
         <span className="gh-note-more">{ANNOUNCEMENT.more}</span>
         <Link href={ANNOUNCEMENT.href}>{ANNOUNCEMENT.cta} →</Link>
+        <Link href={TOUR_LINK.href} className="gh-note-tour">
+          {TOUR_LINK.label} ▶
+        </Link>
       </p>
       <header className={`gh${open ? ' open' : ''}`} data-theme={open ? 'dark' : theme}>
         <button type="button" className="gh-toggle" aria-expanded={open} aria-controls="gh-menu" aria-label={open ? 'Close menu' : 'Open menu'} onClick={() => setOpen(!open)}>
@@ -96,6 +99,9 @@ export function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
           ))}
           <Link href="/reserve" onClick={() => setOpen(false)} style={{ animationDelay: `${60 + HEADER_LINKS.length * 50}ms` }}>
             Book a table
+          </Link>
+          <Link href={TOUR_LINK.href} onClick={() => setOpen(false)} style={{ animationDelay: `${110 + HEADER_LINKS.length * 50}ms` }}>
+            {TOUR_LINK.label}
           </Link>
         </nav>
         <p className="gh-menu-foot">

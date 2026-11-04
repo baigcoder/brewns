@@ -53,7 +53,7 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
 
     // Keep the site's copy of the card in step, so the checkout offers the right free drinks.
     try {
-      localStorage.setItem('brewns-club', JSON.stringify(first));
+      localStorage.setItem('brewns-club', JSON.stringify({ ...first, fromAccount: true }));
     } catch {}
 
     return () => {
@@ -97,7 +97,7 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
     try {
       const r = await api<{ club: ClubState }>('/api/account/club', { action: 'join', birthday });
       setClub(r.club);
-      localStorage.setItem('brewns-club', JSON.stringify(r.club));
+      localStorage.setItem('brewns-club', JSON.stringify({ ...r.club, fromAccount: true }));
       say('Welcome to brewns Club. The first stamp is on us.');
     } catch (e) {
       say((e as Error).message, true);

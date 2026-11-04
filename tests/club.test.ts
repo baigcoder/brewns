@@ -39,6 +39,13 @@ describe('brewns Club Loyalty Card', () => {
     expect(earlyStamps).toBe(6);
   });
 
+  it('does not double a pre-order placed in the night, before the shops open', () => {
+    const lines = [{ cat: 'drinks', qty: 2, unit: 650 }];
+    expect(stampsFor(lines, 2 * 60, 0)).toBe(2); // 02:00
+    expect(stampsFor(lines, 7 * 60, 0)).toBe(4); // 07:00, doors open
+    expect(stampsFor(lines, 9 * 60, 0)).toBe(2); // 09:00, back to one each
+  });
+
   it('rolls over 10 stamps into a free drink reward', () => {
     let state = emptyClub();
     state.member = { name: 'Zainab', phone: '0300 1234567', birthday: '05-10', since: Date.now(), no: memberNumber(1) };

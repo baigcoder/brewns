@@ -9,7 +9,9 @@
 export const CLUB = {
   stampsPerReward: 10,
   welcomeStamps: 1,
-  // Orders placed before this minute of the day earn double stamps.
+  // Orders placed between opening and this minute of the day earn double stamps; a pre-order placed
+  // in the night is not an early-morning visit (opening is OPEN_MIN in lib/catalog).
+  earlyFromMin: 7 * 60,
   earlyUntilMin: 9 * 60,
   // A free drink is worth up to this much; anything above is paid as usual.
   rewardCap: 1500,
@@ -68,7 +70,8 @@ export const isDrink = (cat: string) => CLUB.drinkCats.includes(cat);
 /** Stamps an order earns: one per drink, doubled before 09:00. A drink taken as a reward earns none. */
 export const stampsFor = (lines: Line[], placedMinOfDay: number, freeDrinks = 0) => {
   const drinks = lines.filter((l) => isDrink(l.cat)).reduce((n, l) => n + l.qty, 0);
-  return Math.max(0, drinks - freeDrinks) * (placedMinOfDay < CLUB.earlyUntilMin ? 2 : 1);
+  const early = placedMinOfDay >= CLUB.earlyFromMin && placedMinOfDay < CLUB.earlyUntilMin;
+  return Math.max(0, drinks - freeDrinks) * (early ? 2 : 1);
 };
 
 /** What a free drink takes off this bag: the priciest single drink, up to the cap. */

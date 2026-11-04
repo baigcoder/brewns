@@ -641,14 +641,6 @@ html:not(.brewns-live) .hdr { animation: pre-show 500ms ease 2.6s both; }
 @keyframes pre-show { from { opacity: 0; } to { opacity: 1; } }
 @media (min-width: 640px) { .pre { padding: 2.5rem; } }
 .pre .t-eyebrow { color: rgb(255 255 255 / 0.45); }
-.pre-count { margin-top: 0.5rem; font-family: var(--font-geist); font-weight: 700; font-size: var(--font-size-count-phone); line-height: var(--leading-display); letter-spacing: var(--letter-spacing-tight); font-variant-numeric: tabular-nums; }
-@media (min-width: 640px) { .pre-count { margin-top: 0.75rem; font-size: var(--font-size-count-tablet); } }
-@media (min-width: 1024px) { .pre-count { font-size: var(--font-size-count); } }
-.pre-mark { position: absolute; bottom: 1.25rem; left: 1.25rem; display: block; height: var(--size-logo-height); width: var(--size-logo-width); }
-@media (max-width: 639.98px) { .pre-mark { height: 1.1rem; width: 5.1945rem; } }
-@media (min-width: 640px) { .pre-mark { bottom: 2.5rem; left: 2.5rem; } }
-.pre-cup { pointer-events: none; position: absolute; bottom: 1.25rem; right: 1.25rem; height: 34vh; max-height: 30rem; width: auto; }
-@media (min-width: 640px) { .pre-cup { bottom: 2.5rem; right: 2.5rem; height: 52vh; } }
 .warm { position: absolute; inset: 0; z-index: -10; overflow: hidden; pointer-events: none; }
 .warm > * { position: absolute; }
 
@@ -3687,26 +3679,13 @@ section[id] {
   z-index: -5;
   background: radial-gradient(55% 50% at 50% 44%, rgb(120 68 30 / 0.42), transparent 70%), radial-gradient(40% 35% at 50% 100%, rgb(80 45 20 / 0.3), transparent 70%), var(--background);
 }
-.pre-center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
-.pre .pre-cup { position: static; height: min(36vh, 19rem); max-height: none; width: auto; color: rgb(244 242 236 / 0.92); filter: drop-shadow(0 18px 40px rgb(0 0 0 / 0.5)); }
-.pre .pre-mark { position: static; height: 1.55rem; width: 7.32rem; margin-top: 0.25rem; }
-.pre-meter { display: flex; align-items: baseline; justify-content: space-between; gap: 1.5rem; width: min(19rem, 72vw); font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgb(244 242 236 / 0.55); }
-.pre-step::before { content: "// "; color: var(--accent); }
-.pre .pre-count { margin: 0; font-family: var(--font-space-mono); font-weight: 400; font-size: 0.6875rem; line-height: 1; letter-spacing: 0.14em; color: var(--accent); }
-.pre .pre-count::after { content: "%"; }
-.pre-track { width: min(19rem, 72vw); height: 2px; border-radius: 2px; background: rgb(244 242 236 / 0.12); overflow: hidden; margin-top: -0.75rem; }
-#pre-bar { display: block; height: 100%; background: linear-gradient(90deg, #c99355, #e8b475); transform-origin: left center; transform: scaleX(0); box-shadow: 0 0 12px rgb(232 180 117 / 0.6); }
-#pre-crema { transition: opacity 300ms ease; }
-.pre-steam path { opacity: 0; transform-box: fill-box; transform-origin: center bottom; animation: preSteam 2.6s ease-in-out infinite; }
-.pre-steam path:nth-child(2) { animation-delay: 0.7s; }
-.pre-steam path:nth-child(3) { animation-delay: 1.4s; }
-@keyframes preSteam {
-  0% { opacity: 0; transform: translateY(8px) scaleY(0.7); }
-  35% { opacity: 0.55; }
-  100% { opacity: 0; transform: translateY(-10px) scaleY(1.1); }
-}
-.pre-foot { position: absolute; left: 0; right: 0; bottom: 1.5rem; text-align: center; font-family: var(--font-space-mono); font-size: 0.6875rem; letter-spacing: 0.22em; text-transform: uppercase; color: rgb(244 242 236 / 0.35); }
-@media (min-width: 640px) { .pre-foot { bottom: 2.5rem; } }
+.pre-center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
+/* The wordmark, poured: a faint outline of the letters, and coffee rising through them (--level, 0 to 1). */
+.pre-fillmark { position: relative; display: block; width: min(64vw, 24rem); aspect-ratio: 7.32 / 1.55; }
+.pre-fillmark .wordmark { position: absolute; inset: 0; }
+.pre-base { background-color: rgb(245 237 227 / 0.12); }
+.pre-pour { background-color: #d8b777; clip-path: inset(calc((1 - var(--level, 0)) * 100%) 0 0 0); }
+.pre-foot { margin: 0; font-family: var(--font-geist); font-size: 0.9375rem; letter-spacing: 0.02em; color: rgb(245 237 227 / 0.55); }
 
 /* ── Hide floating call button whenever ANY modal, drawer, or sheet is active ──
    Prevents overlapping with product cards, checkout buttons, bag drawer, or preloader. */
@@ -3827,9 +3806,9 @@ body:has(#pre) .voice-call-floating {
    phones through an invisible ::after, so nothing in the layout moves. */
 @media (max-width: 639.98px) {
   .hdr-sound, .hdr-account, .loc-map-link, .moments-like-btn, .rev-helpful,
-  .inside-cta, .card-quick-add, .ftr .dim-link, .w-menu-cta, .w-order-cta { position: relative; }
+  .card-quick-add, .ftr .dim-link, .w-menu-cta, .w-order-cta { position: relative; }
   .hdr-sound::after, .hdr-account::after, .loc-map-link::after, .moments-like-btn::after,
-  .rev-helpful::after, .inside-cta::after, .card-quick-add::after, .ftr .dim-link::after,
+  .rev-helpful::after, .card-quick-add::after, .ftr .dim-link::after,
   .w-menu-cta::after, .w-order-cta::after {
     content: "";
     position: absolute;
