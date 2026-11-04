@@ -5,6 +5,7 @@ import './segments.css';
 import { SITE_URL } from '@/lib/site';
 import { FAQ } from '@/lib/faq';
 import RegisterSW from '@/components/site/RegisterSW';
+import { InstallPrompt } from '@/components/site/InstallPrompt';
 
 const geist = Geist({
   subsets: ['latin'],
@@ -115,6 +116,7 @@ export default function RootLayout({
       <body>
         {children}
         <RegisterSW />
+        <InstallPrompt />
       </body>
     </html>
   );

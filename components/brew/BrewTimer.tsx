@@ -234,7 +234,7 @@ export function BrewTimer() {
     <div className="bt">
       <div className="bt-head">
         <div>
-          <p className="bt-eyebrow">{'//'} Brew companion</p>
+          <p className="bt-eyebrow">Brew companion</p>
           <h1 className="bt-title">Brew timer</h1>
           <p className="bt-sub">Pick a brewer, set your dose, and follow each pour. A chime marks every step.</p>
         </div>

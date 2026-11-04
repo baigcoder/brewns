@@ -128,7 +128,7 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
       <main className="acct-main">
         <div className="cx-stack" style={{ gap: 6 }}>
           <p className="cx-eyebrow">
-            <b>{'//'}</b> Member since {pkDate(me.since)}
+            Member since {pkDate(me.since)}
           </p>
           <h1 className="cx-h1">Hi {me.name.split(' ')[0]}.</h1>
         </div>

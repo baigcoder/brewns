@@ -27,7 +27,7 @@ export function StaffSignupForm({ initialRole }: { initialRole?: Role }) {
     return (
       <div className="auth-form auth-form-wide">
         <p className="cx-eyebrow" style={{ marginBottom: '4px' }}>
-          <b>{'//'}</b> Staff sign-up
+          Staff sign-up
         </p>
         <h2>Request sent</h2>
         <p className="cx-muted" style={{ marginTop: '4px', fontSize: '13px' }}>
@@ -79,7 +79,7 @@ export function StaffSignupForm({ initialRole }: { initialRole?: Role }) {
     >
       <div>
         <p className="cx-eyebrow" style={{ marginBottom: '4px' }}>
-          <b>{'//'}</b> Staff sign-up
+          Staff sign-up
         </p>
         <h2>Join the team</h2>
         <p className="cx-muted" style={{ marginTop: '4px', fontSize: '13px' }}>
