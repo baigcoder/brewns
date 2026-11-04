@@ -47,7 +47,7 @@ export default async function CafePage({ params }: { params: Promise<{ id: strin
               <Link href="/reserve" className="ip-btn ghost">
                 Book a table
               </Link>
-              <Link href="/#order" className="ip-btn ghost">
+              <Link href="/#menu" className="ip-btn ghost">
                 Order ahead
               </Link>
             </div>
@@ -110,7 +110,7 @@ export default async function CafePage({ params }: { params: Promise<{ id: strin
           </ul>
         </section>
 
-        <CtaBand title="Skip the line" script="next time." body={`Order ahead for pickup at ${c.name} and your cup is poured to meet you.`} href="/#order" label="Order ahead" />
+        <CtaBand title="Skip the line" script="next time." body={`Order ahead for pickup at ${c.name} and your cup is poured to meet you.`} href="/#menu" label="Order ahead" />
       </article>
     </SitePage>
   );

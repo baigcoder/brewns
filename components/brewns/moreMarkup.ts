@@ -7,21 +7,6 @@ import { FAQ, FAQ_TOPICS } from '@/lib/faq';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-export const BREW_MARKUP = `
-<!-- Brew at home -->
-<section aria-label="Brew at home" id="brew" data-header-theme="light" class="brew">
-  <div class="brew-in">
-    <div class="brew-head">
-      <p class="brew-eyebrow" data-iv="rise" data-y="10"><span class="sl">//</span><span class="sls"> </span>BREW AT HOME</p>
-      <h2 class="brew-h2" data-iv="rise" data-y="24" data-d="80">OUR COFFEE,<br>YOUR KITCHEN.</h2>
-      <p class="brew-lede" data-iv="rise" data-y="16" data-d="160">Four ways to make a brewns cup at home, with the numbers worked out for you. Pick a method, tell us how many cups, and press start: the timer calls every pour.</p>
-    </div>
-    <div class="brew-tabs" role="tablist" aria-label="Brewing method" id="brew-tabs" data-iv="rise" data-y="16" data-d="220"></div>
-    <div class="brew-card" id="brew-card" role="tabpanel" aria-live="polite" data-iv="rise" data-y="30" data-d="280"></div>
-  </div>
-</section>
-`;
-
 export const CLUB_MARKUP = `
 <!-- brewns Club -->
 <section aria-label="brewns Club" id="club" data-header-theme="dark" class="club">

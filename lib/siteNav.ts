@@ -25,7 +25,6 @@ export const FOOTER_COLUMNS: [string, NavLink[]][] = [
     { href: '/locations', label: 'Locations' },
     { href: '/reserve', label: 'Book a table' },
     { href: '/#menu', label: 'Café menu' },
-    { href: '/#order', label: 'Order ahead' },
     { href: '/#faq', label: 'Events & catering' },
   ]],
   ['brewns', [
@@ -34,6 +33,7 @@ export const FOOTER_COLUMNS: [string, NavLink[]][] = [
     { href: '/journal', label: 'Journal' },
     { href: '/#club', label: 'brewns Club' },
     { href: '/careers', label: 'Careers' },
+    { href: '/tour', label: 'Site tour' },
   ]],
   ['Help', [
     { href: '/contact', label: 'Contact us' },
@@ -47,8 +47,6 @@ export const FOOTER_COLUMNS: [string, NavLink[]][] = [
 export const LEGAL_LINKS: NavLink[] = [
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
-  { href: '/refunds', label: 'Refunds' },
-  { href: '/delivery', label: 'Delivery' },
 ];
 
 /** The line across the top of every page. Change it here for a new offer. */

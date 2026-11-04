@@ -43,7 +43,7 @@ import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TI
 import { dietBadges, dietOf, DIET_FILTERS, matchesDiet } from '@/lib/diet';
 import { usualOf } from '@/lib/usual';
 import { pairOf } from '@/lib/pairings';
-import { BREW_METHODS, brewAmounts, fillStep, methodById, mmss, stepAt, STRENGTHS } from './brewGuide';
+import { FOOTER_COLUMNS } from '@/lib/siteNav';
 import { dressPackaging, loadPrint } from './packaging';
 import { environmentFromScene } from './pmremAsync';
 import { initVoiceCalling } from './voiceCalling';
@@ -228,7 +228,7 @@ soundPanel.className = "sound-panel";
 soundPanel.hidden = true;
 soundPanel.setAttribute("role", "dialog");
 soundPanel.setAttribute("aria-label", "Sound");
-const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", brew: "Brewing at home", story: "Slow afternoon", journey: "How it started", hania: "Cool vibes", founder: "Meet the founder", reviews: "The regulars", club: "Stamping cards", order: "Tickets printing", faq: "Questions at the till", footer: "Closing time" };
+const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", brew: "Brewing at home", story: "Slow afternoon", journey: "How it started", hania: "Cool vibes", reviews: "The regulars", club: "Stamping cards", order: "Tickets printing", faq: "Questions at the till", footer: "Closing time" };
 let sceneName = "hero";
 const renderSoundPanel = () => {
   const st = getSoundSettings();
@@ -1193,6 +1193,8 @@ const renderScore = (avg: number, total: number) => {
   $("#rev-dist")?.toggleAttribute("hidden", !total);
   // With nothing to filter or page through, the section becomes one invitation (see .rev-none).
   $("#reviews")?.classList.toggle("rev-none", !total);
+  // An empty review wall reads as "nobody comes here": the section waits for the first review.
+  $("#reviews")?.toggleAttribute("hidden", !total);
   // The hero quotes the same score, and only once there is one.
   const hero = $("#hero-rating");
   if (hero) {
@@ -1841,16 +1843,9 @@ document.addEventListener("click", (e) => {
   }
 });
 
-/* [label, where it goes, what it does there]. The action (see "footer shortcuts"
-   near the end) filters the shop or menu, or opens a product or form; the href is
-   where the link lands without it. */
-const COLUMNS = [
-  ["Shop", [["ALL PRODUCTS", "/shop"], ["COFFEE BEANS", "/shop#beans"], ["SUBSCRIBE", "/subscribe"], ["GIFT CARDS", "/gift-cards"], ["MERCH", "#shop", "shop:merch"]]],
-  ["Menu", [["COFFEE", "#menu", "menu:coffee"], ["COLD BAR", "#menu", "menu:specialty"], ["KITCHEN", "#menu", "menu:burgers"], ["FULL MENU", "#menu", "fullmenu"]]],
-  ["Experience", [["MOMENTS", "#moments"], ["BOOK A TABLE", "/reserve"], ["BREW AT HOME", "#brew"], ["BREW TIMER", "/brew-timer"], ["FLAVOR WHEEL", "/flavor-wheel"], ["BREWNS CLUB", "#club"]]],
-  ["brewns", [["OUR STORY", "/about"], ["OUR COFFEE", "/coffee"], ["LOCATIONS", "/locations"], ["THE JOURNAL", "/journal"], ["CAREERS", "/careers"], ["STAFF PORTAL", "/staff/signin"]]],
-  ["Help", [["CONTACT US", "/contact"], ["DELIVERY", "/delivery"], ["REFUNDS", "/refunds"], ["PRIVACY", "/privacy"], ["TERMS", "/terms"], ["EMAIL US", "mailto:hello@brewns.coffee"], ["CALL US", "tel:+924212345678"]]],
-];
+/* The same columns as every other page's footer (lib/siteNav.ts); links into the
+   home page drop the leading "/" so they scroll instead of reloading. */
+const COLUMNS = FOOTER_COLUMNS.map(([heading, links]) => [heading, links.map((l) => [l.label.toUpperCase(), l.href.startsWith("/#") ? l.href.slice(1) : l.href])]);
 $("#ftr-nav").innerHTML = COLUMNS.map(([heading, links], i) =>
   `<div class="ftr-col"><p data-rise data-d="${160 + i * 130}">${heading}</p><ul class="ftr-list">${links
     .map(([t, href, go], row) => `<li data-rise data-d="${160 + i * 130 + (row + 1) * 70}"><a href="${href}"${go ? ` data-go="${go}"` : ""} data-ul data-rule>${t.replace("&", "&amp;")}</a></li>`)
@@ -2613,68 +2608,6 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
   }, 20000);
 })();
 
-/* ═══════════ the brewns story: a copper rail fills as the chapters pass ═══════════ */
-(() => {
-  const steps = $("#journey-steps");
-  if (!steps) return;
-  scrub($("#journey-fill"), steps, "top center", "bottom center", { transform: "scaleY(0)" }, { transform: "scaleY(1)" });
-  // each chapter lights up as it reaches the middle of the screen, and stays lit
-  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add("lit")), { rootMargin: "0px 0px -45% 0px" });
-  $$(".journey-step", steps).forEach((li) => io.observe(li));
-})();
-
-/* ═══════════ the brewns film ═══════════ */
-(() => {
-  const video = $("#film-video");
-  const toggle = $("#film-toggle");
-  const sound = $("#film-sound");
-  if (!video || !toggle) return;
-  const small = window.innerWidth < 900 || navigator.connection?.saveData;
-  const size = small ? "720" : "1080";
-  let loaded = false, wanted = !REDUCED, inView = false;
-  const load = () => {
-    if (loaded) return;
-    loaded = true;
-    video.innerHTML = `<source src="/assets/film/brewns-tour-${size}.webm" type="video/webm"><source src="/assets/film/brewns-tour-${size}.mp4" type="video/mp4">`;
-    video.load();
-  };
-  const paint = () => {
-    const playing = !video.paused;
-    toggle.dataset.state = playing ? "playing" : "paused";
-    toggle.setAttribute("aria-label", playing ? "Pause the film" : "Play the film");
-  };
-  const sync = () => {
-    if (wanted && inView) { load(); video.play().catch(() => {}); } else video.pause();
-  };
-  video.addEventListener("play", paint);
-  video.addEventListener("pause", paint);
-  // Muted it loops as ambience; with sound it plays once from the top, then goes quiet again.
-  const paintSound = () => {
-    if (!sound) return;
-    sound.setAttribute("aria-pressed", String(!video.muted));
-    sound.querySelector(".film-sound-l").textContent = video.muted ? "Sound on" : "Sound off";
-  };
-  const setSound = (on) => {
-    video.muted = !on;
-    video.loop = !on;
-    if (on) { video.currentTime = 0; wanted = true; inView = true; }
-    paintSound();
-    sync();
-  };
-  sound?.addEventListener("click", () => setSound(video.muted));
-  video.addEventListener("volumechange", paintSound);
-  video.addEventListener("ended", () => { setSound(false); video.play().catch(() => {}); });
-  toggle.addEventListener("click", () => { wanted = video.paused; sync(); if (wanted && !inView) { inView = true; sync(); } });
-  // Fetch a little before it arrives, but never during the page load: it sits right under
-  // the hero and must not compete with it. Play only while most of it is on screen.
-  const watch = () => new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && !REDUCED && load(), { rootMargin: "400px 0px" }).observe(video);
-  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
-  if (document.readyState === "complete") idle(watch);
-  else window.addEventListener("load", () => idle(watch), { once: true });
-  new IntersectionObserver((es) => { inView = es[0].intersectionRatio >= 0.4; sync(); }, { threshold: [0, 0.4] }).observe(video);
-  document.addEventListener("visibilitychange", () => document.hidden ? video.pause() : sync());
-})();
-
 /* ═══════════ hero card ═══════════ */
 /* Each object in the hero is a real product: the card and its quick add read
    the catalogue, so the name, the price and what lands in the bag always agree. */
@@ -2762,195 +2695,6 @@ const heroCardHover = (() => {
   heroCard.addEventListener("focusin", show);
   heroCard.addEventListener("focusout", later);
   return { show, later };
-})();
-
-/* ═══════════ order block: the thermal printer ═══════════ */
-// Filled in by the printer below; the tear-off gesture asks it for a fresh slip.
-const orderPrinter = { reprint: () => {} };
-(() => {
-  const SCENE = { width: 1440, height: 800 };
-  const STEPS = 46, BARCODE_FED = 0.88;
-  const START_VH = -0.85, END_VH = 0, EASE_POWER = 1.6;
-  const PRINTER_ART = { width: 404, height: 72 };
-  const PRINTER = { left: 519, top: 133, width: 400, get height() { return (this.width * PRINTER_ART.height) / PRINTER_ART.width; } };
-  const BOARD_WIDTH = 1440, TIGHT_WIDTH = 1280, GROW = 0.085, HEADLINE_TOP = 126, NARROW_GROW = 1.096, NARROW_NUDGE_X = 20;
-  const NARROW = {
-    maxWidth: 1024, top: PRINTER.top, paperBottom: 748,
-    get height() { return this.paperBottom - this.top; },
-    bandTop: 0.217, bandBottom: 0.22, phoneWidth: 640, phoneBandTop: 0.223, phoneBandBottom: 0.277,
-  };
-  const RECEIPT = { width: 328, paddingX: 22, barcode: { height: 42, gap: 1, thin: 1, thick: 2.5, seed: 20250521 } };
-  const SETTLE = { floor: 0.42, ceiling: 0.94, span: 0.55, seed: 90210 };
-  const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
-
-  const barcodeBars = () => {
-    const span = RECEIPT.width - RECEIPT.paddingX * 2;
-    let s = RECEIPT.barcode.seed >>> 0;
-    const next = () => {
-      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-      return s / 4294967296;
-    };
-    const bars = [];
-    let left = span, key = 0;
-    while (left > 0) {
-      const width = next() < 0.55 ? RECEIPT.barcode.thin : RECEIPT.barcode.thick;
-      const on = next() > 0.22;
-      if (left <= width + RECEIPT.barcode.gap) {
-        bars.push({ key: key++, width: left, on: true });
-        break;
-      }
-      bars.push({ key: key++, width, on });
-      left -= width + RECEIPT.barcode.gap;
-    }
-    return bars;
-  };
-  const startHeights = (count) => {
-    let s = SETTLE.seed >>> 0;
-    return Array.from({ length: count }, () => {
-      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-      const r = s / 4294967296;
-      return SETTLE.floor + r * (SETTLE.ceiling - SETTLE.floor);
-    });
-  };
-  const scaleAt = (v, i, count, from) => {
-    const t0 = (i / count) * (1 - SETTLE.span);
-    const local = clamp((v - t0) / SETTLE.span, 0, 1);
-    const eased = 1 - Math.pow(1 - local, 3);
-    return from + (1 - from) * eased;
-  };
-
-  const section = $("#order"), paper = $("#paper"), stage = $("#stage"), barcode = $("#barcode");
-
-  let d = `M 0 0 L ${RECEIPT.width} 0`;
-  for (let x = RECEIPT.width; x > 0; x -= 8) d += ` L ${Math.max(0, x - 4)} 9 L ${Math.max(0, x - 8)} 0`;
-  $("#torn").setAttribute("d", d + " Z");
-
-  const bars = barcodeBars();
-  const heights = startHeights(bars.length);
-  const barEls = bars.map((b) => {
-    const el = document.createElement("span");
-    el.style.width = `${b.width}px`;
-    el.style.flex = "none";
-    el.style.background = b.on ? "#111111" : "transparent";
-    barcode.append(el);
-    return el;
-  });
-  const sweep = new Spring({ v: 0 }, (o) => barEls.forEach((el, i) => (el.style.transform = `scaleY(${scaleAt(o.v, i, barEls.length, heights[i])})`)));
-
-  /* The paper follows the scroll through a spring, so it glides out of the slot
-     rather than jumping step to step. While it moves, the section is marked
-     "printing" (amber light, glowing slot); fully out, "printed" (green light),
-     with a one-off settle swing. */
-  let progress = -1, fed = false, reprinting = false, idle = 0, out = false;
-  const setOut = (now) => {
-    if (now === out) return;
-    out = now;
-    section.classList.toggle("printed", out);
-    if (out) printerCut();
-    if (!out || REDUCED) return;
-    section.classList.add("settle");
-    setTimeout(() => section.classList.remove("settle"), 1500);
-  };
-  let lastV = 0, lastT = performance.now();
-  const feed = new Spring({ v: 0 }, (o) => {
-    paper.style.setProperty("--p", String(o.v));
-    // The motor runs while paper moves, pitched to how fast it's feeding.
-    const t = performance.now();
-    const speed = Math.abs(o.v - lastV) / Math.max(1, t - lastT);
-    if (o.v > lastV + 0.0005 && o.v < 0.998) printerFeed(Math.min(1, speed * 60));
-    lastV = o.v;
-    lastT = t;
-    setOut(o.v > 0.995);
-    if (REDUCED) return;
-    section.classList.add("printing");
-    clearTimeout(idle);
-    idle = setTimeout(() => section.classList.remove("printing"), 160);
-  });
-  const barcodeTo = (now) => {
-    if (now === fed) return;
-    fed = now;
-    sweep.start({ v: fed ? 1 : 0 }, { config: C(70, 34) });
-  };
-  const write = (p) => {
-    if (p === progress || reprinting) return;
-    progress = p;
-    if (REDUCED) feed.set({ v: p });
-    else feed.start({ v: p }, { config: C(90, 22) });
-    barcodeTo(p >= BARCODE_FED);
-  };
-
-  /* After a tear: the next order number, and a new slip fed all the way out. */
-  orderPrinter.reprint = () => {
-    const no = $("#rc-no");
-    const n = parseInt(no.textContent.replace(/\D/g, ""), 10) || 0;
-    no.textContent = `Order #${String(n + 1).padStart(5, "0")}`;
-    if (REDUCED) return;
-    reprinting = true;
-    feed.stop();
-    feed.set({ v: 0 });
-    sweep.set({ v: 0 });
-    fed = false;
-    setTimeout(() => {
-      barcodeTo(true);
-      feed.start({ v: 1 }, { config: C(26, 18) }).then(() => {
-        reprinting = false;
-        progress = 1;
-      });
-    }, 350);
-  };
-  let inView = false;
-  new IntersectionObserver(([e]) => {
-    inView = e.isIntersecting;
-    if (inView) measure();
-  }, { rootMargin: "25% 0px" }).observe(section);
-
-  const readOrder = () => {
-    if (!inView) return;
-    const scrolled = -section.getBoundingClientRect().top;
-    const from = START_VH * window.innerHeight;
-    const to = END_VH * window.innerHeight;
-    let p = clamp((scrolled - from) / (to - from), 0, 1);
-    p = 1 - Math.pow(1 - p, EASE_POWER);
-    return () => write(Math.round(p * STEPS) / STEPS);
-  };
-  const measure = () => readOrder()?.();
-
-  const place = (scale, shift, nudgeX) => {
-    stage.style.transform = `translateX(-50%) translate(${nudgeX}px, ${shift}px) scale(${scale})`;
-  };
-  const fit = () => {
-    const vw = window.innerWidth, vh = window.innerHeight;
-    if (vw >= NARROW.maxWidth) {
-      const rootSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const base = rootSize / FONT_BASE;
-      if (vw >= BOARD_WIDTH) return place(base, 0, 0);
-      if (vw >= TIGHT_WIDTH) {
-        const t = clamp((BOARD_WIDTH - vw) / (BOARD_WIDTH - TIGHT_WIDTH), 0, 1);
-        const grown = base * (1 + GROW * t);
-        return place(grown, PRINTER.top * (base - grown), 0);
-      }
-      const grown = base * NARROW_GROW;
-      return place(grown, HEADLINE_TOP * base - PRINTER.top * grown, NARROW_NUDGE_X * base);
-    }
-    const phone = vw < NARROW.phoneWidth;
-    const bandTop = phone ? NARROW.phoneBandTop : NARROW.bandTop;
-    const bandBottom = phone ? NARROW.phoneBandBottom : NARROW.bandBottom;
-    const band = vh * (1 - bandTop - bandBottom);
-    const next = Math.min(band / NARROW.height, (vw * 0.94) / PRINTER.width);
-    const machineTop = vh * bandTop + (band - NARROW.height * next) / 2;
-    place(next, machineTop - NARROW.top * next, 0);
-  };
-  fit();
-  window.addEventListener("resize", fit);
-
-  scrub($("#order-bg"), section, "top bottom", "top top", { y: "-23.0769%" }, { y: "0%" });
-  if (REDUCED) {
-    section.style.height = "100lvh";
-    write(1);
-    sweep.set({ v: 1 });
-  } else {
-    onScrollFrame(readOrder);
-  }
 })();
 
 /* ═══════════ Opalesce ═══════════ */
@@ -5148,80 +4892,6 @@ menuMoreBtn.addEventListener("click", () => {
 updateMenuDisplay(true);
 paintFavs();
 
-/* ═══════════ Menu: a drag-to-explore strip of what is on the counter ═══════════
-   One row of every drink and bake, under the grid. A mouse drags it and lets go with
-   a glide; a finger or a trackpad scrolls it natively. Tapping an item opens it. */
-(() => {
-  const items = ALL_MENU_CARDS.filter((c) => c.file && c.cat !== "beans");
-  menuMoreWrap.insertAdjacentHTML(
-    "afterend",
-    `<div class="menu-strip" id="menu-strip">
-      <div class="menu-strip-head"><p class="mono-fine"><span class="dot"></span>AT THE COUNTER TODAY · ${String(items.length).padStart(2, "0")}</p><p class="menu-strip-hint mono-fine" aria-hidden="true">DRAG<span class="ms-long"> TO EXPLORE</span> <span>⟷</span></p></div>
-      <ul class="menu-strip-track" id="menu-strip-track" data-lenis-prevent-horizontal aria-label="Everything on the counter today">${items
-        .map(
-          (c) => `<li><button type="button" class="ms-item" data-ms="${c.id}"><span class="ms-img"><img loading="lazy" decoding="async" draggable="false" src="${ASSET_BASE_URL}menu/${c.file}?v=${ASSET_CACHE_VERSION}" alt="" width="${c.size[0]}" height="${c.size[1]}"></span><span class="ms-name">${c.name}</span><span class="ms-price mono-fine">${c.price}</span></button></li>`,
-        )
-        .join("")}</ul>
-      <div class="menu-strip-progress" aria-hidden="true"><i></i></div>
-    </div>`,
-  );
-  const track = $("#menu-strip-track");
-  let drag = null;
-  let glide = 0;
-  let dragged = false;
-  track.addEventListener("pointerdown", (e) => {
-    if (e.pointerType !== "mouse" || e.button !== 0) return;
-    cancelAnimationFrame(glide);
-    drag = { id: e.pointerId, x: e.clientX, left: track.scrollLeft, last: e.clientX, t: e.timeStamp, v: 0 };
-    dragged = false;
-  });
-  track.addEventListener("pointermove", (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const dx = e.clientX - drag.x;
-    if (!dragged && Math.abs(dx) < 5) return;
-    if (!dragged) {
-      // Captured only once it is a drag, so a plain click still reaches the item.
-      dragged = true;
-      track.setPointerCapture(e.pointerId);
-      track.classList.add("is-drag");
-    }
-    const dt = Math.max(1, e.timeStamp - drag.t);
-    drag.v = 0.8 * ((drag.last - e.clientX) / dt) + 0.2 * drag.v;
-    drag.last = e.clientX;
-    drag.t = e.timeStamp;
-    track.scrollLeft = drag.left - dx;
-  });
-  const release = () => {
-    if (!drag) return;
-    let v = drag.v * 16;
-    drag = null;
-    if (!dragged) return;
-    const step = () => {
-      v *= 0.94;
-      track.scrollLeft += v;
-      if (Math.abs(v) > 0.4) glide = requestAnimationFrame(step);
-      else track.classList.remove("is-drag"); // snapping comes back for the last bit
-    };
-    glide = requestAnimationFrame(step);
-  };
-  track.addEventListener("pointerup", release);
-  track.addEventListener("pointercancel", release);
-  track.addEventListener(
-    "click",
-    (e) => {
-      if (dragged) {
-        e.preventDefault();
-        e.stopPropagation();
-        dragged = false;
-        return;
-      }
-      const item = (e.target as HTMLElement).closest("[data-ms]") as HTMLElement | null;
-      if (item) openProduct(item.dataset.ms);
-    },
-    true,
-  );
-})();
-
 /* ═══════════ Photos with depth ═══════════
    The café photos drift a little slower than the page: a CSS scroll-driven animation
    (transform only, off the main thread) that a section gets only while it is near
@@ -5313,14 +4983,6 @@ $$('a[href^="#"]').forEach((a) => {
 /* every "order" affordance on the page opens the order flow */
 const openOrder = () => (cart.count() ? openCheckout() : openBag());
 const orderTargets = [...$$("[data-order-now]"), ...$$('a[data-cta="order right now"]')];
-const receiptOrder = $$("#stage .receipt-body span").find((s) => s.textContent.trim().startsWith("ORDER NOW"));
-if (receiptOrder) {
-  receiptOrder.setAttribute("role", "button");
-  receiptOrder.tabIndex = 0;
-  receiptOrder.style.cursor = "pointer";
-  receiptOrder.addEventListener("keydown", (e) => e.key === "Enter" && openOrder());
-  orderTargets.push(receiptOrder);
-}
 orderTargets.forEach((el) =>
   el.addEventListener("click", (e) => {
     e.preventDefault();
@@ -5349,63 +5011,6 @@ const calibrator = new TasteCalibrator(
   }
 );
 $("#open-calibrator")?.addEventListener("click", () => calibrator.open());
-
-const initReceiptTear = () => {
-  // The whole slip is the handle: tap it, or pull it down. The slot window clips
-  // the old strip at its foot, so the hint sits above the printer instead.
-  const paperEl = $("#paper");
-  const handle = paperEl;
-  const hint = $("#tear-hint");
-  if (!paperEl) return;
-
-  let startY = 0;
-  let isDragging = false;
-  let isTorn = false;
-
-  handle.addEventListener("pointerdown", (e) => {
-    if (isTorn || e.target.closest('[role="button"]')) return;
-    isDragging = true;
-    startY = e.clientY;
-    try { handle.setPointerCapture(e.pointerId); } catch {}
-  });
-
-  const tear = () => {
-    isTorn = true;
-    isDragging = false;
-    playPaperTear();
-    paperEl.style.transform = "";
-    paperEl.classList.add("torn-state");
-    if (hint) hint.textContent = "✓ COLLECTED. PRINTING THE NEXT ONE";
-    // Once it has fallen away, the printer runs off a fresh slip.
-    setTimeout(() => {
-      orderPrinter.reprint();
-      paperEl.classList.remove("torn-state");
-      setTimeout(() => {
-        isTorn = false;
-        if (hint) hint.textContent = "TAP OR PULL THE RECEIPT TO TEAR IT OFF";
-      }, 1800);
-    }, 900);
-  };
-
-  handle.addEventListener("pointermove", (e) => {
-    if (!isDragging || isTorn) return;
-    const dy = Math.max(0, e.clientY - startY);
-    paperEl.style.transform = `translate3d(0, ${dy * 0.5}px, 0)`;
-    if (dy > 65) tear();
-  });
-
-  const onEnd = (e) => {
-    if (!isDragging) return;
-    isDragging = false;
-    try { handle.releasePointerCapture(e.pointerId); } catch {}
-    // A tap without a drag tears too.
-    if (!isTorn && Math.abs(e.clientY - startY) < 6 && e.type === "pointerup") return tear();
-    if (!isTorn) paperEl.style.transform = "";
-  };
-  handle.addEventListener("pointerup", onEnd);
-  handle.addEventListener("pointercancel", onEnd);
-};
-setTimeout(initReceiptTear, 1000);
 
 whenReady(() => setTimeout(routeFromHash, 300));
 
@@ -8172,44 +7777,6 @@ coEl.addEventListener("submit", (e) => {
   });
   (window as any).__brewnsReview = openRevModal;
 
-  /* ═══════════════════════ the printed receipt ═══════════════════════
-     The receipt feeds out of the printer as you scroll to it, so it carries the
-     moment it printed and an actual order. It had neither: no items, no total, and
-     a date frozen at 21/05/2025 under a headline reading "coffee for right now".
-
-     This sits at the end of initBrewns on purpose. It reuses the checkout's own
-     money(), TAX and PREP_MIN rather than restating them, and those are declared
-     further up — run it any earlier and they are still in the temporal dead zone.
-     The order number comes from the same counter placeOrder() increments, so the
-     printed ticket and the one the bag issues belong to the same roll. */
-  const RECEIPT_ITEMS = [
-    [2, "Iced Matcha", 1150],
-    [1, "Cinnamon Roll", 700],
-  ];
-  const rcSubtotal = RECEIPT_ITEMS.reduce((sum, [qty, , price]) => sum + qty * price, 0);
-  const rcTaxDue = rcSubtotal * TAX;
-  const rcPad2 = (n) => String(n).padStart(2, "0");
-  const rcClock = (d) => `${rcPad2(d.getHours())}:${rcPad2(d.getMinutes())}`;
-  const rcPrintedAt = new Date();
-  const rcReadyAt = new Date(rcPrintedAt.getTime() + PREP_MIN * 60000);
-
-  $("#rc-items").innerHTML = RECEIPT_ITEMS.map(
-    ([qty, name, price]) => `<span>${qty}&times;</span><span>${esc(name)}</span><span>${money(qty * price)}</span>`,
-  ).join("");
-  $("#rc-sum").innerHTML = [
-    ["Subtotal", money(rcSubtotal), ""],
-    [`Punjab sales tax ${Math.round(TAX * 100)}%`, money(rcTaxDue), ""],
-    ["Total", money(rcSubtotal + rcTaxDue), "rc-strong"],
-  ]
-    .map(([label, value, strong]) => `<span class="${strong}">${label}</span><span class="${strong}">${value}</span>`)
-    .join("");
-
-  $("#rc-no").textContent = `Order #${String(readStore("brewns-order-seq", 25) + 1).padStart(5, "0")}`;
-  $("#rc-date").textContent = `${rcPad2(rcPrintedAt.getDate())}/${rcPad2(rcPrintedAt.getMonth() + 1)}/${rcPrintedAt.getFullYear()}`;
-  $("#rc-time").textContent = rcClock(rcPrintedAt);
-  $("#rc-ready").textContent = `Ready ${rcClock(rcReadyAt)} · MM Alam Rd`;
-
-
   /* ═══════════════════════ the footer's clock ═══════════════════════
      The footer stated hours and left the arithmetic to the reader. It now answers
      the question the locations badges answer — is it open right now — off the same
@@ -8231,136 +7798,6 @@ coEl.addEventListener("submit", (e) => {
   const footerClock = setInterval(paintFooterHours, 60000);
 
   $("#ftr-year").textContent = String(new Date().getFullYear());
-
-  /* ═══════════════════════ brew at home ═══════════════════════
-     Pick a method and a number of cups; the recipe scales, and the timer walks
-     through the pours with a tick at each step and a chime at the end. The clock
-     runs off performance.now() in a rAF loop, so a dropped frame never loses time. */
-  const brewTabs = $("#brew-tabs");
-  const brewCard = $("#brew-card");
-  const brew = { id: BREW_METHODS[0].id, cups: BREW_METHODS[0].cups.def, strength: 1, t: 0, running: false, from: 0, base: 0, raf: 0, step: -1 };
-  const BREW_RING = 2 * Math.PI * 46;
-  brewTabs.innerHTML = BREW_METHODS.map(
-    (m) => `<button type="button" role="tab" class="brew-tab" data-brew="${m.id}" aria-selected="${m.id === brew.id}" aria-controls="brew-card">${m.short}</button>`,
-  ).join("");
-  const brewNowHTML = (m, a) => {
-    if (!brew.running && brew.t === 0)
-      return `<p class="brew-now-l mono-fine">BEFORE YOU START</p><p>Heat the water, weigh ${a.coffee} g of coffee and grind it ${m.grind.split(" · ")[0].toLowerCase()}. Put the ${m.kit.split(" · ")[0].toLowerCase()} on the scale, zero it, and press start.</p>`;
-    const i = stepAt(m, brew.t);
-    const done = brew.t >= m.total;
-    return `<p class="brew-now-l mono-fine">${done ? "DONE" : `STEP ${i + 1} OF ${m.steps.length}`} · ${m.steps[i].title}</p><p>${fillStep(m.steps[i].text, a)}</p>`;
-  };
-  const renderBrew = () => {
-    const m = methodById(brew.id);
-    const a = brewAmounts(m, brew.cups, brew.strength);
-    const bean = productById(m.beans);
-    const unit = m.cupLabel.split(" · ")[0];
-    const step = stepAt(m, brew.t);
-    const started = brew.running || brew.t > 0;
-    brew.step = started ? step : -1;
-    brewCard.innerHTML = `<div class="brew-recipe">
-        <p class="brew-kicker mono-fine">RECIPE · ${m.cupLabel}</p>
-        <h3 class="brew-name">${m.name}</h3>
-        <p class="brew-blurb">${m.blurb}</p>
-        <div class="brew-controls">
-          ${
-            m.cups.max > m.cups.min
-              ? `<div class="brew-ctl"><span class="mono-fine">${unit}S</span><div class="brew-stepper"><button type="button" data-cups="-1" aria-label="Fewer ${unit.toLowerCase()}s" ${brew.cups <= m.cups.min ? "disabled" : ""}>−</button><output aria-live="polite">${brew.cups}</output><button type="button" data-cups="1" aria-label="More ${unit.toLowerCase()}s" ${brew.cups >= m.cups.max ? "disabled" : ""}>+</button></div></div>`
-              : `<div class="brew-ctl"><span class="mono-fine">MAKES</span><p class="brew-one">ONE ${unit}</p></div>`
-          }
-          <div class="brew-ctl"><span class="mono-fine">STRENGTH</span><div class="brew-seg" role="radiogroup" aria-label="Strength">${STRENGTHS.map((label, i) => `<button type="button" role="radio" aria-checked="${i === brew.strength}" data-strength="${i}">${label}</button>`).join("")}</div></div>
-        </div>
-        <dl class="brew-nums">
-          <div><dt class="mono-fine">COFFEE</dt><dd>${a.coffee}<small>G</small></dd></div>
-          <div><dt class="mono-fine">WATER</dt><dd>${a.water}<small>G</small></dd></div>
-          <div><dt class="mono-fine">RATIO</dt><dd>1:${a.ratio}</dd></div>
-        </dl>
-        <dl class="brew-spec mono-fine"><div><dt>GRIND</dt><dd>${m.grind}</dd></div><div><dt>WATER</dt><dd>${m.temp}</dd></div><div><dt>YOU NEED</dt><dd>${m.kit}</dd></div></dl>
-        <button type="button" class="brew-beans" data-brew-beans><span><small class="mono-fine">THE BEANS FOR THIS</small><b>${bean.name}</b><small class="mono-fine">GROUND FOR ${m.short} · <span class="nw">FROM ${money(bean.price)}</span></small></span>${ARROW_SVG}</button>
-      </div>
-      <div class="brew-timer">
-        <div class="brew-ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="brew-bar" cx="50" cy="50" r="46" stroke-dasharray="${BREW_RING}" stroke-dashoffset="${BREW_RING * (1 - Math.min(1, brew.t / m.total))}"/></svg>
-          <p class="brew-clock" role="timer" aria-label="Brew timer"><span id="brew-clock">${mmss(brew.t)}</span><small class="mono-fine">OF ${mmss(m.total)}</small></p></div>
-        <div class="brew-now" id="brew-now" aria-live="polite">${brewNowHTML(m, a)}</div>
-        <ol class="brew-steps">${m.steps.map((st, i) => `<li class="${started && i < step ? "done" : ""}${started && i === step ? " now" : ""}"><time class="mono-fine">${mmss(st.at)}</time><b>${st.title}</b></li>`).join("")}</ol>
-        <div class="brew-btns"><button type="button" class="btn btn-dark" data-brew-go>${brew.running ? "PAUSE" : brew.t >= m.total ? "BREW AGAIN" : brew.t > 0 ? "RESUME" : "START THE TIMER"}${ARROW_SVG}</button><button type="button" class="btn brew-reset" data-brew-reset ${brew.t === 0 ? "disabled" : ""}>RESET</button></div>
-      </div>`;
-  };
-  const brewFrame = () => {
-    const m = methodById(brew.id);
-    brew.t = Math.min(m.total, brew.base + (performance.now() - brew.from) / 1000);
-    const step = stepAt(m, brew.t);
-    if (brew.t >= m.total) {
-      brew.running = false;
-      playChime();
-      triggerHaptic([40, 60, 40]);
-      return renderBrew();
-    }
-    if (step !== brew.step) {
-      if (brew.step >= 0) {
-        playSoftClick();
-        triggerHaptic(25);
-      }
-      renderBrew();
-    } else {
-      $("#brew-clock", brewCard).textContent = mmss(brew.t);
-      $("#brew-bar", brewCard).setAttribute("stroke-dashoffset", String(BREW_RING * (1 - brew.t / m.total)));
-    }
-    brew.raf = requestAnimationFrame(brewFrame);
-  };
-  const stopBrew = () => {
-    cancelAnimationFrame(brew.raf);
-    brew.running = false;
-  };
-  brewTabs.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-brew]");
-    if (!b || b.dataset.brew === brew.id) return;
-    stopBrew();
-    const m = methodById(b.dataset.brew);
-    Object.assign(brew, { id: m.id, cups: m.cups.def, t: 0, base: 0 });
-    $$("[data-brew]", brewTabs).forEach((x) => x.setAttribute("aria-selected", String(x === b)));
-    playSoftClick();
-    renderBrew();
-  });
-  brewCard.addEventListener("click", (e) => {
-    const m = methodById(brew.id);
-    const cups = e.target.closest("[data-cups]");
-    if (cups) {
-      brew.cups = Math.max(m.cups.min, Math.min(m.cups.max, brew.cups + +cups.dataset.cups));
-      playSoftClick();
-      return renderBrew();
-    }
-    const strength = e.target.closest("[data-strength]");
-    if (strength) {
-      brew.strength = +strength.dataset.strength;
-      playSoftClick();
-      return renderBrew();
-    }
-    if (e.target.closest("[data-brew-go]")) {
-      if (brew.running) {
-        stopBrew();
-        brew.base = brew.t;
-      } else {
-        if (brew.t >= m.total) brew.t = brew.base = 0;
-        brew.running = true;
-        brew.base = brew.t;
-        brew.from = performance.now();
-        brew.raf = requestAnimationFrame(brewFrame);
-      }
-      playSoftClick();
-      renderBrew();
-      return $("[data-brew-go]", brewCard)?.focus({ preventScroll: true });
-    }
-    if (e.target.closest("[data-brew-reset]")) {
-      stopBrew();
-      brew.t = brew.base = 0;
-      playSoftClick();
-      renderBrew();
-      return $("[data-brew-go]", brewCard)?.focus({ preventScroll: true });
-    }
-    if (e.target.closest("[data-brew-beans]")) openProduct(m.beans, { sel: { grind: m.grindChoice } });
-  });
-  renderBrew();
 
   /* ═══════════════════════ brewns Club ═══════════════════════
      The card fills with stamps as orders come in (creditClub, at checkout). Not
