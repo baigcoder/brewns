@@ -84,6 +84,11 @@ const MODELS_VERSION = "4";
 const SHOP_MODEL_URL = {};
 const DRACO_PATH = "/draco/gltf/";
 const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// The page is already showing (CSS lifts the preloader at 2.4s, see .pre in globals.css): no intro over text someone is reading.
+const LATE = performance.now() > 2000;
+const settled = (el) => LATE && el.closest?.("#hero, #hdr");
+// Hands the header, hero and preloader over from their CSS fallbacks to the engine.
+document.documentElement.classList.add("brewns-live");
 const noHover = () => window.innerWidth < 768;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -694,7 +699,7 @@ const onceVisible = (el, cb, { rootMargin = "0px", gate = true, threshold = 0 } 
 
 const inview = (el, from, to, { config, delay = 0, rootMargin, gate = true, trigger = el } = {}) => {
   const s = new Spring(from, styler(el));
-  if (REDUCED) s.set(to);
+  if (REDUCED || settled(el)) s.set(to);
   else onceVisible(trigger, () => s.start(to, { config, delay }), { rootMargin, gate });
   return s;
 };
@@ -818,6 +823,8 @@ const textEngine = (el) => {
     // The headline is written as two lines (see .hero-h1-row): remember them before the text is taken apart, so
     // it breaks where it was written at every screen width instead of wherever the words happen to wrap.
     if (lines && el.classList.contains("hero-h1")) el._rows ||= [...el.querySelectorAll(".hero-h1-row")].map((r) => r.textContent.trim().split(/\s+/));
+    // So are the words it sets in gold script.
+    el._gold ||= new Set([...el.querySelectorAll(".hero-gold")].flatMap((s) => s.textContent.trim().split(/\s+/)));
     if (lines) {
       el.textContent = "";
       el.style.display = "block";
@@ -847,7 +854,7 @@ const textEngine = (el) => {
         const inner = span(null);
         if (el.classList.contains("hero-h1")) {
           inner.innerHTML = g
-            .map((w) => (w.toUpperCase().includes("MOMENT") ? `<span class="hero-gold hero-moment">${w}</span>` : w))
+            .map((w) => (el._gold.has(w) ? `<span class="hero-gold hero-moment">${w}</span>` : w))
             .join(" ");
         } else {
           inner.textContent = g.join(" ");
@@ -1867,7 +1874,7 @@ $("#ftr-nav").innerHTML = COLUMNS.map(([heading, links], i) =>
 $$("[data-rise]").forEach(rise);
 $$("a[data-ul]").forEach(underline);
 $$("a[data-cta]").forEach(cta);
-$$("[data-dr]").forEach(digitRoll);
+$$("[data-dr]").filter((el) => !settled(el)).forEach(digitRoll);
 $$("[data-iv]").forEach((el) => {
   const kind = el.dataset.iv;
   const [from, to] = PRESET[kind](el);
@@ -2252,6 +2259,7 @@ for (const family of ["Space Mono", "Allura"]) {
       }
     }
   };
+  if (LATE) return done();
   const onUserIntent = () => done();
   window.addEventListener("wheel", onUserIntent, { passive: true, once: true });
   window.addEventListener("touchmove", onUserIntent, { passive: true, once: true });
@@ -2283,6 +2291,7 @@ if (warmSpecks) warmSpecks.innerHTML = [50, 95]
 /* ═══════════ text reveals wait for the faces ═══════════ */
 document.fonts.ready.then(() => {
   $$("[data-te]").forEach((el) => {
+    if (settled(el)) return;
     if (el.closest("#hero")) {
       textEngine(el);
     } else {
@@ -3311,7 +3320,7 @@ function heroModel(T, mount, handle, onPiece) {
   let reduced = REDUCED;
 
   let introStart = null;
-  let introDone = reduced;
+  let introDone = reduced || LATE;
   const startIntro = () => {
     if (introStart !== null) return;
     introStart = performance.now() + INTRO.delay;
@@ -3527,6 +3536,8 @@ function heroModel(T, mount, handle, onPiece) {
     reframe();
     renderer.render(scene, camera);
     dirty = false;
+    // The live products are drawn: the still underneath fades out (.hero-mount[data-live]).
+    if (model && compiled && !mount.dataset.live) mount.dataset.live = "1";
   };
   loop(frame);
 
