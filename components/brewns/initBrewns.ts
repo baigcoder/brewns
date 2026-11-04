@@ -44,6 +44,7 @@ import { dietBadges, dietOf, DIET_FILTERS, matchesDiet } from '@/lib/diet';
 import { usualOf } from '@/lib/usual';
 import { pairOf } from '@/lib/pairings';
 import { FOOTER_COLUMNS } from '@/lib/siteNav';
+import { CAFES, mapEmbedUrl, mapsUrl } from '@/lib/locations';
 import { dressPackaging, loadPrint } from './packaging';
 import { environmentFromScene } from './pmremAsync';
 import { initVoiceCalling } from './voiceCalling';
@@ -233,7 +234,7 @@ soundPanel.className = "sound-panel";
 soundPanel.hidden = true;
 soundPanel.setAttribute("role", "dialog");
 soundPanel.setAttribute("aria-label", "Sound");
-const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", inside: "In the room", brew: "Brewing at home", story: "Slow afternoon", journey: "How it started", hania: "Cool vibes", reviews: "The regulars", club: "Stamping cards", order: "Tickets printing", faq: "Questions at the till", footer: "Closing time" };
+const SCENE_NAMES = { hero: "Opening up", menu: "At the counter", shop: "Browsing the shelves", locations: "Across town", brew: "Brewing at home", story: "Slow afternoon", journey: "How it started", hania: "Cool vibes", reviews: "The regulars", club: "Stamping cards", order: "Tickets printing", faq: "Questions at the till", footer: "Closing time" };
 let sceneName = "hero";
 const renderSoundPanel = () => {
   const st = getSoundSettings();
@@ -359,7 +360,7 @@ window.addEventListener("resize", () => !soundPanel.hidden && placeSoundPanel())
 if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
   let last = null, lastAt = 0;
   document.addEventListener("pointerover", (e) => {
-    const t = e.target.closest?.("button, a[href], [role='button'], .pcard, .card, .inside-open");
+    const t = e.target.closest?.("button, a[href], [role='button'], .pcard, .card");
     if (!t || t === last) return;
     last = t;
     const now = performance.now();
@@ -1912,213 +1913,6 @@ inview($(".ftr-giant"), { opacity: 0, y: 80 }, { opacity: 1, y: 0 }, { config: C
   }
 }
 
-/* Inside brewns: a live "right now" card, photos that drift as you scroll, and
-   a viewer with thumbnails, swipe and crossfades. */
-{
-  const section = $("#inside");
-  const box = $("#inside-box");
-  const tiles = $$(".inside-open");
-  const grid = $(".inside-grid");
-  // Each photo comes in two sizes (scripts/upscale-photos.py): 1400 px for the
-  // page, 2400 px for big screens and the viewer. The browser picks per tile.
-  const hiRes = (src) => src.replace(/(@2x)?\.webp(\?.*)?$/, "@2x.webp");
-  // `sizes` is the width the photo is drawn at: object-fit: cover in a tall tile
-  // draws a wide photo much wider than the tile, then the hover zoom adds 11%.
-  const fitSizes = () =>
-    tiles.forEach((t) => {
-      const img = $("img", t);
-      if (!img.naturalWidth) return;
-      const r = t.getBoundingClientRect();
-      const drawn = Math.max(r.width, (r.height * img.naturalWidth) / img.naturalHeight) * 1.11;
-      img.sizes = `${Math.ceil(drawn)}px`;
-    });
-  tiles.forEach((t) => {
-    const img = $("img", t);
-    const src = img.getAttribute("src");
-    const tile = t.parentElement;
-    img.srcset = `${src} 1400w, ${hiRes(src)} 2400w`;
-    img.sizes = tile.matches(".big, .wide") ? "(min-width: 1100px) 38vw, (min-width: 800px) 50vw, 100vw" : "(min-width: 1100px) 19vw, (min-width: 800px) 25vw, 50vw";
-    if (img.complete) fitSizes();
-    else img.addEventListener("load", fitSizes, { once: true });
-  });
-  window.addEventListener("resize", fitSizes);
-
-  /* ── right now: open or closed, how busy it usually is, what's there ── */
-  // Typical busyness by hour, 07:00–20:00 (0–100). Weekends run later.
-  const BUSY = {
-    weekday: [20, 55, 72, 48, 36, 52, 78, 64, 42, 38, 48, 70, 82, 58],
-    weekend: [10, 24, 44, 60, 66, 72, 82, 76, 66, 62, 72, 88, 92, 74],
-  };
-  const ICON = {
-    wifi: '<path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1.2" fill="currentColor"/>',
-    plug: '<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>',
-    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
-    car: '<path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM7 19v1M17 19v1"/><circle cx="7.5" cy="13.5" r="0.8" fill="currentColor"/><circle cx="16.5" cy="13.5" r="0.8" fill="currentColor"/>',
-  };
-  const AMENITIES = [["wifi", "FAST WI-FI"], ["plug", "CHARGING POINTS"], ["sun", "OUTDOOR SEATING"], ["car", "PARKING NEARBY"]];
-  const svg = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
-  // The card runs across the bottom of the section, under the photos.
-  $(".inside-bar", section)?.insertAdjacentHTML(
-    "afterbegin",
-    `<div class="inside-now" data-iv="rise" data-y="16" data-d="300">
-      <p class="inside-now-head"><span class="inside-now-dot" aria-hidden="true"></span><b id="in-open">OPEN NOW</b><span id="in-close"></span></p>
-      <div class="inside-busy">
-        <p class="inside-busy-t"><span>POPULAR TIMES</span><span id="in-day"></span></p>
-        <div class="inside-bars" id="in-bars" role="img"></div>
-        <p class="inside-axis" aria-hidden="true"><span>7A</span><span>12P</span><span>5P</span><span>9P</span></p>
-        <p class="inside-busy-now" id="in-busy"></p>
-      </div>
-      <ul class="inside-amen">${AMENITIES.map(([k, l]) => `<li>${svg(k)}<span>${l}</span></li>`).join("")}</ul>
-    </div>`,
-  );
-  // Lahore time, wherever the visitor is
-  const lahore = () => {
-    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Karachi", weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((p) => [p.type, p.value]));
-    return { day: parts.weekday, min: +parts.hour * 60 + +parts.minute };
-  };
-  const renderNow = () => {
-    const { day, min } = lahore();
-    const open = min >= OPEN_MIN && min < CLOSE_MIN;
-    const left = CLOSE_MIN - min;
-    const elOpen = $("#in-open");
-    const elClose = $("#in-close");
-    const elNow = $(".inside-now", section);
-    const elDay = $("#in-day");
-    const elBars = $("#in-bars");
-    const elBusy = $("#in-busy");
-    if (!elOpen) return; // elements not yet injected
-    elOpen.textContent = open ? "OPEN NOW" : "CLOSED NOW";
-    if (elClose) elClose.textContent = open ? `CLOSES ${hhmm(CLOSE_MIN)} · ${left >= 60 ? `${Math.floor(left / 60)}H ` : ""}${left % 60}M LEFT` : `OPENS ${hhmm(OPEN_MIN)}`;
-    elNow?.classList.toggle("closed", !open);
-    const weekend = day === "Saturday" || day === "Sunday";
-    const curve = weekend ? BUSY.weekend : BUSY.weekday;
-    const hour = Math.floor(min / 60);
-    const idx = hour - 7;
-    if (elDay) elDay.textContent = `TYPICAL ${day.toUpperCase()}`;
-    if (elBars) {
-      elBars.innerHTML = curve.map((v, i) => `<i style="--h:${v}%"${open && i === idx ? ' class="now"' : ""}></i>`).join("");
-      elBars.setAttribute("aria-label", `Typical busyness on ${day}s, from 7am to 9pm`);
-    }
-    const v = open && idx >= 0 && idx < curve.length ? curve[idx] : null;
-    if (elBusy) elBusy.textContent = v == null ? "QUIET: WE'RE CLOSED" : v < 35 ? "USUALLY QUIET AROUND NOW" : v < 65 ? "USUALLY A LITTLE BUSY AROUND NOW" : "USUALLY BUSY AROUND NOW";
-  };
-
-  queueMicrotask(renderNow); // the opening hours are declared further down
-  setInterval(renderNow, 60000);
-
-  /* ── the photos drift inside their frames as you scroll ── */
-  let onScreen = false;
-  new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
-  if (!REDUCED) {
-    const imgs = tiles.map((t) => $("img", t));
-    onScrollFrame(() => {
-      if (!onScreen) return;
-      const vh = innerHeight;
-      const shifts = tiles.map((t) => {
-        const r = t.getBoundingClientRect();
-        return `0 ${(-Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / vh)) * 3).toFixed(2)}%`;
-      });
-      return () => imgs.forEach((img, i) => img && (img.style.translate = shifts[i]));
-    });
-  }
-
-  /* ── desktop: a VIEW badge follows the cursor over the photos ── */
-  if (matchMedia("(hover: hover) and (pointer: fine)").matches && grid) {
-    const badge = document.createElement("div");
-    badge.className = "inside-cursor";
-    badge.setAttribute("aria-hidden", "true");
-    badge.innerHTML = "VIEW <span>↗</span>";
-    document.body.append(badge);
-    grid.classList.add("has-cursor");
-    const at = { x: 0, y: 0, tx: 0, ty: 0, on: false };
-    grid.addEventListener("pointermove", (e) => {
-      const over = !!e.target.closest(".inside-open");
-      at.tx = e.clientX;
-      at.ty = e.clientY;
-      if (over && !at.on) (at.x = at.tx), (at.y = at.ty);
-      at.on = over;
-      badge.classList.toggle("on", over);
-    });
-    grid.addEventListener("pointerleave", () => {
-      at.on = false;
-      badge.classList.remove("on");
-    });
-    loop(() => {
-      if (!at.on) return;
-      at.x += (at.tx - at.x) * 0.22;
-      at.y += (at.ty - at.y) * 0.22;
-      badge.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px) translate(-50%, -50%)`;
-    });
-  }
-
-  /* ── the viewer: thumbnails, crossfades, swipe, keys ── */
-  let at = 0;
-  const bigImg = $("#inside-box-img");
-  box?.insertAdjacentHTML(
-    "beforeend",
-    `<div class="inside-thumbs" role="tablist" aria-label="Photos">${tiles
-      .map((t, i) => `<button type="button" role="tab" data-inside-go="${i}" aria-label="Photo ${i + 1}"><img src="${$("img", t).getAttribute("src")}" alt="" loading="lazy"></button>`)
-      .join("")}</div>`,
-  );
-  const show = (i) => {
-    at = (i + tiles.length) % tiles.length;
-    const img = $("img", tiles[at]);
-    const cap = tiles[at].parentElement.querySelector("figcaption");
-    const swap = () => {
-      bigImg.src = hiRes(img.getAttribute("src"));
-      bigImg.alt = img.alt;
-      bigImg.classList.remove("out");
-    };
-    if (REDUCED || !bigImg.getAttribute("src")) swap();
-    else {
-      bigImg.classList.add("out");
-      setTimeout(swap, 180);
-    }
-    $("#inside-box-cap").innerHTML = `<span class="inside-n">${String(at + 1).padStart(2, "0")} / ${String(tiles.length).padStart(2, "0")}</span><b>${cap.querySelector("b").textContent}</b><span>${cap.querySelector("span:last-child").textContent}</span>`;
-    $$("[data-inside-go]", box).forEach((b, k) => b.setAttribute("aria-selected", String(k === at)));
-    $(`[data-inside-go="${at}"]`, box)?.scrollIntoView({ block: "nearest", inline: "center" });
-    // warm the neighbours so stepping is instant
-    [at + 1, at - 1].forEach((k) => (new Image().src = hiRes($("img", tiles[(k + tiles.length) % tiles.length]).getAttribute("src"))));
-  };
-  const close = () => {
-    box.hidden = true;
-    startScroll();
-    tiles[at]?.focus();
-  };
-  tiles.forEach((t, i) =>
-    t.addEventListener("click", () => {
-      bigImg.removeAttribute("src");
-      show(i);
-      box.hidden = false;
-      stopScroll();
-      playWhoosh();
-      $("[data-inside-close]", box).focus();
-    }),
-  );
-  box?.addEventListener("click", (e) => {
-    const go = e.target.closest("[data-inside-go]");
-    if (go) return show(+go.dataset.insideGo);
-    const step = e.target.closest("[data-inside-step]");
-    if (step) return show(at + +step.dataset.insideStep);
-    if (e.target === box || e.target.closest("[data-inside-close]")) close();
-  });
-  // swipe between photos on touch screens
-  let sx = null;
-  bigImg?.addEventListener("pointerdown", (e) => (sx = e.clientX));
-  bigImg?.addEventListener("pointerup", (e) => {
-    if (sx == null) return;
-    const dx = e.clientX - sx;
-    sx = null;
-    if (Math.abs(dx) > 50) show(at + (dx < 0 ? 1 : -1));
-  });
-  document.addEventListener("keydown", (e) => {
-    if (!box || box.hidden) return;
-    if (e.key === "Escape") close();
-    if (e.key === "ArrowRight") show(at + 1);
-    if (e.key === "ArrowLeft") show(at - 1);
-  });
-}
-
 /* ═══════════ header ═══════════ */
 const header = $("#hdr");
 const themed = $$("[data-header-theme]");
@@ -2342,80 +2136,13 @@ $$("[data-swirl]").forEach((frame) => {
 $$(".card").forEach((card) => scrub($(".card-par", card), $(".card-range", card), "top bottom", "center center", { y: 11 }, { y: 0 }));
 hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0, y: 0, opacity: 1 }, { config: C(120, 26), focus: true });
 
-/* ═══════════ locations: the clock, the rest of today, and what's pouring ═══════════
-   The dial tells the time in Lahore. A copper ring on its rim is what's left of
-   today's service: full at opening, draining to nothing at 21:00; after closing
-   it turns into a dashed line counting down to 07:00. Pointing at a shop swings
-   the hands to that shop's next opening or closing. The cup follows the day: a
-   hot latte in the morning, the iced latte through the afternoon, a cortado in
-   the evening. ?brewtime=08:30 pins the clock to a time, for checking. */
+/* ═══════════ locations: pick a counter, see it on the map, order pickup from it ═══════════
+   Every line is real: open or closed by Lahore's clock, the counter's prep time plus any delay
+   the café has set in the console, or "online orders paused". The same status read also carries
+   what has sold out, the owner's menu photos and the pay-first rule, for the rest of the page. */
 (() => {
-  const range = $("#loc-range"), turn = $("#loc-turn"), section = $("#locations");
-  const DIAL_PARALLAX = 26, CUP_PARALLAX = 80, CUP_MAX_ROTATION = 38, CUP_MAX_TILT = 14;
-  scrub($("#dial-par"), range, "top bottom", "center center", { y: DIAL_PARALLAX }, { y: 0 });
-  scrub($("#loc-par"), range, "top bottom", "center center", { y: CUP_PARALLAX }, { y: 0 });
-  scrub($("#loc-spin"), turn, "center center", "bottom top", { rotate: "0deg" }, { rotate: `${CUP_MAX_ROTATION}deg` }, 0);
-  lean($("#loc-lean"), section, CUP_MAX_TILT);
-
-  // the dial's geometry, in the artwork's 1308-unit square
-  const CX = 654, CY = 648, TICK_OUT = 612, RING = 636;
-  const svgNS = "http://www.w3.org/2000/svg";
-  const ticks = $("#dial-ticks");
-  for (let i = 0; i < 60; i++) {
-    const hour = i % 5 === 0;
-    const a = (i * 6 * Math.PI) / 180, s = Math.sin(a), c = -Math.cos(a);
-    const r0 = TICK_OUT - (hour ? 56 : 21);
-    const line = document.createElementNS(svgNS, "line");
-    // drawn from the rim inwards, one after another round the dial
-    line.setAttribute("x1", (CX + s * TICK_OUT).toFixed(1));
-    line.setAttribute("y1", (CY + c * TICK_OUT).toFixed(1));
-    line.setAttribute("x2", (CX + s * r0).toFixed(1));
-    line.setAttribute("y2", (CY + c * r0).toFixed(1));
-    line.setAttribute("pathLength", "1");
-    line.setAttribute("class", `dial-tick${hour ? " hour" : ""}`);
-    line.style.setProperty("--i", i);
-    ticks.append(line);
-  }
-
-  // the time in Lahore (UTC+5, no daylight saving), in minutes since midnight
-  const pinned = new URLSearchParams(location.search).get("brewtime")?.match(/^(\d{1,2}):(\d{2})$/);
-  const pinnedOffset = pinned ? (+pinned[1] * 60 + +pinned[2]) * 60000 - ((Date.now() + 5 * 3600000) % 86400000) : 0;
-  const pkMs = () => (Date.now() + 5 * 3600000 + pinnedOffset) % 86400000;
-  const pkMin = () => pkMs() / 60000;
-  const isOpen = (m = pkMin()) => m >= OPEN_MIN && m < CLOSE_MIN;
-  const hm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(Math.floor(m % 60)).padStart(2, "0")}`;
-  const span = (mins) => {
-    const t = Math.max(1, Math.ceil(mins)), h = Math.floor(t / 60), m = t % 60;
-    return h ? `${h}H ${String(m).padStart(2, "0")}M` : `${m} MIN`;
-  };
-  // minutes until the next opening or closing, and which it is
-  const nextEvent = (m = pkMin()) => (isOpen(m) ? { open: false, at: CLOSE_MIN, in: CLOSE_MIN - m } : { open: true, at: OPEN_MIN, in: (OPEN_MIN - m + 1440) % 1440 });
-
-  /* the ring: what's left of today, or the wait until tomorrow */
-  const arc = $("#dial-arc"), halo = $("#dial-halo");
-  const point = (deg, r = RING) => {
-    const a = (deg * Math.PI) / 180;
-    return [CX + Math.sin(a) * r, CY - Math.cos(a) * r];
-  };
-  const drawRing = () => {
-    const m = pkMin(), open = isOpen(m);
-    const from = (m % 720) * 0.5;
-    const sweep = Math.min(359.5, (open ? CLOSE_MIN - m : nextEvent(m).in) * 0.5);
-    const [x0, y0] = point(from), [x1, y1] = point(from + sweep);
-    arc.setAttribute("d", `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${RING} ${RING} 0 ${sweep > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`);
-    section.classList.toggle("shut", !open);
-    const [nx, ny] = point(from);
-    $("#dial-now").setAttribute("transform", `translate(${nx.toFixed(1)} ${ny.toFixed(1)})`);
-    halo.style.setProperty("--nx", (nx / 1308).toFixed(4));
-    halo.style.setProperty("--ny", (ny / 1308).toFixed(4));
-  };
-
-  /* the badges and the line under the hands */
-  const read = $("#dial-read");
-  const badges = [0, 1, 2].map((i) => $(`#loc-status-${i}`));
-  const BASE_WAIT = [4, 3, 5];
+  const section = $("#locations");
   const shopState = [{}, {}, {}];
-  let soldOutIds = new Set();
   fetch("/api/public/status", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((s) => {
@@ -2428,8 +2155,7 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
       syncAvailability();
       paintHeroWaits();
       if (Array.isArray(s.soldOut)) {
-        soldOutIds = new Set(s.soldOut);
-        soldOutIds.forEach((id) => {
+        s.soldOut.forEach((id) => {
           $$(`[data-card-add="${id}"], [data-add="${id}"]`).forEach((btn) => {
             btn.setAttribute("disabled", "true");
             btn.textContent = "SOLD OUT";
@@ -2442,179 +2168,61 @@ hover($("#menu-receipt"), $("#menu-cta"), { x: 150, y: 150, opacity: 0 }, { x: 0
       paint();
     })
     .catch(() => {});
-  const waitAt = (i, m) => {
-    const rush = m <= 9.5 * 60 ? 3 : m >= 12 * 60 && m <= 13.75 * 60 ? 1 : 0;
-    return BASE_WAIT[i] + rush + Math.round((shopState[i].extraMin || 0) / 2);
+  if (!section) return;
+
+  // Lahore time (UTC+5, no daylight saving), in minutes since midnight.
+  const pkMin = () => Math.floor((Date.now() / 60000 + 300) % 1440);
+  const hm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const statusOf = (i) => {
+    const m = pkMin(), sh = shopState[i];
+    if (m < OPEN_MIN || m >= CLOSE_MIN) return ["closed", `Closed · opens ${hm(OPEN_MIN)}`];
+    if (sh.paused) return ["paused", "Open · online orders paused, order at the counter"];
+    if (m >= CLOSE_MIN - 30) return ["soon", `Closing soon · ${hm(CLOSE_MIN)}`];
+    return ["open", `Open until ${hm(CLOSE_MIN)} · pickup in about ${PREP_MIN + (Number(sh.extraMin) || 0)} min`];
   };
-  let focused = -1;
-  // two short lines, to sit between the cup and the six
-  const readLine = (i = focused) => {
-    const m = pkMin(), e = nextEvent(m);
-    const lead = i >= 0 ? LOCS[i][0] : e.open ? "CLOSED NOW" : "OPEN NOW";
-    return `<span>${lead}</span><span>${e.open ? "OPENS" : "CLOSES"} ${hm(e.at)} · ${span(e.in)}</span>`;
-  };
-  const paint = () => {
-    const m = pkMin(), open = isOpen(m);
-    badges.forEach((el, i) => {
-      if (!el) return;
-      const busy = m <= 9.5 * 60 ? "MORNING PEAK" : m >= 12 * 60 && m <= 13.75 * 60 ? "MIDDAY RUSH" : "STEADY BREW";
-      el.textContent = !open ? `○ CLOSED · OPENS ${hm(OPEN_MIN)}` : shopState[i].paused ? "● COUNTER ONLY · ONLINE PAUSED" : `● ${busy} · ~${waitAt(i, m)} MIN`;
-      el.classList.toggle("shut", !open);
+  const paint = () =>
+    $$("[data-where-status]", section).forEach((el) => {
+      const [state, text] = statusOf(+el.dataset.whereStatus);
+      el.dataset.state = state;
+      el.textContent = text;
     });
-    read.innerHTML = readLine();
-    drawRing();
-    pour();
-  };
 
-  /* the hands: one number, minutes on the dial, drives all three */
-  const hH = $("#hand-h"), hM = $("#hand-m"), hS = $("#hand-s");
-  const setHands = (t, sec) => {
-    hH.setAttribute("transform", `rotate(${((t * 0.5) % 360).toFixed(2)} ${CX} ${CY})`);
-    hM.setAttribute("transform", `rotate(${((t * 6) % 360).toFixed(2)} ${CX} ${CY})`);
-    if (sec !== undefined) hS.setAttribute("transform", `rotate(${(sec * 6).toFixed(2)} ${CX} ${CY})`);
-  };
-  let shown = pkMin() - (pkMin() % 720); // twelve o'clock, before the dial wakes
-  let live = false;
-  const hands = new Spring({ t: shown }, (o) => {
-    shown = o.t;
-    setHands(o.t);
-  });
-  const swingTo = (t, config = C(46, 15)) => {
-    if (live) hands.set({ t: shown }); // the spring picks up where the running clock is
-    live = false;
-    return hands.start({ t }, { config, immediate: REDUCED }).then(() => playHoverTick());
-  };
-  // now, counted in the same laps as the hands, so a swing never goes the long way round
-  const nowNear = () => {
-    let now = pkMin();
-    while (now - shown > 360) now -= 720;
-    while (shown - now > 360) now += 720;
-    return now;
-  };
-  const backToNow = () => swingTo(nowNear(), C(60, 17)).then(() => focused < 0 && (live = true));
-  setHands(shown, 0);
-
-  let onScreen = false, woke = false, lastOpen = isOpen(), lastSec = -1;
-  new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)).observe(section);
-  loop(() => {
-    if (!woke || !onScreen) return;
-    const ms = pkMs();
-    /* The second hand ticks, like a wall clock. Sweeping, it moved on every frame, and each
-       move repainted the whole dial: on a phone the section scrolled at 30 frames a second. */
-    const sec = Math.floor(ms / 1000) % 60;
-    if (sec === lastSec) return;
-    lastSec = sec;
-    if (live) {
-      // keep the unwrapped count near where it is, so the next swing starts from here
-      let t = ms / 60000;
-      while (t - shown > 360) t -= 720;
-      while (shown - t > 360) t += 720;
-      shown = t;
-      setHands(t, sec);
-    } else setHands(shown, sec);
-  });
-
-  /* the cup: what's pouring at this hour */
-  const CUPS = {
-    morning: { src: "cup-hot-latte.webp", kind: "hot", name: "HOT LATTE", alt: "A brewns latte in a navy-sleeved cup, steaming" },
-    afternoon: { src: "cup.webp", kind: "iced", name: "ICED LATTE", alt: "A brewns iced latte in a clear cup" },
-    evening: { src: "cup-cortado.webp", kind: "hot", name: "CORTADO", alt: "A brewns cortado in a faceted glass" },
-  };
-  const partOfDay = (m = pkMin()) => (m >= 5 * 60 && m < 12 * 60 ? "morning" : m >= 12 * 60 && m < 18 * 60 ? "afternoon" : "evening");
-  // The other cups load as the section comes near, not with the page: three photos, 360 KB,
-  // were downloading alongside the hero on a phone's first load.
-  const cupsNear = new IntersectionObserver(([e]) => {
-    if (!e.isIntersecting) return;
-    cupsNear.disconnect();
-    Object.values(CUPS).forEach((c) => (new Image().src = `${ASSET_BASE_URL}locations/${c.src}`));
-  }, { rootMargin: "1500px 0px" });
-  cupsNear.observe(section);
-  const cupImg = $("#loc-cup-img"), fx = $("#loc-fx"), pouring = $("#loc-pouring");
-  let cupNow = "afternoon";
-  const flip = new Spring({ ry: 0 }, (o) => ($("#loc-swap").style.transform = `rotateY(${o.ry}deg)`));
-  const showCup = (key) => {
-    const c = CUPS[key];
-    cupImg.src = `${ASSET_BASE_URL}locations/${c.src}`;
-    cupImg.alt = c.alt;
-    fx.dataset.kind = c.kind;
-    fx.dataset.cup = key;
-    pouring.innerHTML = `<span class="blk">NOW POURING</span><span class="blk">${c.name}</span>`;
-  };
-  function pour() {
-    const key = partOfDay();
-    if (!woke) return void (pouring.innerHTML = `<span class="blk">NOW POURING</span><span class="blk">${CUPS[key].name}</span>`);
-    if (key === cupNow) return;
-    cupNow = key;
-    if (REDUCED) return showCup(key);
-    // a half turn out, the new cup in, a half turn back
-    flip.start({ ry: 90 }, { config: { duration: 320, easing: (t) => t * t } }).then(() => {
-      showCup(key);
-      flip.set({ ry: -90 });
-      return flip.start({ ry: 0 }, { config: C(120, 14) });
+  const tabs = $$("[data-where]", section);
+  const panel = $("#where-panel");
+  const map = $("iframe", panel);
+  let at = 0;
+  const select = (i, { focus = false } = {}) => {
+    at = i;
+    const c = CAFES[i];
+    tabs.forEach((t, j) => {
+      t.setAttribute("aria-selected", String(j === i));
+      t.tabIndex = j === i ? 0 : -1;
     });
-  }
-
-  /* pointing at a shop swings the hands to its next opening or closing */
-  const shops = $$(".locs-list [data-shop]");
-  const focus = (i) => {
-    if (i === focused) return;
-    focused = i;
-    shops.forEach((li, j) => li.classList.toggle("on", j === i));
-    section.classList.toggle("shop-focus", i >= 0);
-    read.innerHTML = readLine();
-    if (!woke) return;
-    if (i < 0) return backToNow();
-    swingTo((live ? shown : nowNear()) + nextEvent().in); // forwards to it, like time does
+    if (focus) tabs[i].focus();
+    panel.setAttribute("aria-labelledby", tabs[i].id);
+    map.src = mapEmbedUrl(c);
+    map.title = `Map of ${c.name}`;
+    $("[data-where-blurb]", panel).textContent = c.blurb;
+    $("[data-where-features]", panel).innerHTML = c.features.map((f) => `<li>${esc(f)}</li>`).join("");
+    $("[data-where-dir]", panel).href = mapsUrl(c);
   };
-  shops.forEach((li, i) => {
-    li.addEventListener("pointerenter", () => !noHover() && focus(i));
-    li.addEventListener("pointerleave", () => !noHover() && focus(-1));
-    li.addEventListener("focus", () => focus(i));
-    li.addEventListener("blur", () => focus(-1));
-    li.addEventListener("click", () => noHover() && focus(focused === i ? -1 : i));
+  tabs.forEach((t, i) => t.addEventListener("click", () => i !== at && select(i)));
+  // Arrow keys move between the counters, as in any tab list.
+  $(".where-list", section).addEventListener("keydown", (e) => {
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    select((at + step + tabs.length) % tabs.length, { focus: true });
   });
-  // phones: the shop crossing the middle of the screen takes the hands
-  if ("IntersectionObserver" in window) {
-    const seen = new Set();
-    const io = new IntersectionObserver(
-      (es) => {
-        if (!noHover()) return;
-        es.forEach((e) => (e.isIntersecting ? seen.add(+e.target.dataset.shop) : seen.delete(+e.target.dataset.shop)));
-        focus(seen.size ? Math.min(...seen) : -1);
-      },
-      { rootMargin: "-45% 0px -45% 0px" },
-    );
-    shops.forEach((li) => io.observe(li));
-  }
+  // Order pickup here: checkout opens with this counter chosen; the menu is where the order starts.
+  $("[data-where-order]", panel).addEventListener("click", () => {
+    writeStore("brewns-details", { ...readStore("brewns-details", {}), mode: "pickup", loc: at });
+    toast(`PICKUP AT ${LOCS[at][0]}. NOW PICK YOUR COFFEE.`);
+    lenis.scrollTo("#menu", { duration: 1.2 });
+  });
 
-  /* waking up: ticks, numbers, ring, then the hands find the time */
   paint();
-  const wake = () => {
-    if (woke) return;
-    woke = true;
-    section.classList.add("clock-on");
-    const key = partOfDay();
-    if (REDUCED) {
-      cupNow = key;
-      showCup(key);
-      live = true;
-      return;
-    }
-    const target = (() => {
-      let t = pkMin();
-      while (t < shown) t += 720;
-      return t;
-    })();
-    setTimeout(() => swingTo(target, C(38, 11)).then(() => focused < 0 && (live = true)), 1500);
-    setTimeout(pour, 2300);
-  };
-  onceVisible(section, wake, { threshold: 0.3 });
-  liveLocationsTimer = setInterval(() => {
-    paint();
-    const open = isOpen();
-    if (woke && onScreen && open !== lastOpen) playChime();
-    lastOpen = open;
-  }, 20000);
+  liveLocationsTimer = setInterval(paint, 30000);
 })();
 
 /* ═══════════ hero card ═══════════ */

@@ -3827,9 +3827,9 @@ body:has(#pre) .voice-call-floating {
    phones through an invisible ::after, so nothing in the layout moves. */
 @media (max-width: 639.98px) {
   .hdr-sound, .hdr-account, .loc-map-link, .moments-like-btn, .rev-helpful,
-  .inside-cta, .card-quick-add, .ftr .dim-link, .w-menu-cta, .w-order-cta { position: relative; }
+  .card-quick-add, .ftr .dim-link, .w-menu-cta, .w-order-cta { position: relative; }
   .hdr-sound::after, .hdr-account::after, .loc-map-link::after, .moments-like-btn::after,
-  .rev-helpful::after, .inside-cta::after, .card-quick-add::after, .ftr .dim-link::after,
+  .rev-helpful::after, .card-quick-add::after, .ftr .dim-link::after,
   .w-menu-cta::after, .w-order-cta::after {
     content: "";
     position: absolute;

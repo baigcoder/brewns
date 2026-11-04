@@ -1,11 +1,41 @@
-/* The sections a café brand needs beyond the menu and the shop: brewing at
-   home, the loyalty club, and "good to know" (questions, events and catering,
-   the newsletter). brewnsMarkup.ts places them in the page; initBrewns.ts fills
-   in the parts that change (the brew card, the club card, the forms). */
+/* The sections a café brand needs beyond the menu and the shop: where to find
+   us, the loyalty club, and "good to know" (questions, events and catering, the
+   newsletter). brewnsMarkup.ts places them in the page; initBrewns.ts fills in
+   the parts that change (open or closed, the club card, the forms). */
 
 import { FAQ, FAQ_TOPICS } from '@/lib/faq';
+import { CAFE_PHONE, CAFES, mapEmbedUrl, mapsUrl } from '@/lib/locations';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/* The counters: pick one, see it on the map, order pickup from it. The first is shown to begin with;
+   initBrewns swaps the panel and paints each counter's real status (open, pickup time, paused). */
+const first = CAFES[0];
+export const LOCATIONS_MARKUP = `
+<section aria-label="Our locations" id="locations" data-header-theme="light" class="light where">
+  <div class="swirl-frame fade-top" data-swirl="rtl"><span class="swirl-box"><span class="swirl-mask mask"><span class="swirl-fill"></span></span></span></div>
+  <div class="where-in">
+    <div class="where-head">
+      <h2 class="where-h2" data-iv="rise" data-y="24">FIND YOUR<br>COUNTER.</h2>
+      <p class="where-lede" data-iv="rise" data-y="16" data-d="100">Same beans, same 92&#176;C, in three corners of Lahore, open every day from 07:00 to 21:00. Pick a counter to see it on the map, then order ahead for pickup.</p>
+    </div>
+    <div class="where-body">
+      <div class="where-list" role="tablist" aria-label="Our counters" aria-orientation="vertical">${CAFES.map(
+        (c, i) =>
+          `<button type="button" role="tab" class="where-shop" id="where-tab-${i}" aria-controls="where-panel" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}" data-where="${i}" data-iv="rise" data-y="16" data-d="${140 + i * 70}"><span class="where-name">${esc(c.name)}</span><span class="where-area">${esc(c.area)} &#183; ${esc(c.nickname)}</span><span class="where-status" data-where-status="${i}">Open every day 07:00&#8211;21:00</span></button>`,
+      ).join('')}</div>
+      <div class="where-panel" id="where-panel" role="tabpanel" aria-labelledby="where-tab-0" data-iv="rise" data-y="24" data-d="200">
+        <div class="where-map"><iframe title="Map of ${esc(first.name)}" src="${mapEmbedUrl(first)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+        <div class="where-info">
+          <p class="where-blurb" data-where-blurb>${esc(first.blurb)}</p>
+          <ul class="where-features" data-where-features>${first.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+          <div class="where-actions"><button type="button" class="where-cta" data-where-order>ORDER PICKUP HERE <span aria-hidden="true">&#8594;</span></button><a class="where-cta ghost" data-where-dir href="${mapsUrl(first)}" target="_blank" rel="noopener noreferrer">DIRECTIONS <span aria-hidden="true">&#8599;</span></a><a class="where-cta ghost" href="tel:${CAFE_PHONE.replace(/\s/g, '')}">CALL</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+`;
 
 export const CLUB_MARKUP = `
 <!-- brewns Club -->

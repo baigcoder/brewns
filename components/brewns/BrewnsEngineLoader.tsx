@@ -7,7 +7,8 @@ import { useEffect } from 'react';
  * diagnose screenshots. Never appears on the live site.
  */
 function devHealthCheck(initError: unknown, build = '') {
-  const grid = document.querySelector('.inside-grid');
+  // A rule from sections.css, which loads with the later sections: the locations panel is a grid there.
+  const grid = document.querySelector('.where-body');
   const styled = !grid || getComputedStyle(grid).display === 'grid';
   if (styled && !initError) return;
   const sheets = [...document.styleSheets].map((sheet) => {
@@ -15,11 +16,11 @@ function devHealthCheck(initError: unknown, build = '') {
     let inside = false;
     try {
       rules = sheet.cssRules.length;
-      inside = [...sheet.cssRules].some((r) => r.cssText.includes('.inside-grid'));
+      inside = [...sheet.cssRules].some((r) => r.cssText.includes('.where-body'));
     } catch {
       rules = 'blocked';
     }
-    return `${(sheet.href || 'inline').split('/').pop()} · ${rules} rules${inside ? ' · has .inside-grid' : ''}`;
+    return `${(sheet.href || 'inline').split('/').pop()} · ${rules} rules${inside ? ' · has .where-body' : ''}`;
   });
   const box = document.createElement('div');
   box.setAttribute('role', 'alert');
