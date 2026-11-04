@@ -122,6 +122,8 @@ export async function deleteCustomer(u: User) {
   await kv.del(`customer-orders:${u.id}`);
   const { deleteMember } = await import('./member');
   await deleteMember(u.id);
+  const { deleteReferral } = await import('./referrals');
+  await deleteReferral(u.id);
   await deleteUser(u);
   return { orders: orders.length };
 }

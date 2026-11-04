@@ -6282,6 +6282,15 @@ const writeStore = (k, v) => {
     localStorage.setItem(k, JSON.stringify(v));
   } catch {}
 };
+/* "/?ref=HASSAN482": a friend's link. The code waits for checkout, which tries it (the server decides). */
+(() => {
+  const url = new URL(location.href);
+  const ref = url.searchParams.get("ref")?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 24);
+  if (!ref) return;
+  writeStore("brewns-ref", ref);
+  url.searchParams.delete("ref");
+  history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+})();
 /* ── brewns Club: the card, kept with the other stores (rules in club.ts) ── */
 const clubListeners = new Set();
 const readClub = () => normaliseClub(readStore("brewns-club", null));
@@ -6393,7 +6402,7 @@ const orderTotals = () => {
   // A free drink comes off first, then any promo applies to the rest.
   const club = readClub();
   const reward = co.useReward && club.member && club.rewards > 0 ? rewardValue(clubLines(cart.items)) : 0;
-  const promo = Math.round((sub - reward) * co.discount);
+  const promo = Math.min(sub - reward, Math.round((sub - reward) * co.discount) + (co.off || 0));
   const discount = reward + promo;
   const fee = isDelivery() && sub - discount < DELIVERY.freeOver ? DELIVERY.areas[co.area][2] : 0;
   const rate = co.pay ? TAX_CARD : TAX;
@@ -6423,7 +6432,9 @@ function openCheckout() {
   track("checkout_start");
   if (hasLayer("bag")) closeBag();
   const saved = readStore("brewns-details", {});
-  co = { useReward: false, step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, errors: {}, done: null };
+  co = { useReward: false, step: 1, mode: saved.mode || "pickup", area: saved.area ?? 0, address: saved.address || "", loc: saved.loc ?? 0, when: isOpenNow() ? "asap" : "later", slot: null, name: saved.name || "", phone: saved.phone || "", email: saved.email || "", note: "", pay: 0, promo: "", discount: 0, off: 0, errors: {}, done: null };
+  const friendCode = readStore("brewns-ref", "");
+  if (friendCode) applyPromo(friendCode);
   if (activeTableSession) {
     co.mode = "dinein";
     co.loc = activeTableSession.loc;
@@ -6596,7 +6607,7 @@ function renderCheckout({ animate = true } = {}) {
         <p class="co-side-title"><span>YOUR ORDER</span><span class="mono-fine">${n} ITEM${n === 1 ? "" : "S"}</span></p>
         <div class="co-lines">${lines}</div>
         <form class="co-promo" data-promo><input name="promo" placeholder="PROMO CODE" value="${esc(co.promo)}" aria-label="Promo code" autocomplete="off"><button type="submit" class="mono-fine">APPLY</button></form>
-        <p class="co-promo-msg mono-fine" id="co-promo-msg">${co.discount ? `${co.promo} — ${Math.round(co.discount * 100)}% OFF APPLIED` : co.promo ? "THAT CODE ISN'T VALID" : "TRY BREWNS10"}</p>
+        <p class="co-promo-msg mono-fine" id="co-promo-msg">${co.off ? `${co.promo} — RS ${co.off} OFF APPLIED` : co.discount ? `${co.promo} — ${Math.round(co.discount * 100)}% OFF APPLIED` : co.promo ? "THAT CODE ISN'T VALID" : "TRY BREWNS10"}</p>
         ${clubCheckoutHTML()}
         <div class="co-sums mono-fine">
           <div class="sum-row"><span>SUBTOTAL</span><span>${money(totals.sub)}</span></div>
@@ -7206,7 +7217,7 @@ function placeOrder() {
     items: cart.items.map(({ id, qty, sel, message }) => ({ id, qty, sel, note: message || "" })),
     mode: co.mode, loc: co.loc, area: delivery ? co.area : null, table: co.mode === "dinein" ? co.table : null, tableKey: co.mode === "dinein" ? activeTableSession?.key || "" : undefined, address: delivery ? co.address.trim() : "",
     when: co.when === "asap" ? "asap" : co.slot, name: co.name.trim(), phone: co.phone, email, note: co.note.trim(),
-    pay: co.pay, promo: co.discount ? co.promo : "", useReward: !!co.useReward, guestReward: !!co.useReward,
+    pay: co.pay, promo: co.discount || co.off ? co.promo : "", useReward: !!co.useReward, guestReward: !!co.useReward,
   };
   // The café's server takes the order: it prices it again, gives it a number
   // and puts it on the kitchen screen. Only before the owner has set the café
@@ -7219,6 +7230,8 @@ function placeOrder() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         if (co) co.idem = null;
+        // A friend's code is good for one order: it is not tried again.
+        if (data.order?.promoCode && data.order.promoCode === readStore("brewns-ref", "")) localStorage.removeItem("brewns-ref");
         applyServer(order, data.order, data.key);
         if (data.order?.hold) order.payUrl = `/pay/${data.order.number}?k=${encodeURIComponent(data.key)}`;
         return "server";
@@ -7533,23 +7546,28 @@ coEl.addEventListener("submit", (e) => {
   }
   if (!co || !e.target.matches("[data-promo]")) return;
   e.preventDefault();
-  co.promo = e.target.promo.value.trim().toUpperCase();
+  applyPromo(e.target.promo.value);
+});
+/** A café code takes a percentage off; a friend's or thank-you code takes rupees off. */
+function applyPromo(raw) {
+  co.promo = String(raw).trim().toUpperCase();
   // The owner's codes live on the server; offline, only the house code is known.
   const checking = co;
   fetch("/api/public/promo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: co.promo }) })
     .then((r) => r.json())
     .then((d) => {
       checking.promoWhy = d.valid ? "" : d.reason || "";
-      return d.valid ? d.pct / 100 : 0;
+      return d.valid ? { pct: (d.pct || 0) / 100, off: d.off || 0 } : { pct: 0, off: 0 };
     })
-    .catch(() => (checking.promo === "BREWNS10" ? 0.1 : 0))
-    .then((pct) => {
+    .catch(() => ({ pct: checking.promo === "BREWNS10" ? 0.1 : 0, off: 0 }))
+    .then(({ pct, off }) => {
       if (co !== checking) return;
       co.discount = pct;
-      if (co.promo && !pct) toast(co.promoWhy ? co.promoWhy.toUpperCase() : "THAT CODE ISN'T VALID");
+      co.off = off;
+      if (co.promo && !pct && !off) toast(co.promoWhy ? co.promoWhy.toUpperCase() : "THAT CODE ISN'T VALID");
       renderCheckout({ animate: false });
     });
-});
+}
 
   /* ═══════════════════════ customer reviews ═══════════════════════
      Reviews written on the site (from the section, or "rate your order" after an

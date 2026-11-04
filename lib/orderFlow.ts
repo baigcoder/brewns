@@ -103,6 +103,8 @@ export type ServerOrder = {
   payRef?: string;
   refund?: Refund;
   demo?: boolean;
+  /** Placed with a friend's code: whose it was, and whether they have had their thank-you code (lib/server/referrals.ts). */
+  referral?: { code: string; owner: string; settled?: boolean };
 };
 
 /** Stations with something to make on this order. */
