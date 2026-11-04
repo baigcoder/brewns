@@ -6090,7 +6090,7 @@ function clubCheckoutHTML() {
     return `<button type="button" class="co-reward${co.useReward ? " on" : ""}" data-co="reward" aria-pressed="${!!co.useReward}"><span class="co-reward-box" aria-hidden="true"></span><span><b>USE A FREE DRINK</b><small class="mono-fine">BREWNS CLUB · ${club.rewards} WAITING · −${money(value)}</small></span></button>`;
   const stamps = stampsFor(lines, nowMin(), co.useReward ? 1 : 0);
   if (!stamps) return "";
-  const early = nowMin() < CLUB.earlyUntilMin ? " · DOUBLE BEFORE 9" : "";
+  const early = nowMin() >= CLUB.earlyFromMin && nowMin() < CLUB.earlyUntilMin ? " · DOUBLE BEFORE 9" : "";
   return club.member
     ? `<p class="co-club mono-fine">★ THIS ORDER EARNS ${stamps} CLUB STAMP${stamps === 1 ? "" : "S"}${early}</p>`
     : `<p class="co-club mono-fine">★ ${stamps} CLUB STAMP${stamps === 1 ? "" : "S"} WITH THIS ORDER. JOIN FREE AFTER ORDERING AND THEY STILL COUNT.</p>`;
@@ -6838,6 +6838,8 @@ function placeOrder() {
         if (co) co.idem = null;
         // A friend's code is good for one order: it is not tried again.
         if (data.order?.promoCode && data.order.promoCode === readStore("brewns-ref", "")) localStorage.removeItem("brewns-ref");
+        // Signed in, the server stamped the account's card: take its copy, which already lists this order, so it is not stamped twice here.
+        if (data.clubState?.member) writeClub({ ...data.clubState, fromAccount: true });
         applyServer(order, data.order, data.key);
         if (data.order?.hold) order.payUrl = `/pay/${data.order.number}?k=${encodeURIComponent(data.key)}`;
         return "server";
@@ -7425,8 +7427,53 @@ function applyPromo(raw) {
 
   /* ═══════════════════════ brewns Club ═══════════════════════
      The card fills with stamps as orders come in (creditClub, at checkout). Not
-     a member yet: the same card, blank, with the form to join beside it. */
+     a member yet: the same card, blank, with the form to join beside it.
+     Signed in, the card is the account's (the server's, which stamps every order):
+     it is mirrored into this browser marked fromAccount, so checkout and the pass
+     read it like a device card, and it is taken off the device at sign-out. */
   const clubSide = $("#club-side");
+  const clubWho = { signedIn: false, accountEmpty: false };
+  const asAccountCard = (club) => writeClub({ ...club, fromAccount: true });
+  const clubApi = (body) =>
+    fetch("/api/account/club", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Something went wrong. Try again.");
+      return d;
+    });
+  const syncClub = (who) => {
+    clubWho.signedIn = !!who?.customer;
+    if (!clubWho.signedIn) {
+      clubWho.accountEmpty = false;
+      if (readClub().fromAccount) {
+        try {
+          localStorage.removeItem("brewns-club");
+        } catch {}
+      }
+      return clubListeners.forEach((f) => f());
+    }
+    clubApi({ action: "get" })
+      .then(({ club }) => {
+        clubWho.accountEmpty = !club?.member;
+        if (club?.member) asAccountCard(club);
+        else clubListeners.forEach((f) => f());
+      })
+      .catch(() => {});
+  };
+  document.addEventListener("brewns:who", (e) => syncClub(e.detail));
+  if (window.__brewnsWho) queueMicrotask(() => syncClub(window.__brewnsWho));
+
+  /* Double stamps, said only while they are on (or what time they start tomorrow). */
+  const clubNow = $("#club-now");
+  const paintClubNow = () => {
+    if (!clubNow) return;
+    const m = nowMin();
+    const on = m >= OPEN_MIN && m < CLUB.earlyUntilMin;
+    clubNow.hidden = !(on || m >= CLOSE_MIN || m < OPEN_MIN);
+    clubNow.dataset.on = String(on);
+    clubNow.textContent = on ? `Double stamps on now, until ${hhmm(CLUB.earlyUntilMin)}` : `Double stamps from ${hhmm(OPEN_MIN)} to ${hhmm(CLUB.earlyUntilMin)}, when we open`;
+  };
+  paintClubNow();
+  setInterval(paintClubNow, 60000);
   clubSide.innerHTML = `<div class="club-card-wrap lean"><div><div class="club-card" id="club-card"></div></div></div><div class="club-panel" id="club-panel"></div>`;
   const clubCard = $("#club-card");
   const clubPanel = $("#club-panel");
@@ -7448,6 +7495,17 @@ function applyPromo(raw) {
     h.kind === "join" ? ["WELCOME TO THE CLUB", `+${h.n}`] : h.kind === "birthday" ? ["HAPPY BIRTHDAY", "+1 DRINK"] : h.kind === "redeem" ? [`FREE DRINK · ORDER #${String(h.order).padStart(5, "0")}`, "−1 DRINK"] : [`ORDER #${String(h.order).padStart(5, "0")}`, `+${h.n}`];
   const clubPanelHTML = (state) => {
     const m = state.member;
+    // Signed in, with no card on the account yet: bring this device's card over, or join with the account's name and mobile.
+    if (clubWho.signedIn && clubWho.accountEmpty) {
+      const local = m && !state.fromAccount;
+      return `<form class="club-join" id="club-join" data-account novalidate>
+        <p class="club-panel-h">${local ? "SAVE THIS CARD TO YOUR ACCOUNT." : "JOIN FREE. THE FIRST STAMP IS ON US."}</p>
+        <p class="club-status-sub">${local ? `Your ${state.stamps + state.rewards * CLUB.stampsPerReward} stamp${state.stamps === 1 ? "" : "s"} move to your account, so they follow you to any phone.` : "Your card goes on your account, under the name and mobile you signed up with."}</p>
+        ${local ? "" : `<div class="club-fields"><div class="club-field wide"><span class="mono-fine" id="club-bday-l">BIRTHDAY · OPTIONAL, FOR A FREE DRINK THAT WEEK</span><span class="club-bday" role="group" aria-labelledby="club-bday-l"><select name="bd" aria-label="Birthday day"><option value="">DAY</option>${Array.from({ length: 31 }, (_, i) => `<option value="${String(i + 1).padStart(2, "0")}">${i + 1}</option>`).join("")}</select><select name="bm" aria-label="Birthday month"><option value="">MONTH</option>${MONTHS.map((mo, i) => `<option value="${String(i + 1).padStart(2, "0")}">${mo}</option>`).join("")}</select></span></div></div>`}
+        <p class="club-err mono-fine" id="club-err" role="alert"></p>
+        <button type="submit" class="btn btn-solid">${local ? "SAVE TO MY ACCOUNT" : "JOIN BREWNS CLUB"} ${ARROW_SVG}</button>
+      </form>`;
+    }
     if (!m) {
       const saved = readStore("brewns-details", {});
       return `<form class="club-join" id="club-join" novalidate>
@@ -7459,13 +7517,13 @@ function applyPromo(raw) {
         </div>
         <p class="club-err mono-fine" id="club-err" role="alert"></p>
         <button type="submit" class="btn btn-solid">JOIN BREWNS CLUB ${ARROW_SVG}</button>
-        <p class="club-fine mono-fine">YOUR CARD IS KEPT ON THIS DEVICE. BY JOINING YOU AGREE TO THE <a href="/terms#club">CLUB TERMS</a>.</p>
+        <p class="club-fine mono-fine">ALREADY HAVE AN ACCOUNT? <a href="/account/signin">SIGN IN</a> TO SEE YOUR CARD. BY JOINING YOU AGREE TO THE <a href="/terms#club">CLUB TERMS</a>.</p>
       </form>`;
     }
     const since = new Date(m.since);
     return `<div class="club-status">
       <p class="club-panel-h">${state.rewards ? `${state.rewards} FREE DRINK${state.rewards === 1 ? "" : "S"} WAITING.` : `${CLUB.stampsPerReward - state.stamps} MORE TO A FREE DRINK.`}</p>
-      <p class="club-status-sub">${state.rewards ? "Tick “use a free drink” at checkout, or show your card at the counter." : `Hi ${esc(titleCase(m.name.split(" ")[0]))}. Every drink you order adds a stamp${nowMin() < CLUB.earlyUntilMin ? ", and it’s before 9, so two" : ""}.`}</p>
+      <p class="club-status-sub">${state.rewards ? "Tick “use a free drink” at checkout, or show your card at the counter." : `Hi ${esc(titleCase(m.name.split(" ")[0]))}. Every drink you order adds a stamp${nowMin() >= OPEN_MIN && nowMin() < CLUB.earlyUntilMin ? ", and it’s before 9, so two" : ""}.`}</p>
       <div class="club-meter" role="progressbar" aria-label="Stamps to your next free drink" aria-valuemin="0" aria-valuemax="${CLUB.stampsPerReward}" aria-valuenow="${state.stamps}"><span style="width:${(state.stamps / CLUB.stampsPerReward) * 100}%"></span></div>
       <div class="club-actions"><button type="button" class="btn btn-solid" data-club="order">ORDER &amp; EARN ${ARROW_SVG}</button><button type="button" class="btn btn-line" data-club="pass">SHOW AT THE COUNTER</button></div>
       ${state.history.length ? `<ul class="club-history" aria-label="Recent stamps">${state.history.slice(0, 4).map((h) => {
@@ -7473,6 +7531,7 @@ function applyPromo(raw) {
         const d = new Date(h.t);
         return `<li><time class="mono-fine">${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()]}</time><span>${label}</span><b>${n}</b></li>`;
       }).join("")}</ul>` : ""}
+      <p class="club-keep">${state.fromAccount ? "Saved to your account: it follows you to any phone." : `This card is on this phone only. <a href="/account/signup">Create an account</a> or <a href="/account/signin">sign in</a> and your stamps come with you.`}</p>
       <p class="club-fine mono-fine">MEMBER SINCE ${MONTHS[since.getMonth()]} ${since.getFullYear()} · ${state.lifetime} STAMP${state.lifetime === 1 ? "" : "S"} IN ALL · <button type="button" data-club="leave">LEAVE THE CLUB</button></p>
     </div>`;
   };
@@ -7501,6 +7560,25 @@ function applyPromo(raw) {
     if (!e.target.matches("#club-join")) return;
     e.preventDefault();
     const f = e.target;
+    // Signed in: the server keeps the card. A card on this device is brought over; otherwise a new one is made.
+    if (f.matches("[data-account]")) {
+      const local = readClub();
+      const bday = f.bd && f.bd.value && f.bm.value ? `${f.bm.value}-${f.bd.value}` : "";
+      if (f.bd && (f.bd.value || f.bm.value) && !bday) return void ($("#club-err", clubPanel).textContent = "PICK BOTH THE DAY AND THE MONTH, OR NEITHER");
+      const importing = !!local.member && !local.fromAccount;
+      clubApi(importing ? { action: "import", club: local } : { action: "join", birthday: bday })
+        .then(({ club }) => {
+          clubWho.accountEmpty = !club?.member;
+          if (club?.member) {
+            clubFresh = importing ? 0 : Math.min(club.stamps, CLUB.welcomeStamps);
+            asAccountCard(club);
+            playChime();
+            toast(importing ? "YOUR CARD IS SAVED TO YOUR ACCOUNT" : "WELCOME TO BREWNS CLUB — FIRST STAMP’S ON US");
+          }
+        })
+        .catch((err) => ($("#club-err", clubPanel).textContent = err.message.toUpperCase()));
+      return;
+    }
     const name = f.name.value.trim().replace(/\s+/g, " ");
     const phone = pkMobile(f.phone.value);
     const bday = f.bd.value && f.bm.value ? `${f.bm.value}-${f.bd.value}` : "";
@@ -7570,12 +7648,18 @@ function applyPromo(raw) {
     if (act === "order") return openOrder();
     if (act === "pass") return openPass();
     if (act === "leave") {
-      if (!window.confirm("Leave brewns Club? Your stamps and free drinks on this device will be gone.")) return;
-      try {
-        localStorage.removeItem("brewns-club");
-      } catch {}
-      clubListeners.forEach((f) => f());
-      toast("YOU'VE LEFT THE CLUB. COME BACK ANY TIME.");
+      const onAccount = readClub().fromAccount;
+      if (!window.confirm(onAccount ? "Leave brewns Club? Your stamps and free drinks on your account will be gone." : "Leave brewns Club? Your stamps and free drinks on this device will be gone.")) return;
+      const drop = () => {
+        try {
+          localStorage.removeItem("brewns-club");
+        } catch {}
+        clubWho.accountEmpty = onAccount;
+        clubListeners.forEach((f) => f());
+        toast("YOU'VE LEFT THE CLUB. COME BACK ANY TIME.");
+      };
+      if (onAccount) clubApi({ action: "leave" }).then(drop).catch((err) => toast(err.message.toUpperCase()));
+      else drop();
     }
   });
 

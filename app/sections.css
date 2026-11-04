@@ -831,3 +831,16 @@
   /* the right-hand column, above the numbers: clear of the cup at every desktop size */
   .phil-lede { top: auto; left: auto; right: 2.5rem; bottom: calc(52% + 2.25rem); width: min(50%, 44rem); }
 }
+
+/* ── brewns Club: the perks as figures, a live "double stamps" line, and where the card is kept ── */
+.club-lede { font-weight: 500; font-size: 1.125rem; color: rgb(255 255 255 / 0.82); max-width: 32rem; }
+.club-now { display: inline-flex; align-items: center; gap: 0.55rem; width: fit-content; padding: 0.5rem 0.95rem; border-radius: 999px; background: rgb(216 183 119 / 0.1); color: #d8b777; font-family: var(--font-geist); font-size: 0.9rem; font-weight: 600; }
+.club-now::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; opacity: 0.5; }
+.club-now[data-on="true"] { background: #d8b777; color: #0b0806; }
+.club-now[data-on="true"]::before { opacity: 1; animation: dot-ping 1.8s ease-out infinite; }
+.club-perks { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem 1.5rem; margin-top: 1rem; border-top: 0; }
+.club-perks li { display: flex; flex-direction: column; gap: 0.35rem; padding: 0; border-bottom: 0; }
+.club-perks b { font-family: var(--font-geist); font-weight: 800; font-size: clamp(2.4rem, 4vw, 3.4rem); line-height: 0.9; letter-spacing: -0.04em; color: #d8b777; }
+.club-perks li > span:last-child { max-width: 15rem; font-family: var(--font-geist); font-size: 0.975rem; line-height: 1.45; color: rgb(255 255 255 / 0.72); }
+.club-keep { margin: 0; font-family: var(--font-geist); font-size: 0.925rem; line-height: 1.5; color: rgb(255 255 255 / 0.72); }
+.club-keep a { color: #d8b777; text-decoration: underline; text-underline-offset: 3px; }
