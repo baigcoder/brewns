@@ -816,3 +816,17 @@
 .where-cta.ghost { background: transparent; color: #f5ede3; box-shadow: inset 0 0 0 1px rgb(245 237 227 / 0.3); }
 .where-cta.ghost:hover { background: rgb(245 237 227 / 0.08); }
 .where-cta:focus-visible { outline: 2px solid #f5ede3; outline-offset: 3px; }
+
+/* ── The city never stops: the house standard as the section's proof, four numbers set large beside
+   the cup. The headline and the 3D cup keep their places (globals.css); the old table and claims are gone. ── */
+.phil-lede p { text-transform: none; max-width: 34rem; font-size: 1.125rem; line-height: 1.55; color: rgb(255 255 255 / 0.84); }
+.phil-stats { order: 4; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem 1.25rem; margin: 0; }
+.phil-stats > div { display: flex; flex-direction: column-reverse; gap: 0.35rem; }
+.phil-stats dt { font-family: var(--font-geist); font-size: 0.9375rem; color: rgb(255 255 255 / 0.66); }
+.phil-stats dd { margin: 0; display: flex; align-items: baseline; gap: 0.3rem; font-family: var(--font-geist); font-weight: 800; font-size: clamp(3rem, 6vw, 5.5rem); line-height: 0.9; letter-spacing: -0.04em; color: var(--pack-gold, #d8b777); font-variant-numeric: tabular-nums; }
+.phil-stats dd small { font-size: 0.32em; font-weight: 600; letter-spacing: 0; color: rgb(255 255 255 / 0.75); }
+@media (min-width: 640px) and (max-width: 1023.98px) { .phil-stats { grid-column: span 2 / span 2; grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1024px) {
+  .phil-stats { position: absolute; right: 2.5rem; top: 48%; width: min(50%, 44rem); grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; }
+  .phil-lede { bottom: auto; top: calc(var(--size-philosophy-headline-y) + 9.5rem); left: 2.5rem; width: min(34rem, 40%); }
+}
