@@ -83,3 +83,5 @@
 @media (prefers-reduced-motion: reduce) { .gh-menu nav a, .gh-order i { animation: none; } }
 .gh-note-more::before { content: "· "; }
 @media (max-width: 640px) { .gh-note-more { display: none; } }
+/* phones: the bar keeps to one offer; the tour is in the menu */
+@media (max-width: 640px) { .gh-note-tour { display: none; } }

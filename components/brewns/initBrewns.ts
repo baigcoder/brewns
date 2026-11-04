@@ -2003,28 +2003,15 @@ for (const family of ["Space Mono", "Allura"]) {
     el.remove();
     return;
   }
-  const count = $("#pre-count"), coffee = $("#pre-coffee");
-  const crema = $("#pre-crema"), bar = $("#pre-bar"), step = $("#pre-step");
-  // What the bar is doing, as the cup fills.
-  const STEPS = [[0, "Grinding the beans"], [0.25, "Tamping"], [0.45, "Pulling the shot"], [0.7, "Steaming the milk"], [0.92, "Pouring your cup"]];
+  // The wordmark fills with coffee from the bottom as the page gets ready, then the screen lifts away.
+  const pourEl = $("#pre-pour");
   const STEP = { mount: 0.2, fonts: 0.7, loaded: 1 };
   const MIN_VISIBLE = 240, MAX_WAIT = 1200, HOLD = 40;
   const FILL = C(240, 24), POUR = C(200, 22);
   const t0 = performance.now();
   let level = 0, pour = 0, finishing = false;
   const draw = () => {
-    count.textContent = String(Math.round(Math.min(1, level) * 100));
-    const surface = 156 - level * (1 - pour) * (156 - 30);
-    coffee.setAttribute("y", surface);
-    if (crema) {
-      crema.setAttribute("y", surface - 3);
-      crema.style.opacity = level > 0.04 && pour < 0.5 ? "0.9" : "0";
-    }
-    if (bar) bar.style.transform = `scaleX(${Math.min(1, level)})`;
-    if (step) {
-      const label = STEPS.filter(([at]) => level >= at).pop()[1];
-      if (step.textContent !== label) step.textContent = label;
-    }
+    pourEl?.style.setProperty("--level", Math.min(1, level).toFixed(3));
     el.style.clipPath = `inset(${pour * 100}% 0 0 0)`;
   };
   const levelSpring = new Spring({ v: 0 }, (o) => ((level = o.v), draw()));

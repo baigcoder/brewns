@@ -3,7 +3,7 @@
    scroll), and the bean subscription. brewnsMarkup.ts places them in the page;
    initBrewns.ts lights the active pillar as it scrolls past. */
 
-import { ANNOUNCEMENT } from '@/lib/siteNav';
+import { ANNOUNCEMENT, TOUR_LINK } from '@/lib/siteNav';
 
 const ARROW = `<svg viewBox="0 0 12.2137 13.2551" fill="none" aria-hidden="true"><path d="M11.9501 7.26396C12.3016 6.91249 12.3016 6.34264 11.9501 5.99117L6.22254 0.263604C5.87107 -0.0878682 5.30122 -0.0878682 4.94975 0.263604C4.59828 0.615076 4.59828 1.18492 4.94975 1.5364L10.0409 6.62756L4.94975 11.7187C4.59828 12.0702 4.59828 12.6401 4.94975 12.9915C5.30122 13.343 5.87107 13.343 6.22254 12.9915L11.9501 7.26396ZM0 6.62756V7.52756H11.3137V6.62756V5.72756H0V6.62756Z" fill="currentColor"/></svg>`;
 
@@ -64,5 +64,5 @@ export const SUBSCRIBE_MARKUP = `
 
 
 /** The line across the top of the home page, as on every other page. */
-export const NOTE_MARKUP = `<p class="gh-note home-note"><span>${ANNOUNCEMENT.text}</span><span class="gh-note-more">${ANNOUNCEMENT.more}</span><a href="${ANNOUNCEMENT.href}">${ANNOUNCEMENT.cta} →</a></p>`;
+export const NOTE_MARKUP = `<p class="gh-note home-note"><span>${ANNOUNCEMENT.text}</span><span class="gh-note-more">${ANNOUNCEMENT.more}</span><a href="${ANNOUNCEMENT.href}">${ANNOUNCEMENT.cta} →</a><a href="${TOUR_LINK.href}" class="gh-note-tour">${TOUR_LINK.label} ▶</a></p>`;
 
