@@ -8,6 +8,7 @@ import type { Member } from '@/lib/member';
 import { usualOf } from '@/lib/usual';
 import { MODE_LABEL, orderNo, type Mode } from '@/lib/orderFlow';
 import { api, pkDate, pkTime, rs } from '@/components/console/api';
+import { ReferCard } from './ReferCard';
 
 type Order = { number: number; key: string; placed: number; status: string; statusLabel: string; mode: Mode; loc: number; table: number | null; totals: { total: number }; items: { id: string; qty: number; sel: Record<string, number>; name: string; opts?: string }[] };
 type User = { id: string; name: string; email: string; phone: string; since: number };
@@ -181,6 +182,8 @@ export function AccountHome({ user, club: first }: { user: User; club: ClubState
             </div>
           </section>
         )}
+
+        <ReferCard />
 
         {usual.length > 0 && (
           <section className="cx-card">

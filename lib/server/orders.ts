@@ -30,6 +30,8 @@ import {
 } from '@/lib/orderFlow';
 import { priceOrder } from '@/lib/pricing';
 import { promoProblem } from '@/lib/promos';
+import { refAmount, refProblem } from '@/lib/referral';
+import { countInvite, findRefCode, refUsedKey, settleReferral, spendThanks, unspendThanks } from './referrals';
 import { rewardValue } from '@/components/brewns/club';
 import { can, canAny, type Permission } from '@/lib/rbac';
 import { audit, type Actor } from './audit';
@@ -57,6 +59,7 @@ export async function getOrder(number: number): Promise<ServerOrder | null> {
 const staysActive = (o: ServerOrder) => o.status !== 'cancelled' && (isOpen(o.status) || (o.mode === 'dinein' && !o.paid));
 
 export async function saveOrder(o: ServerOrder) {
+  await settleReferral(o);
   o.events = o.events.slice(-80);
   o.messages = o.messages.slice(-120);
   await kv.hset(dayKey(o.day), o.number, o);
@@ -179,19 +182,26 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   // Money: promo, the club's free drink, then tax.
   const code = String(input.promo || '').trim().toUpperCase().slice(0, 24);
   const promo = code ? settings.promos.find((p) => p.active && p.code === code) : undefined;
-  if (code && !promo) fail(400, "That promo code isn't valid any more. Remove it to carry on.");
+  // Not one of the café's codes: a customer's referral or thank-you code, online only.
+  const ref = code && !promo && online ? await findRefCode(code) : null;
+  if (code && !promo && !ref) fail(400, "That promo code isn't valid any more. Remove it to carry on.");
   const customer = by.kind === 'online' ? by.customer : null;
   const memberRewards = customer?.club?.member ? customer.club.rewards : 0;
   const wantsReward = !!input.useReward && rewardValue(items) > 0;
   const verified = !!customer && memberRewards > 0;
   const useReward = wantsReward && (verified || (by.kind === 'online' && by.guestReward));
-  const totals = priceOrder(items, { mode, area: input.area, pay, promoPct: promo ? promo.pct / 100 : 0, useReward });
+  const totals = priceOrder(items, { mode, area: input.area, pay, promoPct: promo ? promo.pct / 100 : 0, promoOff: ref ? refAmount(ref) : 0, useReward });
   // The code's own rules (end date, cap, minimum, once each) are checked here, on the server, against the real bill.
   // The same mobile however it was typed (0300 1234567, +92 300 1234567): that is one customer.
   const phoneKey = (pkMobile(phone) || phone).replace(/\D/g, '');
   if (promo) {
     const usedBefore = promo.oncePerCustomer && phoneKey ? !!(await kv.get(`promo-used:${promo.code}:${phoneKey}`)) : false;
     const why = promoProblem(promo, { uses: await kv.num(`promo-uses:${promo.code}`), today: pkDay(now), subtotal: totals.sub, usedByThisCustomer: usedBefore });
+    if (why) fail(400, `${why} Remove the code to carry on.`);
+  }
+  if (ref) {
+    const usedBefore = ref.kind === 'invite' && phoneKey ? !!(await kv.get(refUsedKey(phoneKey))) : false;
+    const why = refProblem(ref, { customerId: customer?.id || null, phone: phoneKey, subtotal: totals.sub, usedBefore });
     if (why) fail(400, `${why} Remove the code to carry on.`);
   }
   if (taken) {
@@ -207,6 +217,8 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   await reserveStock(items);
   // Stock is taken before the order exists; if anything after this fails, put it back so units are not lost.
   let claimedRef = '';
+  let claimedRefUse = '';
+  let spentThanks = false;
   try {
     const number = await nextNumber();
     if (taken && taken.method === 2) {
@@ -215,6 +227,15 @@ export async function placeOrder(input: OrderInput, by: Placer) {
         claimedRef = '';
         fail(409, 'That transaction ID is already attached to another order. Check the ID on the receipt.');
       }
+    }
+    // A friend's discount once per mobile, a thank-you code once: claimed here so two orders at once cannot both have it.
+    if (ref?.kind === 'invite') {
+      if (!(await kv.set(refUsedKey(phoneKey), number, { nx: true }))) fail(409, 'This mobile number has already had a friend’s discount. Remove the code to carry on.');
+      claimedRefUse = refUsedKey(phoneKey);
+    }
+    if (ref?.kind === 'thanks') {
+      if (!(await spendThanks(code, ref, number))) fail(409, 'You have already used that code. Remove it to carry on.');
+      spentThanks = true;
     }
     const stations = Object.fromEntries(stationsOf(items).map((s) => [s, 'queued'])) as ServerOrder['stations'];
     const staffActor = by.kind === 'staff' ? by.ctx.user : null;
@@ -236,7 +257,8 @@ export async function placeOrder(input: OrderInput, by: Placer) {
       pay,
       items,
       totals,
-      promoCode: promo?.code || '',
+      promoCode: promo?.code || (ref ? code : ''),
+      ...(ref?.kind === 'invite' ? { referral: { code, owner: ref.owner } } : {}),
       pickupAt,
       status: 'received',
       stations,
@@ -271,6 +293,7 @@ export async function placeOrder(input: OrderInput, by: Placer) {
       await kv.incr(`promo-uses:${promo.code}`);
       if (promo.oncePerCustomer && phoneKey) await kv.set(`promo-used:${promo.code}:${phoneKey}`, 1);
     }
+    if (ref?.kind === 'invite') await countInvite(ref.owner);
 
     let credit: Awaited<ReturnType<typeof creditOrder>> = null;
     if (customer) {
@@ -286,6 +309,8 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   } catch (e) {
     await releaseStock(items).catch(() => {});
     if (claimedRef) await kv.del(claimedRef).catch(() => {});
+    if (claimedRefUse) await kv.del(claimedRefUse).catch(() => {});
+    if (spentThanks && ref?.kind === 'thanks') await unspendThanks(code, ref).catch(() => {});
     throw e;
   }
 }
