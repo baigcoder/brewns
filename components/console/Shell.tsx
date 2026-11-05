@@ -6,7 +6,7 @@ import { createContext, Suspense, useContext, useEffect, useState, type ReactNod
 import { canOpen, homeFor, ROLE_INFO, SECTIONS, type Permission, type Role } from '@/lib/rbac';
 import { api, initials } from './api';
 import { LiveProvider, useLive } from './Live';
-import { RiderAlerts } from './RiderAlerts';
+import { MessageAlerts, RiderAlerts, RiderCall } from './RiderAlerts';
 import { ToastProvider, useToast } from './Toasts';
 
 export type Me = { id: string; name: string; email: string; role: Role; shops: number[]; twoStep?: boolean };
@@ -63,8 +63,8 @@ function Nav({ perms, onGo }: { perms: Permission[]; onGo: () => void }) {
       alert: !!data?.aiLive,
     },
     messages: {
-      n: data?.unreadMessages || 0,
-      alert: (data?.unreadMessages || 0) > 0,
+      n: (data?.unreadMessages || 0) + (data?.dms || []).reduce((n, t) => n + t.unread, 0),
+      alert: !!data?.unreadMessages || !!data?.dms?.length,
     },
     refunds: {
       n: data?.refundsDue || 0,
@@ -252,6 +252,8 @@ export function Shell({
       <LiveProvider>
         <ShellContent initialMe={me} initialPerms={perms} store={store} notice={notice}>
           <RiderAlerts />
+          <MessageAlerts />
+          <RiderCall />
           {children}
         </ShellContent>
       </LiveProvider>

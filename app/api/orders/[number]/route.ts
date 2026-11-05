@@ -1,6 +1,7 @@
 import { getUser } from '@/lib/server/auth';
 import { clientIp, fail, json, rateLimit, readBody, route, safeEqual, str } from '@/lib/server/http';
 import { customerAct, expireHolds, getOrder, publicOrder, riderFix } from '@/lib/server/orders';
+import { callState, getCall } from '@/lib/server/rtc';
 
 type Ctx = { params: Promise<{ number: string }> };
 
@@ -16,8 +17,10 @@ export const GET = route(async (req: Request, ctx: Ctx) => {
     return u ? { photo: u.photo || '', bio: u.bio || '' } : {};
   };
   const pub = publicOrder(o);
-  const [riderAt, rider, waiter] = await Promise.all([riderFix(o), face(o.rider), face(o.waiter)]);
-  return json({ order: { ...pub, riderAt, rider: pub.rider && { ...pub.rider, ...rider }, waiter: pub.waiter && { ...pub.waiter, ...waiter } } });
+  const [riderAt, rider, waiter, call] = await Promise.all([riderFix(o), face(o.rider), face(o.waiter), getCall(o.number)]);
+  // A call with the rider: the tracker rings when it's theirs to pick up.
+  const rtc = call && callState(call) !== 'ended' ? { from: call.from, state: callState(call) } : null;
+  return json({ order: { ...pub, riderAt, rider: pub.rider && { ...pub.rider, ...rider }, waiter: pub.waiter && { ...pub.waiter, ...waiter }, call: rtc } });
 });
 
 /** Cancel (before it's started), "I've collected it", a message to the café, or where the door is. */

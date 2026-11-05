@@ -5,6 +5,7 @@ import { LOC_TITLES } from '@/lib/catalog';
 import { ROLE_INFO, type Role } from '@/lib/rbac';
 import type { TeamMessage } from '@/lib/server/teamMessages';
 import { ago, api, initials, useNow } from './api';
+import { DirectMessages } from './DirectMessages';
 import { useLive } from './Live';
 import { useMe } from './Shell';
 import { useRun, useToast } from './Toasts';
@@ -56,6 +57,11 @@ export function MessagesScreen() {
         </div>
       </div>
 
+      <DirectMessages />
+
+      <p className="cx-h2" style={{ marginBottom: 10 }}>
+        To the whole team
+      </p>
       {writer && (
         <section className="cx-card cx-stack" style={{ gap: 12, marginBottom: 18 }}>
           <label className="cx-field">

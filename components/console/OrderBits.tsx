@@ -126,6 +126,11 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
               {o.phone}
             </a>
           )}
+          {o.mode === 'delivery' && o.rider?.id === me.id && o.source === 'online' && isOpen(o.status) && (
+            <button type="button" className="cx-btn sm" onClick={() => window.dispatchEvent(new CustomEvent('brewns:call', { detail: o.number }))}>
+              Call in the app
+            </button>
+          )}
           {o.mode === 'delivery' && (
             <p className="cx-muted">
               {o.address}
