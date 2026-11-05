@@ -960,7 +960,7 @@ What you can do:
    c. Their name, then their mobile number. An email is optional, for the receipt.
    d. How they'll pay: cash, card on the rider's machine (or at the counter), or JazzCash / Easypaisa. You never take card numbers on the call.
    e. Read it all back: the items, the total with the delivery fee, the address or counter, name, mobile and payment. Then ask "Shall I place the order?"
-   f. Only after a clear yes, call place_order. Never say it's placed unless the tool says so.
+   f. Only after a clear yes, say a few words first so the line isn't silent ("Lovely, putting that through for you now…"), then call place_order. Never say it's placed unless the tool says so.
    g. Then give the order number slowly, the total, how they're paying, and when it'll arrive or be ready. Tell them their screen shows each step live (being made, the rider and their bike, the rider on the map), and that their tracking page opens when you hang up.
    h. Ask if there's anything else. When they're done, thank them warmly and say goodbye (in Urdu, "bohat shukriya, Khuda Hafiz"), then call end_call.
 4. Answer questions about the menu, prices, the three counters, hours, delivery and the club.
@@ -981,6 +981,7 @@ Booking rules:
 - Never invent menu items, prices, origins, roast days or tasting notes; describe things only from the menu below, and pass the exact ids to add_to_bag. If they ask for something we don't make (a frappuccino, masala chai, a macchiato), say so kindly and suggest the closest thing we do.
 - Only add to the bag when the caller asks for it ("I'll have", "add", "order", "get me"). A question like "tell me about your coffee" is not an order: answer it, then ask if they'd like one.
 - Mention the price total after adding. If they want delivery and name an area, give that area's fee and time from the facts below.
+- Before any tool except end_call, say a short natural holding line in the same breath, so the caller never hears dead air while you look: "One moment, let me check…", "Let me pop that in for you…", "Bas ek second, check kar rahi hoon…". Vary it; never the same one twice in a row.
 - When the caller says goodbye or is clearly done, say a short friendly goodbye and call end_call.
 
 brewns facts:
@@ -1245,7 +1246,9 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
 
 /** Places the order the caller confirmed, exactly as the website's checkout would: priced again, checked, on the kitchen screen. */
 async function placeVoiceOrder(input: Record<string, unknown>, actions: VoiceAction[]): Promise<ToolOut> {
-  if (!(await ownerExists())) return { content: 'Online orders are not switched on yet. Offer to put it in their bag, or a table booking.', isError: true };
+  const phoneNow = pkMobile(s(input.phone, 20));
+  const [live, recent, customer] = await Promise.all([ownerExists(), phoneNow ? kv.num(`rl:order-phone:${phoneNow.replace(/\D/g, '')}`) : 0, currentCustomer().catch(() => null)]);
+  if (!live) return { content: 'Online orders are not switched on yet. Offer to put it in their bag, or a table booking.', isError: true };
   const bag = checkBag(input.items);
   if (!bag.ok) return { content: bag.error, isError: true };
   const mode = input.mode === 'delivery' ? 'delivery' : 'pickup';
@@ -1254,9 +1257,8 @@ async function placeVoiceOrder(input: Record<string, unknown>, actions: VoiceAct
   const phone = pkMobile(s(input.phone, 20));
   if (!phone) return { content: 'Ask for a Pakistani mobile number, like 0300 1234567.', isError: true };
   const mobileKey = `rl:order-phone:${phone.replace(/\D/g, '')}`;
-  if ((await kv.num(mobileKey)) >= 8) return { content: 'That mobile number has placed a lot of orders in the last hour. Ask them to call the shop.', isError: true };
+  if (recent >= 8) return { content: 'That mobile number has placed a lot of orders in the last hour. Ask them to call the shop.', isError: true };
   const pay = input.pay === 'card' ? 1 : input.pay === 'wallet' ? 2 : 0;
-  const customer = await currentCustomer().catch(() => null);
   try {
     const { order } = await placeOrder(
       {

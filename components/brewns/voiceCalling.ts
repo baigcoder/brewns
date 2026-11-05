@@ -45,6 +45,11 @@ type Action = { type: string; data?: any };
 type Engine = 'live' | 'steps';
 type AudioChunk = { text: string; url: string };
 
+/** Tools that need the caller's own "yes" before they run. */
+const NEEDS_YES = new Set(['reserve_table', 'book_party', 'place_order']);
+/** Tools that finish something, and get the ta-da. */
+const DONE_SOUND = new Set(['reserve_table', 'book_party', 'place_order', 'add_to_bag', 'request_callback', 'save_booking_email']);
+
 /** Picked up after one ring or two, like someone reaching for the phone, never instantly. */
 const ringFor = () => (Math.random() < 0.55 ? 2600 : 5600) + Math.random() * 500;
 /** A breath before each reply on the live line, never quite the same. Short: Gemini
@@ -249,6 +254,32 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     micBtn?.setAttribute('aria-pressed', String(muted));
     micBtn?.setAttribute('aria-label', muted ? t.unmute : t.mute);
     if (micLabel) micLabel.textContent = muted ? t.unmute : t.mute;
+  }
+
+  /** What she's doing while a tool runs, so the caller can see she's on it. */
+  function workingLabel(tool: string) {
+    const n = shown();
+    const en: Record<string, string> = {
+      place_order: `${n} is placing your order…`,
+      add_to_bag: `${n} is adding it to your bag…`,
+      check_table: `${n} is checking the tables…`,
+      reserve_table: `${n} is booking your table…`,
+      book_party: `${n} is booking your party…`,
+      check_order: `${n} is checking your order…`,
+      request_callback: `${n} is letting the team know…`,
+      save_booking_email: `${n} is saving your email…`,
+    };
+    const ur: Record<string, string> = {
+      place_order: 'آپ کا آرڈر لگایا جا رہا ہے…',
+      add_to_bag: 'بیگ میں ڈالا جا رہا ہے…',
+      check_table: 'ٹیبل چیک ہو رہی ہے…',
+      reserve_table: 'ٹیبل بک ہو رہی ہے…',
+      book_party: 'پارٹی بک ہو رہی ہے…',
+      check_order: 'آپ کا آرڈر چیک ہو رہا ہے…',
+      request_callback: 'ٹیم کو بتایا جا رہا ہے…',
+      save_booking_email: 'ای میل محفوظ ہو رہی ہے…',
+    };
+    return (lang === 'ur' ? ur : en)[tool] || ui().thinking;
   }
 
   function setMode(next: Mode) {
@@ -457,6 +488,61 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   }
 
   /** The soft click of a handset being picked up, or the falling tone of a hang-up. */
+  /* While a tool runs: soft keys being typed on the till, quiet, irregular, until the answer is back. */
+  let keysTimer = 0;
+  function startWorkingSound() {
+    stopWorkingSound();
+    let c: AudioContext;
+    try {
+      c = ensureAudio();
+    } catch {
+      return;
+    }
+    const tap = () => {
+      try {
+        const len = Math.floor(c.sampleRate * 0.025);
+        const buf = c.createBuffer(1, len, c.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+        const src = c.createBufferSource();
+        const band = c.createBiquadFilter();
+        const g = c.createGain();
+        src.buffer = buf;
+        band.type = 'bandpass';
+        band.frequency.value = 1800 + Math.random() * 1600;
+        g.gain.value = 0.05 + Math.random() * 0.03;
+        src.connect(band).connect(g).connect(c.destination);
+        src.start();
+      } catch {}
+      // a burst of keys, then a short pause, like someone typing an order in
+      keysTimer = window.setTimeout(tap, Math.random() < 0.18 ? 380 + Math.random() * 300 : 70 + Math.random() * 110);
+    };
+    keysTimer = window.setTimeout(tap, 120);
+  }
+  function stopWorkingSound() {
+    clearTimeout(keysTimer);
+    keysTimer = 0;
+  }
+  /* Done: three bright notes going up. */
+  function tada() {
+    try {
+      const c = ensureAudio();
+      [523.25, 659.25, 783.99].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        const t = c.currentTime + i * 0.11;
+        o.type = 'triangle';
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + (i === 2 ? 0.55 : 0.22));
+        o.connect(g).connect(c.destination);
+        o.start(t);
+        o.stop(t + 0.6);
+      });
+    } catch {}
+  }
+
   function blip(kind: 'pickup' | 'hangup') {
     try {
       const c = ensureAudio();
@@ -599,6 +685,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       return;
     }
 
+    // Wake the tool line now, so the first booking or order mid-call isn't waiting on a cold start.
+    fetch('/api/voice/live/tool', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"warm":true}' }).catch(() => {});
     // Connect the live line while it rings; if it can't, the step-by-step line takes the call.
     let chosen: Engine = 'steps';
     const line = await lineP;
@@ -660,6 +748,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   function endCall(how: 'hangup' | 'dropped' | 'switch' = 'hangup') {
     if (!inCall) return;
+    stopWorkingSound();
     inCall = false;
     reconnecting = recycleDue = false;
     callSeq++;
@@ -882,9 +971,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   }
 
   async function runLiveTools(calls: { id: string; name: string; args: Record<string, unknown> }[]) {
-    setPhase('thinking');
-    // The words the caller just said can trail the tool call by a beat; the booking check needs their "yes".
-    for (let i = 0; i < 8 && !userBuf.trim(); i++) await sleep(80);
+    const busy = calls.find((c) => c.name !== 'end_call');
+    if (busy) {
+      setPhase('thinking', workingLabel(busy.name));
+      startWorkingSound();
+    }
+    // The words the caller just said can trail the tool call by a beat; only the ones that need their "yes" wait for it.
+    if (calls.some((c) => NEEDS_YES.has(c.name))) for (let i = 0; i < 5 && !userBuf.trim(); i++) await sleep(70);
     const transcript = toUrduScript(userBuf.trim()) || lastCaller;
     const seq = callSeq;
     const responses = await Promise.all(
@@ -905,7 +998,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         }
       }),
     );
+    stopWorkingSound();
     if (seq !== callSeq) return;
+    // Something got done (booked, ordered, added): a little ta-da, like a till that's gone through.
+    if (responses.some((r) => !('error' in (r.response as object)) && DONE_SOUND.has(r.name))) tada();
     live?.sendToolResponses(responses);
     // "One moment…" shouldn't outstay the moment if the answer comes back without words.
     setTimeout(() => {
