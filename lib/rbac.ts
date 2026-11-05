@@ -43,12 +43,13 @@ export const PERMISSIONS = {
   'staff.view': { group: 'Team', label: 'See the team', desc: 'Everyone on staff and their roles.' },
   'staff.manage': { group: 'Team', label: 'Manage the team', desc: 'Invite, change roles, reset passwords, deactivate.' },
   'access.manage': { group: 'Team', label: 'Access control', desc: 'Change what each role can do. Owners only.' },
+  'payroll.manage': { group: 'Team', label: 'Payroll', desc: 'Salaries, bonuses, deductions and paying the team. Owners only.' },
 } as const;
 export type Permission = keyof typeof PERMISSIONS;
 export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
 
 /** Permissions only an owner can ever hold: giving them away would let anyone promote themselves. */
-export const OWNER_ONLY: readonly Permission[] = ['access.manage'];
+export const OWNER_ONLY: readonly Permission[] = ['access.manage', 'payroll.manage'];
 
 export type RolePerms = Record<Role, Permission[]>;
 
@@ -111,6 +112,7 @@ export const SECTIONS: Section[] = [
   { key: 'shops', href: '/dashboard/shops', label: 'Shops', any: ['shops.manage'], group: 'Manage' },
   { key: 'staff', href: '/dashboard/staff', label: 'Team', any: ['staff.view'], group: 'Manage' },
   { key: 'access', href: '/dashboard/access', label: 'Access', any: ['access.manage'], group: 'Manage' },
+  { key: 'payroll', href: '/dashboard/payroll', label: 'Payroll', any: ['payroll.manage'], group: 'Manage' },
   { key: 'customers', href: '/dashboard/customers', label: 'Customers', any: ['customers.view'], group: 'Manage' },
   { key: 'moments', href: '/dashboard/moments', label: 'Moments & reviews', any: ['shops.manage', 'reports.view'], group: 'Manage' },
   { key: 'activity', href: '/dashboard/activity', label: 'Activity', any: ['audit.view'], group: 'Manage' },

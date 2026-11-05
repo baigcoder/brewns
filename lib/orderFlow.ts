@@ -88,6 +88,8 @@ export type ServerOrder = {
   /** Customer messages the café has read. */
   readByCafe: number;
   rider: { id: string; name: string; plate: string } | null;
+  /** Table orders: who served it. */
+  waiter?: { id: string; name: string };
   /** The customer's door, if they shared their exact location (at checkout or from the tracker). */
   pin?: { lat: number; lng: number };
   /** Deliveries: the 4-digit code the customer gives the rider at the door. Never sent to staff screens. */

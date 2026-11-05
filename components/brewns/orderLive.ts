@@ -43,7 +43,9 @@ export type ServerView = {
   stage: string;
   status: string;
   times: Record<string, number>;
-  rider: { name: string; plate: string } | null;
+  rider: { name: string; plate: string; photo?: string; bio?: string } | null;
+  /** Table orders: who served it, with their photo and a line about them. */
+  waiter?: { name: string; photo?: string; bio?: string } | null;
   /** The customer's exact door, if they shared it. */
   pin?: { lat: number; lng: number } | null;
   /** The rider phone's last GPS fix while on the road. */

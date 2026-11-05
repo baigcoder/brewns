@@ -5,6 +5,7 @@ import { LOC_TITLES } from '@/lib/catalog';
 import { ALL_PERMISSIONS, PERMISSIONS, ROLE_INFO } from '@/lib/rbac';
 import { api } from './api';
 import { useMe } from './Shell';
+import { MyPayCard, ProfileCard } from './ProfileCards';
 import { TwoStepCard } from './TwoStepCard';
 import { useRun } from './Toasts';
 
@@ -97,6 +98,8 @@ export function AccountScreen() {
         </section>
 
         <TwoStepCard />
+        <ProfileCard />
+        {me.role !== 'owner' && <MyPayCard />}
 
         {/* Real-time RBAC Permissions View */}
         <section className="cx-card cx-stack" style={{ gap: 14, gridColumn: '1 / -1' }}>

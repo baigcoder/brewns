@@ -6245,6 +6245,11 @@ const stageTime = (at) => {
   const d = new Date(at);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
+/* A team member's face on the tracker: their photo, else their initials. Only our own or Cloudinary links are shown. */
+const staffFace = (name, photo) =>
+  photo && /^(\/api\/public\/staff-photo\/|https:\/\/res\.cloudinary\.com\/)/.test(photo)
+    ? `<img class="trk-avatar" src="${esc(photo)}" alt="" width="44" height="44" loading="lazy">`
+    : `<span class="trk-avatar">${esc(name.split(" ").map((w) => w[0]).join(""))}</span>`;
 const orderLines = (o) =>
   o.items.map((it) => {
     const p = productById(it.id);
@@ -6258,7 +6263,7 @@ function applyServer(o, so, key = o.server?.key) {
     number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc, table: so.table ?? o.table ?? null,
     cancelled: so.cancelled ? so.cancelled.t : undefined, collected: so.times?.collected,
   });
-  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, pin: so.pin || null, riderAt: so.riderAt || null, handover: so.handover || null, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
+  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, waiter: so.waiter || null, pin: so.pin || null, riderAt: so.riderAt || null, handover: so.handover || null, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
   return o;
 }
 const syncing = new Set();
@@ -6464,9 +6469,17 @@ function renderDone() {
           ${o.server ? `<button type="button" class="trk-pin-btn mono-fine" data-co="pin"${o.server.pin ? " hidden" : ""}>⌖ SHARE MY EXACT LOCATION, SO THE RIDER FINDS YOUR DOOR</button>` : ""}
         </section>
         <div class="trk-rider" id="trk-rider" hidden>
-            <span class="trk-avatar">${r.name.split(" ").map((w) => w[0]).join("")}</span>
-            <div><p><b>${esc(r.name)}</b>${r.rating ? ` · ★ ${r.rating}` : ""}</p><p class="mono-fine">YOUR RIDER${r.plate ? ` · BIKE ${esc(r.plate)}` : ""}</p></div>
+            ${staffFace(r.name, o.server?.rider?.photo)}
+            <div><p><b>${esc(r.name)}</b>${r.rating ? ` · ★ ${r.rating}` : ""}</p><p class="mono-fine">YOUR RIDER${r.plate ? ` · BIKE ${esc(r.plate)}` : ""}</p>${o.server?.rider?.bio ? `<p class="trk-bio">“${esc(o.server.rider.bio)}”</p>` : ""}</div>
             <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button><a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
+          </div>`
+            : ""
+        }
+        ${
+          dine && o.server?.waiter
+            ? `<div class="trk-rider">
+            ${staffFace(o.server.waiter.name, o.server.waiter.photo)}
+            <div><p><b>${esc(o.server.waiter.name)}</b></p><p class="mono-fine">SERVED YOUR TABLE</p>${o.server.waiter.bio ? `<p class="trk-bio">“${esc(o.server.waiter.bio)}”</p>` : ""}</div>
           </div>`
             : ""
         }
@@ -6653,14 +6666,14 @@ function renderDone() {
     map?.destroy();
   });
   let lastSync = o.server ? o.server.checked : 0;
-  const riderShown = JSON.stringify(o.server?.rider || null);
+  const riderShown = JSON.stringify([o.server?.rider || null, o.server?.waiter || null]);
   const refresh = () => {
     if (!o.server || Date.now() - lastSync < 5000) return;
     lastSync = Date.now();
     syncOrder(o).then((changed) => {
       if (!changed || co?.done !== o) return;
       // A rider assigned since this page was drawn: draw it again with their name.
-      if (JSON.stringify(o.server.rider || null) !== riderShown) return renderCheckout({ animate: false });
+      if (JSON.stringify([o.server.rider || null, o.server.waiter || null]) !== riderShown) return renderCheckout({ animate: false });
       stages = timeline(o, shop);
       $$("#trk-steps li", coEl).forEach((li, k) => {
         const time = $("time", li);

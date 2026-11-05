@@ -105,6 +105,9 @@ export type User = {
   phone: string;
   /** A rider's bike, shown to the customer. */
   plate: string;
+  /** Staff: their photo and a line about them, shown to customers (the rider on the way, who served the table). */
+  photo?: string;
+  bio?: string;
   /** Shops this person works at, by index. Empty: all of them. */
   shops: number[];
   passHash: string | null;
