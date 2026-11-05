@@ -199,7 +199,17 @@ function state(): StoreState {
   if (process.env.NODE_ENV === 'production' && g.__brewnsStore) return g.__brewnsStore;
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (url && token) g.__brewnsStore = { backend: upstash(url, token), kind: 'redis', ephemeral: false, where: new URL(url).host };
+  let redisHost: string | null = null;
+  if (url && token) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:') redisHost = parsed.host;
+    } catch {
+      // Readiness reports this invalid setting at runtime. Do not let a malformed
+      // dashboard value abort static page generation during deployment.
+    }
+  }
+  if (url && token && redisHost) g.__brewnsStore = { backend: upstash(url, token), kind: 'redis', ephemeral: false, where: redisHost };
   else {
     const hosted = !!process.env.VERCEL;
     const file = process.env.BREWNS_DATA_FILE || (hosted ? '/tmp/brewns-data.json' : path.join(process.cwd(), '.data', 'brewns.json'));

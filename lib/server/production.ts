@@ -1,9 +1,21 @@
 /** Runtime safeguards for the services that make a multi-instance deployment safe. */
 
 export const isProduction = () => process.env.NODE_ENV === 'production';
+export const isProductionBuild = () => process.env.NEXT_PHASE === 'phase-production-build';
+
+function redisUrl() {
+  const value = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 export const redisConfigured = () => Boolean(
-  (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL) &&
+  redisUrl() &&
     (process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN),
 );
 
@@ -22,7 +34,11 @@ export function productionReadiness() {
 /** Redis coordinates locks, rate limits and sessions across Vercel instances.
  * A production request must never silently use the ephemeral file fallback. */
 export function requireProductionRedis() {
-  if (isProduction() && !redisConfigured()) throw new Error('Production Redis is not configured.');
+  // Static generation must be able to use the local read-only fallback. Runtime
+  // traffic never gets that fallback on production instances.
+  if (isProduction() && !isProductionBuild() && !redisConfigured()) {
+    throw new Error('Production Redis is not configured or has an invalid REST URL.');
+  }
 }
 
 export function requireProductionSessionSecret() {
