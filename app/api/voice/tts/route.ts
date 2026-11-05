@@ -12,9 +12,10 @@ const once = (audio: Uint8Array) =>
   });
 
 /** GET /api/voice/tts?p=…&s=…: one concierge line, streamed as it is spoken.
-    Gemini first, in the live line's voice so Sarah sounds the same on both
-    lines; then ElevenLabs (the studio voice), then Groq's Orpheus. The X-Voice
-    header says which answered, so the call can show it. */
+    English: ElevenLabs first (the studio voice, a whole line in about 0.9 s),
+    then Gemini, which matches the live line's voice but takes 4–5 s a line and
+    left callers in silence; then Groq's Orpheus. Urdu: Gemini first, which
+    speaks it best. The X-Voice header says which answered, so the call can show it. */
 export const GET = route(async (req): Promise<Response> => {
   const url = new URL(req.url);
   const line = readTtsToken(url.searchParams.get('p') || '', url.searchParams.get('s') || '');
@@ -29,11 +30,16 @@ export const GET = route(async (req): Promise<Response> => {
     'Access-Control-Expose-Headers': 'X-Voice, X-Voice-Provider',
   });
 
-  const gemini = await generateGeminiVoice(line.text, line.gender, line.lang);
-  if (gemini) return new Response(once(gemini), { headers: headers('audio/wav', 'natural', 'gemini') });
+  const eleven = () => streamElevenLabsVoice(line.text, line.gender, line.lang);
+  const gemini = () => generateGeminiVoice(line.text, line.gender, line.lang);
+  const first = line.lang === 'en' ? await eleven() : null;
+  if (first) return new Response(first, { headers: headers('audio/mpeg', 'studio', 'elevenlabs') });
 
-  const eleven = await streamElevenLabsVoice(line.text, line.gender, line.lang);
-  if (eleven) return new Response(eleven, { headers: headers('audio/mpeg', 'studio', 'elevenlabs') });
+  const natural = await gemini();
+  if (natural) return new Response(once(natural), { headers: headers('audio/wav', 'natural', 'gemini') });
+
+  const studio = line.lang === 'en' ? null : await eleven();
+  if (studio) return new Response(studio, { headers: headers('audio/mpeg', 'studio', 'elevenlabs') });
 
   const groq = await generateGroqVoice(line.text, line.gender, line.lang);
   if (groq) return new Response(once(groq), { headers: headers('audio/wav', 'natural', 'groq') });
