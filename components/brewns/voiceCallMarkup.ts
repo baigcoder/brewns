@@ -56,6 +56,11 @@ export const VOICE_CALL_MARKUP = `
       <button type="button" class="vcall-switch" id="vc-voice-switch">${icon(SWAP, 14)}<span>Talk to <span id="vc-voice-current">Hamza</span></span></button>
     </section>
 
+    <section class="vcall-sum" id="vc-sum" hidden aria-live="polite" aria-labelledby="vc-sum-h">
+      <h3 class="vcall-sum-h" id="vc-sum-h">Sarah has noted</h3>
+      <dl id="vc-sum-rows"></dl>
+    </section>
+
     <ol class="vcall-log" id="vc-log" aria-live="polite" aria-label="Conversation"></ol>
 
     <div class="vcall-alert" id="voice-unblock-actions" hidden>
@@ -75,9 +80,25 @@ export const VOICE_CALL_MARKUP = `
       <button type="submit" id="voice-send-btn" aria-label="Send">${icon(SEND, 18)}</button>
     </form>
 
+    <!-- Before a call: the language first, then what it's about; the second tap dials. -->
     <div class="vcall-start" id="vc-start">
-      <button type="button" class="vcall-dial" id="vc-dial">${icon(PHONE, 22)}<span>Call <span id="vc-dial-name">Sarah</span></span></button>
+      <div class="vcall-pick" id="vc-pick-lang">
+        <p class="vcall-pick-q">Language · <span lang="ur">زبان</span></p>
+        <div class="vcall-pick-row">
+          <button type="button" class="vcall-choice" data-lang="en" aria-pressed="false">English</button>
+          <button type="button" class="vcall-choice" data-lang="ur" lang="ur" aria-pressed="false">اردو</button>
+        </div>
+      </div>
+      <div class="vcall-pick" id="vc-pick-why" hidden>
+        <p class="vcall-pick-q" id="vc-why-q">What’s the call about?</p>
+        <div class="vcall-pick-row">
+          <button type="button" class="vcall-choice" data-why="order">${icon(PHONE, 18)}<span>Place an order</span></button>
+          <button type="button" class="vcall-choice" data-why="complaint">${icon(CHAT, 18)}<span>Make a complaint</span></button>
+        </div>
+        <button type="button" class="vcall-back" id="vc-why-back">‹ <span>Language</span></button>
+      </div>
     </div>
+
 
     <footer class="vcall-controls">
       <button type="button" class="vcall-ctl" id="voice-keypad-toggle" aria-label="Type during the call" aria-expanded="false">${icon(KEYS)}<span>Type</span></button>
