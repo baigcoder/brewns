@@ -8,7 +8,7 @@
 
 import { SITE_URL } from '@/lib/site';
 import { findByEmail, hashPassword, passwordProblem, randomToken, saveUser, sha256, startSession, type User } from './auth';
-import { sendEmail } from './email';
+import { renderLinkEmail, sendEmail } from './email';
 import { fail } from './http';
 import { kv } from './store';
 
@@ -33,9 +33,17 @@ export async function requestReset(email: string, devOrigin?: string) {
     to: user.email,
     subject: 'Reset your brewns password',
     text: `Hi ${user.name.split(' ')[0]},\n\nSomeone asked to reset the password for your brewns account. If that was you, open this link and choose a new one. It works once and lasts ${RESET_MINUTES} minutes:\n\n${link}\n\nIf it wasn't you, ignore this email: your password hasn't changed.\n\nbrewns coffee house`,
+    html: renderLinkEmail({
+      preview: 'Reset the password for your brewns account.',
+      heading: 'Reset your password',
+      lines: [`Hi ${user.name.split(' ')[0]}, someone asked to reset the password for your brewns account. If that was you, choose a new one below.`],
+      button: 'Choose a new password',
+      link,
+      note: `This link works once and lasts ${RESET_MINUTES} minutes. If it wasn't you, ignore this email: your password hasn't changed.`,
+    }),
   });
   // No email service set up yet: say so in the server log (and, while developing, show the link there).
-  if (!sent.ok) console.warn('[password reset] No email provider is configured (set RESEND_API_KEY or BREVO_API_KEY), so the link was not sent.');
+  if (!sent.ok) console.warn('[password reset] No email provider is configured (set SMTP_USER and SMTP_PASS, RESEND_API_KEY or BREVO_API_KEY), so the link was not sent.');
   if (!sent.ok && process.env.NODE_ENV !== 'production') console.info(`[password reset] dev link for ${user.email}: ${link}`);
 }
 
