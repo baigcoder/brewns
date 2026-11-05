@@ -2,6 +2,7 @@
 
 import { hasDevanagari, toUrduScript } from '@/lib/devanagari';
 import { cafeHoursStatusLabel, getCafeOpeningStatus } from '@/lib/openingHours';
+import { emptySummary, noteAction, noteTool, summaryRows, type CallPurpose } from './callSummary';
 import { LiveSession, type LiveEvent } from './liveSession';
 import { showVoiceOrder } from './voiceOrderCard';
 
@@ -66,6 +67,10 @@ const BARGE_IN_MS = 320;
 const LIVE_BARGE_LEVEL = 0.03;
 const LIVE_BARGE_MS = 250;
 const PICKUP_CUE = 'The caller has just picked up the phone.';
+/** The caller's language choice, kept for their next call. */
+const LANG_KEY = 'brewns-call-lang';
+/** Silence this long when Sarah owes an answer means she isn't answering. */
+const NO_ANSWER_MS = 12000;
 
 type Lang = 'en' | 'ur';
 type Who = 'female' | 'male';
@@ -73,7 +78,7 @@ const NAMES: Record<Lang, Record<Who, string>> = { en: { female: 'Sarah', male: 
 const UI = {
   en: {
     call: 'Call', message: 'Message', type: 'Type', end: 'End', mute: 'Mute', unmute: 'Unmute',
-    dial: (n: string) => `Call ${n}`, talkTo: (n: string) => `Talk to ${n}`,
+    talkTo: (n: string) => `Talk to ${n}`,
     subtitle: (g: Who) => (g === 'female' ? 'Front desk · brewns Lahore' : 'Roastery & bar · brewns Lahore'),
     replies: 'Usually replies instantly', ringing: 'Ringing…', connecting: 'Connecting…', connected: 'Connected',
     listening: 'Listening', speaking: (n: string) => `${n} is speaking`, thinking: 'One moment…', muted: 'You’re muted', ended: 'Call ended',
@@ -84,6 +89,10 @@ const UI = {
     placeholder: 'Type a message…', tryMic: 'Try the mic again', msgInstead: 'Message instead', noConnect: 'Call didn’t connect',
     micBlocked: 'Your microphone is blocked for this site. Allow it from the icon in the address bar, or keep going by message.',
     micMissing: 'We couldn’t reach your microphone. Check it isn’t in use by another app, or keep going by message.',
+    why: 'What’s the call about?', order: 'Place an order', complaint: 'Make a complaint', back: 'Language', noted: (n: string) => `${n} has noted`,
+    purpose: { order: 'I’d like to place an order.', complaint: 'I have a complaint.' },
+    noAnswer: (n: string) => `${n} isn’t answering. The line may be slow; try again, or keep going by message.`, retry: 'Try again',
+    offline: 'No internet · waiting for signal…',
     chips: [
       ['Order a classic smash burger and an iced latte for delivery', 'Burger & iced latte'],
       ['I want to book a table for 4 at Gulberg tomorrow evening', 'Book a table'],
@@ -94,7 +103,7 @@ const UI = {
   },
   ur: {
     call: 'کال', message: 'پیغام', type: 'لکھیں', end: 'ختم', mute: 'خاموش', unmute: 'آواز کھولیں',
-    dial: (n: string) => `${n} کو کال کریں`, talkTo: (n: string) => `${n} سے بات کریں`,
+    talkTo: (n: string) => `${n} سے بات کریں`,
     subtitle: (g: Who) => (g === 'female' ? 'فرنٹ ڈیسک · brewns لاہور' : 'روسٹری اور بار · brewns لاہور'),
     replies: 'عموماً فوراً جواب دیتے ہیں', ringing: 'گھنٹی جا رہی ہے…', connecting: 'ملا رہے ہیں…', connected: 'کال مل گئی',
     listening: 'سن رہے ہیں', speaking: (n: string) => `${n} بات کر رہی ہیں`, thinking: 'ایک لمحہ…', muted: 'آپ کا مائیک بند ہے', ended: 'کال ختم ہو گئی',
@@ -105,6 +114,10 @@ const UI = {
     placeholder: 'پیغام لکھیں…', tryMic: 'مائیک دوبارہ آزمائیں', msgInstead: 'پیغام بھیجیں', noConnect: 'کال نہیں مل سکی',
     micBlocked: 'اس سائٹ کے لیے آپ کا مائیک بند ہے۔ ایڈریس بار کے آئیکن سے اجازت دیں، یا پیغام سے بات جاری رکھیں۔',
     micMissing: 'آپ کا مائیک نہیں مل سکا۔ دیکھ لیں کہ کوئی اور ایپ اسے استعمال تو نہیں کر رہی، یا پیغام سے بات جاری رکھیں۔',
+    why: 'کال کس بارے میں ہے؟', order: 'آرڈر دینا ہے', complaint: 'شکایت کرنی ہے', back: 'زبان', noted: (n: string) => `${n} نے نوٹ کیا`,
+    purpose: { order: 'مجھے آرڈر دینا ہے۔', complaint: 'مجھے ایک شکایت درج کرانی ہے۔' },
+    noAnswer: (n: string) => `${n} جواب نہیں دے رہیں۔ لائن سست ہو سکتی ہے؛ دوبارہ کوشش کریں، یا پیغام سے بات جاری رکھیں۔`, retry: 'دوبارہ کوشش کریں',
+    offline: 'انٹرنیٹ نہیں · سگنل کا انتظار…',
     chips: [
       ['مجھے ایک اسمیش برگر اور ایک آئسڈ لاٹے ڈیلیوری کے لیے آرڈر کرنا ہے', 'برگر اور آئسڈ لاٹے'],
       ['کل شام گلبرگ میں چار لوگوں کے لیے ٹیبل بک کرنی ہے', 'ٹیبل بک کریں'],
@@ -155,6 +168,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   const micLabel = $('voice-mic-label');
   const keypadBtn = $('voice-keypad-toggle');
   const langBtn = $('vc-lang-toggle');
+  const pickLang = $('vc-pick-lang');
+  const pickWhy = $('vc-pick-why');
+  const sumEl = $('vc-sum');
+  const sumRows = $('vc-sum-rows');
   const tabs = [...modal.querySelectorAll<HTMLButtonElement>('.vcall-tab')];
 
   const ac = new AbortController();
@@ -164,7 +181,19 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let mode: Mode = 'call';
   let phase: Phase = 'idle';
   let gender: 'female' | 'male' = 'female';
-  let lang: 'en' | 'ur' = /^ur/i.test(navigator.language) ? 'ur' : 'en';
+  let lang: 'en' | 'ur' = (() => {
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved === 'en' || saved === 'ur') return saved;
+    } catch {}
+    return /^ur/i.test(navigator.language) ? 'ur' : 'en';
+  })();
+  /** Chosen before dialling: an order or a complaint. */
+  let purpose: CallPurpose = 'order';
+  /** What Sarah has understood on this call, shown above the conversation. */
+  let summary = emptySummary();
+  /** Set while Sarah owes an answer: if it fires, she isn't answering. */
+  let answerWatch = 0;
   let history: Turn[] = [];
   let scriptState: unknown = {};
   /** One id per call or chat, so the café's call log can follow it live. */
@@ -313,25 +342,22 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       li.classList.add('current');
       li.dataset.who = kind;
     }
-    setText(li, text);
     logEl.append(li);
-    logEl.scrollTop = logEl.scrollHeight;
+    setText(li, text);
     return li;
   }
+  /** Scrolled up to reread something: new words don't yank the view back down. */
+  const atBottom = () => logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 80;
+  // Something above the log grew (the summary, the order card): stay on the newest line if that's where they were.
+  let pinned = true;
+  on(logEl, 'scroll', () => (pinned = atBottom()));
+  const logSize = new ResizeObserver(() => pinned && (logEl.scrollTop = logEl.scrollHeight));
+  logSize.observe(logEl);
   function setText(li: HTMLElement, text: string) {
-    // On a call the caption box shows the newest lines of a long reply, like a
-    // phone's live captions; the wrapper is what lets the start scroll away.
-    const cap = document.createElement('span');
-    cap.className = 'cap';
-    const words = document.createElement('span');
-    words.textContent = text;
-    cap.append(words);
-    li.replaceChildren(cap);
+    li.textContent = text;
     li.classList.remove('hearing');
     li.dir = isUrdu(text) ? 'rtl' : 'auto';
-    logEl.scrollTop = logEl.scrollHeight;
-    // Overflow at the top isn't scrollable, so it doesn't show in scrollHeight: measure the words.
-    requestAnimationFrame(() => cap.classList.toggle('over', words.offsetHeight > cap.clientHeight + 2));
+    if (pinned) logEl.scrollTop = logEl.scrollHeight;
   }
   const say = (text: string) => bubble('agent', text);
   const note = (text: string) => bubble('note', text);
@@ -365,11 +391,16 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     };
     label('.vcall-tab[data-mode="call"] span', t.call);
     label('.vcall-tab[data-mode="message"] span', t.message);
-    label('#vc-dial > span', t.dial(shown()));
+    label('#vc-why-q', t.why);
+    label('[data-why="order"] span', t.order);
+    label('[data-why="complaint"] span', t.complaint);
+    label('#vc-why-back span', t.back);
+    for (const b of modal!.querySelectorAll('[data-lang].vcall-choice')) b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.lang === lang));
+    renderSummary();
     label('#vc-voice-switch > span', t.talkTo(shown(other)));
     label('#voice-keypad-toggle span', t.type);
     label('#voice-hangup-btn span', t.end);
-    label('#voice-unblock-btn', t.tryMic);
+    label('#voice-unblock-btn', alertRetry ? t.retry : t.tryMic);
     label('#voice-type-mode-btn', t.msgInstead);
     if (chipsEl) {
       chipsEl.dir = lang === 'ur' ? 'rtl' : 'ltr';
@@ -422,10 +453,69 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     setPhase(phase);
   }
 
-  function showAlert(text: string | null) {
+  /** `retry`: the button tries the line again rather than the mic. */
+  let alertRetry = false;
+  /** The caller picked a language: use it for this call and remember it for the next. */
+  function chooseLang(next: Lang) {
+    setLang(next);
+    try {
+      localStorage.setItem(LANG_KEY, next);
+    } catch {}
+  }
+
+  function showAlert(text: string | null, retry = false) {
     if (!alertEl) return;
+    alertRetry = !!text && retry;
     alertEl.hidden = !text;
     if (text && alertText) alertText.textContent = text;
+    const btn = $('voice-unblock-btn');
+    if (btn) btn.textContent = retry ? ui().retry : ui().tryMic;
+  }
+
+  /** Before a call: the language step, or what the call is about. */
+  function pickStep(step: 'lang' | 'why') {
+    pickLang?.toggleAttribute('hidden', step !== 'lang');
+    pickWhy?.toggleAttribute('hidden', step !== 'why');
+  }
+
+  function renderSummary() {
+    if (!sumEl || !sumRows) return;
+    const rows = summaryRows(summary, lang);
+    sumRows.replaceChildren(
+      ...rows.flatMap(([k, v]) => {
+        const dt = document.createElement('dt');
+        const dd = document.createElement('dd');
+        dt.textContent = k;
+        dd.textContent = v;
+        dd.dir = 'auto';
+        return [dt, dd];
+      }),
+    );
+    // During a call it's always there; afterwards only if something was noted.
+    sumEl.hidden = !inCall && rows.length < 2;
+    const h = $('vc-sum-h');
+    if (h) h.textContent = ui().noted(shown());
+  }
+  const nameOf = (id: string) => productById(id)?.name || '';
+
+  /* Sarah owes an answer (the caller spoke, a tool came back): if nothing
+     comes for a while, say so and offer a retry instead of silence. */
+  function expectAnswer() {
+    clearTimeout(answerWatch);
+    if (!inCall || engine !== 'live') return;
+    const seq = callSeq;
+    answerWatch = window.setTimeout(() => {
+      if (seq !== callSeq || !inCall || reconnecting || live?.speaking) return;
+      stopWorkingSound();
+      showAlert(ui().noAnswer(shown()), true);
+      setPhase(muted ? 'muted' : 'listening', ui().noConnect);
+    }, NO_ANSWER_MS);
+  }
+  function answered() {
+    if (!answerWatch) return;
+    clearTimeout(answerWatch);
+    answerWatch = 0;
+    if (alertRetry) showAlert(null);
   }
 
   /* ═════════ sound ═════════ */
@@ -635,6 +725,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       }
       if (userLi && now - hearingSince > 5000 && now - lastVoiceAt > 4000) forgetHearing();
       if (live.speaking) {
+        answered();
         if (phase !== 'speaking') setPhase('speaking');
       } else if (phase === 'speaking') {
         if (hangUpAfterSpeech && liveTurnDone) endCall();
@@ -656,7 +747,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     reconnecting = recycleDue = false;
     showAlert(null);
     setVoiceTag(null);
+    summary = emptySummary(purpose);
+    // What they picked on the screen goes in as their opening words, so Sarah starts on it (both lines read the history).
+    const opener = ui().purpose[purpose];
+    if ([...history].reverse().find((t) => t.role === 'user')?.content !== opener) history.push({ role: 'user', content: opener });
     setMode('call');
+    renderSummary();
     updateChips();
     ensureAudio();
     triggerHaptic?.(30);
@@ -665,10 +761,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const ringStarted = performance.now();
     const ringMs = ringFor();
 
-    const recap = history.slice(-12).map((t) => `${t.role === 'user' ? 'Caller' : agent()}: ${t.content}`).join('\n');
-    const lineP = fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, recap }) })
-      .then((r) => r.json())
-      .catch(() => ({ live: false }));
+    const lineP = openLine();
 
     let mic: MediaStream | null = null;
     try {
@@ -682,6 +775,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       showAlert(blocked ? ui().micBlocked : ui().micMissing);
       setPhase('ended', ui().noConnect);
       updateChips();
+      renderSummary();
       return;
     }
 
@@ -735,6 +829,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       setPhase('thinking', ui().connected);
       await live.startMic(mic);
       live.sendText(PICKUP_CUE);
+      expectAnswer();
     } else {
       const id = ++turnId;
       setPhase('thinking', ui().connected);
@@ -750,6 +845,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (!inCall) return;
     stopWorkingSound();
     inCall = false;
+    clearTimeout(answerWatch);
+    answerWatch = 0;
     reconnecting = recycleDue = false;
     callSeq++;
     turnId++;
@@ -773,6 +870,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (how !== 'switch') blip('hangup');
     setPhase('ended');
     updateChips();
+    renderSummary();
+    pickStep('lang');
     // Ordered on this call: once it's over (Sarah's goodbye or the caller hanging up), show the order's live tracking.
     const placed = placedThisCall;
     placedThisCall = null;
@@ -792,15 +891,15 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       const heard = toUrduScript(userBuf.trim());
       setText(userLi, heard);
       if (!heard) return;
-      if (isUrdu(heard) && lang !== 'ur') setLang('ur');
       liveTurnDone = false;
+      expectAnswer();
     } else if (e.type === 'agent-text') {
       agentBuf += e.text;
       if (!agentLi) agentLi = bubble('agent');
       const said = toUrduScript(agentBuf.trim());
       setText(agentLi, said);
-      if (isUrdu(said) && lang !== 'ur') setLang('ur');
       liveTurnDone = false;
+      answered();
     } else if (e.type === 'caller-start') {
       // The caller started talking: Sarah stops now, not when her queued words run out.
       if (live?.speaking) cutAgentOff();
@@ -811,6 +910,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       commitLiveTurn();
       liveTurnDone = true;
     } else if (e.type === 'tool-call') {
+      answered();
       void runLiveTools(e.calls);
     } else if (e.type === 'go-away') {
       recycleDue = true;
@@ -886,7 +986,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   /** A Gemini Live token for this call; `resume` carries a dropped conversation over to the new line. */
   function openLine(resume = '') {
     const recap = history.slice(-12).map((t) => `${t.role === 'user' ? 'Caller' : agent()}: ${t.content}`).join('\n');
-    return fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, recap, resume }) })
+    return fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, recap, resume }), signal: AbortSignal.timeout(10000) })
       .then((r) => r.json())
       .catch(() => ({ live: false }));
   }
@@ -929,6 +1029,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
           await session.connect(line.url, line.setup);
           if (stale()) return 'stale';
           if (!resume) session.sendText('The phone line dropped for a moment and is back now. In a few words, say you can hear the caller again, then carry on from where the conversation was.');
+          expectAnswer();
           return 'ok';
         } catch (err) {
           console.warn('[brewns-call] reconnect failed:', err);
@@ -974,8 +1075,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const busy = calls.find((c) => c.name !== 'end_call');
     if (busy) {
       setPhase('thinking', workingLabel(busy.name));
+      note(workingLabel(busy.name));
       startWorkingSound();
     }
+    for (const c of calls) summary = noteTool(summary, c.name, c.args || {}, nameOf);
+    renderSummary();
     // The words the caller just said can trail the tool call by a beat; only the ones that need their "yes" wait for it.
     if (calls.some((c) => NEEDS_YES.has(c.name))) for (let i = 0; i < 5 && !userBuf.trim(); i++) await sleep(70);
     const transcript = toUrduScript(userBuf.trim()) || lastCaller;
@@ -991,7 +1095,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
             signal: AbortSignal.timeout(15000),
           });
           const d = await r.json();
-          if (seq === callSeq) for (const a of (d.actions || []) as Action[]) handleAction(a);
+          if (seq === callSeq) for (const a of (d.actions || []) as Action[]) handleAction(a, true);
           return { id: c.id, name: c.name, response: d.output ?? { error: d.error || 'The system did not answer.' } };
         } catch {
           return { id: c.id, name: c.name, response: { error: 'The booking system did not respond. Apologise and offer to try again.' } };
@@ -1003,6 +1107,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     // Something got done (booked, ordered, added): a little ta-da, like a till that's gone through.
     if (responses.some((r) => !('error' in (r.response as object)) && DONE_SOUND.has(r.name))) tada();
     live?.sendToolResponses(responses);
+    expectAnswer();
     // "One moment…" shouldn't outstay the moment if the answer comes back without words.
     setTimeout(() => {
       if (seq === callSeq && engine === 'live' && phase === 'thinking' && !reconnecting && !live?.speaking) setPhase(muted ? 'muted' : 'listening');
@@ -1016,11 +1121,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, gender, history, state: scriptState, lang, callId, channel }),
+      signal: AbortSignal.timeout(25000),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `The line is busy (${res.status})`);
     scriptState = data.state || {};
-    if ((data.lang === 'ur' || data.lang === 'en') && data.lang !== lang) setLang(data.lang);
+    if (!inCall && (data.lang === 'ur' || data.lang === 'en') && data.lang !== lang) setLang(data.lang);
     return data as { reply: string; audioChunks?: AudioChunk[]; audioUrl?: string; actions?: Action[] };
   }
 
@@ -1332,6 +1438,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         userBuf = said;
         live.sendText(said);
         lastCaller = said;
+        expectAnswer();
       } else void stepsTurn(said);
       return;
     }
@@ -1357,7 +1464,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   /* ═════════ what the conversation does ═════════ */
 
-  function handleAction(action: Action) {
+  function handleAction(action: Action, fromLive = false) {
+    summary = noteAction(summary, action, nameOf, fromLive);
+    renderSummary();
     if (action.type === 'ADD_TO_BAG') {
       let added = 0;
       for (const line of action.data?.items || []) {
@@ -1426,7 +1535,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(loop);
     setMode(next);
-    if (next === 'call') void startCall();
+    pickStep('lang');
   }
 
   function closeModal() {
@@ -1467,10 +1576,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     setPhase('connecting', ui().transferring(shown()));
     note(ui().transferred(shown()));
     const seq = callSeq;
-    const recap = history.slice(-12).map((t) => `${t.role === 'user' ? 'Caller' : from}: ${t.content}`).join('\n');
-    const line = await fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, recap }) })
-      .then((r) => r.json())
-      .catch(() => ({ live: false }));
+    const line = await openLine();
     if (seq !== callSeq) return;
     if (line?.live) {
       const session = new LiveSession(ensureAudio(), outGain!, onLive);
@@ -1481,6 +1587,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         live = session;
         await live.startMic(micStream!);
         live.setMuted(muted);
+        expectAnswer();
         live.sendText(`The caller was just transferred to you from ${from}. Introduce yourself in one short sentence and carry on from where the conversation was.`);
         return;
       } catch {
@@ -1522,9 +1629,23 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     e.preventDefault();
     endCall();
   });
-  on($('vc-dial'), 'click', (e: Event) => {
+  // Before a call: tap a language (kept for next time), then what it's about, which dials.
+  for (const b of modal.querySelectorAll<HTMLElement>('.vcall-choice[data-lang]'))
+    on(b, 'click', (e: Event) => {
+      e.preventDefault();
+      playSoftClick?.();
+      chooseLang(b.dataset.lang === 'ur' ? 'ur' : 'en');
+      pickStep('why');
+    });
+  for (const b of modal.querySelectorAll<HTMLElement>('.vcall-choice[data-why]'))
+    on(b, 'click', (e: Event) => {
+      e.preventDefault();
+      purpose = b.dataset.why === 'complaint' ? 'complaint' : 'order';
+      void startCall();
+    });
+  on($('vc-why-back'), 'click', (e: Event) => {
     e.preventDefault();
-    void startCall();
+    pickStep('lang');
   });
   on(document, 'keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !modal!.hidden) closeModal();
@@ -1533,8 +1654,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   on(document, 'visibilitychange', () => !document.hidden && wakeAudio());
   // Back online after a dead spot: don't wait for the old socket to time out.
   on(window, 'online', () => {
-    if (inCall && engine === 'live' && live && !live.open) void reconnectLive('dropped');
+    if (!inCall || engine !== 'live' || !live) return;
+    if (!live.open) void reconnectLive('dropped');
+    else if (!reconnecting) setPhase(muted ? 'muted' : live.speaking ? 'speaking' : 'listening');
   });
+  // Lost signal mid-call: say so now; the line reconnects when it's back.
+  on(window, 'offline', () => inCall && setPhase('connecting', ui().offline));
 
   for (const t of tabs)
     on(t, 'click', (e: Event) => {
@@ -1564,7 +1689,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   on(langBtn, 'click', (e: Event) => {
     e.preventDefault();
     playSoftClick?.();
-    setLang(lang === 'en' ? 'ur' : 'en');
+    chooseLang(lang === 'en' ? 'ur' : 'en');
     if (inCall && engine === 'live') live?.sendText(lang === 'ur' ? 'The caller would like to continue in Urdu.' : 'The caller would like to continue in English.');
   });
   on(inputRow, 'submit', (e: Event) => {
@@ -1580,7 +1705,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   on($('voice-unblock-btn'), 'click', (e: Event) => {
     e.preventDefault();
     showAlert(null);
-    void startCall();
+    // Mid-call, Sarah went quiet: a fresh line (the step-by-step one if live won't come back). Otherwise dial again.
+    if (!inCall) void startCall();
+    else if (engine === 'live' && live) void reconnectLive('dropped');
+    else stepsListen();
   });
   on($('voice-type-mode-btn'), 'click', (e: Event) => {
     e.preventDefault();
@@ -1596,6 +1724,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   return () => {
     closeModal();
+    logSize.disconnect();
     ac.abort();
   };
 }

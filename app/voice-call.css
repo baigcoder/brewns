@@ -180,9 +180,47 @@
 
 /* the call button before a call, and after one ends */
 .vcall-start { flex: none; display: none; justify-content: center; padding: 14px 24px calc(22px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
-.vcall-dial { display: inline-flex; align-items: center; gap: 10px; height: 56px; padding: 0 28px; border-radius: 999px; background: var(--green); color: #06210f; font-weight: 800; font-size: 16px; box-shadow: 0 16px 36px -12px rgb(79 209 139 / 0.7); transition: transform 150ms, background-color 150ms; }
-.vcall-dial:hover { background: #63de9c; transform: translateY(-1px); }
-.vcall-dial:active { transform: scale(0.97); }
+/* two taps before it rings: the language (the last one used is lit), then what it's about */
+.vcall-pick { display: grid; justify-items: center; gap: 10px; width: 100%; }
+.vcall-pick[hidden] { display: none; }
+.vcall-pick-q { margin: 0; font-family: var(--font-space-mono), monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mute); }
+.vcall-pick-q [lang="ur"] { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; letter-spacing: 0; font-size: 13px; }
+.vcall-pick-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.vcall-choice { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 8px 14px; border-radius: 999px; background: rgb(255 255 255 / 0.06); border: 1px solid var(--line); color: var(--ink); font-weight: 700; font-size: 15px; transition: transform 150ms, background-color 150ms, border-color 150ms; }
+.vcall-choice[lang="ur"] { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; font-weight: 400; font-size: 18px; }
+.vcall-choice:hover { border-color: rgb(214 160 102 / 0.5); }
+.vcall-choice[aria-pressed="true"] { border-color: var(--gold); background: rgb(214 160 102 / 0.14); }
+.vcall-choice[data-why] { background: var(--green); border-color: transparent; color: #06210f; box-shadow: 0 16px 36px -12px rgb(79 209 139 / 0.7); }
+.vcall-choice[data-why="complaint"] { background: var(--ink); color: #1a120a; box-shadow: none; }
+.vcall-choice:active { transform: scale(0.97); }
+.vcall-back { font-size: 12px; color: var(--faint); padding: 4px 10px; }
+.vcall-back:hover { color: var(--ink); }
+
+/* what Sarah has understood so far, above the conversation */
+.vcall-sum { flex: 0 1 auto; min-height: 48px; margin: 0 18px 8px; padding: 10px 14px; border-radius: 16px; background: rgb(255 255 255 / 0.04); border: 1px solid rgb(214 160 102 / 0.22); max-height: 32%; overflow-y: auto; scrollbar-width: thin; }
+.vcall-sum[hidden] { display: none; }
+.vcall-sum-h { margin: 0 0 6px; font-family: var(--font-space-mono), monospace; font-size: 10px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+.vcall-sum dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; line-height: 1.4; }
+.vcall-sum dt { color: var(--faint); }
+.vcall-sum dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+.vcall[data-mode="message"] .vcall-sum { display: none; }
+.vcall[data-lang="ur"] :is(.vcall-sum, .vcall-pick) { direction: rtl; }
+.vcall[data-lang="ur"] :is(.vcall-sum-h, .vcall-sum dl, .vcall-choice[data-why], .vcall-back) { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; letter-spacing: 0; text-transform: none; line-height: 1.9; }
+
+/* on a call the stage shrinks so the conversation has the room */
+.vcall[data-mode="call"]:not([data-phase="idle"], [data-phase="ended"]) .vcall-stage { padding: 12px 20px 4px; }
+.vcall[data-mode="call"]:not([data-phase="idle"], [data-phase="ended"]) .vcall-orb { width: 76px; height: 76px; margin-bottom: 6px; }
+.vcall[data-mode="call"]:not([data-phase="idle"], [data-phase="ended"]) .vcall-core { width: 64px; height: 64px; }
+.vcall[data-mode="call"]:not([data-phase="idle"], [data-phase="ended"]) .vcall-core span { font-size: 26px; }
+.vcall[data-mode="call"]:not([data-phase="idle"], [data-phase="ended"]) .vcall-name { font-size: 1.25rem; }
+.vcall[data-mode="call"]:not([data-phase="idle"], [data-phase="ended"]) .vcall-role { display: none; }
+.vcall[data-mode="call"] .vcall-log { flex-basis: 0; min-height: 120px; }
+/* a short card: the conversation keeps its room; the orb and extras give way */
+.vcall-card { container-type: size; }
+@container (max-height: 680px) {
+  .vcall[data-mode="call"]:not([data-phase="idle"], [data-phase="ended"]) :is(.vcall-orb, .vcall-switch) { display: none; }
+  .vcall[data-mode="call"]:not([data-phase="idle"], [data-phase="ended"]) .vcall-phase { margin-top: 2px; }
+}
 .vcall[data-mode="call"]:is([data-phase="idle"], [data-phase="ended"]) .vcall-start { display: flex; }
 .vcall[data-mode="call"]:is([data-phase="idle"], [data-phase="ended"]) .vcall-controls { display: none; }
 
@@ -218,7 +256,7 @@
 
 /* Urdu: the panel's words in Nastaliq, read right to left; the mono, spaced
    capitals of the English labels don't suit the script, so they relax here. */
-.vcall[data-lang="ur"] :is(.vcall-tab span, .vcall-dial > span, .voice-chip, .vcall-switch > span, .vcall-phase, .vcall-role > span:first-child, .vcall-ctl span, .vcall-mic-label, .vcall-pill, .vcall-name, .vcall-hours span, .vcall-log .note, .vcall-alert p, .vcall-input input) {
+.vcall[data-lang="ur"] :is(.vcall-tab span, .voice-chip, .vcall-switch > span, .vcall-phase, .vcall-role > span:first-child, .vcall-ctl span, .vcall-mic-label, .vcall-pill, .vcall-name, .vcall-hours span, .vcall-log .note, .vcall-alert p, .vcall-input input) {
   font-family: var(--font-urdu), "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", system-ui, sans-serif;
   letter-spacing: 0;
   text-transform: none;
@@ -234,55 +272,6 @@
 .vcall-log .you[dir="rtl"] { border-bottom-right-radius: 18px; border-bottom-left-radius: 6px; }
 .vcall[data-lang="ur"] .vcall-voice { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; letter-spacing: 0; text-transform: none; font-size: 11px; line-height: 1.8; }
 
-/* ── on a call: one live caption, like a phone's live captions, not a chat ──
-   Only the line being said right now shows, big and centred, with who is
-   speaking above it. The whole conversation is in the Message tab. */
-.vcall[data-mode="call"] .vcall-log {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  overflow: hidden;
-  padding: 6px 28px 18px;
-  -webkit-mask-image: linear-gradient(transparent, #000 38%);
-  mask-image: linear-gradient(transparent, #000 38%);
-}
-.vcall[data-mode="call"] .vcall-log li { display: none; }
-.vcall[data-mode="call"] .vcall-log li.current {
-  display: block;
-  align-self: center;
-  max-width: 100%;
-  padding: 0;
-  background: none;
-  border-radius: 0;
-  text-align: center;
-  font-size: clamp(1.05rem, 4.2vw, 1.25rem);
-  font-weight: 600;
-  line-height: 1.45;
-  color: var(--ink);
-  animation: vcall-msg 260ms ease both;
-}
-.vcall[data-mode="call"] .vcall-log li.current[data-who="you"] { color: var(--gold-hi); }
-.vcall[data-mode="call"] .vcall-log li.current::before {
-  display: block;
-  margin-bottom: 6px;
-  font-family: var(--font-space-mono), monospace;
-  font-size: 10.5px;
-  font-weight: 400;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.vcall[data-mode="call"] .vcall-log li.current[data-who="agent"]::before { content: var(--agent, "Sarah"); }
-.vcall[data-mode="call"] .vcall-log li.current[data-who="you"]::before { content: var(--you, "You"); }
-.vcall[data-mode="call"] .vcall-log li.current[dir="rtl"] { font-size: clamp(1.15rem, 4.6vw, 1.35rem); line-height: 2.05; text-align: center; }
-.vcall[data-mode="call"][data-lang="ur"] .vcall-log li.current::before { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; letter-spacing: 0; font-size: 12px; }
-.vcall[data-mode="call"] .vcall-log li.current.pending { color: var(--gold-hi); opacity: 0.85; }
-/* A long reply keeps its newest four lines in view (three in Urdu); the start
-   fades away above them, and who's speaking stays on top. */
-.vcall[data-mode="call"] .vcall-log li.current .cap { display: flex; flex-direction: column; justify-content: flex-end; max-height: calc(1.45em * 4); overflow: hidden; }
-.vcall[data-mode="call"] .vcall-log li.current[dir="rtl"] .cap { max-height: calc(2.05em * 3); }
-.vcall[data-mode="call"] .vcall-log li.current .cap.over { -webkit-mask-image: linear-gradient(transparent, #000 1.3em); mask-image: linear-gradient(transparent, #000 1.3em); }
-.vcall[data-mode="call"] .vcall-log { -webkit-mask-image: none; mask-image: none; }
 /* "You …": the caller is being heard, before their words come back. */
 .vcall-log li.hearing::after { content: ""; display: inline-block; width: 2.2em; height: 0.5em; background: radial-gradient(circle closest-side, currentColor 70%, transparent 74%) 0 50% / 0.7em 0.5em repeat-x; animation: vcall-hear 1.1s steps(3, jump-none) infinite; vertical-align: middle; }
 @keyframes vcall-hear { from { clip-path: inset(0 66% 0 0); } to { clip-path: inset(0 0 0 0); } }
