@@ -11,7 +11,8 @@ const client = () => new Client({ token: process.env.QSTASH_TOKEN! });
 
 export async function enqueueBookingJobs(payload: BookingEmailPayload) {
   if (!queueConfigured()) return false;
-  const url = `${SITE_URL}/api/internal/jobs`;
+  // Previews/staging use their own callback so test notifications never land on production.
+  const url = `${(process.env.JOB_CALLBACK_URL || SITE_URL).replace(/\/$/, '')}/api/internal/jobs`;
   await Promise.all([
     client().publishJSON({ url, body: { kind: 'booking-email', payload } satisfies BookingJob, retries: 3 }),
     client().publishJSON({ url, body: { kind: 'booking-whatsapp', payload } satisfies BookingJob, retries: 3 }),

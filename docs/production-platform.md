@@ -9,7 +9,9 @@
    reservations and failed background jobs.
 3. **Upstash QStash**. Set `QSTASH_TOKEN`, `QSTASH_URL`,
    `QSTASH_CURRENT_SIGNING_KEY`, and `QSTASH_NEXT_SIGNING_KEY`. It retries
-   booking email and WhatsApp jobs outside the customer request.
+   booking email and WhatsApp jobs outside the customer request. On Preview,
+   also set `JOB_CALLBACK_URL` to the preview/staging URL; it prevents test jobs
+   from being sent to production.
 4. **Sentry**. Set `SENTRY_DSN` to capture server and Edge exceptions without
    customer personal data.
 
