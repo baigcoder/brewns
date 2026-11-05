@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Onest, Space_Mono, Allura, Noto_Nastaliq_Urdu } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import './segments.css';
 import { SITE_URL } from '@/lib/site';
@@ -7,37 +7,42 @@ import { FAQ } from '@/lib/faq';
 import RegisterSW from '@/components/site/RegisterSW';
 import { InstallPrompt } from '@/components/site/InstallPrompt';
 
-const geist = Geist({
-  subsets: ['latin'],
+// Self-hosted: a build must never depend on fetching Google Fonts (it failed intermittently on Vercel).
+const geist = localFont({
+  src: './fonts/geist-latin-wght-normal.woff2',
+  weight: '100 900',
   variable: '--font-geist',
   display: 'swap',
 });
 
-const onest = Onest({
-  subsets: ['latin'],
+const onest = localFont({
+  src: './fonts/onest-latin-wght-normal.woff2',
+  weight: '100 900',
   variable: '--font-onest',
   display: 'swap',
 });
 
-const spaceMono = Space_Mono({
-  weight: ['400', '700'],
-  subsets: ['latin'],
+const spaceMono = localFont({
+  src: './fonts/SpaceMono-Regular.woff2',
+  weight: '400',
   variable: '--font-space-mono',
   display: 'swap',
 });
 
-const allura = Allura({
+const allura = localFont({
+  src: './fonts/Allura-Regular.woff2',
   weight: '400',
-  subsets: ['latin'],
   variable: '--font-allura',
   preload: false, // script accents sit below the fold
   display: 'swap',
 });
 
 // Urdu in the concierge's captions and chat, in the Nastaliq script people read it in.
-const urdu = Noto_Nastaliq_Urdu({
-  weight: ['400', '600'],
-  subsets: ['arabic'],
+const urdu = localFont({
+  src: [
+    { path: './fonts/noto-nastaliq-urdu-arabic-400-normal.woff2', weight: '400' },
+    { path: './fonts/noto-nastaliq-urdu-arabic-600-normal.woff2', weight: '600' },
+  ],
   variable: '--font-urdu',
   preload: false, // only the call and chat use it
   display: 'swap',

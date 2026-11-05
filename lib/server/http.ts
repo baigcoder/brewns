@@ -3,6 +3,7 @@
    reading a body safely, and rate limits. */
 
 import { timingSafeEqual } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { kv } from './store';
 
 export class HttpError extends Error {
@@ -39,6 +40,7 @@ export function route<A extends unknown[]>(fn: (req: Request, ...rest: A) => Pro
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.message }, e.status);
       console.error('[brewns api]', e);
+      Sentry.captureException(e); // no-op unless SENTRY_DSN initialised the SDK
       return json({ error: 'Something went wrong on our side. Try again in a moment.' }, 500);
     }
   };
