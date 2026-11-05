@@ -1,4 +1,4 @@
-import { requireStaff } from '@/lib/server/auth';
+import { requireStaff, worksAt } from '@/lib/server/auth';
 import { clientIp, fail, isEmail, json, rateLimit, readBody, route, str, int } from '@/lib/server/http';
 import { kv, withLock } from '@/lib/server/store';
 import { BOOK_AHEAD_DAYS, bookingProblem, uniqueBookingCode, withinBookAhead } from '@/lib/booking';
@@ -33,12 +33,13 @@ export type Reservation = {
 
 /** GET /api/reservations: staff view of table bookings (names and numbers, so staff only). */
 export const GET = route(async (req) => {
-  await requireStaff(['floor.tables', 'orders.view', 'reports.view'], 'any');
+  const ctx = await requireStaff(['floor.tables', 'orders.view', 'reports.view'], 'any');
   const url = new URL(req.url);
   const locParam = url.searchParams.get('loc');
   const dateParam = url.searchParams.get('date');
 
-  const all = Object.values(await kv.hall<Reservation>('reservations') || {});
+  // Guests' names, emails and numbers: only for the shops this person works at.
+  const all = Object.values(await kv.hall<Reservation>('reservations') || {}).filter((r) => worksAt(ctx.user, r.loc));
   let list = all.sort((a, b) => b.createdAt - a.createdAt);
 
   if (locParam !== null && locParam !== 'all') {
@@ -141,7 +142,7 @@ export const POST = route(async (req) => {
 
 /** PATCH /api/reservations: update reservation status (staff) */
 export const PATCH = route(async (req) => {
-  await requireStaff(['floor.tables', 'orders.manage', 'reports.view'], 'any');
+  const ctx = await requireStaff(['floor.tables', 'orders.manage', 'reports.view'], 'any');
 
   const b = await readBody(req);
   const id = str(b.id, 60);
@@ -154,6 +155,7 @@ export const PATCH = route(async (req) => {
   const updated = await withLock('reservations', async () => {
     const item = await kv.hget<Reservation>('reservations', id);
     if (!item) fail(404, 'Reservation not found.');
+    if (!worksAt(ctx.user, item!.loc)) fail(403, "That booking is at a shop you don't work at.");
     const next: Reservation = { ...item!, status };
     await kv.hset('reservations', id, next);
     return next;

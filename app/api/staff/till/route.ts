@@ -52,6 +52,7 @@ export const POST = route(async (req) => {
     counted,
     variance: counted - t.drawer,
     note: str(b.note, 140),
+    shops: ctx.user.shops,
   };
   await kv.push('till:closes', close, 500);
   await kv.set(`till:last:${ctx.user.id}`, close.t);

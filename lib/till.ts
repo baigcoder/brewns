@@ -7,7 +7,12 @@ import type { ServerOrder, Status } from './orderFlow';
 export type TillOrder = { number: number; name: string; total: number; method: number; status: Status; placed: number; mode: ServerOrder['mode']; table: number | null };
 
 /** One time a cashier counted the drawer and closed the till. Variance is counted minus expected: negative is short. */
-export type TillClose = { t: number; day: string; uid: string; name: string; orders: number; cash: number; card: number; wallet: number; refundsCash: number; float: number; expected: number; counted: number; variance: number; note: string };
+export type TillClose = { t: number; day: string; uid: string; name: string; orders: number; cash: number; card: number; wallet: number; refundsCash: number; float: number; expected: number; counted: number; variance: number; note: string; /** The shops the cashier worked at when closing (empty: all). Older closes have none. */ shops?: number[] };
+
+/** The closes a viewer may see: an owner and anyone on all shops see every one; someone tied to some shops sees
+ * only closes by cashiers tied to one of those shops (a close with no shops recorded is not theirs to see). */
+export const closesVisibleTo = (closes: TillClose[], viewer: { role: string; shops: number[] }) =>
+  viewer.role === 'owner' || !viewer.shops.length ? closes : closes.filter((c) => !!c.shops?.length && c.shops.some((s) => viewer.shops.includes(s)));
 
 /** A drawer this far short (in rupees) is worth telling the owner about at once. */
 export const SHORT_ALERT = 200;

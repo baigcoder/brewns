@@ -1,3 +1,10 @@
 import * as Sentry from '@sentry/nextjs';
+import { scrubEvent } from './lib/sentryScrub';
 
-Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.VERCEL_ENV || process.env.NODE_ENV, tracesSampleRate: 0.1 });
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.VERCEL_ENV || process.env.NODE_ENV,
+  tracesSampleRate: 0.1,
+  beforeSend: (event) => scrubEvent(event),
+  beforeSendTransaction: (event) => scrubEvent(event),
+});

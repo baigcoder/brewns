@@ -1,4 +1,4 @@
-import { requireStaff } from '@/lib/server/auth';
+import { requireStaff, worksAt } from '@/lib/server/auth';
 import { audit } from '@/lib/server/audit';
 import { clearDemo, hasDemo, seedRealisticDay } from '@/lib/server/demo';
 import { fail, json, readBody, route } from '@/lib/server/http';
@@ -21,13 +21,15 @@ export const POST = route(async (req) => {
 
   if (b.action === 'unpause_all') {
     await updateSettings((s) => {
-      s.shops.forEach((shop) => {
-        shop.paused = false;
+      // Only the shops this person works at: someone tied to one shop must not switch on another's ordering.
+      s.shops.forEach((shop, loc) => {
+        if (worksAt(ctx.user, loc)) shop.paused = false;
       });
     });
     await bumpLive();
-    await audit(actor, 'Resumed online ordering across all shops');
-    return json({ ok: true, message: 'All shops unpaused and open for orders.' });
+    const all = !ctx.user.shops.length;
+    await audit(actor, all ? 'Resumed online ordering across all shops' : 'Resumed online ordering at their shops');
+    return json({ ok: true, message: all ? 'All shops unpaused and open for orders.' : 'Your shops are unpaused and open for orders.' });
   }
 
   if (b.action === 'seed') {
