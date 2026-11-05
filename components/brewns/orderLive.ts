@@ -44,6 +44,10 @@ export type ServerView = {
   status: string;
   times: Record<string, number>;
   rider: { name: string; plate: string } | null;
+  /** The customer's exact door, if they shared it. */
+  pin?: { lat: number; lng: number } | null;
+  /** The rider phone's last GPS fix while on the road. */
+  riderAt?: { lat: number; lng: number; heading: number | null; t: number } | null;
   messages: { id: string; from: 'you' | 'cafe' | 'rider'; text: string; t: number; by?: string }[];
   cancelled: { t: number; reason: string } | null;
   /** When the tracker last heard from the server. */
@@ -159,7 +163,7 @@ export function riderProgress(o: Order, stages: Stage[], now = Date.now()) {
     const stage = o.server.stage;
     if (stage === 'delivered') return 1;
     if (stage !== 'onway' && stage !== 'arriving') return 0;
-    // No GPS: estimate from when the rider left against the promised time, and
+    // Without a GPS fix: estimate from when the rider left against the promised time, and
     // never show "at the door" until the rider says so.
     const from = o.server.times.onway ?? now;
     const est = (now - from) / Math.max(60000, o.target - from);

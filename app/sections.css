@@ -262,18 +262,53 @@
 .bill-promo small { color: #5b5b58; font-size: 6px; letter-spacing: 0.06em; line-height: 1.5; }
 .bill-promo button { display: flex; justify-content: space-between; gap: 8px; border: 0; background: #111; color: #f2f0ea; padding: 6px 8px; font: inherit; font-size: 7px; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; }
 
-/* ── Live 3D delivery map ── */
-.trk-map3d { position: relative; height: 18rem; overflow: hidden; border: 1px solid rgb(216 183 119 / 0.3); border-radius: 10px; background: radial-gradient(80% 80% at 50% 30%, #2a211a, #0d0a08); }
-@media (min-width: 1024px) { .trk-map3d { height: 20rem; } }
-.trk-map3d canvas { display: block; width: 100% !important; height: 100% !important; }
-.trk-map3d.no-3d { height: auto; }
-.trk-live { position: absolute; left: 0.75rem; top: 0.75rem; z-index: 1; display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.7rem; border-radius: 999px; background: rgb(12 9 7 / 0.75); backdrop-filter: blur(6px); color: #fff; font-size: 0.68rem; letter-spacing: 0.08em; }
-.trk-live .dot { background: #7ddc8a; }
-.trk-stats { position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0.75rem; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; margin: 0; }
-.trk-map3d.no-3d .trk-stats, .trk-map3d.no-3d .trk-live { position: static; margin: 0.75rem; }
-.trk-stats div { padding: 0.5rem 0.65rem; border-radius: 8px; background: rgb(12 9 7 / 0.78); backdrop-filter: blur(6px); }
-.trk-stats dt { color: rgb(255 255 255 / 0.5); font-size: 0.6rem; }
-.trk-stats dd { margin: 0.15rem 0 0; font-family: var(--font-space-mono); font-size: 0.95rem; color: #d8b777; }
+/* ── Live delivery map: OpenStreetMap streets, the road, the shop, your door, the rider ── */
+.trk-map { border: 1px solid rgb(216 183 119 / 0.3); border-radius: 12px; overflow: hidden; background: #14100d; }
+.trk-map-view { position: relative; height: 19rem; overflow: hidden; background: #2a2622; isolation: isolate; }
+@media (min-width: 1024px) { .trk-map-view { height: 22rem; } }
+.trk-map-view.no-map { height: auto; padding-top: 3rem; }
+/* the streets in the site's warm dark: inverted OSM, tinted toward the brand, labels still legible */
+.rm-tiles { position: absolute; inset: 0; filter: invert(1) hue-rotate(185deg) sepia(0.25) saturate(0.7) brightness(0.92) contrast(0.92); }
+.rm-tiles img { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; user-select: none; }
+.rm-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.rm-svg polyline, .rm-svg line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.rm-casing { stroke: #17130f; stroke-width: 9; }
+.rm-ahead { stroke: #f2bd62; stroke-width: 5; }
+.rm-behind { stroke: rgb(242 240 234 / 0.55); stroke-width: 3.5; stroke-dasharray: 1 7; }
+.rm-offroad { stroke: #f2bd62; stroke-width: 3.5; stroke-dasharray: 8 7; }
+.rm-pin { position: absolute; left: 0; top: 0; z-index: 1; width: 0; height: 0; will-change: transform; }
+.rm-dot { position: absolute; left: -15px; top: -15px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 3px 10px rgb(0 0 0 / 0.45); font: 800 15px/1 var(--font-geist); }
+.rm-shop .rm-dot { background: #17130f; color: #d8b777; border-color: #d8b777; }
+.rm-door .rm-dot { background: #f4f1ea; color: #17130f; }
+.rm-door.approx .rm-dot { border-style: dashed; }
+.rm-tag { position: absolute; left: 0; bottom: 19px; transform: translateX(-50%); padding: 0.22rem 0.5rem; border-radius: 999px; white-space: nowrap; font-size: 0.6rem; letter-spacing: 0.06em; background: rgb(12 9 7 / 0.85); color: #f4f1ea; }
+.rm-shop .rm-tag { color: #d8b777; }
+.rm-rider { z-index: 2; }
+.rm-arrow { position: absolute; left: -19px; top: -19px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #d58c3d; color: #fff; border: 3px solid #fff; box-shadow: 0 4px 14px rgb(0 0 0 / 0.5); }
+.rm-rider .rm-tag { bottom: 25px; background: #d58c3d; color: #17130f; font-weight: 700; }
+.rm-pulse { position: absolute; left: -19px; top: -19px; width: 38px; height: 38px; border-radius: 50%; background: rgb(213 140 61 / 0.45); }
+.rm-rider.moving .rm-pulse { animation: rm-pulse 1.8s ease-out infinite; }
+.rm-rider.stale .rm-arrow { background: #8a8580; }
+.rm-rider.stale .rm-tag { background: #8a8580; }
+@keyframes rm-pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rm-rider.moving .rm-pulse { animation: none; } }
+.rm-credit { position: absolute; right: 0; bottom: 0; z-index: 3; padding: 0.1rem 0.35rem; font-size: 0.55rem; background: rgb(12 9 7 / 0.7); color: rgb(255 255 255 / 0.65); }
+.rm-credit a { color: inherit; }
+.trk-live { position: absolute; left: 0.6rem; right: 0.6rem; top: 0.6rem; z-index: 4; display: flex; width: fit-content; max-width: calc(100% - 1.2rem); align-items: center; gap: 0.45rem; padding: 0.4rem 0.7rem; border-radius: 999px; background: rgb(12 9 7 / 0.85); backdrop-filter: blur(6px); color: #fff; font-size: 0.62rem; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trk-live .dot { flex: none; background: #d8b777; }
+.trk-map-view.is-live .trk-live .dot { background: #7ddc8a; }
+.trk-map-view.is-stale .trk-live .dot { background: #e0a040; }
+/* where the order is: four legs of the trip */
+.trk-legs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.3rem; margin: 0; padding: 0.7rem 0.75rem 0; list-style: none; font-size: 0.55rem; letter-spacing: 0.05em; color: rgb(255 255 255 / 0.4); }
+.trk-legs li { padding-top: 0.45rem; border-top: 3px solid rgb(255 255 255 / 0.14); }
+.trk-legs li.on { border-color: #d8b777; color: rgb(255 255 255 / 0.75); }
+.trk-legs li.now { color: #d8b777; }
+.trk-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; margin: 0; padding: 0.7rem 0.75rem 0.75rem; }
+.trk-stats div { padding: 0.5rem 0.6rem; border-radius: 8px; background: rgb(255 255 255 / 0.05); }
+.trk-stats dt { color: rgb(255 255 255 / 0.5); font-size: 0.55rem; }
+.trk-stats dd { margin: 0.15rem 0 0; font-family: var(--font-space-mono); font-size: 1rem; color: #d8b777; white-space: nowrap; }
+.trk-pin-btn { display: block; width: calc(100% - 1.5rem); margin: 0 0.75rem 0.75rem; padding: 0.65rem; border: 1px dashed rgb(216 183 119 / 0.5); border-radius: 8px; background: none; color: #d8b777; font-size: 0.6rem; letter-spacing: 0.06em; cursor: pointer; }
+.trk-pin-btn:hover { background: rgb(216 183 119 / 0.08); }
 
 /* touch screens: small controls get a finger-sized hit area */
 @media (pointer: coarse) {

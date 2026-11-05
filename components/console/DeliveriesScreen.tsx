@@ -1,15 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DELIVERY, LOC_TITLES, PAY } from '@/lib/catalog';
 import { orderNo } from '@/lib/orderFlow';
-import { pkTime, rs } from './api';
+import { api, pkTime, rs } from './api';
 import { useLive, type StaffOrder } from './Live';
 import { itemsLine, OrderDrawer, StatusPill } from './OrderBits';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
 
-const mapLink = (o: StaffOrder) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${o.address}, ${o.area !== null ? DELIVERY.areas[o.area][0] : ''}, Lahore`)}`;
+// The customer's exact door when they shared it from the tracker, else the address they typed.
+const mapLink = (o: StaffOrder) =>
+  o.pin
+    ? `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${o.pin.lat},${o.pin.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${o.address}, ${o.area !== null ? DELIVERY.areas[o.area][0] : ''}, Lahore`)}`;
+
+/** While a rider has deliveries on the road, the phone's GPS goes to each every few seconds, so the customer sees the bike move. */
+function useShareLocation(numbers: number[]) {
+  const [state, setState] = useState<'waiting' | 'on' | 'denied'>('waiting');
+  const key = numbers.join(',');
+  useEffect(() => {
+    if (!key) return;
+    if (!navigator.geolocation) return;
+    let last = 0;
+    const id = navigator.geolocation.watchPosition(
+      (p) => {
+        setState('on');
+        if (Date.now() - last < 4000) return;
+        last = Date.now();
+        const fix = { type: 'locate', lat: p.coords.latitude, lng: p.coords.longitude, heading: p.coords.heading };
+        // A dropped fix is fine: the next one follows in seconds.
+        for (const n of key.split(',')) api(`/api/staff/orders/${n}`, fix).catch(() => {});
+      },
+      (e) => setState(e.code === e.PERMISSION_DENIED ? 'denied' : 'waiting'),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [key]);
+  return state;
+}
+const SHARING = {
+  waiting: 'Finding your location… keep this screen open while you ride.',
+  on: 'Sharing your location with the customer. Keep this screen open while you ride.',
+  denied: 'Location is blocked, so the customer only sees an estimate. Allow location for this site in the browser settings.',
+};
 
 /** Riders: what's theirs and what's waiting for a rider. Dispatchers: every delivery, with a rider picker. */
 export function DeliveriesScreen() {
@@ -24,6 +58,7 @@ export function DeliveriesScreen() {
   const waiting = deliveries.filter((o) => !o.rider && ['accepted', 'preparing', 'ready', 'received'].includes(o.status));
   const others = deliveries.filter((o) => o.rider && o.rider.id !== me.id);
   const cash = mine.filter((o) => !o.paid && o.pay === 0).reduce((s, o) => s + o.totals.total, 0);
+  const sharing = useShareLocation(riding ? mine.filter((o) => o.status === 'onway' || o.status === 'arriving').map((o) => o.number) : []);
 
   const step = async (o: StaffOrder, action: Record<string, unknown>, done?: string) => {
     setBusy(o.number);
@@ -63,12 +98,13 @@ export function DeliveriesScreen() {
                 </p>
                 <p className="cx-mono">{o.paid ? 'PAID' : o.pay === 0 ? `COLLECT ${rs(o.totals.total)} CASH` : `${PAY[o.pay][0]} ON YOUR MACHINE · ${rs(o.totals.total)}`}</p>
                 {o.note && <p className="cx-banner" style={{ margin: 0 }}>“{o.note}”</p>}
+                {['onway', 'arriving'].includes(o.status) && <p className={`cx-small${sharing === 'on' ? '' : ' cx-muted'}`}>{SHARING[sharing]}</p>}
                 <div className="cx-row">
                   <a className="cx-btn" href={`tel:${o.phone.replace(/\s/g, '')}`}>
                     Call {o.name.split(' ')[0]}
                   </a>
                   <a className="cx-btn" href={mapLink(o)} target="_blank" rel="noopener">
-                    Map
+                    {o.pin ? 'Directions to door' : 'Map'}
                   </a>
                   <button type="button" className="cx-btn" onClick={() => setOpen(o.number)}>
                     Messages

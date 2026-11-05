@@ -343,6 +343,7 @@ export const publicOrder = (o: ServerOrder) => ({
   pickupAt: o.pickupAt,
   promoCode: o.promoCode,
   rider: o.rider ? { name: o.rider.name, plate: o.rider.plate } : null,
+  pin: o.pin || null,
   messages: o.messages,
   cancelled: o.status === 'cancelled' ? { t: o.events.findLast((e) => e.status === 'cancelled')?.t || Date.now(), reason: o.cancelReason || '' } : null,
   paid: !!o.paid,
@@ -626,9 +627,38 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
   });
 }
 
+/* ── where the rider is ── */
+
+/** A point in or around Lahore, rounded to ~1 m, or null. */
+export function lahorePoint(lat: unknown, lng: unknown) {
+  const a = Number(lat), b = Number(lng);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a < 31.2 || a > 31.8 || b < 74.0 || b > 74.7) return null;
+  return { lat: Math.round(a * 1e5) / 1e5, lng: Math.round(b * 1e5) / 1e5 };
+}
+
+export type RiderFix = { lat: number; lng: number; heading: number | null; t: number };
+const fixKey = (n: number) => `rider:at:${n}`;
+const onRoad = (o: ServerOrder) => o.mode === 'delivery' && (o.status === 'onway' || o.status === 'arriving');
+
+/** The rider's phone reports where it is. Kept apart from the order so a fix every few seconds doesn't rewrite it or wake every board. */
+export async function riderLocate(number: number, fix: { lat?: unknown; lng?: unknown; heading?: unknown }, ctx: StaffContext) {
+  const o = await getOrder(number);
+  if (!o) fail(404, 'No such order.');
+  if (o!.rider?.id !== ctx.user.id || !can(ctx.perms, 'delivery.ride')) fail(403, 'Only the rider on this delivery shares its location.');
+  if (!onRoad(o!)) return false;
+  const p = lahorePoint(fix.lat, fix.lng);
+  if (!p) fail(400, 'That location is outside Lahore.');
+  const h = Number(fix.heading);
+  await kv.set(fixKey(number), { ...p!, heading: fix.heading != null && Number.isFinite(h) ? Math.round(((h % 360) + 360) % 360) : null, t: Date.now() } satisfies RiderFix, { ttlSec: 3 * 3600 });
+  return true;
+}
+
+/** The rider's last fix, while the order is on the road. */
+export const riderFix = async (o: ServerOrder) => (onRoad(o) ? kv.get<RiderFix>(fixKey(o.number)) : null);
+
 /* ── what the customer can do ── */
 
-export async function customerAct(number: number, key: string, action: { type: 'cancel' | 'collected' | 'message' | 'payref'; text?: string }) {
+export async function customerAct(number: number, key: string, action: { type: 'cancel' | 'collected' | 'message' | 'payref' | 'pin'; text?: string; lat?: unknown; lng?: unknown }) {
   return withLock(`order:${number}`, async () => {
     const o = await getOrder(number);
     if (!o || !safeEqual(o.key, key)) return fail(404, 'No such order.') as never;
@@ -657,6 +687,12 @@ export async function customerAct(number: number, key: string, action: { type: '
       if (o.mode !== 'pickup' || o.status !== 'ready') fail(409, 'It isn’t ready yet.');
       o.status = 'collected';
       o.events.push({ t, what: 'collected', status: 'collected', by: 'Customer' });
+    } else if (action.type === 'pin') {
+      if (o.mode !== 'delivery' || !isOpen(o.status)) fail(409, 'This order is not on its way to you.');
+      const pin = lahorePoint(action.lat, action.lng);
+      if (!pin) fail(400, 'That location is outside our delivery area.');
+      o.pin = pin!;
+      o.events.push({ t, what: 'pin', by: 'Customer' });
     } else if (action.type === 'message') {
       const text = String(action.text || '').trim().slice(0, 300);
       if (!text) fail(400, 'Write something first.');

@@ -6257,7 +6257,7 @@ function applyServer(o, so, key = o.server?.key) {
     number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc, table: so.table ?? o.table ?? null,
     cancelled: so.cancelled ? so.cancelled.t : undefined, collected: so.times?.collected,
   });
-  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
+  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, pin: so.pin || null, riderAt: so.riderAt || null, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
   return o;
 }
 const syncing = new Set();
@@ -6447,29 +6447,33 @@ function renderDone() {
         <p class="mono-fine" style="color:rgb(255 255 255/.55)"><span class="sl">//</span><span class="sls"> </span>ORDER ${num} · <span id="trk-status">CONFIRMED</span></p>
         <h2 class="done-h" id="trk-h">${delivered ? `AT YOUR DOOR BY ${when}.` : dine ? `AT TABLE ${o.table} SOON.` : `SEE YOU AT ${when}.`}</h2>
         <p class="pdp-desc" id="trk-sub"></p>
+        ${
+          delivered
+            ? `<section class="trk-map" aria-label="Live delivery map">
+          <div class="trk-map-view" id="trk-map">
+            <div class="trk-live mono-fine"><span class="dot" data-pulse></span><span id="trk-live-l">WAITING FOR THE RIDER</span></div>
+          </div>
+          <ol class="trk-legs mono-fine" id="trk-legs"><li>PREPARING</li><li>RIDER AT CAFÉ</li><li>ON THE WAY</li><li>ARRIVING</li></ol>
+          <dl class="trk-stats">
+            <div><dt class="mono-fine">ARRIVES IN</dt><dd id="trk-in">--</dd></div>
+            <div><dt class="mono-fine">DISTANCE</dt><dd id="trk-km">~${DELIVERY.areas[o.area][4].toFixed(1)} KM</dd></div>
+            <div><dt class="mono-fine">AT YOUR DOOR</dt><dd id="trk-eta">${hhmm(o.pickupAt.t)}</dd></div>
+          </dl>
+          ${o.server ? `<button type="button" class="trk-pin-btn mono-fine" data-co="pin"${o.server.pin ? " hidden" : ""}>⌖ SHARE MY EXACT LOCATION, SO THE RIDER FINDS YOUR DOOR</button>` : ""}
+        </section>
+        <div class="trk-rider" id="trk-rider" hidden>
+            <span class="trk-avatar">${r.name.split(" ").map((w) => w[0]).join("")}</span>
+            <div><p><b>${esc(r.name)}</b>${r.rating ? ` · ★ ${r.rating}` : ""}</p><p class="mono-fine">YOUR RIDER${r.plate ? ` · BIKE ${esc(r.plate)}` : ""}</p></div>
+            <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button><a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
+          </div>`
+            : ""
+        }
         <div class="done-eta">
           <div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="46"/><circle class="bar" id="ring-bar" cx="50" cy="50" r="46" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg><div class="ring-num" aria-live="polite"><span><span id="ring-num">--</span><small id="ring-unit">MIN</small></span></div></div>
           <ol class="trk-steps" id="trk-steps">${stages
             .map((s, i) => `<li data-stage="${i}"><i></i><span class="trk-l"><b>${s.label}</b><small>${esc(s.detail)}</small></span><time class="mono-fine">${stageTime(s.at)}</time></li>`)
             .join("")}</ol>
         </div>
-        ${
-          delivered
-            ? `<div class="trk-rider" id="trk-rider" hidden>
-            <span class="trk-avatar">${r.name.split(" ").map((w) => w[0]).join("")}</span>
-            <div><p><b>${esc(r.name)}</b>${r.rating ? ` · ★ ${r.rating}` : ""}</p><p class="mono-fine">YOUR RIDER${r.plate ? ` · BIKE ${esc(r.plate)}` : ""}</p></div>
-            <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button><a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
-          </div>
-          <div class="trk-map3d" id="trk-map3d" role="img" aria-label="Live map of your delivery">
-            <div class="trk-live mono-fine"><span class="dot" data-pulse></span><span id="trk-live-l">WAITING FOR THE RIDER</span></div>
-            <dl class="trk-stats">
-              <div><dt class="mono-fine">DISTANCE LEFT</dt><dd id="trk-km">${DELIVERY.areas[o.area][4].toFixed(1)} KM</dd></div>
-              <div><dt class="mono-fine">SPEED</dt><dd id="trk-speed">0 KM/H</dd></div>
-              <div><dt class="mono-fine">ARRIVES</dt><dd id="trk-eta">${hhmm(o.pickupAt.t)}</dd></div>
-            </dl>
-          </div>`
-            : ""
-        }
         <div class="done-actions">
           <button type="button" class="btn btn-solid" data-co="chat">MESSAGE ${delivered ? "RIDER / CAFÉ" : "THE CAFÉ"} <span class="trk-badge" id="trk-badge" hidden>0</span></button>
           <button type="button" class="btn btn-line" data-co="receipt">RECEIPT</button>
@@ -6630,18 +6634,18 @@ function renderDone() {
   };
   co.trk = { send, openChat, openReceipt };
 
-  const mapEl = $("#trk-map3d", coEl);
-  // the 3D map (and its bloom) loads only once someone is tracking a delivery
-  let map = null, mapGone = false, mapState = null;
+  const mapEl = $("#trk-map", coEl);
+  // the map's code and tiles load only once someone is tracking a delivery
+  let map = null, mapGone = false, mapState = null, fixAt = 0, fixSeen = null;
+  const doorOf = () => (o.server?.pin ? [o.server.pin.lat, o.server.pin.lng] : null);
   if (mapEl)
-    import("./riderMap3D")
-      .then(({ createRiderMap }) => {
+    Promise.all([import("./riderMap"), import("./deliveryRoutes")])
+      .then(([{ createRiderMap }, { ROUTES }]) => {
         if (mapGone) return;
-        map = createRiderMap(THREE, mapEl, o.number * 7919, r.first.toUpperCase());
-        if (!map) mapEl.classList.add("no-3d");
-        else if (mapState) map.update(...mapState);
+        map = createRiderMap(mapEl, { route: ROUTES[o.area], door: doorOf(), areaName: DELIVERY.areas[o.area][0], shopName: `BREWNS · ${LOCS[o.loc][0]}`, riderName: r.first.toUpperCase() });
+        if (mapState) map.update(mapState);
       })
-      .catch(() => mapEl.classList.add("no-3d"));
+      .catch(() => mapEl.classList.add("no-map"));
   coCleanups.push(() => {
     mapGone = true;
     map?.destroy();
@@ -6700,16 +6704,47 @@ function renderDone() {
       const onway = stages.findIndex((s) => s.key === "onway");
       const prog = riderProgress(o, stages, now);
       const riding = !o.cancelled && i >= onway && key !== "delivered";
-      mapState = [prog, { riding, show: !o.cancelled && i >= riderStage }];
-      map?.update(...mapState);
-      const km = DELIVERY.areas[o.area][4] * (1 - prog);
-      // speed in Lahore traffic: 18–32 km/h, easing off near the door
-      const speed = riding ? Math.round((22 + 7 * Math.sin(now / 5300) + 3 * Math.sin(now / 1700)) * (prog > 0.9 ? 0.5 : 1)) : 0;
-      // A real order has no GPS yet: say what's known rather than invent a speed.
-      $("#trk-km", coEl).textContent = o.server ? (key === "delivered" ? "0 KM" : `~${km.toFixed(1)} KM`) : `${km.toFixed(1)} KM`;
-      $("#trk-speed", coEl).textContent = o.server ? (riding ? "ON THE ROAD" : "—") : `${speed} KM/H`;
-      $("#trk-eta", coEl).textContent = key === "delivered" ? `DELIVERED ${stageTime(o.target)}` : stageTime(o.target);
-      $("#trk-live-l", coEl).textContent = o.cancelled ? "CANCELLED" : key === "delivered" ? "DELIVERED" : riding ? `LIVE · ${r.first.toUpperCase()} IS ON THE WAY · ${o.server ? `UPDATED ${Math.max(0, Math.round((now - o.server.checked) / 1000))}S AGO` : "UPDATED JUST NOW"}` : i >= riderStage ? `${r.first.toUpperCase()} IS AT ${LOCS[o.loc][0]}` : "WAITING FOR THE RIDER";
+      // The rider's phone GPS when it is sharing; a fix over 2 minutes old is shown greyed, as the last place they were seen.
+      const fix = riding ? o.server?.riderAt || null : null;
+      if (fix && fix.t !== fixSeen) [fixSeen, fixAt] = [fix.t, now];
+      const fixAge = fix ? Math.max(0, now - fix.t) : 0;
+      const stale = !!fix && fixAge > 120000;
+      const offline = !!o.server && now - o.server.checked > 20000;
+      mapState = { show: !o.cancelled && i >= riderStage, riding, progress: key === "delivered" ? 1 : prog, fix, stale };
+      const leftM = map ? map.update(mapState) : DELIVERY.areas[o.area][4] * 1000 * (1 - prog);
+      const done = key === "delivered";
+      // ETA: from the live distance at ~20 km/h in Lahore traffic, else the café's own time
+      const etaAt = done ? o.target : fix && !stale ? now + (leftM / 1000 / 20) * 3600000 : now + Math.max(0, o.target - t);
+      const inMin = Math.max(riding ? 1 : 0, Math.ceil((etaAt - now) / 60000));
+      $("#trk-in", coEl).textContent = done ? "HERE" : inMin >= 60 ? `${Math.floor(inMin / 60)}H ${inMin % 60}M` : `${inMin} MIN`;
+      $("#trk-km", coEl).textContent = done ? "0 KM" : leftM < 1000 ? `${Math.round(leftM / 10) * 10} M` : `${fix ? "" : "~"}${(leftM / 1000).toFixed(1)} KM`;
+      $("#trk-eta", coEl).textContent = done ? `DELIVERED ${stageTime(o.target)}` : stageTime(etaAt);
+      const leg = done ? 4 : key === "arriving" || (riding && leftM < 400) ? 3 : riding ? 2 : i >= riderStage ? 1 : 0;
+      $$("#trk-legs li", coEl).forEach((li, k) => {
+        li.classList.toggle("on", k <= leg);
+        li.classList.toggle("now", k === leg);
+      });
+      const ago = (ms) => (ms < 60000 ? `${Math.round(ms / 1000)}S` : `${Math.round(ms / 60000)} MIN`);
+      const first = r.first.toUpperCase();
+      $("#trk-live-l", coEl).textContent = o.cancelled
+        ? "CANCELLED"
+        : done
+          ? "DELIVERED"
+          : offline
+            ? "RECONNECTING…"
+            : riding
+              ? fix && !stale && leftM < 150
+                ? `${first} IS AT YOUR DOOR`
+                : fix
+                  ? stale
+                    ? `LAST SEEN ${ago(fixAge)} AGO`
+                    : `LIVE · ${first} IS ON THE WAY · ${ago(now - fixAt)} AGO`
+                  : `${first} IS ON THE WAY · ESTIMATED POSITION`
+              : i >= riderStage
+                ? `${first} IS AT ${LOCS[o.loc][0]}`
+                : "WAITING FOR THE RIDER";
+      mapEl?.classList.toggle("is-live", riding && !!fix && !stale && !offline);
+      mapEl?.classList.toggle("is-stale", offline || stale);
     }
     // What the café and rider say on their own as stages are reached (the preview only;
     // on a real order, the only messages are the ones people write).
@@ -7038,6 +7073,17 @@ coEl.addEventListener("click", (e) => {
           renderCheckout({ animate: false });
         })
         .catch((err) => toast(err.message.toUpperCase()));
+    }
+    if (act === "pin" && o.server) {
+      if (!navigator.geolocation) return toast("THIS BROWSER CAN'T SHARE A LOCATION");
+      return navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          orderAct(o, { type: "pin", lat: pos.coords.latitude, lng: pos.coords.longitude })
+            .then(() => renderCheckout({ animate: false }))
+            .catch((err) => toast(err.message.toUpperCase())),
+        () => toast("LOCATION NOT SHARED. THE RIDER WILL CALL YOU"),
+        { enableHighAccuracy: true, timeout: 15000 },
+      );
     }
     if (act === "collected" && o.server) {
       return orderAct(o, { type: "collected" })
