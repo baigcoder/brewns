@@ -2,7 +2,7 @@
    shop keeps time, and the same figures for the period before, to compare. */
 
 import { LOC_TITLES, PAY, SHOP_COUNT } from '@/lib/catalog';
-import { FLOW, pkDay, pkHour, type Mode, type ServerOrder } from '@/lib/orderFlow';
+import { FLOW, isOpen, pkDay, pkHour, type Mode, type ServerOrder } from '@/lib/orderFlow';
 import { worksAt, type StaffContext } from './auth';
 import { ordersOn } from './orders';
 
@@ -42,6 +42,9 @@ function kpis(orders: ServerOrder[]) {
   // Money owed back: on a cancelled order it was never sales, on a kept order (a missing item) it comes off them.
   const refunded = orders.reduce((s, o) => s + (o.refund?.amount || 0), 0);
   const refundedFromSales = sold.reduce((s, o) => s + (o.refund?.amount || 0), 0);
+  const cancelled = orders.filter((o) => o.status === 'cancelled');
+  const still = sold.filter((o) => isOpen(o.status));
+  const ended = (s: string) => orders.filter((o) => o.status === s).length;
   return {
     gross,
     net: gross - tax - fees - refundedFromSales,
@@ -53,7 +56,15 @@ function kpis(orders: ServerOrder[]) {
     orders: sold.length,
     avg: sold.length ? gross / sold.length : 0,
     items: sold.reduce((s, o) => s + o.items.reduce((n, i) => n + i.qty, 0), 0),
-    cancelled: orders.length - sold.length,
+    cancelled: cancelled.length,
+    cancelledValue: cancelled.reduce((s, o) => s + o.totals.total, 0),
+    // The day's count: how the orders that were sold ended up, and what is still going.
+    delivered: ended('delivered'),
+    collected: ended('collected'),
+    served: ended('served'),
+    refunds: orders.filter((o) => o.refund).length,
+    open: still.length,
+    openValue: still.reduce((s, o) => s + o.totals.total, 0),
     unpaid: sold.filter((o) => !o.paid).reduce((s, o) => s + o.totals.total, 0),
     customers: new Set(sold.map((o) => o.phone.replace(/\D/g, '')).filter(Boolean)).size,
     prepMin: prep.length ? prep.reduce((a, b) => a + b, 0) / prep.length : 0,

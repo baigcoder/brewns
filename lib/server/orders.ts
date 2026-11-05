@@ -464,6 +464,8 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
         need(stationPerm(s), 'orders.manage');
         when(['received', 'accepted', 'preparing', 'ready'].includes(o.status));
         if (!['queued', 'making', 'done'].includes(action.state)) fail(400, 'Unknown state.');
+        // The counter accepts an order before the stations start it; someone who runs orders may do both at once.
+        if (o.status === 'received' && !can(ctx.perms, 'orders.manage')) fail(409, 'Not accepted yet. The counter accepts it first.');
         if (o.status === 'received') move('accepted');
         o.stations[s] = action.state;
         if (action.state === 'done') o.items.forEach((i) => i.station === s && (i.done = true));
@@ -480,6 +482,7 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
         if (!line) fail(400, 'No such line.');
         need(stationPerm(line.station), 'orders.manage');
         when(isOpen(o.status));
+        if (o.status === 'received' && !can(ctx.perms, 'orders.manage')) fail(409, 'Not accepted yet. The counter accepts it first.');
         line.done = !!action.done;
         break;
       }
