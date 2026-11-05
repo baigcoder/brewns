@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ServerOrder } from '@/lib/orderFlow';
 import type { Permission, Role, RolePerms } from '@/lib/rbac';
 import type { Business } from '@/lib/receipt';
@@ -60,6 +61,7 @@ const Ctx = createContext<Live | null>(null);
  * visible (every 20 when it isn't). Unchanged data costs one tiny request.
  */
 export function LiveProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [data, setData] = useState<LiveData | null>(null);
   const [error, setError] = useState('');
   const [fresh, setFresh] = useState<Set<number>>(new Set());
@@ -98,12 +100,12 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       setData(r);
     } catch (e: any) {
       if (e?.status === 401 || e?.message?.includes('Sign in again')) {
-        window.location.assign('/staff/signin?denied=' + encodeURIComponent('Session ended or account deactivated.'));
+        router.replace('/staff/signin?denied=' + encodeURIComponent('Session ended or account deactivated.'));
         return;
       }
       setError((e as Error).message);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     let timer = 0;

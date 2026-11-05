@@ -4,6 +4,7 @@ import { CATALOG } from '@/lib/catalog';
 import { fbm, noise3, rng } from '@/components/brewns/foodKit';
 
 const engine = readFileSync('components/brewns/pdp3dEngine.ts', 'utf8');
+const packaging = readFileSync('components/brewns/packaging.ts', 'utf8');
 const site = readFileSync('components/brewns/initBrewns.ts', 'utf8');
 
 /** Products whose 3D view is a purpose-built model rather than the shared cup or bag. */
@@ -37,8 +38,8 @@ describe('3D product models', () => {
   });
 
   it('prints the lower body of the latte cup as the visible drink, because the photographed cup is clear', () => {
-    expect(engine).toMatch(/liquid\?: \{ top: string; bottom: string; pearls\?: boolean \}/);
-    expect(engine).toMatch(/band: '100% COFFEE · NO ARTIFICIAL · ',[\s\S]{0,80}liquid: \{/);
+    expect(packaging).toMatch(/liquid\?: \{ top: string; bottom: string; pearls\?: boolean \}/);
+    expect(packaging).toMatch(/band: '100% COFFEE · NO ARTIFICIAL · ',[\s\S]{0,80}liquid: \{/);
   });
 
   it('offers 3D VIEW for the nine drinkware products rebuilt against their photographs, and keeps tilt for the rest', async () => {
@@ -91,16 +92,16 @@ describe('3D product models', () => {
     const notes = [...entry.match(/notes: \[([^\]]*)\]/)![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
     expect(notes).toEqual(['JASMINE', 'BERGAMOT', 'WHITE PEACH']);
     // the label's notes are exactly the catalogue's
-    expect(engine).toContain(`notes: [${notes.map((n) => `'${n}'`).join(', ')}],`);
-    expect(engine).toMatch(/origin: \{ name: 'ETHIOPIA', sub: 'SINGLE ORIGIN' \}/);
-    expect(engine).toMatch(/function drawHighlands/);
+    expect(packaging).toContain(`notes: [${notes.map((n) => `'${n}'`).join(', ')}],`);
+    expect(packaging).toMatch(/origin: \{ name: 'ETHIOPIA', sub: 'SINGLE ORIGIN' \}/);
+    expect(packaging).toMatch(/function drawHighlands/);
     // no roasting city on the Ethiopia bag, and the photograph's Copenhagen and 12/06/24 are not reproduced
-    expect(engine).not.toMatch(/COPENHAGEN/);
-    expect(engine).not.toMatch(/12\/06\/24'/);
-    expect(engine).not.toMatch(/roastDate\(/);
-    expect(engine).not.toMatch(/new Date\(/);
+    expect(packaging).not.toMatch(/COPENHAGEN/);
+    expect(packaging).not.toMatch(/12\/06\/24'/);
+    expect(packaging).not.toMatch(/roastDate\(/);
+    expect(packaging).not.toMatch(/new Date\(/);
     // the label never prints the photograph's conflicting Slow Roast notes under the Ethiopia name
-    const eth = engine.slice(engine.indexOf("'single-origin': {"), engine.indexOf('// The latte'));
+    const eth = packaging.slice(packaging.indexOf("'single-origin': {"), packaging.indexOf('// The latte'));
     expect(eth).not.toMatch(/CARAMEL'/);
   });
 
