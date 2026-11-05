@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "build:models": "bun scripts/build-models.mjs",
     "snapshots": "node scripts/render-snapshots.mjs",
     "kitchen:white": "bun install --cwd tools/kitchen-white --silent && node scripts/kitchen-white-bg.mjs",
