@@ -11,6 +11,9 @@ const client = () => new Client({ token: process.env.QSTASH_TOKEN! });
 
 export async function enqueueBookingJobs(payload: BookingEmailPayload) {
   if (!queueConfigured()) return false;
+  // A preview with no callback of its own would send its jobs to the production site (SITE_URL), which would then really
+  // email and message the people in the test booking. Without a callback the caller runs the job itself instead.
+  if (process.env.VERCEL_ENV === 'preview' && !process.env.JOB_CALLBACK_URL) return false;
   // Previews/staging use their own callback so test notifications never land on production.
   const url = `${(process.env.JOB_CALLBACK_URL || SITE_URL).replace(/\/$/, '')}/api/internal/jobs`;
   await Promise.all([

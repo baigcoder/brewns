@@ -89,7 +89,15 @@ export async function readBody<T = Record<string, unknown>>(req: Request, maxByt
   }
 }
 
-export const clientIp = (req: Request) => (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || req.headers.get('x-real-ip') || 'local';
+/** Load tests only: on a Vercel *preview* that has LOADTEST_SECRET set, a request carrying that secret may name its own
+ * client address, so one machine can act as many customers and each is rate limited on its own. Never honoured in production. */
+const loadTestIp = (req: Request) => {
+  const secret = process.env.LOADTEST_SECRET;
+  if (!secret || process.env.VERCEL_ENV !== 'preview' || !safeEqual(req.headers.get('x-loadtest-secret'), secret)) return '';
+  return (req.headers.get('x-loadtest-ip') || '').replace(/[^0-9a-fA-F:.]/g, '').slice(0, 45);
+};
+
+export const clientIp = (req: Request) => loadTestIp(req) || (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || req.headers.get('x-real-ip') || 'local';
 
 /** At most `max` hits per `windowSec` for this key; throws 429 past it. */
 export async function rateLimit(key: string, max: number, windowSec: number, message = 'Too many tries. Wait a few minutes and try again.') {
