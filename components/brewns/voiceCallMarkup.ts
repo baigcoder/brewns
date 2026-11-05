@@ -57,6 +57,7 @@ export const VOICE_CALL_MARKUP = `
     </section>
 
     <ol class="vcall-log" id="vc-log" aria-live="polite" aria-label="Conversation"></ol>
+    <ol class="vcall-receipt" id="vc-receipt" aria-label="Just done" hidden></ol>
 
     <div class="vcall-alert" id="voice-unblock-actions" hidden>
       <p id="vc-alert-text">Your microphone is off for this site.</p>
@@ -76,6 +77,10 @@ export const VOICE_CALL_MARKUP = `
     </form>
 
     <div class="vcall-start" id="vc-start">
+      <div class="vcall-pick" role="radiogroup" aria-label="Language for the call">
+        <button type="button" role="radio" data-pick="en" aria-checked="true">English</button>
+        <button type="button" role="radio" data-pick="ur" aria-checked="false" lang="ur">اردو</button>
+      </div>
       <button type="button" class="vcall-dial" id="vc-dial">${icon(PHONE, 22)}<span>Call <span id="vc-dial-name">Sarah</span></span></button>
     </div>
 

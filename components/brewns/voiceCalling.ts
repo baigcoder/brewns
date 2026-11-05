@@ -1,5 +1,6 @@
 'use client';
 
+import { LOC_TITLES, unitPrice } from '@/lib/catalog';
 import { hasDevanagari, toUrduScript } from '@/lib/devanagari';
 import { cafeHoursStatusLabel, getCafeOpeningStatus } from '@/lib/openingHours';
 import { LiveSession, type LiveEvent } from './liveSession';
@@ -137,6 +138,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   const monoEl = $('vc-avatar-mono');
   const voiceTagEl = $('vc-voice-tag');
   const alertEl = $('voice-unblock-actions');
+  const receiptEl = $('vc-receipt');
+  let receiptTimer: ReturnType<typeof setTimeout> | undefined;
+  // A tap anywhere on the pop-up (except its own button) puts it away.
+  receiptEl?.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('button')) receiptEl.hidden = true;
+  });
   const alertText = $('vc-alert-text');
   const chipsEl = $('voice-chips-wrap');
   const inputRow = $<HTMLFormElement>('voice-input-row');
@@ -154,7 +161,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let mode: Mode = 'call';
   let phase: Phase = 'idle';
   let gender: 'female' | 'male' = 'female';
-  let lang: 'en' | 'ur' = /^ur/i.test(navigator.language) ? 'ur' : 'en';
+  let lang: 'en' | 'ur' = (() => {
+    try {
+      const saved = localStorage.getItem('brewns-call-lang');
+      if (saved === 'en' || saved === 'ur') return saved;
+    } catch {}
+    return /^ur/i.test(navigator.language) ? 'ur' : 'en';
+  })();
   let history: Turn[] = [];
   let scriptState: unknown = {};
   /** One id per call or chat, so the café's call log can follow it live. */
@@ -280,6 +293,63 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     logEl.scrollTop = logEl.scrollHeight;
     return li;
   }
+  /** A "done" receipt in the conversation: what Sarah actually did, with the details
+      to check, so a caller never has to take her word for it. Built from text nodes:
+      the details come from the model and the booking store. */
+  function doneCard(title: string, rows: [string, string][], button?: [string, () => void]) {
+    logEl.append(receipt(title, rows, button));
+    logEl.scrollTop = logEl.scrollHeight;
+    // On a call the conversation is just the live caption, so the newest receipt
+    // also pops up over the panel, until it's tapped or ten seconds pass.
+    if (!receiptEl) return;
+    const pop = receipt(title, rows, button);
+    pop.setAttribute('role', 'status');
+    receiptEl.replaceChildren(pop);
+    receiptEl.hidden = false;
+    clearTimeout(receiptTimer);
+    receiptTimer = setTimeout(() => (receiptEl.hidden = true), 10_000);
+  }
+
+  function receipt(title: string, rows: [string, string][], button?: [string, () => void]) {
+    const li = document.createElement('li');
+    li.className = 'vc-done';
+    const head = document.createElement('p');
+    head.className = 'vc-done-head';
+    head.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    head.append(title);
+    li.append(head);
+    if (rows.length) {
+      const dl = document.createElement('dl');
+      for (const [k, v] of rows) {
+        if (!v) continue;
+        const dt = document.createElement('dt');
+        dt.textContent = k;
+        const dd = document.createElement('dd');
+        dd.textContent = v;
+        dl.append(dt, dd);
+      }
+      li.append(dl);
+    }
+    if (button) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'vcall-pill solid';
+      b.textContent = button[0];
+      b.addEventListener('click', button[1]);
+      li.append(b);
+    }
+    return li;
+  }
+
+  const rupees = (n: number) => `Rs ${Math.round(n).toLocaleString('en-PK')}`;
+  /** "2026-11-07" and "19:00" as people say them: "Sat 7 Nov · 7:00 PM". */
+  function when(date?: string, time?: string) {
+    const d = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : date || '';
+    const m = time ? /^(\d{1,2}):(\d{2})/.exec(time) : null;
+    const t = m ? `${((+m[1] + 11) % 12) + 1}:${m[2]} ${+m[1] < 12 ? 'AM' : 'PM'}` : time || '';
+    return [d, t].filter(Boolean).join(' · ');
+  }
+
   function setText(li: HTMLElement, text: string) {
     // On a call the caption box shows the newest lines of a long reply, like a
     // phone's live captions; the wrapper is what lets the start scroll away.
@@ -371,6 +441,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   function setLang(next: 'en' | 'ur') {
     lang = next;
+    for (const b of modal!.querySelectorAll<HTMLElement>('[data-pick]')) b.setAttribute('aria-checked', String(b.dataset.pick === next));
+    try {
+      localStorage.setItem('brewns-call-lang', next);
+    } catch {}
     if (langBtn) {
       langBtn.dataset.lang = next;
       langBtn.setAttribute('aria-label', next === 'ur' ? 'Speaking Urdu. Switch to English' : 'Speaking English. Switch to Urdu');
@@ -1247,14 +1321,24 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   /* ═════════ what the conversation does ═════════ */
 
   function handleAction(action: Action) {
+    const ur = lang === 'ur';
+    const d = action.data || {};
+    const viewBag = (): [string, () => void] => [ur ? 'بیگ دیکھیں' : 'View bag', () => { closeModal(); openBag(); }];
     if (action.type === 'ADD_TO_BAG') {
       let added = 0;
-      for (const line of action.data?.items || []) {
+      let total = 0;
+      const rows: [string, string][] = [];
+      for (const line of d.items || []) {
         const p = productById(line.id);
         if (!p) continue;
+        const sel = line.sel || defaultSel(p);
+        const qty = line.qty || 1;
         try {
-          cart.add(line.id, line.sel || defaultSel(p), line.qty || 1);
-          added += line.qty || 1;
+          cart.add(line.id, sel, qty);
+          added += qty;
+          const price = unitPrice(p, sel) * qty;
+          total += price;
+          rows.push([`${qty} × ${line.name || p.name}`, rupees(price)]);
         } catch (e) {
           console.warn('Could not add product to cart:', line.id, e);
         }
@@ -1262,6 +1346,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       if (added) {
         playChime?.();
         triggerHaptic?.(40);
+        if (rows.length > 1) rows.push([ur ? 'کل' : 'Total', rupees(total)]);
+        doneCard(ur ? `${added} آئٹم بیگ میں شامل` : `Added ${added} item${added > 1 ? 's' : ''} to your bag`, rows, viewBag());
         toast(`ADDED ${added} ITEM${added > 1 ? 'S' : ''} TO YOUR BAG`, 'VIEW BAG', () => {
           closeModal();
           openBag();
@@ -1270,18 +1356,48 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     } else if (action.type === 'RESERVE_TABLE') {
       playChime?.();
       triggerHaptic?.(50);
-      toast(`TABLE BOOKED · ${action.data?.code || 'CONFIRMED'}`);
+      doneCard(ur ? 'ٹیبل بک ہو گئی' : 'Table booked', [
+        [ur ? 'بکنگ کوڈ' : 'Booking code', d.code || ''],
+        [ur ? 'کہاں' : 'Where', LOC_TITLES[d.loc as number] || ''],
+        [ur ? 'کب' : 'When', when(d.date, d.time)],
+        [ur ? 'مہمان' : 'Guests', d.guests ? `${d.guests}${d.area ? ` · ${d.area}` : ''}` : ''],
+        [ur ? 'نام' : 'Name', d.name || ''],
+        [ur ? 'تصدیق' : 'Confirmation', d.emailSent && d.email ? `${ur ? 'ای میل' : 'Emailed to'} ${d.email}` : ''],
+      ]);
+      toast(`TABLE BOOKED · ${d.code || 'CONFIRMED'}`);
     } else if (action.type === 'BOOK_PARTY') {
       playChime?.();
       triggerHaptic?.(50);
-      toast(`PARTY BOOKED · ${action.data?.code || 'CONFIRMED'} · WE'LL CALL YOU`);
+      doneCard(ur ? 'پارٹی بک ہو گئی' : 'Party booked', [
+        [ur ? 'بکنگ کوڈ' : 'Booking code', d.code || ''],
+        [ur ? 'موقع' : 'Occasion', d.type || ''],
+        [ur ? 'کہاں' : 'Where', d.location || LOC_TITLES[d.loc as number] || ''],
+        [ur ? 'کب' : 'When', when(d.date, d.time)],
+        [ur ? 'مہمان' : 'Guests', d.guests ? String(d.guests) : ''],
+        [ur ? 'اگلا قدم' : 'Next', ur ? 'ٹیم آپ کو تصدیق کے لیے کال کرے گی' : "We'll call you to confirm"],
+      ]);
+      toast(`PARTY BOOKED · ${d.code || 'CONFIRMED'} · WE'LL CALL YOU`);
+    } else if (action.type === 'SAVED_EMAIL') {
+      doneCard(ur ? 'ای میل محفوظ ہو گئی' : 'Email saved', [
+        [ur ? 'ای میل' : 'Email', d.email || ''],
+        [ur ? 'بکنگ' : 'Booking', d.code || ''],
+        [ur ? 'تصدیق' : 'Confirmation', d.sent ? (ur ? 'بھیج دی گئی' : 'Sent') : ''],
+      ]);
     } else if (action.type === 'WHATSAPP_VOUCHER') {
-      toast(`${action.data?.sent ? 'WHATSAPP VOUCHER SENT' : 'WHATSAPP VOUCHER READY'} · ${action.data?.code || ''}`, 'OPEN WHATSAPP', () => {
-        if (action.data?.whatsappUrl) window.open(action.data.whatsappUrl, '_blank', 'noopener,noreferrer');
-      });
+      const open = () => d.whatsappUrl && window.open(d.whatsappUrl, '_blank', 'noopener,noreferrer');
+      doneCard(d.sent ? (ur ? 'واٹس ایپ واؤچر بھیج دیا' : 'WhatsApp voucher sent') : ur ? 'واٹس ایپ واؤچر تیار' : 'WhatsApp voucher ready', [
+        [ur ? 'کوڈ' : 'Code', d.code || ''],
+        [ur ? 'فون' : 'Phone', d.phone || ''],
+      ], d.whatsappUrl ? [ur ? 'واٹس ایپ کھولیں' : 'Open WhatsApp', open] : undefined);
+      toast(`${d.sent ? 'WHATSAPP VOUCHER SENT' : 'WHATSAPP VOUCHER READY'} · ${d.code || ''}`, 'OPEN WHATSAPP', open);
     } else if (action.type === 'CALLBACK') {
       triggerHaptic?.(40);
-      toast(lang === 'ur' ? 'ٹیم آپ کو واپس کال کرے گی' : `WE'LL CALL YOU BACK · ${action.data?.phone || ''}`);
+      doneCard(ur ? 'واپس کال کی درخواست' : 'Callback requested', [
+        [ur ? 'نام' : 'Name', d.name || ''],
+        [ur ? 'فون' : 'Phone', d.phone || ''],
+        [ur ? 'بارے میں' : 'About', d.reason || ''],
+      ]);
+      toast(ur ? 'ٹیم آپ کو واپس کال کرے گی' : `WE'LL CALL YOU BACK · ${d.phone || ''}`);
     } else if (action.type === 'END_CALL') {
       hangUpAfterSpeech = true;
     }
@@ -1300,8 +1416,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     hoursTimer = setInterval(updateHours, 30_000);
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(loop);
+    // The caller picks English or Urdu first, then dials (the Call button), like a real phone.
     setMode(next);
-    if (next === 'call') void startCall();
   }
 
   function closeModal() {
@@ -1400,6 +1516,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   on($('vc-dial'), 'click', (e: Event) => {
     e.preventDefault();
     void startCall();
+  });
+  on(modal, 'click', (e: Event) => {
+    const pick = (e.target as HTMLElement).closest<HTMLElement>('[data-pick]');
+    if (!pick || inCall) return;
+    e.preventDefault();
+    playSoftClick?.();
+    setLang(pick.dataset.pick === 'ur' ? 'ur' : 'en');
   });
   on(document, 'keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !modal!.hidden) closeModal();
