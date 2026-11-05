@@ -2040,8 +2040,9 @@ for (const family of ["Space Mono", "Allura"]) {
       }
     }
   };
-  if (LATE) return done();
+  // Declared before the LATE return: done() reads it, and a const read before its line throws.
   const onUserIntent = () => done();
+  if (LATE) return done();
   window.addEventListener("wheel", onUserIntent, { passive: true, once: true });
   window.addEventListener("touchmove", onUserIntent, { passive: true, once: true });
   window.addEventListener("keydown", onUserIntent, { passive: true, once: true });
