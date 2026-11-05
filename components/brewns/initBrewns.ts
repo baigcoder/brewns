@@ -6833,7 +6833,17 @@ const tickPill = () => {
 setInterval(tickPill, 2000);
 setInterval(() => {
   if (document.hidden) return;
-  readStore("brewns-orders", []).filter((x) => x.server && isActive(x) && co?.done?.number !== x.number && Date.now() - x.placed < 12 * 3600000).forEach((x) => syncOrder(x));
+  readStore("brewns-orders", []).filter((x) => x.server && isActive(x) && co?.done?.number !== x.number && Date.now() - x.placed < 12 * 3600000).forEach((x) => {
+    const heard = (o) => o.server.messages.filter((m) => m.from === "cafe" || m.from === "rider");
+    const before = heard(x).length;
+    // The café or the rider answered while the tracker is closed: say so, with a way back to the chat.
+    syncOrder(x).then(() => {
+      const m = heard(x)[before];
+      if (!m || co?.done?.number === x.number) return;
+      playMessage(true);
+      toast(`${m.from === "rider" ? (x.server.rider?.name || "Your rider").split(" ")[0] : LOCS[x.loc][0]}: ${m.text}`.toUpperCase(), "REPLY", () => openTracking(x.number));
+    });
+  });
 }, 20000);
 setTimeout(tickPill, 1500);
 

@@ -1,10 +1,12 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { DELIVERY } from '@/lib/catalog';
 import { orderNo } from '@/lib/orderFlow';
 import { chime, useLive } from './Live';
 import { useMe } from './Shell';
+import { unread } from './OrderBits';
 import { useToast } from './Toasts';
 
 /** A ride alert: the chime three times and a buzz, loud enough to hear from a pocket. */
@@ -44,6 +46,7 @@ export function RiderAlerts() {
   const { me, can } = useMe();
   const toast = useToast();
   const seen = useRef<Map<number, string> | null>(null);
+  const heard = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     if (!data || !can('delivery.ride')) return;
@@ -51,6 +54,8 @@ export function RiderAlerts() {
     const now = new Map(mine.map((o) => [o.number, o.status]));
     const before = seen.current;
     seen.current = now;
+    const wrote = heard.current;
+    heard.current = new Map(mine.map((o) => [o.number, unread(o)]));
     if (!before) return; // the first look is not news
     for (const o of mine) {
       const area = o.area !== null ? DELIVERY.areas[o.area][0] : '';
@@ -64,7 +69,37 @@ export function RiderAlerts() {
         void notify(`${orderNo(o.number)} is ready`, 'Pick it up at the pass and start the ride.', `ride-${o.number}`);
       }
     }
+    // The customer wrote to their rider.
+    for (const o of mine) {
+      if (unread(o) <= (wrote.get(o.number) || 0)) continue;
+      const last = o.messages.findLast((m) => m.from === 'you')?.text || 'a new message';
+      chime();
+      toast(`${o.name.split(' ')[0]} on ${orderNo(o.number)}: ${last}`, 'good');
+      void notify(`Message on ${orderNo(o.number)}`, last, `msg-${o.number}`);
+    }
   }, [data, me.id, can, toast]);
+
+  return null;
+}
+
+/** On every console screen: a chime and a toast when someone sends this person a private message. */
+export function MessageAlerts() {
+  const { data } = useLive();
+  const toast = useToast();
+  const path = usePathname();
+  const seen = useRef<Map<string, number> | null>(null);
+
+  useEffect(() => {
+    if (!data?.dms) return;
+    const before = seen.current;
+    seen.current = new Map(data.dms.map((t) => [t.with, t.unread]));
+    if (!before) return; // the first look is not news
+    const news = data.dms.filter((t) => t.unread > (before.get(t.with) || 0));
+    if (!news.length) return;
+    chime();
+    // The messages screen shows them itself.
+    if (path !== '/dashboard/messages') for (const t of news) toast(`${t.name}: ${t.last}`, 'good');
+  }, [data, path, toast]);
 
   return null;
 }

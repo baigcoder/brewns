@@ -28,6 +28,8 @@ export type LiveData = {
   refundsDue: number;
   /** Team messages this person hasn't opened. */
   unreadMessages?: number;
+  /** Private conversations with unread messages in them. */
+  dms?: { with: string; name: string; last: string; unread: number }[];
   prepay: { minTotal: number | null; holdMin: number; payTo: string };
   /** Owner only: is the evening summary email on? */
   digest?: boolean;
