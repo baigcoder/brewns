@@ -8,6 +8,7 @@ import { countPendingReviews } from '@/lib/server/reviews';
 import { kv } from '@/lib/server/store';
 import { unreadFor } from '@/lib/server/teamMessages';
 import { dmThreads } from '@/lib/server/directMessages';
+import { liveCalls } from '@/lib/server/rtc';
 
 /**
  * Everything the working screens show, filtered to the caller's role and shops.
@@ -77,6 +78,8 @@ export const GET = route(async (req) => {
     // Team messages they haven't opened yet, for the menu badge.
     unreadMessages: await unreadFor(ctx.user),
     // Private conversations with something new in them, for the badge and the chime.
+    // Riders: customers calling them, or calls they're on, by order number.
+    rtc: canAny(p, 'delivery.ride') ? (await liveCalls()).filter((c) => orders.some((o) => o.number === c.number && o.rider?.id === ctx.user.id)) : [],
     dms: (await dmThreads(ctx.user)).filter((t) => t.unread > 0).map(({ with: w, name, last, unread }) => ({ with: w, name, last, unread })),
     shops: ctx.settings.shops,
     // Dynamic realtime RBAC details

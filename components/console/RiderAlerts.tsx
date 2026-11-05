@@ -1,9 +1,11 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DELIVERY } from '@/lib/catalog';
 import { orderNo } from '@/lib/orderFlow';
+import { rtcCall, type CallPhase, type CallView } from '@/lib/rtcCall';
+import { api } from './api';
 import { chime, useLive } from './Live';
 import { useMe } from './Shell';
 import { unread } from './OrderBits';
@@ -102,4 +104,81 @@ export function MessageAlerts() {
   }, [data, path, toast]);
 
   return null;
+}
+
+/**
+ * Riders, on every console screen: an in-app voice call with the customer of a delivery that is theirs.
+ * Rings when the customer calls; the order drawer's Call button starts one (the `brewns:call` event).
+ */
+export function RiderCall() {
+  const { data } = useLive();
+  const { can } = useMe();
+  const toast = useToast();
+  const [call, setCall] = useState<{ number: number; phase: CallPhase } | null>(null);
+  const hangup = useRef<(() => void) | null>(null);
+  const ride = can('delivery.ride');
+  const ringing = ride && !call ? data?.rtc?.find((c) => c.from === 'you' && c.state === 'ringing') : undefined;
+  const who = (n: number) => data?.orders.find((o) => o.number === n)?.name.split(' ')[0] || 'The customer';
+
+  const begin = useCallback(
+    (number: number, offer?: string) => {
+      const url = `/api/staff/orders/${number}/call`;
+      setCall({ number, phase: offer ? 'connecting' : 'ringing' });
+      hangup.current = rtcCall({
+        offer,
+        get: () => api<{ call: CallView | null }>(url).then((r) => r.call),
+        post: (b) => api(url, b),
+        onPhase: (phase, why) => {
+          if (phase !== 'ended') return setCall({ number, phase });
+          hangup.current = null;
+          setCall(null);
+          if (why) toast(why);
+        },
+      });
+    },
+    [toast],
+  );
+
+  useEffect(() => {
+    const go = (e: Event) => !hangup.current && begin((e as CustomEvent<number>).detail);
+    window.addEventListener('brewns:call', go);
+    return () => window.removeEventListener('brewns:call', go);
+  }, [begin]);
+
+  // Ring until they answer, or the customer gives up.
+  useEffect(() => {
+    if (!ringing) return;
+    rideAlert();
+    const t = window.setInterval(rideAlert, 3500);
+    return () => clearInterval(t);
+  }, [ringing?.number]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const answer = async (number: number) => {
+    const r = await api<{ call: CallView | null }>(`/api/staff/orders/${number}/call`).catch(() => null);
+    if (r?.call?.state !== 'ringing') return toast('That call has ended.');
+    begin(number, r.call.offer);
+  };
+
+  if (!ringing && !call) return null;
+  const n = call?.number ?? ringing!.number;
+  return (
+    <div className="cx-card cx-row between" role="alertdialog" aria-label="Call" style={{ position: 'fixed', left: 16, right: 16, bottom: 16, zIndex: 80, maxWidth: 480, margin: '0 auto', boxShadow: '0 12px 30px rgb(0 0 0 / 0.45)' }}>
+      <div>
+        <p style={{ fontWeight: 600 }}>
+          {who(n)} · {orderNo(n)}
+        </p>
+        <p className="cx-small cx-muted">{!call ? 'Calling you…' : call.phase === 'live' ? 'On the call' : call.phase === 'ringing' ? 'Ringing…' : 'Connecting…'}</p>
+      </div>
+      <div className="cx-row">
+        {!call && (
+          <button type="button" className="cx-btn primary" onClick={() => answer(n)}>
+            Answer
+          </button>
+        )}
+        <button type="button" className="cx-btn danger" onClick={() => (call ? hangup.current?.() : api(`/api/staff/orders/${n}/call`, { op: 'end' }).catch(() => {}))}>
+          {call ? 'Hang up' : 'Decline'}
+        </button>
+      </div>
+    </div>
+  );
 }

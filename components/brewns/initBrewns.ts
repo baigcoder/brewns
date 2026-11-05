@@ -50,6 +50,7 @@ import { dressPackaging, loadPrint } from './packaging';
 import { environmentFromScene } from './pmremAsync';
 import { initVoiceCalling } from './voiceCalling';
 import { viewMode } from "./viewPolicy";
+import { rtcCall } from "@/lib/rtcCall";
 
 export function initBrewns(container: HTMLElement = document.body, { kitchenPhotos = null, cafeRecording = null }: { kitchenPhotos?: Record<string, string> | null; cafeRecording?: boolean | null } = {}) {
   if (cafeRecording !== null) setCafeRecording(cafeRecording);
@@ -6263,7 +6264,7 @@ function applyServer(o, so, key = o.server?.key) {
     number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc, table: so.table ?? o.table ?? null,
     cancelled: so.cancelled ? so.cancelled.t : undefined, collected: so.times?.collected,
   });
-  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, waiter: so.waiter || null, pin: so.pin || null, riderAt: so.riderAt || null, handover: so.handover || null, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
+  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, waiter: so.waiter || null, pin: so.pin || null, riderAt: so.riderAt || null, handover: so.handover || null, messages: so.messages || [], cancelled: so.cancelled, call: so.call || null, checked: Date.now() };
   return o;
 }
 const syncing = new Set();
@@ -6275,10 +6276,10 @@ async function syncOrder(o) {
     const res = await fetch(`/api/orders/${o.number}?k=${encodeURIComponent(o.server.key)}`, { cache: "no-store" });
     if (!res.ok) return false;
     const { order: so } = await res.json();
-    const before = JSON.stringify([o.server.stage, o.server.status, o.server.cancelled, o.target, o.server.rider, o.server.messages.length, o.server.times]);
+    const before = JSON.stringify([o.server.stage, o.server.status, o.server.cancelled, o.target, o.server.rider, o.server.messages.length, o.server.times, o.server.call]);
     applyServer(o, so);
     saveOrder(o);
-    return JSON.stringify([o.server.stage, o.server.status, o.server.cancelled, o.target, o.server.rider, o.server.messages.length, o.server.times]) !== before;
+    return JSON.stringify([o.server.stage, o.server.status, o.server.cancelled, o.target, o.server.rider, o.server.messages.length, o.server.times, o.server.call]) !== before;
   } catch {
     return false;
   } finally {
@@ -6471,8 +6472,9 @@ function renderDone() {
         <div class="trk-rider" id="trk-rider" hidden>
             ${staffFace(r.name, o.server?.rider?.photo)}
             <div><p><b>${esc(r.name)}</b>${r.rating ? ` · ★ ${r.rating}` : ""}</p><p class="mono-fine">YOUR RIDER${r.plate ? ` · BIKE ${esc(r.plate)}` : ""}</p>${o.server?.rider?.bio ? `<p class="trk-bio">“${esc(o.server.rider.bio)}”</p>` : ""}</div>
-            <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button><a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>
-          </div>`
+            <button type="button" class="btn btn-line" data-co="chat">MESSAGE</button>${o.server?.rider ? `<button type="button" class="btn btn-line" data-co="call">CALL</button>` : `<a class="btn btn-line" href="tel:${SHOP_PHONE}">CALL</a>`}
+          </div>
+        <div class="trk-callbar" id="trk-callbar" role="alertdialog" aria-label="Call with your rider" hidden><span class="mono-fine" id="trk-call-l"></span><button type="button" class="btn btn-solid" data-co="call-answer" hidden>ANSWER</button><button type="button" class="btn btn-line" data-co="call-end">HANG UP</button></div>`
             : ""
         }
         ${
@@ -6647,7 +6649,55 @@ function renderDone() {
     const doc = receiptDoc(o);
     $("#rcpt-paper", coEl).innerHTML = `<style>${doc.css.replace(/body\{[^}]*\}/, "").replace(/@media print\{[^}]*\}\}/, "")}</style>${doc.body}`;
   };
-  co.trk = { send, openChat, openReceipt };
+  // A voice call with the rider, in the browser: neither side sees the other's number.
+  let hangup = null, phase = "";
+  const callUrl = `/api/orders/${o.number}/call`;
+  const drawCall = () => {
+    const bar = $("#trk-callbar", coEl);
+    if (!bar) return;
+    const ring = !hangup && o.server?.call?.from === "rider" && o.server.call.state === "ringing";
+    bar.hidden = !hangup && !ring;
+    $("#trk-call-l", coEl).textContent = ring ? `${r.first.toUpperCase()} IS CALLING YOU` : phase === "live" ? `ON THE CALL WITH ${r.first.toUpperCase()}` : phase === "ringing" ? `CALLING ${r.first.toUpperCase()}…` : "CONNECTING…";
+    $('[data-co="call-answer"]', coEl).hidden = !ring;
+    $('[data-co="call-end"]', coEl).textContent = ring ? "DECLINE" : "HANG UP";
+    if (ring) playMessage(true);
+  };
+  const startCall = (offer) => {
+    phase = offer ? "connecting" : "ringing";
+    hangup = rtcCall({
+      offer,
+      get: () => fetch(`${callUrl}?k=${encodeURIComponent(o.server.key)}`, { cache: "no-store" }).then((res) => (res.ok ? res.json() : Promise.reject())).then((d) => d.call),
+      post: (b) =>
+        fetch(callUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...b, k: o.server.key }) }).then(async (res) => {
+          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "THE CALL COULD NOT START.");
+        }),
+      onPhase: (p, why) => {
+        phase = p;
+        if (p === "ended") {
+          hangup = null;
+          if (o.server) o.server.call = null;
+          if (why) toast(why.toUpperCase());
+        }
+        drawCall();
+      },
+    });
+    drawCall();
+  };
+  const call = async (what) => {
+    if (what === "end") {
+      if (hangup) return hangup();
+      await fetch(callUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "end", k: o.server.key }) }).catch(() => {});
+      o.server.call = null;
+      return drawCall();
+    }
+    if (hangup) return;
+    if (what === "start") return startCall();
+    const d = await fetch(`${callUrl}?k=${encodeURIComponent(o.server.key)}`, { cache: "no-store" }).then((res) => res.json()).catch(() => ({}));
+    if (d.call?.state !== "ringing") return toast("THAT CALL HAS ENDED.");
+    startCall(d.call.offer);
+  };
+  coCleanups.push(() => hangup?.());
+  co.trk = { send, openChat, openReceipt, call };
 
   const mapEl = $("#trk-map", coEl);
   // the map's code and tiles load only once someone is tracking a delivery
@@ -6680,6 +6730,7 @@ function renderDone() {
         if (time && stages[k]) time.textContent = stageTime(stages[k].at);
       });
       fromServer();
+      drawCall();
     });
   };
   const tickRing = () => {
@@ -6838,6 +6889,11 @@ setInterval(() => {
     const before = heard(x).length;
     // The café or the rider answered while the tracker is closed: say so, with a way back to the chat.
     syncOrder(x).then(() => {
+      if (co?.done?.number === x.number) return;
+      if (x.server.call?.from === "rider" && x.server.call.state === "ringing") {
+        playMessage(true);
+        return toast(`${(x.server.rider?.name || "YOUR RIDER").split(" ")[0].toUpperCase()} IS CALLING YOU`, "OPEN", () => openTracking(x.number));
+      }
       const m = heard(x)[before];
       if (!m || co?.done?.number === x.number) return;
       playMessage(true);
@@ -7086,6 +7142,9 @@ coEl.addEventListener("click", (e) => {
   if (act === "close") return closeCheckout();
   if (co.trk) {
     if (act === "chat") return co.trk.openChat(true);
+    if (act === "call") return co.trk.call("start");
+    if (act === "call-answer") return co.trk.call("answer");
+    if (act === "call-end") return co.trk.call("end");
     if (act === "chat-close") return co.trk.openChat(false);
     if (act === "receipt") return co.trk.openReceipt(true);
     if (act === "rcpt-close") return co.trk.openReceipt(false);
