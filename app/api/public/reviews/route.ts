@@ -6,7 +6,8 @@ import { addReview, computeStats, deleteReview, listReviews, upvoteReview } from
 /** GET — all reviews and their stats, for the public page. */
 export const GET = route(async () => {
   const reviews = await listReviews();
-  return json({ reviews, stats: computeStats(reviews) });
+  // Shared by every visitor, so the CDN may keep it briefly: a burst of visits costs one Redis read, not one each.
+  return json({ reviews, stats: computeStats(reviews) }, 200, { 'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=60' });
 });
 
 /** POST — a new review, `{ action: "add", quote, name, place, order?, product?, stars }`, or `{ action: "upvote", id }`. */

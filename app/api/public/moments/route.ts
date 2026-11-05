@@ -22,7 +22,7 @@ async function limitLike(req: Request, id: string) {
 export async function GET() {
   try {
     const moments = await listApprovedMoments();
-    return NextResponse.json({ moments });
+    return NextResponse.json({ moments }, { headers: { 'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=60' } });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to fetch moments' }, { status: 500 });
   }

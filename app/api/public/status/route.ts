@@ -20,5 +20,5 @@ export const GET = route(async () => {
     payTo: s.prepay.payTo,
     // Only the code the café chose to show. A private code is never suggested.
     promoHint: s.promos.find((p) => p.active && p.hint)?.code || '',
-  });
+  }, 200, { 'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30' });
 });

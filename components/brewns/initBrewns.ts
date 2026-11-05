@@ -2760,14 +2760,35 @@ whenReady(() => setTimeout(() => idleQueue.push(pauseLoopsOffscreen), 800));
 
 /* ═══════════ three.js layers ═══════════ */
 const threeReady = Promise.resolve({ ...THREE, GLTFLoader, DRACOLoader, RoomEnvironment });
+/* The hero still is what the visitor sees first (and what Lighthouse measures as LCP). Building the 3D scene right away
+   froze phones for seconds, so it starts once the page is quiet: shortly after load on a capable device; on a phone or a
+   slow or Save-Data device, on the first touch, scroll or key (or after 8 s). Until then the still shows, so nothing is missing. */
+const startWhenQuiet = (go) => {
+  const slow = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4 || !!navigator.connection?.saveData || window.innerWidth < 700;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 200));
+  const events = ["pointerdown", "touchstart", "scroll", "keydown", "wheel"];
+  let started = false;
+  const run = () => {
+    if (started) return;
+    started = true;
+    events.forEach((e) => window.removeEventListener(e, run, true));
+    idle(go, { timeout: 2000 });
+  };
+  if (slow) {
+    events.forEach((e) => window.addEventListener(e, run, { capture: true, passive: true, once: true }));
+    setTimeout(run, 8000);
+  } else setTimeout(run, 1200);
+};
 threeReady
   .then((T) => {
-    heroModel(T, $("#hero-mount"), heroHandle, (role) => {
-      if (role) {
-        setCard(role);
-        heroCardHover.show();
-      } else heroCardHover.later();
-    });
+    startWhenQuiet(() =>
+      heroModel(T, $("#hero-mount"), heroHandle, (role) => {
+        if (role) {
+          setCard(role);
+          heroCardHover.show();
+        } else heroCardHover.later();
+      }),
+    );
     whenNear($("#phil-scene"), () => philosophyScene(T, $("#phil-scene")));
   })
   .catch((error) => {
