@@ -1,7 +1,7 @@
 // Safe order-flow check for the STAGING preview only (never production). Node 18+, no install.
 //   BASE_URL=https://<preview>.vercel.app BYPASS_FILE=<file> OWNER_CODE_FILE=<file> OWNER_PASS_FILE=<file> node load/staging-orders.mjs
 // Orders are scheduled for tomorrow (shops close at 21:00), guest, pickup, with idempotency keys. One IP may place
-// 12 orders per 10 minutes by design, so this sends 12 POSTs that should succeed or replay, then a 13th that must be 429.
+// 12 orders per 10 minutes by design, so this sends 12 POSTs that succeed or replay, then a 13th that must be 429.
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
@@ -16,7 +16,7 @@ const post = async (path, body, extra = {}) => {
   const s = performance.now();
   const r = await fetch(base + path, { method: 'POST', headers: { ...headers, ...extra }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  lat.push(performance.now() - s);
+  if (path === '/api/orders') lat.push(performance.now() - s); // owner sign-up hashes a password, so it is timed apart
   return { status: r.status, json: j };
 };
 const results = [];
@@ -62,11 +62,14 @@ const d1 = await post('/api/orders', order({ phone: '123' }), { 'idempotency-key
 check('D bad phone is refused (400)', d1.status === 400, `status ${d1.status}`);
 
 // E. the per-IP limit (12 per 10 minutes) stops the next one with a clear message
+const e12 = await post('/api/orders', order(), { 'idempotency-key': key() }); // POST #11 was D, so this is the 12th: still allowed
+check('E1 the 12th request from one IP still goes through', e12.status === 201, `status ${e12.status}`);
 const e = await post('/api/orders', order(), { 'idempotency-key': key() });
-check('E the 13th request from one IP is rate limited (429)', e.status === 429, `status ${e.status}: ${e.json.error || ''}`);
+check('E2 the 13th request from one IP is rate limited (429)', e.status === 429, `status ${e.status}: ${e.json.error || ''}`);
 
-const distinct = new Set([a1.json.order?.number, ...numsB, ...numsC]).size;
-console.log(`\ndistinct orders created: ${distinct} (expected 6)  numbers: ${[...new Set([a1.json.order?.number, ...numsB, ...numsC])].join(', ')}`);
+const all = new Set([a1.json.order?.number, ...numsB, ...numsC, e12.json.order?.number]);
+const distinct = all.size;
+console.log(`\ndistinct orders created: ${distinct} (expected 7)  numbers: ${[...all].join(', ')}`);
 lat.sort((x, y) => x - y);
 console.log(`POST latency  p50 ${lat[Math.floor(lat.length * 0.5)].toFixed(0)}ms  p95 ${lat[Math.min(lat.length - 1, Math.floor(lat.length * 0.95))].toFixed(0)}ms  max ${lat.at(-1).toFixed(0)}ms`);
-console.log(results.every(Boolean) && distinct === 6 ? '\nALL CHECKS PASSED' : '\nSOMETHING FAILED');
+console.log(results.every(Boolean) && distinct === 7 ? '\nALL CHECKS PASSED' : '\nSOMETHING FAILED');
