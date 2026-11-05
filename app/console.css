@@ -460,3 +460,7 @@
 .cx-till-list li { display: grid; grid-template-columns: 76px 1fr auto auto auto; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--cx-line); }
 @media (max-width: 720px) { .cx-till-list li { grid-template-columns: 1fr auto; } }
 @media print { .cx-pay, .cx-done { display: none !important; } }
+
+/* Live map of riders on the road (FleetMap.tsx); the map pieces are in map.css. */
+.cx-fleet { position: relative; height: 320px; border-radius: 14px; overflow: hidden; border: 1px solid var(--cx-line); background: #2a2622; isolation: isolate; }
+.cx-fleet-key { position: absolute; left: 10px; top: 10px; z-index: 4; margin: 0; padding: 5px 10px; border-radius: 99px; background: rgb(12 9 7 / 0.85); font-family: var(--font-space-mono); font-size: 11px; color: #f4f1ea; }

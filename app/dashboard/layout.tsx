@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import '../console.css';
+import '../map.css';
 import { Shell } from '@/components/console/Shell';
 import { currentStaff } from '@/lib/server/auth';
 import { storeInfo } from '@/lib/server/store';

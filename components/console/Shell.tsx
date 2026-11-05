@@ -6,6 +6,7 @@ import { createContext, Suspense, useContext, useEffect, useState, type ReactNod
 import { canOpen, homeFor, ROLE_INFO, SECTIONS, type Permission, type Role } from '@/lib/rbac';
 import { api, initials } from './api';
 import { LiveProvider, useLive } from './Live';
+import { RiderAlerts } from './RiderAlerts';
 import { ToastProvider, useToast } from './Toasts';
 
 export type Me = { id: string; name: string; email: string; role: Role; shops: number[]; twoStep?: boolean };
@@ -250,6 +251,7 @@ export function Shell({
     <ToastProvider>
       <LiveProvider>
         <ShellContent initialMe={me} initialPerms={perms} store={store} notice={notice}>
+          <RiderAlerts />
           {children}
         </ShellContent>
       </LiveProvider>
