@@ -949,7 +949,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const parts: AudioChunk[] = audio?.length ? audio : [{ text: reply, url: '' }];
     const li = bubble('agent');
     let shown = '';
-    let next = parts[0].url ? fetchVoice(parts[0].url) : Promise.resolve(null);
+    // Every clip is asked for at once: fetched one ahead, a short line finished
+    // before the next was ready and the caller heard a pause mid-reply.
+    const voices = parts.map((p) => (p.url ? fetchVoice(p.url) : Promise.resolve(null)));
     setPhase('speaking');
     // While her voice is still loading nothing is playing, so a caller who starts
     // talking is heard (after a beat, so their own last word doesn't count) rather
@@ -960,9 +962,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       // The words appear as they are about to be said, not after the audio arrives.
       shown = `${shown} ${parts[i].text}`.trim();
       setText(li, shown);
-      const voice = await next;
+      const voice = await voices[i];
       if (id !== turnId) return;
-      next = parts[i + 1]?.url ? fetchVoice(parts[i + 1].url) : Promise.resolve(null);
       vad.armedAt = performance.now() + 450;
       setVoiceTag(voice ? voice.tier : 'device');
       if (voice) await playBlob(voice.blob, id, parts[i].text);
