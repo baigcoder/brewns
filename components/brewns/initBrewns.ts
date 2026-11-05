@@ -6165,7 +6165,7 @@ function renderCheckout({ animate = true } = {}) {
         <div class="co-block"><div class="fields">
           ${field("name", "NAME", "text", 'autocomplete="name" maxlength="40"', dineIn ? "Name for table service" : delivery ? "Who the rider asks for" : "Who we call out")}
           ${field("phone", "MOBILE", "tel", 'autocomplete="tel" inputmode="tel" maxlength="16"', "0300 1234567")}
-          ${delivery ? `${savedAddrChips()}<label class="field wide${co.errors.address ? " bad" : ""}"><span class="mono-fine">ADDRESS · ${DELIVERY.areas[co.area][0]}</span><textarea data-field="address" rows="2" maxlength="160" autocomplete="street-address" placeholder="House / flat, street, block, nearest landmark">${esc(co.address)}</textarea><span class="err mono-fine">${co.errors.address || ""}</span></label><div data-addr-save-slot>${saveAddrButton()}</div>` : ""}
+          ${delivery ? `${savedAddrChips()}<label class="field wide${co.errors.address ? " bad" : ""}"><span class="mono-fine">ADDRESS · ${DELIVERY.areas[co.area][0]}</span><textarea data-field="address" rows="2" maxlength="160" autocomplete="street-address" placeholder="House / flat, street, block, nearest landmark">${esc(co.address)}</textarea><span class="err mono-fine">${co.errors.address || ""}</span></label><div data-addr-save-slot>${saveAddrButton()}</div><div class="field wide co-pin" data-pin-slot>${pinBlock()}</div>` : ""}
           ${field("email", "EMAIL · OPTIONAL", "email", 'autocomplete="email" maxlength="80"', "For the receipt")}
           <label class="field wide"><span class="mono-fine">NOTE FOR THE ${dineIn ? "SERVER" : delivery ? "RIDER" : "BARISTA"} · OPTIONAL</span><textarea data-field="note" rows="2" maxlength="140" placeholder="${dineIn ? "Water first, extra napkins…" : delivery ? "Gate code, call on arrival…" : "Extra hot, less ice…"}">${esc(co.note)}</textarea></label>
         </div></div>
@@ -6257,7 +6257,7 @@ function applyServer(o, so, key = o.server?.key) {
     number: so.number, placed: so.placed, target: so.target, totals: so.totals, pickupAt: so.pickupAt, loc: so.loc, table: so.table ?? o.table ?? null,
     cancelled: so.cancelled ? so.cancelled.t : undefined, collected: so.times?.collected,
   });
-  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, pin: so.pin || null, riderAt: so.riderAt || null, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
+  o.server = { key, stage: so.stage, status: so.status, times: so.times || {}, rider: so.rider, pin: so.pin || null, riderAt: so.riderAt || null, handover: so.handover || null, messages: so.messages || [], cancelled: so.cancelled, checked: Date.now() };
   return o;
 }
 const syncing = new Set();
@@ -6459,6 +6459,7 @@ function renderDone() {
             <div><dt class="mono-fine">DISTANCE</dt><dd id="trk-km">~${DELIVERY.areas[o.area][4].toFixed(1)} KM</dd></div>
             <div><dt class="mono-fine">AT YOUR DOOR</dt><dd id="trk-eta">${hhmm(o.pickupAt.t)}</dd></div>
           </dl>
+          ${o.server?.handover ? `<p class="trk-code" id="trk-code" hidden><span class="mono-fine">GIVE THE RIDER THIS CODE AT THE DOOR</span><b>${esc(o.server.handover)}</b></p>` : ""}
           ${o.server ? `<button type="button" class="trk-pin-btn mono-fine" data-co="pin"${o.server.pin ? " hidden" : ""}>⌖ SHARE MY EXACT LOCATION, SO THE RIDER FINDS YOUR DOOR</button>` : ""}
         </section>
         <div class="trk-rider" id="trk-rider" hidden>
@@ -6744,6 +6745,8 @@ function renderDone() {
                 ? `${first} IS AT ${LOCS[o.loc][0]}`
                 : "WAITING FOR THE RIDER";
       mapEl?.classList.toggle("is-live", riding && !!fix && !stale && !offline);
+      const code = $("#trk-code", coEl);
+      if (code) code.hidden = o.cancelled || done || i < riderStage;
       mapEl?.classList.toggle("is-stale", offline || stale);
     }
     // What the café and rider say on their own as stages are reached (the preview only;
@@ -6860,6 +6863,7 @@ function placeOrder() {
     mode: co.mode, loc: co.loc, area: delivery ? co.area : null, table: co.mode === "dinein" ? co.table : null, tableKey: co.mode === "dinein" ? activeTableSession?.key || "" : undefined, address: delivery ? co.address.trim() : "",
     when: co.when === "asap" ? "asap" : co.slot, name: co.name.trim(), phone: co.phone, email, note: co.note.trim(),
     pay: co.pay, promo: co.discount || co.off ? co.promo : "", useReward: !!co.useReward, guestReward: !!co.useReward,
+    pin: delivery && co.pin ? co.pin : null,
   };
   // The café's server takes the order: it prices it again, gives it a number
   // and puts it on the kitchen screen. Only before the owner has set the café
@@ -6987,6 +6991,17 @@ async function sendOrder(o, email) {
 }
 
 /* Saved delivery addresses (signed in): tap one to fill the address and area, or save the one just typed. */
+/* The customer's exact door from their phone, so the rider goes straight there.
+   Optional; checked against the delivery area they picked. */
+const pinBlock = () => {
+  if (co?.pinBusy) return `<p class="mono-fine co-pin-note"><span class="co-spin" aria-hidden="true"></span>FINDING YOUR LOCATION…</p>`;
+  if (!co?.pin) return `<button type="button" class="co-pin-btn mono-fine" data-co="co-pin">⌖ USE MY EXACT LOCATION · THE RIDER COMES STRAIGHT TO YOUR DOOR</button>${co?.pinError ? `<p class="err mono-fine" style="display:block">${esc(co.pinError)}</p>` : ""}`;
+  const near = co.pinNear;
+  const off = near !== null && near !== undefined && near !== co.area;
+  return `<p class="mono-fine co-pin-note">✓ EXACT LOCATION SAVED · <a href="https://www.google.com/maps/search/?api=1&query=${co.pin.lat},${co.pin.lng}" target="_blank" rel="noopener">CHECK ON THE MAP</a> · <button type="button" data-co="co-pin-clear">REMOVE</button></p>${
+    off ? `<p class="mono-fine co-pin-warn">THIS PIN IS IN ${DELIVERY.areas[near][0]}, NOT ${DELIVERY.areas[co.area][0]}. <button type="button" data-co="co-pin-area">SWITCH TO ${DELIVERY.areas[near][0]}</button></p>` : ""
+  }`;
+};
 const savedAddrChips = () => {
   const list = window.__brewnsMember?.addrs || [];
   if (!list.length) return "";
@@ -7134,6 +7149,43 @@ coEl.addEventListener("click", (e) => {
     return $("[data-field='name']", coEl)?.focus({ preventScroll: true });
   }
   if (act === "place") return placeOrder();
+  if (act === "co-pin") {
+    const slot = () => $("[data-pin-slot]", coEl);
+    if (!navigator.geolocation) {
+      co.pinError = "This browser can't share a location. The rider will call you.";
+      return (slot().innerHTML = pinBlock());
+    }
+    co.pinBusy = true;
+    co.pinError = "";
+    slot().innerHTML = pinBlock();
+    return navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const p = [pos.coords.latitude, pos.coords.longitude];
+        // Which delivery area is nearest (each route ends in its area), and is it close enough to deliver to?
+        const [{ ROUTES }, { metres }] = await Promise.all([import("./deliveryRoutes"), import("./riderMap")]);
+        const d = ROUTES.map((r) => metres(r[r.length - 1], p));
+        const near = d.indexOf(Math.min(...d));
+        co.pinBusy = false;
+        if (d[near] > 6000) co.pinError = "That's outside our delivery areas. Type the address, or try again from home.";
+        else [co.pin, co.pinNear] = [{ lat: +p[0].toFixed(5), lng: +p[1].toFixed(5) }, near];
+        if (slot()) slot().innerHTML = pinBlock();
+      },
+      () => {
+        co.pinBusy = false;
+        co.pinError = "Location not shared. That's fine: the rider will call you.";
+        if (slot()) slot().innerHTML = pinBlock();
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  }
+  if (act === "co-pin-clear") {
+    co.pin = co.pinNear = null;
+    return ($("[data-pin-slot]", coEl).innerHTML = pinBlock());
+  }
+  if (act === "co-pin-area") {
+    co.area = co.pinNear;
+    return renderCheckout({ animate: false });
+  }
   if (act === "shop") {
     closeCheckout();
     return setTimeout(() => lenis.scrollTo("#shop", { force: true }), 60);

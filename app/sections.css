@@ -309,6 +309,16 @@
 .trk-stats dd { margin: 0.15rem 0 0; font-family: var(--font-space-mono); font-size: 1rem; color: #d8b777; white-space: nowrap; }
 .trk-pin-btn { display: block; width: calc(100% - 1.5rem); margin: 0 0.75rem 0.75rem; padding: 0.65rem; border: 1px dashed rgb(216 183 119 / 0.5); border-radius: 8px; background: none; color: #d8b777; font-size: 0.6rem; letter-spacing: 0.06em; cursor: pointer; }
 .trk-pin-btn:hover { background: rgb(216 183 119 / 0.08); }
+.trk-code { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 0 0.75rem 0.75rem; padding: 0.6rem 0.75rem; border-radius: 8px; background: #d8b777; color: #17130f; }
+.trk-code[hidden] { display: none; }
+.trk-code .mono-fine { font-size: 0.6rem; letter-spacing: 0.06em; }
+.trk-code b { font-family: var(--font-space-mono); font-size: 1.5rem; letter-spacing: 0.3em; }
+/* checkout: the exact door */
+.co-pin-btn { width: 100%; padding: 0.7rem; border: 1px dashed currentColor; border-radius: 8px; background: none; color: inherit; font-size: 0.62rem; letter-spacing: 0.06em; cursor: pointer; opacity: 0.85; }
+.co-pin-btn:hover { opacity: 1; }
+.co-pin-note, .co-pin-warn { margin: 0; font-size: 0.62rem; letter-spacing: 0.05em; }
+.co-pin-note a, .co-pin-note button, .co-pin-warn button { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.co-pin-warn { margin-top: 0.4rem; color: #c0392b; }
 
 /* touch screens: small controls get a finger-sized hit area */
 @media (pointer: coarse) {

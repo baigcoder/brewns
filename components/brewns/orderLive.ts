@@ -48,6 +48,8 @@ export type ServerView = {
   pin?: { lat: number; lng: number } | null;
   /** The rider phone's last GPS fix while on the road. */
   riderAt?: { lat: number; lng: number; heading: number | null; t: number } | null;
+  /** The 4-digit code the customer gives the rider at the door. */
+  handover?: string | null;
   messages: { id: string; from: 'you' | 'cafe' | 'rider'; text: string; t: number; by?: string }[];
   cancelled: { t: number; reason: string } | null;
   /** When the tracker last heard from the server. */

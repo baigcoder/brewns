@@ -1,15 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DELIVERY, LOC_TITLES, PAY } from '@/lib/catalog';
 import { orderNo } from '@/lib/orderFlow';
-import { api, pkTime, rs } from './api';
-import { useLive, type StaffOrder } from './Live';
+import { api, pkTime, rs, useNow } from './api';
+import { chime, useLive, type StaffOrder } from './Live';
 import { itemsLine, OrderDrawer, StatusPill } from './OrderBits';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
 
-// The customer's exact door when they shared it from the tracker, else the address they typed.
+// The customer's exact door when they shared it (at checkout or from the tracker), else the address they typed.
 const mapLink = (o: StaffOrder) =>
   o.pin
     ? `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${o.pin.lat},${o.pin.lng}`
@@ -35,14 +35,34 @@ function useShareLocation(numbers: number[]) {
       (e) => setState(e.code === e.PERMISSION_DENIED ? 'denied' : 'waiting'),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 },
     );
-    return () => navigator.geolocation.clearWatch(id);
+    // Phones stop sending location when the screen sleeps: keep it awake while on the road.
+    let lock: WakeLockSentinel | null = null;
+    const awake = () => {
+      if (document.visibilityState === 'visible') navigator.wakeLock?.request('screen').then((l) => (lock = l)).catch(() => {});
+    };
+    awake();
+    document.addEventListener('visibilitychange', awake);
+    return () => {
+      navigator.geolocation.clearWatch(id);
+      document.removeEventListener('visibilitychange', awake);
+      lock?.release().catch(() => {});
+    };
   }, [key]);
   return state;
 }
 const SHARING = {
   waiting: 'Finding your location… keep this screen open while you ride.',
-  on: 'Sharing your location with the customer. Keep this screen open while you ride.',
+  on: 'Sharing your location with the customer. The screen stays on while you ride; keep this page open.',
   denied: 'Location is blocked, so the customer only sees an estimate. Allow location for this site in the browser settings.',
+};
+
+/** A delivery with no rider this long gets flagged (and chimes once) for the dispatcher. */
+const NO_RIDER_ALERT_MS = 5 * 60000;
+/** How a rider's GPS looks to the dispatcher: fresh, quiet (over 2 minutes), or never sent. */
+const gpsLabel = (t: number | undefined, now: number) => {
+  if (!t) return { text: 'No GPS', bad: true };
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  return s > 120 ? { text: `GPS quiet ${Math.round(s / 60)} min`, bad: true } : { text: `GPS ${s < 60 ? `${s}s` : '1 min'} ago`, bad: false };
 };
 
 /** Riders: what's theirs and what's waiting for a rider. Dispatchers: every delivery, with a rider picker. */
@@ -59,6 +79,19 @@ export function DeliveriesScreen() {
   const others = deliveries.filter((o) => o.rider && o.rider.id !== me.id);
   const cash = mine.filter((o) => !o.paid && o.pay === 0).reduce((s, o) => s + o.totals.total, 0);
   const sharing = useShareLocation(riding ? mine.filter((o) => o.status === 'onway' || o.status === 'arriving').map((o) => o.number) : []);
+  const [codes, setCodes] = useState<Record<number, string>>({});
+  const now = useNow(10000);
+  const dispatching = can('delivery.assign');
+  const late = (o: StaffOrder) => now - o.placed > NO_RIDER_ALERT_MS;
+  // One chime per delivery when it has waited too long for a rider.
+  const chimed = useRef(new Set<number>());
+  const overdue = dispatching ? waiting.filter(late).map((o) => o.number) : [];
+  useEffect(() => {
+    const fresh = overdue.filter((n) => !chimed.current.has(n));
+    if (!fresh.length) return;
+    fresh.forEach((n) => chimed.current.add(n));
+    chime();
+  }, [overdue.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = async (o: StaffOrder, action: Record<string, unknown>, done?: string) => {
     setBusy(o.number);
@@ -71,7 +104,7 @@ export function DeliveriesScreen() {
       <div className="cx-pagehead">
         <div>
           <p className="cx-eyebrow">
-            <b>{'//'}</b> {riding ? `${mine.length} with you · ${rs(cash)} cash to collect` : `${deliveries.length} open · ${waiting.length} need a rider`}
+            <b>{'//'}</b> {riding ? `${mine.length} with you · ${rs(cash)} cash to collect` : `${deliveries.length} open · ${waiting.length} need a rider${overdue.length ? ` · ${overdue.length} waiting over 5 min` : ''}`}
           </p>
           <h1 className="cx-h1">Deliveries</h1>
         </div>
@@ -121,8 +154,29 @@ export function DeliveriesScreen() {
                     Nearly there
                   </button>
                 )}
+                {['onway', 'arriving'].includes(o.status) && o.needsCode && (
+                  <label className="cx-field">
+                    <span>Customer’s 4-digit code (on their tracking page)</span>
+                    <input
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={4}
+                      pattern="[0-9]{4}"
+                      value={codes[o.number] || ''}
+                      onChange={(e) => setCodes((c) => ({ ...c, [o.number]: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                      placeholder="0000"
+                      className="cx-mono"
+                      style={{ fontSize: 22, letterSpacing: '0.3em' }}
+                    />
+                  </label>
+                )}
                 {['onway', 'arriving'].includes(o.status) && (
-                  <button type="button" className="cx-btn go big" disabled={busy === o.number} onClick={() => step(o, { type: 'delivered' }, 'Delivered. Thank you!')}>
+                  <button
+                    type="button"
+                    className="cx-btn go big"
+                    disabled={busy === o.number || (!!o.needsCode && (codes[o.number] || '').length !== 4)}
+                    onClick={() => step(o, { type: 'delivered', code: codes[o.number] || '' }, 'Delivered. Thank you!')}
+                  >
                     Delivered{!o.paid ? ` · got ${rs(o.totals.total)}` : ''}
                   </button>
                 )}
@@ -139,11 +193,16 @@ export function DeliveriesScreen() {
         {waiting.length ? (
           <div className="cx-grid three">
             {waiting.map((o) => (
-              <article key={o.number} className="cx-card cx-stack">
+              <article key={o.number} className="cx-card cx-stack" style={dispatching && late(o) ? { borderColor: '#e04c38' } : undefined}>
                 <div className="cx-row between">
                   <b className="cx-mono">{orderNo(o.number)}</b>
                   <StatusPill status={o.status} />
                 </div>
+                {dispatching && late(o) && (
+                  <p className="cx-small" style={{ color: '#e04c38', fontWeight: 700 }}>
+                    No rider for {Math.round((now - o.placed) / 60000)} min
+                  </p>
+                )}
                 <p>
                   {o.area !== null && DELIVERY.areas[o.area][0]} · from {LOC_TITLES[o.loc].split(',')[0]}
                 </p>
@@ -180,6 +239,7 @@ export function DeliveriesScreen() {
                   <th>Area</th>
                   <th>Due</th>
                   <th>Status</th>
+                  <th>Location</th>
                 </tr>
               </thead>
               <tbody>
@@ -191,6 +251,14 @@ export function DeliveriesScreen() {
                     <td className="cx-mono">{pkTime(o.target)}</td>
                     <td>
                       <StatusPill status={o.status} />
+                    </td>
+                    <td className="cx-small">
+                      {['onway', 'arriving'].includes(o.status)
+                        ? (() => {
+                            const g = gpsLabel(data?.fixes?.[o.number], now);
+                            return <span style={g.bad ? { color: '#e04c38', fontWeight: 700 } : undefined}>{g.text}</span>;
+                          })()
+                        : '—'}
                     </td>
                   </tr>
                 ))}

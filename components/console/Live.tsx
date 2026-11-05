@@ -7,7 +7,7 @@ import type { Business } from '@/lib/receipt';
 import type { ShopSettings } from '@/lib/server/settings';
 import { api } from './api';
 
-export type StaffOrder = Omit<ServerOrder, 'key'>;
+export type StaffOrder = Omit<ServerOrder, 'key' | 'handover'> & { needsCode?: boolean };
 export type Call = { id: string; loc: number; table: number; kind: 'waiter' | 'bill'; t: number };
 export type Rider = { id: string; name: string; plate: string; shops: number[]; online: boolean };
 export type LiveData = {
@@ -16,6 +16,8 @@ export type LiveData = {
   orders: StaffOrder[];
   calls: Call[];
   riders: Rider[];
+  /** Dispatchers: when each on-road order's rider phone last sent its location, by order number. */
+  fixes?: Record<string, number>;
   aiLive?: number;
   pendingMoments?: number;
   upcomingBookings?: number;
@@ -67,7 +69,11 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       const queryStr = q.toString() ? `?${q.toString()}` : '';
       const r = await api<LiveData & { same?: boolean }>(`/api/staff/live${queryStr}`);
       setError('');
-      if (r.same) return;
+      if (r.same) {
+        // GPS fixes don't change the version, so they ride along on every poll.
+        if (r.fixes) setData((d) => (d && JSON.stringify(d.fixes) !== JSON.stringify(r.fixes) ? { ...d, fixes: r.fixes } : d));
+        return;
+      }
       v.current = r.v;
       if (r.me?.role) {
         if (roleRef.current && roleRef.current !== r.me.role) {
