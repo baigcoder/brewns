@@ -1,18 +1,27 @@
 import { json } from '@/lib/server/http';
-import { kv, storeInfo } from '@/lib/server/store';
+import { databaseHealthy, databaseReady } from '@/lib/server/database';
+import { productionReadiness, queueConfigured, redisConfigured } from '@/lib/server/production';
+import { kv } from '@/lib/server/store';
 
-/**
- * For an uptime monitor (UptimeRobot, Better Stack, Vercel checks): 200 when the site is up and its
- * database answers, 503 when it doesn't. It says nothing about customers, orders or settings.
- */
+export const dynamic = 'force-dynamic';
+
+/** Safe liveness/readiness endpoint for uptime monitors. Never returns secrets. */
 export async function GET() {
-  const started = Date.now();
+  const readiness = productionReadiness();
+  const required = process.env.NODE_ENV === 'production';
+  if (required && !readiness.ready) return json({ ok: false, error: 'Production services are not configured.' }, 503);
   try {
-    // A real round trip to the store, not just "the server is running".
     await kv.get('health:ping');
-    const { kind, ephemeral } = storeInfo();
-    return json({ ok: true, store: kind, ephemeral, ms: Date.now() - started });
+    const database = databaseReady() ? await databaseHealthy() : false;
+    const ok = !required || database;
+    const body = {
+      ok,
+      time: new Date().toISOString(),
+      services: { redis: redisConfigured(), database, queue: queueConfigured() },
+      ...(required ? {} : { missing: readiness.missing }),
+    };
+    return json(body, ok ? 200 : 503, { 'Cache-Control': 'no-store' });
   } catch {
-    return json({ ok: false, error: 'The database did not answer.' }, 503);
+    return json({ ok: false, error: 'A required service did not answer.' }, 503);
   }
 }

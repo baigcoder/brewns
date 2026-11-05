@@ -2,6 +2,8 @@ import { pkDay } from '@/lib/orderFlow';
 import { requireStaff, worksAt } from '@/lib/server/auth';
 import { json, readBody, route } from '@/lib/server/http';
 import { ordersOn, placeOrder, staffView, type OrderInput } from '@/lib/server/orders';
+import { after } from 'next/server';
+import { recordDurableEvent } from '@/lib/server/database';
 
 /** Order history: `?day=YYYY-MM-DD` (Lahore) and `&days=N` going back from it, up to a month. */
 export const GET = route(async (req) => {
@@ -24,5 +26,6 @@ export const POST = route(async (req) => {
     { ...b, mode, area: b.area ?? null, table: b.table ?? null, address: b.address ?? '', when: 'asap', useReward: false },
     { kind: 'staff', ctx, source: mode === 'dinein' ? 'table' : 'counter' },
   );
+  after(() => recordDurableEvent('order.created', String(order.number), order).catch((err) => console.error('[Order ledger]', err)));
   return json({ order: staffView(order, ctx) }, 201);
 });

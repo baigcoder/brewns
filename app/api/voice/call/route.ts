@@ -3,6 +3,7 @@ import { clientIp, json, rateLimit, readBody, route, str } from '@/lib/server/ht
 import { agentName, processVoiceCallPrompt, type ScriptState, type VoiceTurn } from '@/lib/server/voiceCall';
 import { asCaller, readCaller } from '@/lib/server/voiceContext';
 import { endVoiceCall, logVoiceTurn, validCallId } from '@/lib/server/voiceLog';
+import { withAiCapacity } from '@/lib/server/aiGate';
 
 export const maxDuration = 30;
 
@@ -36,7 +37,7 @@ export const POST = route(async (req) => {
   const channel = b.channel === 'text' ? 'text' : 'voice';
 
   const message = prompt || 'call_init';
-  const result = await asCaller(await readCaller(), () => processVoiceCallPrompt(message, history, gender, state, lang, channel));
+  const result = await withAiCapacity(async () => asCaller(await readCaller(), () => processVoiceCallPrompt(message, history, gender, state, lang, channel)));
 
   if (callId) {
     const caller =

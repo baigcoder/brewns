@@ -16,6 +16,7 @@ import { securityOnce } from './audit';
 import { fail } from './http';
 import { getSettings, type Settings } from './settings';
 import { kv } from './store';
+import { requireProductionSessionSecret } from './production';
 
 /* ── passwords and tokens ── */
 
@@ -48,6 +49,7 @@ export const newId = (prefix: string) => `${prefix}_${randomBytes(9).toString('b
 let secretCache = '';
 async function secret() {
   if (secretCache) return secretCache;
+  requireProductionSessionSecret();
   const env = process.env.SESSION_SECRET;
   if (env && env.length >= 16) return (secretCache = env);
   // No secret set: make one and keep it with the data, so every server instance signs alike.

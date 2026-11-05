@@ -6,8 +6,9 @@ import { CLOSE_MIN, OPEN_MIN, pkMobile, SHOP_COUNT, slotMinutes } from '@/lib/ca
 import { pkDay, pkMinutes } from '@/lib/orderFlow';
 import { bumpLive } from '@/lib/server/orders';
 import { getSettings } from '@/lib/server/settings';
-import { sendBookingConfirmationEmail } from '@/lib/server/email';
-import { sendBookingWhatsappNotification } from '@/lib/server/smsWhatsapp';
+import { after } from 'next/server';
+import { enqueueBookingJobs, runJob } from '@/lib/server/jobs';
+import { recordDurableEvent } from '@/lib/server/database';
 
 export type Reservation = {
   id: string;
@@ -108,25 +109,7 @@ export const POST = route(async (req) => {
     return item;
   });
 
-  // Send confirmation email asynchronously without blocking the response
-  if (res.email) {
-    sendBookingConfirmationEmail({
-      code: res.code,
-      name: res.name,
-      email: res.email,
-      phone: res.phone,
-      loc: res.loc,
-      date: res.date,
-      time: res.time,
-      guests: res.guests,
-      area: res.area,
-      notes: res.notes,
-      kind: 'table',
-    }).catch((err) => console.error('[Reservation email send error]', err));
-  }
-
-  // Send WhatsApp voucher with Google Maps link asynchronously
-  sendBookingWhatsappNotification({
+  const notification = {
     code: res.code,
     name: res.name,
     phone: res.phone,
@@ -136,8 +119,21 @@ export const POST = route(async (req) => {
     time: res.time,
     guests: res.guests,
     area: res.area,
+    notes: res.notes,
     kind: 'table',
-  }).catch((err) => console.error('[Reservation WhatsApp send error]', err));
+  } as const;
+  // Delivery is queued after the write commits, so a slow provider never delays the guest.
+  after(async () => {
+    try {
+      const queued = await enqueueBookingJobs(notification);
+      // Local development remains useful without a QStash account; production
+      // readiness refuses to report healthy until the queue is configured.
+      if (!queued) await Promise.all([runJob({ kind: 'booking-email', payload: notification }), runJob({ kind: 'booking-whatsapp', payload: notification })]);
+      await recordDurableEvent('reservation.created', res.code, res);
+    } catch (err) {
+      console.error('[Reservation background work]', err);
+    }
+  });
 
   await bumpLive();
   return json({ ok: true, reservation: res }, 201);

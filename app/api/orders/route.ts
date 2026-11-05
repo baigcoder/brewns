@@ -4,6 +4,8 @@ import { clientIp, fail, json, rateLimit, readBody, route } from '@/lib/server/h
 import { idempotencyKey, once } from '@/lib/server/idempotency';
 import { kv } from '@/lib/server/store';
 import { getOrder, placeOrder, publicOrder, type OrderInput } from '@/lib/server/orders';
+import { after } from 'next/server';
+import { recordDurableEvent } from '@/lib/server/database';
 
 type Placed = { number: number; key: string; club: unknown; clubState: unknown };
 
@@ -31,5 +33,6 @@ export const POST = route(async (req) => {
   // Always show where the order stands now, not where it stood when it was placed.
   const order = await getOrder(value.number);
   if (!order) fail(404, 'That order could not be found.');
+  if (!replayed) after(() => recordDurableEvent('order.created', String(order!.number), order!).catch((err) => console.error('[Order ledger]', err)));
   return json({ order: publicOrder(order!), key: value.key, club: value.club, clubState: value.clubState }, replayed ? 200 : 201);
 });

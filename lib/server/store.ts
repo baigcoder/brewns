@@ -12,6 +12,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { requireProductionRedis } from './production';
 
 type Cmd = (string | number)[];
 
@@ -194,6 +195,7 @@ type StoreState = { backend: Backend; kind: 'redis' | 'file'; ephemeral: boolean
 const g = globalThis as unknown as { __brewnsStore?: StoreState; __brewnsLocks?: Map<string, Promise<unknown>> };
 
 function state(): StoreState {
+  requireProductionRedis();
   if (process.env.NODE_ENV === 'production' && g.__brewnsStore) return g.__brewnsStore;
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -243,6 +245,7 @@ export const kv = {
     if (ttlSec && n === 1) await run('EXPIRE', k(key), ttlSec);
     return n;
   },
+  decr: async (key: string) => Number(await run('DECR', k(key))) || 0,
   num: async (key: string) => Number(await run('GET', k(key))) || 0,
   hget: async <T>(key: string, field: string | number) => parse<T>(await run('HGET', k(key), field)),
   hset: (key: string, field: string | number, value: unknown) => run('HSET', k(key), field, JSON.stringify(value)),
