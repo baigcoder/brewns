@@ -353,6 +353,7 @@ export const publicOrder = (o: ServerOrder) => ({
   promoCode: o.promoCode,
   rider: o.rider ? { name: o.rider.name, plate: o.rider.plate } : null,
   pin: o.pin || null,
+  waiter: o.waiter ? { name: o.waiter.name } : null,
   // The customer's own code for the rider; the tracking key guards it like everything else here.
   handover: o.mode === 'delivery' ? o.handover || null : null,
   messages: o.messages,
@@ -499,6 +500,7 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
       case 'served':
         need('floor.tables', 'orders.manage');
         when(o.mode === 'dinein' && o.status === 'ready', 'Only a ready table order can be served.');
+        o.waiter = { id: ctx.user.id, name: ctx.user.name };
         move('served');
         break;
       case 'paid': {

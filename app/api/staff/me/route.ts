@@ -7,7 +7,7 @@ export const GET = route(async () => {
   return json({ user: publicUser(ctx.user), perms: ctx.perms });
 });
 
-/** Your own name, phone, or password. Changing the password signs out your other devices. */
+/** Your own name, phone, the line about you customers see, or password. Changing the password signs out your other devices. */
 export const POST = route(async (req) => {
   const ctx = await requireStaff();
   const b = await readBody(req);
@@ -18,6 +18,7 @@ export const POST = route(async (req) => {
     next.name = name;
   }
   if (b.phone !== undefined) next.phone = str(b.phone, 20);
+  if (b.bio !== undefined) next.bio = str(b.bio, 140).replace(/\s+/g, ' ').trim();
   if (b.newPassword !== undefined) {
     if (!(await verifyPassword(String(b.password || ''), ctx.user.passHash))) fail(403, "Your current password isn't right.");
     const weak = passwordProblem(String(b.newPassword));

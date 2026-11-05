@@ -1,3 +1,4 @@
+import { getUser } from '@/lib/server/auth';
 import { clientIp, fail, json, rateLimit, readBody, route, safeEqual, str } from '@/lib/server/http';
 import { customerAct, expireHolds, getOrder, publicOrder, riderFix } from '@/lib/server/orders';
 
@@ -10,7 +11,13 @@ export const GET = route(async (req: Request, ctx: Ctx) => {
   await expireHolds();
   const o = Number.isInteger(number) ? await getOrder(number) : null;
   if (!o || !safeEqual(o.key, key)) return fail(404, 'No such order.');
-  return json({ order: { ...publicOrder(o), riderAt: await riderFix(o) } });
+  const face = async (who: { id: string } | null | undefined) => {
+    const u = who ? await getUser(who.id) : null;
+    return u ? { photo: u.photo || '', bio: u.bio || '' } : {};
+  };
+  const pub = publicOrder(o);
+  const [riderAt, rider, waiter] = await Promise.all([riderFix(o), face(o.rider), face(o.waiter)]);
+  return json({ order: { ...pub, riderAt, rider: pub.rider && { ...pub.rider, ...rider }, waiter: pub.waiter && { ...pub.waiter, ...waiter } } });
 });
 
 /** Cancel (before it's started), "I've collected it", a message to the café, or where the door is. */

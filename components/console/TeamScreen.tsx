@@ -5,6 +5,7 @@ import { LOC_TITLES } from '@/lib/catalog';
 import { outranks, ROLE_INFO, ROLES, type Role } from '@/lib/rbac';
 import { ago, api, initials, useNow } from './api';
 import { useLive } from './Live';
+import { Face } from './PayrollScreen';
 import { useMe } from './Shell';
 import { useRun, useToast } from './Toasts';
 
@@ -14,6 +15,7 @@ type Member = {
   email: string;
   phone: string;
   plate: string;
+  photo?: string;
   role: Role;
   shops: number[];
   active: boolean;
@@ -119,7 +121,7 @@ export function TeamScreen() {
                 <tr key={m.id} style={{ opacity: m.active ? 1 : 0.5 }}>
                   <td>
                     <div className="cx-row" style={{ flexWrap: 'nowrap' }}>
-                      <span className="cx-avatar">{initials(m.name)}</span>
+                      <Face name={m.name} photo={m.photo} />
                       <div>
                         <p style={{ fontWeight: 600 }}>
                           {m.name}
