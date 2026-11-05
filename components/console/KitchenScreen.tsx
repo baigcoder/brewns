@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isAllergyNote, orderNo, STATION_LABEL, type Station } from '@/lib/orderFlow';
 import { pkTime } from './api';
 import { useLive, type StaffOrder } from './Live';
@@ -32,20 +32,24 @@ export function KitchenScreen() {
     const t = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(t);
   }, []);
-  useEffect(() => {
-    const on = () => sound && playKitchenChime();
-    window.addEventListener('brewns:new-orders', on);
-    return () => window.removeEventListener('brewns:new-orders', on);
-  }, [sound]);
 
   const stations = view === 'all' ? mine : [view];
+  // The café accepts an order before it reaches the stations: a new order waiting at the counter is not a ticket yet.
   const tickets: Ticket[] = (data?.orders || [])
-    .filter((o) => (shop === 'all' || o.loc === shop) && ['received', 'accepted', 'preparing'].includes(o.status))
+    .filter((o) => (shop === 'all' || o.loc === shop) && ['accepted', 'preparing'].includes(o.status))
     .flatMap((o) => stations.filter((s) => o.stations[s] && o.stations[s] !== 'done').map((station) => ({ o, station })))
     .sort((a, b) => a.o.target - b.o.target);
   // Scheduled for later: out of the way until 25 minutes before.
   const soon = tickets.filter((t) => t.o.target - now < 25 * 60000);
   const later = tickets.filter((t) => t.o.target - now >= 25 * 60000);
+  // Chime when a ticket for these stations appears, not for every order the shop takes.
+  const keys = tickets.map((t) => `${t.o.number}-${t.station}`).join(',');
+  const known = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const next = new Set(keys ? keys.split(',') : []);
+    if (known.current && sound && [...next].some((k) => !known.current!.has(k))) playKitchenChime();
+    if (data) known.current = next;
+  }, [keys, sound, data]);
 
   const bump = async (t: Ticket, state: 'making' | 'done' | 'queued') => {
     const ok = await run(() => act(t.o.number, { type: 'station', station: t.station, state }));

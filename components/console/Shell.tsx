@@ -7,6 +7,8 @@ import { canOpen, homeFor, ROLE_INFO, SECTIONS, type Permission, type Role } fro
 import { api, initials } from './api';
 import { LiveProvider, useLive } from './Live';
 import { MessageAlerts, RiderAlerts, RiderCall } from './RiderAlerts';
+import { RoleAlerts } from './RoleAlerts';
+import { hasTicket, myStations } from '@/lib/orderAlerts';
 import { ToastProvider, useToast } from './Toasts';
 
 export type Me = { id: string; name: string; email: string; role: Role; shops: number[]; twoStep?: boolean };
@@ -47,7 +49,8 @@ function Nav({ perms, onGo }: { perms: Permission[]; onGo: () => void }) {
       alert: orders.some((o) => o.status === 'received'),
     },
     kitchen: {
-      n: orders.filter((o) => ['accepted', 'preparing'].includes(o.status) && Object.values(o.stations).some((s) => s !== 'done')).length,
+      // Only tickets for this person's own stations.
+      n: orders.filter((o) => hasTicket(o, myStations(perms))).length,
       alert: orders.some((o) => o.status === 'preparing' && now - o.placed > 15 * 60000),
     },
     floor: {
@@ -254,6 +257,7 @@ export function Shell({
           <RiderAlerts />
           <MessageAlerts />
           <RiderCall />
+          <RoleAlerts />
           {children}
         </ShellContent>
       </LiveProvider>

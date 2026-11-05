@@ -13,7 +13,7 @@ import { CashDrawerCard, ExceptionsCard, type Exception } from './OwnerWatch';
 import { useRun } from './Toasts';
 import { ZReportModal, type ZReportData } from './ZReportModal';
 
-type K = { gross: number; net: number; tax: number; fees: number; discount: number; orders: number; avg: number; items: number; cancelled: number; unpaid: number; refunded: number; refundsPending: number; customers: number; prepMin: number; onTimePct: number };
+type K = { gross: number; net: number; tax: number; fees: number; discount: number; orders: number; avg: number; items: number; cancelled: number; cancelledValue: number; delivered: number; collected: number; served: number; refunds: number; open: number; openValue: number; unpaid: number; refunded: number; refundsPending: number; customers: number; prepMin: number; onTimePct: number };
 type Report = {
   range: string;
   days: string[];
@@ -186,7 +186,7 @@ export function OverviewScreen() {
       pickupCount,
       deliveryCount,
       cancelledCount: k?.cancelled || 0,
-      voidedAmount: (k?.cancelled || 0) * (k?.avg || 0),
+      voidedAmount: k?.cancelledValue || 0,
       onTimePct: k?.onTimePct || 96,
     },
   };
@@ -418,6 +418,8 @@ export function OverviewScreen() {
             </section>
           </div>
 
+          <DayCount total={k} shops={r.byShop} title={r.range === 'today' ? 'Today’s count' : 'The count'} />
+
           <section className="cx-card">
             <div className="cx-card-h">
               <p className="cx-h2">Shops</p>
@@ -552,5 +554,60 @@ export function OverviewScreen() {
         <ZReportModal data={zReportData} onClose={() => setShowZReport(false)} />
       )}
     </>
+  );
+}
+
+/** How the period's orders ended, shop by shop: sold, handed over each way, cancelled, refunded and still going. */
+function DayCount({ total, shops, title }: { total: K; shops: (K & { loc: number })[]; title: string }) {
+  const row = (label: string, k: K) => (
+    <tr key={label}>
+      <td>{label}</td>
+      <td className="r cx-num">
+        {k.orders} · {rs(k.gross)}
+      </td>
+      <td className="r cx-num">{k.delivered}</td>
+      <td className="r cx-num">{k.collected}</td>
+      <td className="r cx-num">{k.served}</td>
+      <td className="r cx-num">
+        {k.cancelled}
+        {k.cancelled ? ` · ${rs(k.cancelledValue)}` : ''}
+      </td>
+      <td className="r cx-num">
+        {k.refunds}
+        {k.refunds ? ` · ${rs(k.refunded)}` : ''}
+      </td>
+      <td className="r cx-num" style={{ color: k.open ? 'var(--cx-late)' : undefined }}>
+        {k.open}
+        {k.open ? ` · ${rs(k.openValue)}` : ''}
+      </td>
+    </tr>
+  );
+  return (
+    <section className="cx-card">
+      <div className="cx-card-h">
+        <p className="cx-h2">{title}</p>
+        <span className="cx-small cx-muted">sold, handed over, cancelled, refunded, still open</span>
+      </div>
+      <div className="cx-table-wrap" style={{ border: 0 }}>
+        <table className="cx-table">
+          <thead>
+            <tr>
+              <th>Shop</th>
+              <th className="r">Sold</th>
+              <th className="r">Delivered</th>
+              <th className="r">Picked up</th>
+              <th className="r">Served</th>
+              <th className="r">Cancelled</th>
+              <th className="r">Refunds</th>
+              <th className="r">Still open</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shops.map((s) => row(LOC_TITLES[s.loc], s))}
+            {shops.length > 1 && row('All shops', total)}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
