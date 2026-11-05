@@ -183,10 +183,12 @@
 /* two taps before it rings: the language (the last one used is lit), then what it's about */
 .vcall-pick { display: grid; justify-items: center; gap: 10px; width: 100%; }
 .vcall-pick[hidden] { display: none; }
+.vcall-pick-step { margin: 0; color: var(--gold); font-family: var(--font-space-mono), monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; }
+.vcall-pick-h { margin: -2px 0 0; font-size: 1.18rem; line-height: 1.2; letter-spacing: -0.02em; }
 .vcall-pick-q { margin: 0; font-family: var(--font-space-mono), monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mute); }
 .vcall-pick-q [lang="ur"] { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; letter-spacing: 0; font-size: 13px; }
 .vcall-pick-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
-.vcall-choice { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 8px 14px; border-radius: 999px; background: rgb(255 255 255 / 0.06); border: 1px solid var(--line); color: var(--ink); font-weight: 700; font-size: 15px; transition: transform 150ms, background-color 150ms, border-color 150ms; }
+.vcall-choice { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 10px 14px; border-radius: 18px; background: rgb(255 255 255 / 0.06); border: 1px solid var(--line); color: var(--ink); font-weight: 700; font-size: 15px; transition: transform 150ms, background-color 150ms, border-color 150ms; }
 .vcall-choice[lang="ur"] { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; font-weight: 400; font-size: 18px; }
 .vcall-choice:hover { border-color: rgb(214 160 102 / 0.5); }
 .vcall-choice[aria-pressed="true"] { border-color: var(--gold); background: rgb(214 160 102 / 0.14); }

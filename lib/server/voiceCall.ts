@@ -31,6 +31,7 @@ import { getSettings } from './settings';
 import { bookingMinutes, bookingProblem, uniqueBookingCode } from '@/lib/booking';
 
 export type VoiceGender = 'female' | 'male';
+export type VoicePurpose = 'order' | 'complaint';
 
 export interface VoiceTurn {
   role: 'user' | 'assistant';
@@ -85,6 +86,11 @@ export interface ScriptState {
   waitingForEmail?: boolean;
   confirmedCode?: string;
   confirmedKind?: 'table' | 'party';
+  complaint?: {
+    step: 'issue' | 'name' | 'phone';
+    issue?: string;
+    name?: string;
+  };
 }
 
 export interface VoiceCallResponse {
@@ -1421,7 +1427,7 @@ async function geminiAny(body: GeminiBody, stick: { model?: string }) {
   throw last;
 }
 
-async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGender, lang: VoiceLang, channel: VoiceChannel = 'voice'): Promise<{ reply: string; actions: VoiceAction[] }> {
+async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGender, lang: VoiceLang, channel: VoiceChannel = 'voice', purpose: VoicePurpose = 'order'): Promise<{ reply: string; actions: VoiceAction[] }> {
   const now = lahoreNow();
   const contents: GeminiContent[] = [];
   // Turns start with the caller; the greeting is folded in as context.
@@ -1437,7 +1443,7 @@ async function geminiTurn(prompt: string, history: VoiceTurn[], gender: VoiceGen
 
   for (let hop = 0; hop < 4; hop++) {
     const res = await geminiAny({
-      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.\n${lang === 'ur' ? 'For this turn, reply only in natural Urdu written in Urdu script. Do not answer in English, including for short confirmations such as haan, ji, or theek.' : 'For this turn, reply in natural English unless the caller clearly switches to Urdu.'}${channelNote(channel, lang)}` }] },
+      systemInstruction: { parts: [{ text: `${persona(gender)}\n\nRight now in Lahore it is ${now.weekday} ${now.date}, ${now.clock}.\n${purpose === 'complaint' ? 'This caller selected COMPLAINT before calling. Begin by apologising briefly and ask what went wrong. Then collect, one question at a time: the issue, their full name, and their Pakistani mobile number. Once all three are known, call request_callback with a concise English reason. Never ask for payment card details or promise a refund; say the team will review the issue and call them back.' : ''}\n${lang === 'ur' ? 'For this turn, reply only in natural Urdu written in Urdu script. Do not answer in English, including for short confirmations such as haan, ji, or theek.' : 'For this turn, reply in natural English unless the caller clearly switches to Urdu.'}${channelNote(channel, lang)}` }] },
       contents,
       tools: TOOLS,
       generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
@@ -1864,7 +1870,56 @@ function stateFromHistory(history: VoiceTurn[]): ScriptState {
   return st;
 }
 
+const complaintIntro = (g: VoiceGender, lang: VoiceLang) =>
+  lang === 'ur'
+    ? `مجھے افسوس ہے کہ آپ کو مسئلہ ہوا۔ میں ${agentName(g, 'ur')} ہوں اور اسے ٹیم تک پہنچاؤں گی۔ براہِ کرم بتائیے کیا ہوا؟`
+    : `I’m sorry you had that experience. I’m ${agentName(g)} and I’ll make sure the team receives this. Please tell me what went wrong.`;
+
+/** A dependable complaint path when an AI provider is unavailable. It asks one
+ * useful detail at a time, then creates the same callback record as the AI. */
+async function complaintTurn(prompt: string, gender: VoiceGender, state: ScriptState, lang: VoiceLang): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
+  const complaint = state.complaint || { step: 'issue' as const };
+  const value = s(prompt, 300);
+  if (complaint.step === 'issue') {
+    return {
+      reply: lang === 'ur'
+        ? 'مجھے واقعی افسوس ہے۔ تاکہ ہماری ٹیم اسے ٹھیک کر سکے، آپ اپنا پورا نام بتا دیں؟'
+        : 'I’m really sorry about that. So our team can put this right, may I have your full name?',
+      actions: [],
+      state: { complaint: { step: 'name', issue: value || complaint.issue } } satisfies ScriptState,
+    };
+  }
+  if (complaint.step === 'name') {
+    const name = s(prompt, 60);
+    return {
+      reply: lang === 'ur'
+        ? 'شکریہ۔ کیا آپ اپنا پاکستانی موبائل نمبر بتا دیں تاکہ ہماری ٹیم آپ سے رابطہ کر سکے؟'
+        : 'Thank you. Please share a Pakistani mobile number so our team can contact you.',
+      actions: [],
+      state: { complaint: { step: 'phone', issue: complaint.issue, name } } satisfies ScriptState,
+    };
+  }
+  const phone = pkMobile(value);
+  if (!phone) {
+    return {
+      reply: lang === 'ur' ? 'معذرت، نمبر واضح نہیں ہوا۔ براہِ کرم 03 سے شروع ہونے والا موبائل نمبر دوبارہ بتا دیں۔' : 'Sorry, I did not catch that. Please repeat the mobile number starting with 03.',
+      actions: [],
+      state,
+    };
+  }
+  const name = complaint.name || (lang === 'ur' ? 'مہمان' : 'Guest');
+  const reason = complaint.issue || (lang === 'ur' ? 'Customer complaint' : 'Customer complaint');
+  const callback = await runTool('request_callback', { name, phone, reason }, '', []);
+  if (callback.isError) return { reply: lang === 'ur' ? 'معذرت، ابھی کال بیک محفوظ نہیں ہو سکی۔ براہِ کرم ایک بار پھر نمبر بتا دیں۔' : 'Sorry, I could not save the callback just yet. Please repeat the number.', actions: [], state };
+  return {
+    reply: lang === 'ur' ? `شکریہ ${name}۔ میں نے آپ کی شکایت اور نمبر ٹیم تک پہنچا دیا ہے۔ وہ جلد آپ سے رابطہ کرے گی۔` : `Thank you, ${name}. I’ve passed your complaint and number to the team; they will contact you shortly.`,
+    actions: [{ type: 'CALLBACK' as const, data: { name, phone, reason } }],
+    state: {},
+  };
+}
+
 async function scriptTurn(prompt: string, gender: VoiceGender, state: ScriptState, history: VoiceTurn[] = [], lang: VoiceLang = 'en'): Promise<{ reply: string; actions: VoiceAction[]; state: ScriptState }> {
+  if (state.complaint) return complaintTurn(prompt, gender, state, lang);
   if (!state.flow && !state.waitingForEmail && history.length) state = stateFromHistory(history);
   const r = await scriptAnswer(prompt, gender, state, lang);
   // Answer a salam in kind, whatever else was asked in the same breath.
@@ -2074,6 +2129,7 @@ export async function processVoiceCallPrompt(
   state: ScriptState = {},
   hint: VoiceLang = 'en',
   channel: VoiceChannel = 'voice',
+  purpose: VoicePurpose = 'order',
 ): Promise<VoiceCallResponse> {
   const special = prompt === 'call_init' || prompt === 'voice_switch' || prompt === 'language_switch' || prompt === 'line_resume';
   const lang: VoiceLang = special ? hint : detectLang(prompt) === 'ur' ? 'ur' : hint === 'ur' && !clearlyEnglish(prompt) ? 'ur' : 'en';
@@ -2081,7 +2137,9 @@ export async function processVoiceCallPrompt(
   let turn: { reply: string; actions: VoiceAction[]; state?: ScriptState };
 
   if (prompt === 'call_init') {
-    turn = { reply: greeting(gender, lang), actions: [] };
+    turn = purpose === 'complaint'
+      ? { reply: complaintIntro(gender, lang), actions: [], state: { complaint: { step: 'issue' } } }
+      : { reply: greeting(gender, lang), actions: [] };
   } else if (prompt === 'voice_switch') {
     const sw = lang === 'ur'
       ? [`جی، میں ${agentName(gender, 'ur')} ہوں۔ اب میں آپ کی کال سنبھالتی ہوں، ہم کہاں تک پہنچے تھے؟`, `السلام علیکم، ${agentName(gender, 'ur')} حاضر ہے۔ بتائیے میں کیا مدد کروں؟`]
@@ -2102,6 +2160,8 @@ export async function processVoiceCallPrompt(
       actions: [],
       state,
     };
+  } else if (purpose === 'complaint' && state.complaint) {
+    turn = await complaintTurn(prompt, gender, state, lang);
   } else if (!state.flow && !state.waitingForEmail && isCafeHoursQuestion(prompt)) {
     turn = { reply: cafeHoursReply(getCafeOpeningStatus(), lang), actions: [], state };
   } else {
@@ -2109,7 +2169,7 @@ export async function processVoiceCallPrompt(
     // free tier, which refuses a second message inside a minute), then Groq,
     // then the scripted answers so the guest always gets a reply.
     const brains: [VoiceCallResponse['brain'], () => Promise<{ reply: string; actions: VoiceAction[] }>][] = [];
-    if (geminiEnabled()) brains.push(['gemini', () => geminiTurn(prompt, history, gender, lang, channel)]);
+    if (geminiEnabled()) brains.push(['gemini', () => geminiTurn(prompt, history, gender, lang, channel, purpose)]);
     if (groqEnabled()) brains.push(['groq', () => groqTurn(prompt, history, gender, lang, channel)]);
     let answered: { reply: string; actions: VoiceAction[] } | null = null;
     for (const [name, run] of brains) {
@@ -2161,13 +2221,14 @@ const LIVE_VOICES: Record<VoiceGender, string> = {
 const urduHello = (g: VoiceGender) =>
   g === 'male' ? 'السلام علیکم! brewns، حمزہ بات کر رہا ہوں۔ جی بتائیے؟' : 'السلام علیکم! brewns، سارہ بات کر رہی ہوں۔ جی بتائیے؟';
 
-const LIVE_NOTES = (g: VoiceGender, lang: VoiceLang) => `
+const LIVE_NOTES = (g: VoiceGender, lang: VoiceLang, purpose: VoicePurpose) => `
 
 Right now in Lahore it is ${lahoreNow().weekday} ${lahoreNow().date}, ${lahoreNow().clock}. Work out "today", "tomorrow" and "this Friday" from this, and pass dates to tools as YYYY-MM-DD.
 
 On this call your voice is generated directly; you hear the caller's voice directly.
 - Language: the caller picked ${lang === 'ur' ? 'Urdu' : 'English'} before dialling. Speak ${lang === 'ur' ? 'Urdu' : 'English'} for the whole call, and read what you hear as ${lang === 'ur' ? 'Urdu' : 'English'}; switch only if the caller asks you to. For Urdu, speak natural Pakistani Urdu as said in Lahore.
 - When a message says the caller has just picked up, answer like the café phone: one short, friendly line as ${agentName(g)} at brewns, then let them talk${lang === 'ur' ? `, in Urdu (for example: "${urduHello(g)}")` : ''}. Do not say anything else first.
+- ${purpose === 'complaint' ? 'The caller already selected COMPLAINT. Start with a brief apology and ask what went wrong. After they explain, collect their full name, then Pakistani mobile number, one detail at a time. Once you have all three, use request_callback with a concise English reason. Never ask for payment-card details and never promise a refund; say the team will review it and call them back.' : 'The caller selected ORDER. Help with an order, table, event, or ordinary café question.'}
 - Text that arrives typed is the caller typing on their keypad; answer it out loud like anything they said.
 - While a tool is running, say a short natural filler such as "One moment, let me check that" only if it takes a while. Never read out ids, JSON, codes in brackets or field names.
 - Bookings: a booking tool refuses unless your previous turn read the details back and asked "shall I confirm?", and the caller then clearly said yes. So always read back and ask first, then stop and wait for the answer: never call the booking tool in the same turn as asking.
@@ -2190,8 +2251,8 @@ Urdu, when the caller speaks Urdu:
 /** The Live session's configuration, as the WebSocket setup message wants it.
     `resume` is the handle of a session whose line dropped: the new connection
     picks up that conversation exactly where it was, instead of starting over. */
-export function liveSetup(g: VoiceGender, lang: VoiceLang, recap = '', resume = '') {
-  const system = persona(g, 'phone') + LIVE_NOTES(g, lang) + (recap ? `\n\nThe conversation so far, typed by message before this call:\n${recap.slice(0, 3000)}` : '');
+export function liveSetup(g: VoiceGender, lang: VoiceLang, recap = '', resume = '', purpose: VoicePurpose = 'order') {
+  const system = persona(g, 'phone') + LIVE_NOTES(g, lang, purpose) + (recap ? `\n\nThe conversation so far, typed by message before this call:\n${recap.slice(0, 3000)}` : '');
   return {
     model: `models/${LIVE_MODEL}`,
     generationConfig: {

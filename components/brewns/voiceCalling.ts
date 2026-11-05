@@ -392,8 +392,9 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     label('.vcall-tab[data-mode="call"] span', t.call);
     label('.vcall-tab[data-mode="message"] span', t.message);
     label('#vc-why-q', t.why);
+    label('#vc-why-help', lang === 'ur' ? 'ایک آپشن چنیں، سارہ ایک ایک تفصیل پوچھ کر آپ کی مدد کرے گی۔' : 'Choose an option and Sarah will guide you, one question at a time.');
     label('[data-why="order"] span', t.order);
-    label('[data-why="complaint"] span', t.complaint);
+    label('[data-why="complaint"] span', lang === 'ur' ? 'مسئلہ رپورٹ کریں' : 'Report a problem');
     label('#vc-why-back span', t.back);
     for (const b of modal!.querySelectorAll('[data-lang].vcall-choice')) b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.lang === lang));
     renderSummary();
@@ -986,7 +987,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   /** A Gemini Live token for this call; `resume` carries a dropped conversation over to the new line. */
   function openLine(resume = '') {
     const recap = history.slice(-12).map((t) => `${t.role === 'user' ? 'Caller' : agent()}: ${t.content}`).join('\n');
-    return fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, recap, resume }), signal: AbortSignal.timeout(10000) })
+    return fetch('/api/voice/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callId, gender, lang, purpose, recap, resume }), signal: AbortSignal.timeout(10000) })
       .then((r) => r.json())
       .catch(() => ({ live: false }));
   }
@@ -1120,7 +1121,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     const res = await fetch('/api/voice/call', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, gender, history, state: scriptState, lang, callId, channel }),
+      body: JSON.stringify({ message, gender, history, state: scriptState, lang, purpose, callId, channel }),
       signal: AbortSignal.timeout(25000),
     });
     const data = await res.json().catch(() => ({}));

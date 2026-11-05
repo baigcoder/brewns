@@ -1,5 +1,5 @@
 import { clientIp, json, rateLimit, readBody, route, str } from '@/lib/server/http';
-import { createLiveToken, liveSetup } from '@/lib/server/voiceCall';
+import { createLiveToken, liveSetup, type VoicePurpose } from '@/lib/server/voiceCall';
 import { asCaller, readCaller } from '@/lib/server/voiceContext';
 import { validCallId } from '@/lib/server/voiceLog';
 
@@ -19,9 +19,10 @@ export const POST = route(async (req) => {
   if (!validCallId(b.callId)) return json({ live: false });
   const gender = b.gender === 'male' ? 'male' : 'female';
   const lang = b.lang === 'ur' ? 'ur' : 'en';
+  const purpose: VoicePurpose = b.purpose === 'complaint' ? 'complaint' : 'order';
   const resume = typeof b.resume === 'string' && RESUME.test(b.resume) ? b.resume : '';
   // The briefing names a signed-in regular and today's sold-out items.
-  const setup = await asCaller(await readCaller(), async () => liveSetup(gender, lang, str(b.recap, 3000), resume));
+  const setup = await asCaller(await readCaller(), async () => liveSetup(gender, lang, str(b.recap, 3000), resume, purpose));
   const token = await createLiveToken(setup);
   if (!token) return json({ live: false });
   return json({ live: true, url: `${WS}?access_token=${encodeURIComponent(token)}`, setup });

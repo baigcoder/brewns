@@ -83,17 +83,21 @@ export const VOICE_CALL_MARKUP = `
     <!-- Before a call: the language first, then what it's about; the second tap dials. -->
     <div class="vcall-start" id="vc-start">
       <div class="vcall-pick" id="vc-pick-lang">
-        <p class="vcall-pick-q">Language · <span lang="ur">زبان</span></p>
+        <p class="vcall-pick-step">Step 1 of 2</p>
+        <h3 class="vcall-pick-h">Choose your language</h3>
+        <p class="vcall-pick-q">You can change it later · <span lang="ur">زبان منتخب کریں</span></p>
         <div class="vcall-pick-row">
           <button type="button" class="vcall-choice" data-lang="en" aria-pressed="false">English</button>
           <button type="button" class="vcall-choice" data-lang="ur" lang="ur" aria-pressed="false">اردو</button>
         </div>
       </div>
       <div class="vcall-pick" id="vc-pick-why" hidden>
-        <p class="vcall-pick-q" id="vc-why-q">What’s the call about?</p>
+        <p class="vcall-pick-step">Step 2 of 2</p>
+        <h3 class="vcall-pick-h" id="vc-why-q">What can we help with?</h3>
+        <p class="vcall-pick-q" id="vc-why-help">Choose an option and Sarah will guide you, one question at a time.</p>
         <div class="vcall-pick-row">
           <button type="button" class="vcall-choice" data-why="order">${icon(PHONE, 18)}<span>Place an order</span></button>
-          <button type="button" class="vcall-choice" data-why="complaint">${icon(CHAT, 18)}<span>Make a complaint</span></button>
+          <button type="button" class="vcall-choice" data-why="complaint">${icon(CHAT, 18)}<span>Report a problem</span></button>
         </div>
         <button type="button" class="vcall-back" id="vc-why-back">‹ <span>Language</span></button>
       </div>
