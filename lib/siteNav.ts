@@ -34,7 +34,7 @@ export const FOOTER_COLUMNS: [string, NavLink[]][] = [
     { href: '/#club', label: 'brewns Club' },
     { href: '/careers', label: 'Careers' },
     { href: '/tour', label: 'Site tour' },
-    { href: '/staff/signin', label: 'Owner login' },
+    { href: '/owner/signin', label: 'Owner sign-in' },
   ]],
   ['Help', [
     { href: '/contact', label: 'Contact us' },
