@@ -29,6 +29,7 @@ const stats = new Map(); // "persona METHOD path" -> {ms:[], codes:{}}
 const counters = { ordersCreated: 0, orderRetries: 0, duplicateOrders: 0, statusPolls: 0, reviewsWritten: 0, calls: 0 };
 const orderNumbers = new Map(); // idempotency key -> number (to catch duplicates)
 const samples = new Map();
+const htmlSamples = [];
 const rec = (k, ms, code) => { const s = stats.get(k) || { ms: [], codes: {} }; s.ms.push(ms); s.codes[code] = (s.codes[code] || 0) + 1; stats.set(k, s); };
 const active = (i, n) => { // VU i of n is running when the ramp has reached it
   const t = Date.now() - T0;
@@ -53,6 +54,10 @@ function client(id) {
       if (sc.length) cookie = sc.map((c) => c.split(';')[0]).join('; ');
       const txt = await r.text();
       try { json = JSON.parse(txt); } catch {}
+      if (method === 'POST' && path === '/api/orders' && code === 200 && !json) {
+        counters.htmlInsteadOfOrder = (counters.htmlInsteadOfOrder || 0) + 1;
+        if ((counters.htmlInsteadOfOrder || 0) <= 3) htmlSamples.push({ t: Math.round((Date.now() - T0) / 1000) + 's', ct: r.headers.get('content-type'), mitigated: r.headers.get('x-vercel-mitigated'), server: r.headers.get('server'), cache: r.headers.get('x-vercel-cache'), title: (txt.match(/<title>([^<]*)/) || [])[1], visible: txt.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 220) });
+      }
       const sk = `${persona} ${method} ${path.replace(/\/\d+/g, '/N').replace(/\?.*$/, '')} ${code}`;
       if (!samples.has(sk) && (code >= 400 || (method === 'POST' && path === '/api/orders' && !json?.order))) samples.set(sk, txt.slice(0, 200));
     } catch {}
@@ -181,5 +186,7 @@ for (const [k, s] of [...stats].sort()) {
 const ord = [...stats].filter(([k]) => k === 'orderer POST /api/orders').flatMap(([, s]) => s.ms);
 console.log(`\nrequests ${n}   5xx/errors ${bad} (${((bad / n) * 100).toFixed(2)}%)   429/503 (limits, graceful) ${limited}   overall p95 ${q(allMs, .95).toFixed(0)}ms p99 ${q(allMs, .99).toFixed(0)}ms`);
 console.log(`order POST p50 ${q(ord, .5).toFixed(0)}ms p95 ${q(ord, .95).toFixed(0)}ms p99 ${q(ord, .99).toFixed(0)}ms`);
+for (const h of htmlSamples) console.log('HTML instead of an order:', JSON.stringify(h));
+console.log('HTML-instead-of-order responses:', counters.htmlInsteadOfOrder || 0);
 for (const [k, v] of samples) console.log('sample', k, '=>', v.replace(/\s+/g, ' '));
 console.log(`orders created ${counters.ordersCreated}  double-tap tests ${counters.orderRetries}  duplicate orders from retries ${counters.duplicateOrders}  status checks ${counters.statusPolls}  reviews written ${counters.reviewsWritten}  call sessions ${counters.calls}`);
