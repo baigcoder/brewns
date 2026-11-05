@@ -88,6 +88,10 @@ export type ServerOrder = {
   /** Customer messages the café has read. */
   readByCafe: number;
   rider: { id: string; name: string; plate: string } | null;
+  /** The customer's door, if they shared their exact location (at checkout or from the tracker). */
+  pin?: { lat: number; lng: number };
+  /** Deliveries: the 4-digit code the customer gives the rider at the door. Never sent to staff screens. */
+  handover?: string;
   /** How and when it was paid, by whom. `tendered`/`change` for cash; `ref` is the card approval code or the wallet transaction ID. */
   paid: { t: number; by: string; byId?: string; method: number; tendered?: number; change?: number; ref?: string } | null;
   source: 'online' | 'counter' | 'table';

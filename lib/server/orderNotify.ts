@@ -21,7 +21,7 @@ export const payUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/p
 export const reviewUrl = (o: Pick<ServerOrder, 'number' | 'key'>) => `${SITE_URL}/review/${o.number}?k=${o.key}`;
 
 /** What to say when an order reaches `status`, or null when that step is silent. */
-export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' | 'name' | 'loc' | 'target' | 'rider' | 'cancelReason' | 'table'> & { key?: string; hold?: ServerOrder['hold']; refund?: ServerOrder['refund'] }, status: Status = o.status): { subject: string; text: string } | null {
+export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' | 'name' | 'loc' | 'target' | 'rider' | 'cancelReason' | 'table'> & { handover?: string } & { key?: string; hold?: ServerOrder['hold']; refund?: ServerOrder['refund'] }, status: Status = o.status): { subject: string; text: string } | null {
   if (!NOTIFY_ON.includes(status)) return null;
   const no = orderNo(o.number);
   const first = o.name.split(' ')[0] || 'there';
@@ -43,7 +43,7 @@ export function orderMessage(o: Pick<ServerOrder, 'number' | 'mode' | 'status' |
       text = o.mode === 'delivery' ? `Order ${no} is packed and waiting for the rider.` : `Order ${no} is ready. Collect it at brewns ${shop}.`;
       break;
     case 'onway':
-      text = `Order ${no} is on its way${o.rider ? ` with ${o.rider.name}` : ''}.`;
+      text = `Order ${no} is on its way${o.rider ? ` with ${o.rider.name}` : ''}.${o.handover ? ` Give the rider your code ${o.handover} at the door.` : ''}`;
       break;
     case 'delivered':
       text = `Order ${no} has been delivered. Enjoy, ${first}!${rate}`;

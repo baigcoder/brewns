@@ -87,7 +87,9 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
     setBusy(false);
   };
   const open = isOpen(o.status);
-  const riders = data?.riders || [];
+  // Online and free riders first, each with how many open deliveries they already have.
+  const load = (id: string) => (data?.orders || []).filter((x) => x.mode === 'delivery' && x.rider?.id === id && isOpen(x.status)).length;
+  const riders = (data?.riders || []).map((r) => ({ ...r, load: load(r.id) })).sort((a, b) => Number(b.online) - Number(a.online) || a.load - b.load);
   const t = o.totals;
   // Paying another way changes the tax (16% cash, 5% card or wallet), so the amount to take follows the way chosen.
   const payMethod = method ?? o.pay;
@@ -245,7 +247,8 @@ export function OrderDrawer({ number, fallback, onClose }: { number: number; fal
                 {riders.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
-                    {r.online ? ' · online' : ''}
+                    {r.online ? ' · online' : ' · offline'}
+                    {r.load ? ` · ${r.load} on the go` : ' · free'}
                   </option>
                 ))}
               </select>

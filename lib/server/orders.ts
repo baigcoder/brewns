@@ -35,6 +35,7 @@ import { countInvite, findRefCode, refUsedKey, settleReferral, spendThanks, unsp
 import { rewardValue } from '@/components/brewns/club';
 import { can, canAny, type Permission } from '@/lib/rbac';
 import { audit, type Actor } from './audit';
+import { randomInt } from 'node:crypto';
 import { allUsers, randomToken, worksAt, type StaffContext, type User } from './auth';
 import { addCustomerOrder, creditOrder, reverseCredit } from './customers';
 import { fail, safeEqual } from './http';
@@ -69,6 +70,8 @@ export async function saveOrder(o: ServerOrder) {
   else await kv.hdel('orders:holds', o.number);
   if (staysActive(o)) await kv.hset('orders:active', o.number, o);
   else await kv.hdel('orders:active', o.number);
+  // Off the road (delivered, cancelled): forget where the rider was.
+  if (o.mode === 'delivery' && !onRoad(o)) await kv.hdel('rider:fixes', o.number);
   await bumpLive();
 }
 
@@ -98,6 +101,8 @@ export type OrderInput = {
   payment?: Payment;
   promo: string;
   useReward: boolean;
+  /** Deliveries: the customer's exact door, from their phone's location. */
+  pin?: { lat?: unknown; lng?: unknown } | null;
 };
 
 export type Placer =
@@ -154,6 +159,8 @@ export async function placeOrder(input: OrderInput, by: Placer) {
   }
   const address = mode === 'delivery' ? String(input.address || '').trim().slice(0, 160) : '';
   if (mode === 'delivery' && address.length < 10) fail(400, 'House, street and block, so the rider finds you.');
+  const pin = mode === 'delivery' && input.pin ? lahorePoint(input.pin.lat, input.pin.lng) : null;
+  if (mode === 'delivery' && input.pin && !pin) fail(400, 'That location is outside our delivery area. Remove it, or pick it again at home.');
   // The cashier took payment at the counter: the way they were paid decides the tax, and the order is paid when it is placed.
   const taken = by.kind === 'staff' ? input.payment : undefined;
   if (by.kind === 'staff' && input.payment !== undefined && !isPayMethod(input.payment.method)) fail(400, 'Pick cash, card or wallet.');
@@ -250,6 +257,8 @@ export async function placeOrder(input: OrderInput, by: Placer) {
       area: mode === 'delivery' ? input.area : null,
       table: mode === 'dinein' ? input.table : null,
       address,
+      ...(pin ? { pin } : {}),
+      ...(mode === 'delivery' ? { handover: String(randomInt(10000)).padStart(4, '0') } : {}),
       name: name || (mode === 'dinein' ? `Table ${input.table}` : 'Walk-in'),
       phone,
       email,
@@ -343,6 +352,9 @@ export const publicOrder = (o: ServerOrder) => ({
   pickupAt: o.pickupAt,
   promoCode: o.promoCode,
   rider: o.rider ? { name: o.rider.name, plate: o.rider.plate } : null,
+  pin: o.pin || null,
+  // The customer's own code for the rider; the tracking key guards it like everything else here.
+  handover: o.mode === 'delivery' ? o.handover || null : null,
   messages: o.messages,
   cancelled: o.status === 'cancelled' ? { t: o.events.findLast((e) => e.status === 'cancelled')?.t || Date.now(), reason: o.cancelReason || '' } : null,
   paid: !!o.paid,
@@ -359,11 +371,13 @@ export const publicOrder = (o: ServerOrder) => ({
  * are theirs. The tracking key never leaves the server.
  */
 export function staffView(o: ServerOrder, ctx: StaffContext) {
-  const { key: _key, ...rest } = o;
+  // The tracking key and the hand-over code never reach a staff screen; a rider learns only that a code is needed.
+  const { key: _key, handover: _handover, ...base } = o;
+  const rest = { ...base, needsCode: !!o.handover };
   const full = can(ctx.perms, 'orders.view') || (o.rider?.id === ctx.user.id && can(ctx.perms, 'delivery.ride')) || can(ctx.perms, 'delivery.assign');
   if (full) return rest;
   const floor = can(ctx.perms, 'floor.tables') && o.mode === 'dinein';
-  return { ...rest, phone: floor ? rest.phone : '', email: '', address: o.mode === 'delivery' ? DELIVERY.areas[o.area ?? 0]?.[0] || '' : '', messages: [] };
+  return { ...rest, phone: floor ? rest.phone : '', email: '', pin: undefined, address: o.mode === 'delivery' ? DELIVERY.areas[o.area ?? 0]?.[0] || '' : '', messages: [] };
 }
 
 /** Which active orders a staff member's screens show at all. */
@@ -394,7 +408,7 @@ export type Action =
   | { type: 'take' }
   | { type: 'pickup' }
   | { type: 'arriving' }
-  | { type: 'delivered' }
+  | { type: 'delivered'; code?: string }
   | { type: 'delay'; min: number }
   | { type: 'cancel'; reason: string; refundAmount?: number }
   | { type: 'refund'; amount: number; reason: string }
@@ -542,13 +556,25 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
         when(o.status === 'onway');
         move('arriving');
         break;
-      case 'delivered':
+      case 'delivered': {
         if (!ownRide) need('orders.manage');
         when(o.status === 'onway' || o.status === 'arriving', 'It has to be on the road first.');
+        // The rider proves the hand-over with the customer's code; a manager may close it without one (the customer phoned, say).
+        const coded = !o.handover || safeEqual(String(action.code || '').trim(), o.handover);
+        if (o.handover && !can(ctx.perms, 'orders.manage')) {
+          // Locked before checking, so guessing can't go on past five misses.
+          const misses = `handover-miss:${o.number}`;
+          if ((await kv.num(misses)) >= 5) fail(429, 'Too many wrong codes. Ask the manager to mark it delivered.');
+          if (!coded) {
+            await kv.incr(misses, 3600);
+            fail(400, 'That code is wrong. Ask the customer for the 4-digit code on their tracking page.');
+          }
+        }
         move('delivered');
         o.paid ||= { t: Date.now(), by: ctx.user.name, method: o.pay };
-        log = 'Delivered';
+        log = coded ? 'Delivered' : 'Delivered without the customer’s code';
         break;
+      }
       case 'delay': {
         need('orders.manage');
         when(isOpen(o.status));
@@ -626,9 +652,39 @@ export async function staffAct(number: number, action: Action, ctx: StaffContext
   });
 }
 
+/* ── where the rider is ── */
+
+/** A point in or around Lahore, rounded to ~1 m, or null. */
+export function lahorePoint(lat: unknown, lng: unknown) {
+  const a = Number(lat), b = Number(lng);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a < 31.2 || a > 31.8 || b < 74.0 || b > 74.7) return null;
+  return { lat: Math.round(a * 1e5) / 1e5, lng: Math.round(b * 1e5) / 1e5 };
+}
+
+export type RiderFix = { lat: number; lng: number; heading: number | null; t: number; loc: number };
+const onRoad = (o: ServerOrder) => o.mode === 'delivery' && (o.status === 'onway' || o.status === 'arriving');
+
+/** The rider's phone reports where it is. Kept apart from the order (in `rider:fixes`) so a fix every few seconds doesn't rewrite it or wake every board. */
+export async function riderLocate(number: number, fix: { lat?: unknown; lng?: unknown; heading?: unknown }, ctx: StaffContext) {
+  const o = await getOrder(number);
+  if (!o) fail(404, 'No such order.');
+  if (o!.rider?.id !== ctx.user.id || !can(ctx.perms, 'delivery.ride')) fail(403, 'Only the rider on this delivery shares its location.');
+  if (!onRoad(o!)) return false;
+  const p = lahorePoint(fix.lat, fix.lng);
+  if (!p) fail(400, 'That location is outside Lahore.');
+  const h = Number(fix.heading);
+  await kv.hset('rider:fixes', number, { ...p!, heading: fix.heading != null && Number.isFinite(h) ? Math.round(((h % 360) + 360) % 360) : null, t: Date.now(), loc: o!.loc } satisfies RiderFix);
+  return true;
+}
+
+/** The rider's last fix, while the order is on the road. */
+export const riderFix = async (o: ServerOrder) => (onRoad(o) ? kv.hget<RiderFix>('rider:fixes', o.number) : null);
+/** Every rider's last fix, by order number, for the dispatch board. */
+export const riderFixes = () => kv.hall<RiderFix>('rider:fixes');
+
 /* ── what the customer can do ── */
 
-export async function customerAct(number: number, key: string, action: { type: 'cancel' | 'collected' | 'message' | 'payref'; text?: string }) {
+export async function customerAct(number: number, key: string, action: { type: 'cancel' | 'collected' | 'message' | 'payref' | 'pin'; text?: string; lat?: unknown; lng?: unknown }) {
   return withLock(`order:${number}`, async () => {
     const o = await getOrder(number);
     if (!o || !safeEqual(o.key, key)) return fail(404, 'No such order.') as never;
@@ -657,6 +713,12 @@ export async function customerAct(number: number, key: string, action: { type: '
       if (o.mode !== 'pickup' || o.status !== 'ready') fail(409, 'It isn’t ready yet.');
       o.status = 'collected';
       o.events.push({ t, what: 'collected', status: 'collected', by: 'Customer' });
+    } else if (action.type === 'pin') {
+      if (o.mode !== 'delivery' || !isOpen(o.status)) fail(409, 'This order is not on its way to you.');
+      const pin = lahorePoint(action.lat, action.lng);
+      if (!pin) fail(400, 'That location is outside our delivery area.');
+      o.pin = pin!;
+      o.events.push({ t, what: 'pin', by: 'Customer' });
     } else if (action.type === 'message') {
       const text = String(action.text || '').trim().slice(0, 300);
       if (!text) fail(400, 'Write something first.');

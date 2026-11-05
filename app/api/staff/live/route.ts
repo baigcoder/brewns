@@ -1,7 +1,7 @@
 import { canAny } from '@/lib/rbac';
 import { allUsers, requireStaff, worksAt } from '@/lib/server/auth';
 import { json, route } from '@/lib/server/http';
-import { activeOrders, expireHolds, liveVersion, openCalls, refundList, staffView, visibleTo } from '@/lib/server/orders';
+import { activeOrders, expireHolds, liveVersion, openCalls, refundList, riderFixes, staffView, visibleTo } from '@/lib/server/orders';
 import { isLive, recentVoiceCalls } from '@/lib/server/voiceLog';
 import { countPendingMoments } from '@/lib/server/moments';
 import { countPendingReviews } from '@/lib/server/reviews';
@@ -20,12 +20,17 @@ export const GET = route(async (req) => {
   const clientV = url.searchParams.get('v');
   const clientRole = url.searchParams.get('r');
 
+  const p = ctx.perms;
+  // When each rider's phone last reported in: fixes don't bump the version, so they come with every poll (one small read).
+  const fixes = canAny(p, 'delivery.assign', 'orders.manage')
+    ? Object.fromEntries(Object.entries(await riderFixes()).filter(([, f]) => worksAt(ctx.user, f.loc)).map(([n, f]) => [n, f.t]))
+    : undefined;
+
   // If live version matches and role hasn't changed, return 304-equivalent same payload
   if (clientV === String(v) && (!clientRole || clientRole === ctx.role)) {
-    return json({ v, same: true });
+    return json({ v, same: true, fixes });
   }
 
-  const p = ctx.perms;
   const [orders, calls, voice, pendingMoments, reservations] = await Promise.all([
     activeOrders(),
     openCalls(),
@@ -52,6 +57,7 @@ export const GET = route(async (req) => {
     orders: orders.filter((o) => visibleTo(o, ctx)).map((o) => staffView(o, ctx)),
     calls: canAny(p, 'floor.tables', 'orders.manage') ? calls.filter((c) => worksAt(ctx.user, c.loc)) : [],
     riders,
+    fixes,
     // AI voice calls on the line right now, for the Bookings & AI calls badge.
     aiLive: voice.filter((c) => isLive(c)).length,
     pendingMoments,

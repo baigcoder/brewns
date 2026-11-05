@@ -21,7 +21,8 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${IMG_HOSTS}`,
+  // OpenStreetMap tiles for the live delivery map.
+  `img-src 'self' data: blob: ${IMG_HOSTS} https://tile.openstreetmap.org`,
   `media-src 'self' data: blob: ${IMG_HOSTS}`,
   "font-src 'self' data:",
   `connect-src 'self' blob: data: https://res.cloudinary.com wss://generativelanguage.googleapis.com ${orderEndpointOrigin}${isDev ? ' ws://localhost:* http://localhost:*' : ''}`.trim(),

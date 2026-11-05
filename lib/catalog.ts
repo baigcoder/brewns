@@ -454,14 +454,14 @@ export const DELIVERY = {
   min: 1000,
   freeOver: 3000,
   areas: [
-    // [area, shop that sends the rider, fee, minutes, km by road]
-    ['GULBERG', 0, 150, 30, 3.4],
-    ['MODEL TOWN', 0, 250, 40, 6.8],
-    ['GARDEN TOWN', 0, 200, 35, 5.1],
-    ['DHA PHASE 1–6', 1, 200, 35, 4.6],
-    ['DHA PHASE 7–8', 1, 300, 45, 8.2],
-    ['JOHAR TOWN', 2, 150, 30, 3.9],
-    ['WAPDA TOWN', 2, 250, 40, 6.6],
+    // [area, shop that sends the rider, fee, minutes, km by road (the route in components/brewns/deliveryRoutes.ts)]
+    ['GULBERG', 0, 150, 30, 2.0],
+    ['MODEL TOWN', 0, 250, 40, 8.5],
+    ['GARDEN TOWN', 0, 200, 35, 4.8],
+    ['DHA PHASE 1–6', 1, 200, 35, 4.8],
+    ['DHA PHASE 7–8', 1, 300, 45, 7.5],
+    ['JOHAR TOWN', 2, 150, 30, 3.4],
+    ['WAPDA TOWN', 2, 250, 40, 5.8],
   ] as [area: string, shop: number, fee: number, minutes: number, km: number][],
 };
 export const PAY = [
