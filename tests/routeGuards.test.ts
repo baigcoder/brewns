@@ -23,6 +23,7 @@ const PER_ACTION = new Set([
   'staff/me/route.ts', // a person's own account: viewing and changing their own password
   'staff/me/photo/route.ts', // a person's own photo, nobody else's
   'staff/messages/route.ts', // anyone reads team messages; sending checks staff.manage in the route
+  'staff/dms/route.ts', // any staff member messages people at their own shops; checked in sendDm
   'staff/two-step/route.ts', // a person's own two-step sign-in: every change re-asks for their password
   'staff/orders/[number]/route.ts', // every action calls need(...) in lib/server/orders.ts
 ]);
