@@ -2113,11 +2113,17 @@ export function liveSetup(g: VoiceGender, lang: VoiceLang, recap = '', resume = 
   };
 }
 
+let warnedNoLiveKey = false;
 /** A one-use Live token for one connection, valid to start for a minute and to run for 15.
     A call that reconnects (a dropped line, or Gemini recycling the connection) gets a fresh one. */
 export async function createLiveToken(setup: ReturnType<typeof liveSetup>): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    // Without it every call falls back to the step-by-step line, and nothing else says why.
+    if (!warnedNoLiveKey) console.warn('[Gemini Live] GEMINI_API_KEY is not set: calls use the step-by-step voice instead of the live line.');
+    warnedNoLiveKey = true;
+    return null;
+  }
   const now = Date.now();
   const base = { uses: 1, expireTime: new Date(now + 16 * 60_000).toISOString(), newSessionExpireTime: new Date(now + 60_000).toISOString() };
   // Locked to Sarah's model and instructions, so the token can't be used for anything else.

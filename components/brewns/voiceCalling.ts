@@ -209,7 +209,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let chunks: Blob[] = [];
   const vad = { talking: false, since: 0, quietSince: 0, startedAt: 0, floor: 0.004, armedAt: 0, loudSince: 0 };
   let player: HTMLAudioElement | null = null;
-  let playerRouted = false;
+  /** The clip playing through the AudioContext, so a barge-in or hang-up can stop it. */
+  let clip: AudioBufferSourceNode | null = null;
   let utterance: SpeechSynthesisUtterance | null = null;
 
   const agent = () => NAMES.en[gender];
@@ -401,8 +402,6 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       outGain.connect(outAnalyser);
       outAnalyser.connect(ctx.destination);
       ctx.onstatechange = wakeAudio;
-      player = null;
-      playerRouted = false;
     }
     // Must happen inside the tap that opened the call, or browsers keep it silent.
     ctx.resume().catch(() => {});
@@ -966,7 +965,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       next = parts[i + 1]?.url ? fetchVoice(parts[i + 1].url) : Promise.resolve(null);
       vad.armedAt = performance.now() + 450;
       setVoiceTag(voice ? voice.tier : 'device');
-      if (voice) await playBlob(voice.blob, id);
+      if (voice) await playBlob(voice.blob, id, parts[i].text);
       else await speakWithDevice(parts[i].text, id);
       if (id !== turnId) return;
     }
@@ -975,36 +974,88 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     stepsListen();
   }
 
-  function playBlob(blob: Blob, id: number) {
+  /** One clip of the step-by-step voice. It plays through the page's AudioContext,
+      which the tap that opened the call unlocked, as the live line does. An <audio>
+      element started seconds after that tap (after the ring and the fetch) is refused
+      by strict autoplay rules (Brave, Safari), and a refused play() used to pass for
+      "finished": the reply was silent. Now the element is only a second try, and if it
+      is refused too the device reads the line out, so a reply is never silent. */
+  async function playBlob(blob: Blob, id: number, text: string) {
+    const c = ctx;
+    if (c && c.state !== 'closed' && outGain) {
+      if (c.state !== 'running') await c.resume().catch(() => {});
+      if (c.state === 'running') {
+        try {
+          const buf = await c.decodeAudioData(await blob.arrayBuffer());
+          if (id !== turnId) return;
+          return await playBuffer(c, buf, id);
+        } catch (err) {
+          console.warn('[brewns-call] could not decode the voice, trying the audio element:', err);
+        }
+      }
+    }
+    if (id !== turnId || (await playElement(blob, id))) return;
+    console.warn('[brewns-call] the browser refused to play the voice; the device reads the line instead');
+    setVoiceTag('device');
+    await speakWithDevice(text, id);
+  }
+
+  function playBuffer(c: AudioContext, buf: AudioBuffer, id: number) {
     return new Promise<void>((resolve) => {
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.connect(outGain!);
+      clip = src;
+      let over = false;
+      const finish = () => {
+        if (over) return;
+        over = true;
+        clearInterval(watch);
+        clearTimeout(cap);
+        if (clip === src) clip = null;
+        resolve();
+      };
+      src.onended = finish;
+      src.start();
+      const watch = setInterval(() => {
+        if (id !== turnId) {
+          try {
+            src.stop();
+          } catch {}
+          finish();
+        }
+      }, 100);
+      // A context the phone suspends mid-clip never says 'ended': the call carries on anyway.
+      const cap = setTimeout(finish, buf.duration * 1000 + 1500);
+    });
+  }
+
+  /** The <audio> element as a second try; resolves false if the browser refused to play it. */
+  function playElement(blob: Blob, id: number) {
+    return new Promise<boolean>((resolve) => {
       if (!player) {
         player = new Audio();
         player.setAttribute('playsinline', '');
       }
-      // Route the voice through the level meter once the context is running; a
-      // suspended context would otherwise swallow the sound entirely.
-      if (!playerRouted && ctx && ctx.state === 'running' && outGain) {
-        try {
-          ctx.createMediaElementSource(player).connect(outGain);
-          playerRouted = true;
-        } catch {}
-      }
+      const p = player;
       const url = URL.createObjectURL(blob);
-      const done = () => {
+      let started = false;
+      const done = (played: boolean) => {
+        clearInterval(watch);
         URL.revokeObjectURL(url);
-        if (player) player.onended = player.onerror = null;
-        resolve();
+        p.onended = p.onerror = p.onplaying = null;
+        resolve(played);
       };
-      player.onended = done;
-      player.onerror = done;
-      player.src = url;
-      player.play().catch(done);
+      p.onplaying = () => (started = true);
+      p.onended = () => done(true);
+      p.onerror = () => done(started);
+      p.src = url;
+      p.play().catch(() => done(false));
       const watch = setInterval(() => {
         if (id !== turnId) {
-          clearInterval(watch);
-          player?.pause();
-          done();
-        } else if (!player || player.ended || player.paused) clearInterval(watch);
+          p.pause();
+          done(true);
+        }
       }, 100);
     });
   }
@@ -1040,6 +1091,12 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   }
 
   function stopSpeaking() {
+    if (clip) {
+      try {
+        clip.stop();
+      } catch {}
+      clip = null;
+    }
     if (player) {
       player.pause();
       player.removeAttribute('src');
