@@ -37,6 +37,7 @@ import {
 } from '@/lib/audio-ritual';
 import { TasteCalibrator } from './TasteCalibrator';
 import { foodArt } from './foodArt';
+import { SITE_HOST } from '@/lib/site';
 import { autoReply, canCancel, currentStage, fastForward, finalStage, invoiceNo, orderNow, QUICK_REPLIES, riderFor, riderProgress, stageMessage, timeline, whatsappText } from './orderLive';
 import { addStamps, birthdayTreat, CLUB, emptyClub, isDrink, memberNumber, normaliseClub, reverseOrder, rewardValue, spendReward, stampsFor } from './club';
 import { basePrice, CLOSE_MIN, defaultSel, DELIVERY, isSub, KITCHEN_BASE, LOC_TITLES, LOCS, money, OPEN_MIN, PAY, pkMobile, PREP_MIN, PRODUCTS_BASE, selLabel, SHOP_CODES, TAX, TAX_CARD, unitPrice, validSel } from "@/lib/catalog";
@@ -6351,7 +6352,7 @@ function receiptDoc(o) {
     <svg class="bars" viewBox="0 0 296 38" preserveAspectRatio="none" aria-hidden="true">${barRects(o.number)}</svg>
     <hr><p class="thanks">SKIP THE LINE.<br>ORDER AHEAD.</p><p class="c">${LOCS[o.loc][0]} · ${LOCS[o.loc][1]}<br>TEL ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}</p>
     ${BUSINESS.ntn ? `<p class="c">NTN ${BUSINESS.ntn}${BUSINESS.strn ? ` · STRN ${BUSINESS.strn}` : ""}</p>` : ""}
-    <p class="c">THANK YOU · SHUKRIYA · BREWNS.COFFEE</p>
+    <p class="c">THANK YOU · SHUKRIYA · ${SITE_HOST}</p>
   </main>`;
   const css = `body{margin:0;background:#e9e6df;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;color:#111}
     .rc{box-sizing:border-box;width:min(100%,380px);margin:24px auto;padding:26px 22px;background:#f7f5ef;color:#111;text-align:left;text-transform:none;font-family:"Space Mono",ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.05em;line-height:1.7;box-shadow:0 10px 30px rgba(0,0,0,.15)}
@@ -6438,7 +6439,7 @@ function renderDone() {
             <div class="rc-rule"></div>
             <div class="bill-promo"><p>SKIP THE LINE.<br>ORDER AHEAD.</p><div><small>SAVE TIME.<br>GET YOUR COFFEE FASTER.</small>${!o.cancelled ? `<button type="button" data-co="again">ORDER NOW <span aria-hidden="true">→</span></button>` : `<span class="bill-cancelled">ORDER CANCELLED</span>`}</div></div>
             <div class="barcode">${orderBars(o.number)}</div>
-            <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]} · ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}<br>TRACK ${num} AT BREWNS.COFFEE<br>THANK YOU · SHUKRIYA</p>
+            <p class="bill-c">${LOCS[o.loc][0]}, ${LOCS[o.loc][1]} · ${SHOP_PHONE.replace(/^\+92(\d{2})(\d{4})(\d{4})$/, "+92 $1 $2 $3")}<br>TRACK ${num} AT ${SITE_HOST}<br>THANK YOU · SHUKRIYA</p>
           </div>
           <svg width="328" height="9" viewBox="0 0 328 9" preserveAspectRatio="none" style="display:block"><path d="${tornPath(328)}" fill="#F2F0EA"/></svg>
         </div></div></div>
