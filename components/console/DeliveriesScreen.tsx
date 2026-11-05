@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { DELIVERY, LOC_TITLES, PAY } from '@/lib/catalog';
 import { orderNo } from '@/lib/orderFlow';
 import { api, pkTime, rs, useNow } from './api';
-import { chime, useLive, type StaffOrder } from './Live';
+import { FleetMap } from './FleetMap';
+import { useLive, type StaffOrder } from './Live';
+import { enableNotifications, rideAlert } from './RiderAlerts';
 import { itemsLine, OrderDrawer, StatusPill } from './OrderBits';
 import { useMe } from './Shell';
 import { useRun } from './Toasts';
@@ -82,7 +84,13 @@ export function DeliveriesScreen() {
   const [codes, setCodes] = useState<Record<number, string>>({});
   const now = useNow(10000);
   const dispatching = can('delivery.assign');
-  const late = (o: StaffOrder) => now - o.placed > NO_RIDER_ALERT_MS;
+  const late = (o: StaffOrder) => o.status === 'ready' || now - o.placed > NO_RIDER_ALERT_MS;
+  const [alerts, setAlerts] = useState(() => typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  const [pick, setPick] = useState<Record<number, string>>({});
+  // Riders, free ones first, with how many deliveries each already has.
+  const riders = (data?.riders || [])
+    .map((r) => ({ ...r, load: deliveries.filter((o) => o.rider?.id === r.id && o.status !== 'delivered').length }))
+    .sort((a, b) => Number(b.online) - Number(a.online) || a.load - b.load);
   // One chime per delivery when it has waited too long for a rider.
   const chimed = useRef(new Set<number>());
   const overdue = dispatching ? waiting.filter(late).map((o) => o.number) : [];
@@ -90,7 +98,7 @@ export function DeliveriesScreen() {
     const fresh = overdue.filter((n) => !chimed.current.has(n));
     if (!fresh.length) return;
     fresh.forEach((n) => chimed.current.add(n));
-    chime();
+    rideAlert();
   }, [overdue.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const step = async (o: StaffOrder, action: Record<string, unknown>, done?: string) => {
@@ -109,6 +117,22 @@ export function DeliveriesScreen() {
           <h1 className="cx-h1">Deliveries</h1>
         </div>
       </div>
+
+      {!alerts && (riding || dispatching) && typeof Notification !== 'undefined' && Notification.permission !== 'denied' && (
+        <p className="cx-banner" style={{ marginBottom: 16 }}>
+          Turn on alerts so this phone rings even when the screen is off.{' '}
+          <button type="button" className="cx-btn sm" onClick={async () => setAlerts(await enableNotifications())}>
+            Turn on alerts
+          </button>
+        </p>
+      )}
+
+      {dispatching && (
+        <section className="cx-stack" style={{ marginBottom: 24 }}>
+          <p className="cx-eyebrow">On the road now</p>
+          <FleetMap orders={deliveries} fixes={data?.fixes || {}} now={now} />
+        </section>
+      )}
 
       {riding && (
         <section className="cx-stack" style={{ marginBottom: 24 }}>
@@ -144,8 +168,17 @@ export function DeliveriesScreen() {
                   </button>
                 </div>
                 {o.status === 'ready' && (
-                  <button type="button" className="cx-btn primary big" disabled={busy === o.number} onClick={() => step(o, { type: 'pickup' }, 'On the road. The customer can see you on the map.')}>
-                    Picked up, leaving now
+                  <button
+                    type="button"
+                    className="cx-btn primary big"
+                    disabled={busy === o.number}
+                    onClick={() => {
+                      // Asked inside the tap, so the phone shows the location prompt now, not later in a pocket.
+                      navigator.geolocation?.getCurrentPosition(() => {}, () => {}, { enableHighAccuracy: true, timeout: 20000 });
+                      step(o, { type: 'pickup' }, 'Ride started. The customer can see you coming on the map.');
+                    }}
+                  >
+                    Picked up · start the ride
                   </button>
                 )}
                 {['accepted', 'preparing', 'received'].includes(o.status) && <p className="cx-small cx-muted">Still being made. You’ll see “Picked up” here when it’s ready at the pass.</p>}
@@ -200,7 +233,7 @@ export function DeliveriesScreen() {
                 </div>
                 {dispatching && late(o) && (
                   <p className="cx-small" style={{ color: '#e04c38', fontWeight: 700 }}>
-                    No rider for {Math.round((now - o.placed) / 60000)} min
+                    {o.status === 'ready' ? 'Ready at the pass · needs a rider now' : `No rider for ${Math.round((now - o.placed) / 60000)} min`}
                   </p>
                 )}
                 <p>
@@ -214,10 +247,20 @@ export function DeliveriesScreen() {
                     Take it
                   </button>
                 )}
-                {can('delivery.assign') && (
-                  <button type="button" className="cx-btn" onClick={() => setOpen(o.number)}>
-                    Assign a rider…
-                  </button>
+                {dispatching && (
+                  <div className="cx-row" style={{ flexWrap: 'nowrap' }}>
+                    <select aria-label={`Rider for ${orderNo(o.number)}`} value={pick[o.number] || ''} onChange={(e) => setPick({ ...pick, [o.number]: e.target.value })} style={{ flex: 1, minWidth: 0 }}>
+                      <option value="">{riders.length ? 'Choose a rider…' : 'No riders on the team yet'}</option>
+                      {riders.map((r) => (
+                        <option key={r.id} value={r.id} disabled={!!r.shops.length && !r.shops.includes(o.loc)}>
+                          {r.name} · {r.online ? 'online' : 'offline'} · {r.load ? `${r.load} on the go` : 'free'}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" className="cx-btn primary" disabled={!pick[o.number] || busy === o.number} onClick={() => step(o, { type: 'assign', riderId: pick[o.number] }, 'Rider assigned. Their phone is ringing.')}>
+                      Assign
+                    </button>
+                  </div>
                 )}
               </article>
             ))}
@@ -255,7 +298,7 @@ export function DeliveriesScreen() {
                     <td className="cx-small">
                       {['onway', 'arriving'].includes(o.status)
                         ? (() => {
-                            const g = gpsLabel(data?.fixes?.[o.number], now);
+                            const g = gpsLabel(data?.fixes?.[o.number]?.t, now);
                             return <span style={g.bad ? { color: '#e04c38', fontWeight: 700 } : undefined}>{g.text}</span>;
                           })()
                         : '—'}

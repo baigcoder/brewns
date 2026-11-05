@@ -1,0 +1,28 @@
+/* The street map's pieces (components/brewns/riderMap.ts, the console's FleetMap): tiles,
+   the road, pins and the rider's arrow. Shared by the site's tracker and the console. */
+.rm-tiles { position: absolute; inset: 0; filter: invert(1) hue-rotate(185deg) sepia(0.25) saturate(0.7) brightness(0.92) contrast(0.92); }
+.rm-tiles img { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; user-select: none; }
+.rm-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.rm-svg polyline, .rm-svg line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.rm-casing { stroke: #17130f; stroke-width: 9; }
+.rm-ahead { stroke: #f2bd62; stroke-width: 5; }
+.rm-behind { stroke: rgb(242 240 234 / 0.55); stroke-width: 3.5; stroke-dasharray: 1 7; }
+.rm-offroad { stroke: #f2bd62; stroke-width: 3.5; stroke-dasharray: 8 7; }
+.rm-pin { position: absolute; left: 0; top: 0; z-index: 1; width: 0; height: 0; will-change: transform; }
+.rm-dot { position: absolute; left: -15px; top: -15px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 3px 10px rgb(0 0 0 / 0.45); font: 800 15px/1 var(--font-geist); }
+.rm-shop .rm-dot { background: #17130f; color: #d8b777; border-color: #d8b777; }
+.rm-door .rm-dot { background: #f4f1ea; color: #17130f; }
+.rm-door.approx .rm-dot { border-style: dashed; }
+.rm-tag { position: absolute; left: 0; bottom: 19px; transform: translateX(-50%); padding: 0.22rem 0.5rem; border-radius: 999px; white-space: nowrap; font-size: 0.6rem; letter-spacing: 0.06em; background: rgb(12 9 7 / 0.85); color: #f4f1ea; }
+.rm-shop .rm-tag { color: #d8b777; }
+.rm-rider { z-index: 2; }
+.rm-arrow { position: absolute; left: -19px; top: -19px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #d58c3d; color: #fff; border: 3px solid #fff; box-shadow: 0 4px 14px rgb(0 0 0 / 0.5); }
+.rm-rider .rm-tag { bottom: 25px; background: #d58c3d; color: #17130f; font-weight: 700; }
+.rm-pulse { position: absolute; left: -19px; top: -19px; width: 38px; height: 38px; border-radius: 50%; background: rgb(213 140 61 / 0.45); }
+.rm-rider.moving .rm-pulse { animation: rm-pulse 1.8s ease-out infinite; }
+.rm-rider.stale .rm-arrow { background: #8a8580; }
+.rm-rider.stale .rm-tag { background: #8a8580; }
+@keyframes rm-pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rm-rider.moving .rm-pulse { animation: none; } }
+.rm-credit { position: absolute; right: 0; bottom: 0; z-index: 3; padding: 0.1rem 0.35rem; font-size: 0.55rem; background: rgb(12 9 7 / 0.7); color: rgb(255 255 255 / 0.65); }
+.rm-credit a { color: inherit; }

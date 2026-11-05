@@ -22,3 +22,15 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET' || req.mode !== 'navigate') return;
   e.respondWith(fetch(req).catch(() => caches.match(OFFLINE)));
 });
+
+// A ride alert on the lock screen: tapping it opens (or focuses) the deliveries screen.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/dashboard/deliveries';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => c.url.includes('/dashboard'));
+      return open ? open.focus().then((c) => c.navigate(url)) : self.clients.openWindow(url);
+    }),
+  );
+});

@@ -22,9 +22,9 @@ export const GET = route(async (req) => {
   const clientRole = url.searchParams.get('r');
 
   const p = ctx.perms;
-  // When each rider's phone last reported in: fixes don't bump the version, so they come with every poll (one small read).
+  // Where each rider on the road is, from their phone: fixes don't bump the version, so they come with every poll (one small read).
   const fixes = canAny(p, 'delivery.assign', 'orders.manage')
-    ? Object.fromEntries(Object.entries(await riderFixes()).filter(([, f]) => worksAt(ctx.user, f.loc)).map(([n, f]) => [n, f.t]))
+    ? Object.fromEntries(Object.entries(await riderFixes()).filter(([, f]) => worksAt(ctx.user, f.loc)).map(([n, f]) => [n, { t: f.t, lat: f.lat, lng: f.lng, heading: f.heading }]))
     : undefined;
 
   // If live version matches and role hasn't changed, return 304-equivalent same payload

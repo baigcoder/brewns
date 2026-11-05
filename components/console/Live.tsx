@@ -16,8 +16,8 @@ export type LiveData = {
   orders: StaffOrder[];
   calls: Call[];
   riders: Rider[];
-  /** Dispatchers: when each on-road order's rider phone last sent its location, by order number. */
-  fixes?: Record<string, number>;
+  /** Dispatchers: where each on-road order's rider is, from their phone, by order number. */
+  fixes?: Record<string, { t: number; lat: number; lng: number; heading: number | null }>;
   aiLive?: number;
   pendingMoments?: number;
   upcomingBookings?: number;
