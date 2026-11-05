@@ -170,6 +170,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   let engine: Engine = 'steps';
   let muted = false;
   let hangUpAfterSpeech = false;
+  /** An order placed on this call: when the call ends, its tracking page opens. */
+  let placedThisCall: number | null = null;
   let seconds = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
   let hoursTimer: ReturnType<typeof setInterval> | undefined;
@@ -682,6 +684,14 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     if (how !== 'switch') blip('hangup');
     setPhase('ended');
     updateChips();
+    // Ordered on this call: once it's over (Sarah's goodbye or the caller hanging up), show the order's live tracking.
+    const placed = placedThisCall;
+    placedThisCall = null;
+    if (placed && how !== 'switch' && openTracking)
+      setTimeout(() => {
+        closeModal();
+        openTracking(placed);
+      }, 1400);
   }
 
   /* ── the live line ── */
@@ -1276,6 +1286,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
       const { order, key } = action.data || {};
       if (!order?.number || !key) return;
       onOrderPlaced?.(order, key);
+      placedThisCall = order.number;
       playChime?.();
       triggerHaptic?.(60);
       toast(`ORDER #${String(order.number).padStart(5, '0')} PLACED`);
