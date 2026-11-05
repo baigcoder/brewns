@@ -6466,7 +6466,7 @@ function renderDone() {
             <div><dt class="mono-fine">AT YOUR DOOR</dt><dd id="trk-eta">${hhmm(o.pickupAt.t)}</dd></div>
           </dl>
           ${o.server?.handover ? `<p class="trk-code" id="trk-code" hidden><span class="mono-fine">GIVE THE RIDER THIS CODE AT THE DOOR</span><b>${esc(o.server.handover)}</b></p>` : ""}
-          ${o.server ? `<button type="button" class="trk-pin-btn mono-fine" data-co="pin"${o.server.pin ? " hidden" : ""}>⌖ SHARE MY EXACT LOCATION, SO THE RIDER FINDS YOUR DOOR</button>` : ""}
+          ${o.server ? `<button type="button" class="trk-pin-btn mono-fine" data-co="pin"${o.server.pin ? " hidden" : ""}>⌖ PIN MY DOOR ON THE MAP, SO THE RIDER COMES STRAIGHT TO IT</button>` : ""}
         </section>
         <div class="trk-rider" id="trk-rider" hidden>
             ${staffFace(r.name, o.server?.rider?.photo)}
@@ -6781,6 +6781,21 @@ function renderDone() {
   coTimer = setInterval(tickRing, 1000);
 }
 
+/* An order the concierge placed on a call: kept with this visitor's orders,
+   exactly like one from the checkout, so the live pill and tracker follow it. */
+function keepVoiceOrder(so, key) {
+  const order = {
+    number: so.number, placed: so.placed, target: so.target, mode: so.mode, loc: so.loc, area: so.area, table: so.table ?? null,
+    address: so.address || "", name: so.name, phone: so.phone, note: so.note || "", pay: so.pay,
+    items: (so.items || []).map((i) => ({ id: i.id, qty: i.qty, sel: i.sel })), totals: so.totals, pickupAt: so.pickupAt, sent: "server",
+  };
+  applyServer(order, so, key);
+  if (so.hold) order.payUrl = `/pay/${so.number}?k=${encodeURIComponent(key)}`;
+  writeStore("brewns-orders", [order, ...readStore("brewns-orders", []).filter((x) => x.number !== order.number)].slice(0, 20));
+  cart.clear();
+  tickPill();
+}
+
 /* Reopen an order's tracking from the bag or the live pill. */
 function openTracking(number) {
   const o = readStore("brewns-orders", []).find((x) => x.number === number);
@@ -7009,10 +7024,10 @@ async function sendOrder(o, email) {
    Optional; checked against the delivery area they picked. */
 const pinBlock = () => {
   if (co?.pinBusy) return `<p class="mono-fine co-pin-note"><span class="co-spin" aria-hidden="true"></span>FINDING YOUR LOCATION…</p>`;
-  if (!co?.pin) return `<button type="button" class="co-pin-btn mono-fine" data-co="co-pin">⌖ USE MY EXACT LOCATION · THE RIDER COMES STRAIGHT TO YOUR DOOR</button>${co?.pinError ? `<p class="err mono-fine" style="display:block">${esc(co.pinError)}</p>` : ""}`;
+  if (!co?.pin) return `<button type="button" class="co-pin-btn mono-fine" data-co="co-pin">⌖ PIN YOUR DOOR ON THE MAP · THE RIDER COMES STRAIGHT TO IT</button>${co?.pinError ? `<p class="err mono-fine" style="display:block">${esc(co.pinError)}</p>` : ""}`;
   const near = co.pinNear;
   const off = near !== null && near !== undefined && near !== co.area;
-  return `<p class="mono-fine co-pin-note">✓ EXACT LOCATION SAVED · <a href="https://www.google.com/maps/search/?api=1&query=${co.pin.lat},${co.pin.lng}" target="_blank" rel="noopener">CHECK ON THE MAP</a> · <button type="button" data-co="co-pin-clear">REMOVE</button></p>${
+  return `<p class="mono-fine co-pin-note">✓ DOOR PINNED IN ${DELIVERY.areas[near ?? co.area][0]} · <button type="button" data-co="co-pin">MOVE THE PIN</button> · <button type="button" data-co="co-pin-clear">REMOVE</button></p>${
     off ? `<p class="mono-fine co-pin-warn">THIS PIN IS IN ${DELIVERY.areas[near][0]}, NOT ${DELIVERY.areas[co.area][0]}. <button type="button" data-co="co-pin-area">SWITCH TO ${DELIVERY.areas[near][0]}</button></p>` : ""
   }`;
 };
@@ -7104,14 +7119,17 @@ coEl.addEventListener("click", (e) => {
         .catch((err) => toast(err.message.toUpperCase()));
     }
     if (act === "pin" && o.server) {
-      if (!navigator.geolocation) return toast("THIS BROWSER CAN'T SHARE A LOCATION");
-      return navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          orderAct(o, { type: "pin", lat: pos.coords.latitude, lng: pos.coords.longitude })
-            .then(() => renderCheckout({ animate: false }))
-            .catch((err) => toast(err.message.toUpperCase())),
-        () => toast("LOCATION NOT SHARED. THE RIDER WILL CALL YOU"),
-        { enableHighAccuracy: true, timeout: 15000 },
+      return import("./locationPicker").then(({ openLocationPicker }) =>
+        import("./deliveryRoutes").then(({ ROUTES }) => {
+          const r = ROUTES[o.area] || ROUTES[0];
+          openLocationPicker({
+            start: r[r.length - 1],
+            onPick: (pin) =>
+              orderAct(o, { type: "pin", lat: pin.lat, lng: pin.lng })
+                .then(() => renderCheckout({ animate: false }))
+                .catch((err) => toast(err.message.toUpperCase())),
+          });
+        }),
       );
     }
     if (act === "collected" && o.server) {
@@ -7164,32 +7182,23 @@ coEl.addEventListener("click", (e) => {
   }
   if (act === "place") return placeOrder();
   if (act === "co-pin") {
-    const slot = () => $("[data-pin-slot]", coEl);
-    if (!navigator.geolocation) {
-      co.pinError = "This browser can't share a location. The rider will call you.";
-      return (slot().innerHTML = pinBlock());
-    }
-    co.pinBusy = true;
-    co.pinError = "";
-    slot().innerHTML = pinBlock();
-    return navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const p = [pos.coords.latitude, pos.coords.longitude];
-        // Which delivery area is nearest (each route ends in its area), and is it close enough to deliver to?
-        const [{ ROUTES }, { metres }] = await Promise.all([import("./deliveryRoutes"), import("./riderMap")]);
-        const d = ROUTES.map((r) => metres(r[r.length - 1], p));
-        const near = d.indexOf(Math.min(...d));
-        co.pinBusy = false;
-        if (d[near] > 6000) co.pinError = "That's outside our delivery areas. Type the address, or try again from home.";
-        else [co.pin, co.pinNear] = [{ lat: +p[0].toFixed(5), lng: +p[1].toFixed(5) }, near];
-        if (slot()) slot().innerHTML = pinBlock();
-      },
-      () => {
-        co.pinBusy = false;
-        co.pinError = "Location not shared. That's fine: the rider will call you.";
-        if (slot()) slot().innerHTML = pinBlock();
-      },
-      { enableHighAccuracy: true, timeout: 15000 },
+    return import("./locationPicker").then(({ openLocationPicker }) =>
+      import("./deliveryRoutes").then(({ ROUTES }) => {
+        const r = ROUTES[co.area] || ROUTES[0];
+        openLocationPicker({
+          start: co.pin ? [co.pin.lat, co.pin.lng] : r[r.length - 1],
+          onPick: (pin, area) => {
+            co.pin = pin;
+            co.pinNear = area;
+            co.pinError = "";
+            // The pin decides the area (and so the fee, the time and the shop that sends the rider).
+            const moved = area !== co.area;
+            co.area = area;
+            renderCheckout({ animate: false });
+            if (moved) toast(`DELIVERY AREA SET TO ${DELIVERY.areas[area][0]} FROM YOUR PIN`);
+          },
+        });
+      }),
     );
   }
   if (act === "co-pin-clear") {
@@ -7965,6 +7974,8 @@ function applyPromo(raw) {
     playChime,
     playSoftClick,
     triggerHaptic,
+    onOrderPlaced: keepVoiceOrder,
+    openTracking,
   });
 
   return () => {

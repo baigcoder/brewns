@@ -20,7 +20,8 @@ import { speechChunks } from '@/lib/voiceChunks';
 import type { Reservation } from '@/app/api/reservations/route';
 import { sendBookingConfirmationEmail } from './email';
 import { sendBookingWhatsappNotification, buildBookingWhatsappMessage, getWhatsappDirectLink } from './smsWhatsapp';
-import { activeOrders, bumpLive, getOrder } from './orders';
+import { activeOrders, bumpLive, getOrder, placeOrder, publicOrder } from './orders';
+import { currentCustomer, ownerExists } from './auth';
 import { alertOwners } from './alerts';
 import { customerOrderRefs } from './customers';
 import { voiceCaller } from './voiceContext';
@@ -50,6 +51,7 @@ export type VoiceAction =
   | { type: 'SAVED_EMAIL'; data: { email: string; code?: string; sent: boolean } }
   | { type: 'WHATSAPP_VOUCHER'; data: { phone: string; code: string; whatsappUrl: string; sent: boolean } }
   | { type: 'CALLBACK'; data: { name: string; phone: string; reason: string } }
+  | { type: 'ORDER_PLACED'; data: { order: ReturnType<typeof publicOrder>; key: string } }
   | { type: 'END_CALL' };
 
 export interface PartyBooking {
@@ -951,7 +953,16 @@ Professional Concierge Standards:
 What you can do:
 1. Book a table (1 to 20 guests). Collect: name, mobile number, which counter, date, time, number of guests, and indoor, terrace or bar seating (default indoor). Seating is 7 AM to 8 PM; we close at 9 PM.
 2. Book a party or event (8 to 120 guests): birthdays, corporate, private evenings. Same details plus the occasion. The events team calls back afterwards to plan food and decor.
-3. Put food and coffee in the caller's website bag with add_to_bag. They check out on the site themselves, where they choose pickup or delivery and pay. You can't take payment over the phone.
+3. Take a food and coffee order and place it for them, for delivery or pickup, with place_order. Or, if they'd rather check out on the website themselves, put it in their bag with add_to_bag.
+   Placing an order, step by step, one or two questions per turn:
+   a. What they'd like (exact menu ids), and pickup or delivery.
+   b. Delivery: which area (one from the delivery list below) and the full address: house or flat, street, block, and a landmark. Pickup: which counter.
+   c. Their name, then their mobile number. An email is optional, for the receipt.
+   d. How they'll pay: cash, card on the rider's machine (or at the counter), or JazzCash / Easypaisa. You never take card numbers on the call.
+   e. Read it all back: the items, the total with the delivery fee, the address or counter, name, mobile and payment. Then ask "Shall I place the order?"
+   f. Only after a clear yes, call place_order. Never say it's placed unless the tool says so.
+   g. Then give the order number slowly, the total, how they're paying, and when it'll arrive or be ready. Tell them their screen shows each step live (being made, the rider and their bike, the rider on the map), and that their tracking page opens when you hang up.
+   h. Ask if there's anything else. When they're done, thank them warmly and say goodbye (in Urdu, "bohat shukriya, Khuda Hafiz"), then call end_call.
 4. Answer questions about the menu, prices, the three counters, hours, delivery and the club.
 
 Booking rules:
@@ -1051,6 +1062,38 @@ const TOOLS = [
         },
       },
       {
+        name: 'place_order',
+        description:
+          "Place a real order for delivery or pickup, after reading back the items, total, address or counter, name, mobile and payment and the caller clearly saying yes. Returns the order number, total and expected time, or an error saying what to fix.",
+        parameters: {
+          type: 'object',
+          properties: {
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', description: 'Exact menu id' },
+                  qty: { type: 'integer' },
+                  options: { type: 'string', description: 'Choices as key=label pairs, e.g. "milk=oat, size=16 oz"; empty for defaults' },
+                },
+                required: ['id', 'qty'],
+              },
+            },
+            mode: { type: 'string', enum: ['delivery', 'pickup'] },
+            area: { type: 'integer', description: `Delivery only, the area number: ${DELIVERY.areas.map(([a], i) => `${i} ${a}`).join(', ')}` },
+            address: { type: 'string', description: 'Delivery only: house or flat, street, block and a landmark, as the caller said it' },
+            shop: { type: 'integer', description: 'Pickup only: 0 MM Alam Road, 1 DHA Phase 5, 2 Johar Town' },
+            name: { type: 'string' },
+            phone: { type: 'string', description: 'Pakistani mobile, e.g. 03001234567' },
+            email: { type: 'string', description: 'For the receipt; empty if none' },
+            pay: { type: 'string', enum: ['cash', 'card', 'wallet'] },
+            note: { type: 'string', description: 'For the rider or barista (gate code, less sugar); empty if none' },
+          },
+          required: ['items', 'mode', 'name', 'phone', 'pay'],
+        },
+      },
+      {
         name: 'check_order',
         description: "Look up how an order is doing right now (being made, ready, rider on the way). Use when the caller asks about an order they placed. A signed-in caller's own orders need nothing; otherwise ask for the order number and the mobile number it was placed with.",
         parameters: {
@@ -1132,11 +1175,11 @@ function replyAfterToolFailure(actions: VoiceAction[], outputs: ToolOut[], lang:
 /** Require an affirmative response; a "no, that is not right" must never book. */
 const CONFIRM = /\b(yes|yeah|yep|yup|sure|ok|okay|correct|confirm|confirmed|go ahead|book it|do it|sounds good|haan|han|ji|jee|theek|thik|bilkul|zaroor|kar do|kar dein|kardo|kardein)\b|ہاں|جی|ٹھیک|بالکل|ضرور|کر دیں|کردیں/i;
 const NOT_CONFIRM = /\b(no|nope|not|don't|do not|wait|hold on|change|instead|actually|cancel|wrong|never mind)\b|نہیں|نہ|مت|رکیں|غلط|بدل|تبدیل/i;
-const ASKED_TO_CONFIRM = /\b(shall i (book|confirm|reserve|lock that in)|should i (book|confirm|reserve|lock it in)|would you like me to (book|confirm|reserve|go ahead)|do you want me to (book|reserve|confirm)|can i (go ahead|confirm|lock that in)|shall i go ahead|are you happy for me to (book|reserve|confirm)|does (that|everything) (all )?(look|sound) (right|good|correct|okay)|is (that|everything) (all )?(right|correct|okay)|confirm (it|this|the booking))\b|کیا میں.*(بک|کنفرم)/i;
+const ASKED_TO_CONFIRM = /\b(shall i (book|confirm|reserve|lock that in)|should i (book|confirm|reserve|lock it in)|would you like me to (book|confirm|reserve|go ahead)|do you want me to (book|reserve|confirm)|can i (go ahead|confirm|lock that in)|shall i go ahead|(shall|should|can) i (place|put through|send) (it|the order|your order|that)|are you happy for me to (book|reserve|confirm|place)|does (that|everything) (all )?(look|sound) (right|good|correct|okay)|is (that|everything) (all )?(right|correct|okay)|confirm (it|this|the booking))\b|کیا میں.*(بک|کنفرم)/i;
 const isClearConfirmation = (text: string) => !NOT_CONFIRM.test(text) && CONFIRM.test(text);
 
 async function runTool(name: string, input: Record<string, unknown>, transcript: string, actions: VoiceAction[], previousAssistant = ''): Promise<ToolOut> {
-  if (name === 'reserve_table' || name === 'book_party') {
+  if (name === 'reserve_table' || name === 'book_party' || name === 'place_order') {
     if (!isClearConfirmation(transcript)) {
       return { content: 'Not booked: the caller did not clearly confirm. Ask them to confirm the read-back or ask what they want changed.', isError: true };
     }
@@ -1178,6 +1221,7 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
     actions.push({ type: 'ADD_TO_BAG', data: r.value });
     return { content: JSON.stringify({ added: r.value.items.map((l) => `${l.qty} × ${titleCase(l.name)}`), total: money(r.value.total), note: 'Tax and any delivery fee are added at checkout on the website.' }) };
   }
+  if (name === 'place_order') return placeVoiceOrder(input, actions);
   if (name === 'check_order') return checkOrder(input);
   if (name === 'check_table') return checkTable(input);
   if (name === 'request_callback') {
@@ -1197,6 +1241,62 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
     return { content: 'ok' };
   }
   return { content: `Unknown tool ${name}`, isError: true };
+}
+
+/** Places the order the caller confirmed, exactly as the website's checkout would: priced again, checked, on the kitchen screen. */
+async function placeVoiceOrder(input: Record<string, unknown>, actions: VoiceAction[]): Promise<ToolOut> {
+  if (!(await ownerExists())) return { content: 'Online orders are not switched on yet. Offer to put it in their bag, or a table booking.', isError: true };
+  const bag = checkBag(input.items);
+  if (!bag.ok) return { content: bag.error, isError: true };
+  const mode = input.mode === 'delivery' ? 'delivery' : 'pickup';
+  const area = mode === 'delivery' ? Math.round(Number(input.area)) : null;
+  if (mode === 'delivery' && (area === null || !DELIVERY.areas[area])) return { content: `Ask which area: ${DELIVERY.areas.map(([a]) => spokenArea(a)).join(', ')}.`, isError: true };
+  const phone = pkMobile(s(input.phone, 20));
+  if (!phone) return { content: 'Ask for a Pakistani mobile number, like 0300 1234567.', isError: true };
+  const mobileKey = `rl:order-phone:${phone.replace(/\D/g, '')}`;
+  if ((await kv.num(mobileKey)) >= 8) return { content: 'That mobile number has placed a lot of orders in the last hour. Ask them to call the shop.', isError: true };
+  const pay = input.pay === 'card' ? 1 : input.pay === 'wallet' ? 2 : 0;
+  const customer = await currentCustomer().catch(() => null);
+  try {
+    const { order } = await placeOrder(
+      {
+        items: bag.value.items.map((l) => ({ id: l.id, qty: l.qty, sel: l.sel })),
+        mode,
+        loc: mode === 'delivery' ? DELIVERY.areas[area!][1] : Math.min(SHOP_COUNT - 1, Math.max(0, Math.round(Number(input.shop) || 0))),
+        area,
+        table: null,
+        address: s(input.address, 160),
+        when: 'asap',
+        name: s(input.name, 40),
+        phone,
+        email: s(input.email, 80),
+        note: s(input.note, 140),
+        pay,
+        promo: '',
+        useReward: false,
+      },
+      { kind: 'online', customer, guestReward: false },
+    );
+    await kv.incr(mobileKey, 3600);
+    actions.push({ type: 'ORDER_PLACED', data: { order: publicOrder(order), key: order.key } });
+    const t = order.totals;
+    return {
+      content: JSON.stringify({
+        placed: true,
+        order: `#${String(order.number).padStart(5, '0')}`,
+        say_number_as: String(order.number).split('').join(' '),
+        total: money(t.total),
+        delivery_fee: mode === 'delivery' ? (t.fee ? money(t.fee) : 'free') : '',
+        tax: money(t.tax),
+        expected: clock(order.target),
+        where: mode === 'delivery' ? `${s(input.address, 160)}, ${spokenArea(DELIVERY.areas[area!][0])}` : LOC_TITLES[order.loc],
+        pay_first: order.hold ? 'This order needs paying in advance: the screen shows how. Tell them it starts once the payment is confirmed.' : '',
+        note: 'Tell them the order number, total and expected time. Their screen now tracks it live, step by step, with the rider on the map.',
+      }),
+    };
+  } catch (e) {
+    return { content: `Not placed: ${(e as Error).message} Tell them simply and ask for what's needed.`, isError: true };
+  }
 }
 
 /** Order status for the caller: their own signed-in order, or an order number plus the mobile it was placed with. */

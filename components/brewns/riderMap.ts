@@ -16,7 +16,7 @@ export type Fix = { lat: number; lng: number; heading: number | null; t: number 
 export type MapState = { show: boolean; riding: boolean; progress: number; fix: Fix | null; stale: boolean };
 
 // shortcut: OpenStreetMap's own tile server suits a small café's traffic; at real volume, point this at a paid tile host (MapTiler, Stadia).
-const TILE = (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+export const TILE = (z: number, x: number, y: number) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const R = 6371000;
 const rad = Math.PI / 180;
 
@@ -33,7 +33,7 @@ export const bearing = (a: LatLng, b: LatLng) => {
   return (Math.atan2(y, x) / rad + 360) % 360;
 };
 /** Web-Mercator pixels at zoom z. */
-const world = ([lat, lng]: LatLng, z: number) => {
+export const world = ([lat, lng]: LatLng, z: number) => {
   const s = 256 * 2 ** z, sin = Math.sin(lat * rad);
   return [((lng + 180) / 360) * s, (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * s];
 };
