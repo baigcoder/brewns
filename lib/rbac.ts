@@ -116,6 +116,7 @@ export const SECTIONS: Section[] = [
   { key: 'customers', href: '/dashboard/customers', label: 'Customers', any: ['customers.view'], group: 'Manage' },
   { key: 'moments', href: '/dashboard/moments', label: 'Moments & reviews', any: ['shops.manage', 'reports.view'], group: 'Manage' },
   { key: 'activity', href: '/dashboard/activity', label: 'Activity', any: ['audit.view'], group: 'Manage' },
+  { key: 'messages', href: '/dashboard/messages', label: 'Team messages', any: [], group: 'You' },
   { key: 'account', href: '/dashboard/account', label: 'My account', any: [], group: 'You' },
 ];
 

@@ -6,6 +6,7 @@ import { isLive, recentVoiceCalls } from '@/lib/server/voiceLog';
 import { countPendingMoments } from '@/lib/server/moments';
 import { countPendingReviews } from '@/lib/server/reviews';
 import { kv } from '@/lib/server/store';
+import { unreadFor } from '@/lib/server/teamMessages';
 
 /**
  * Everything the working screens show, filtered to the caller's role and shops.
@@ -72,6 +73,8 @@ export const GET = route(async (req) => {
     business: ctx.settings.business,
     // Refunds still owed, for the nav badge.
     refundsDue: canAny(p, 'orders.pay') ? (await refundList(ctx)).pending.length : 0,
+    // Team messages they haven't opened yet, for the menu badge.
+    unreadMessages: await unreadFor(ctx.user),
     shops: ctx.settings.shops,
     // Dynamic realtime RBAC details
     me: {

@@ -61,6 +61,10 @@ function Nav({ perms, onGo }: { perms: Permission[]; onGo: () => void }) {
       n: (data?.aiLive || 0) + (data?.upcomingBookings || 0),
       alert: !!data?.aiLive,
     },
+    messages: {
+      n: data?.unreadMessages || 0,
+      alert: (data?.unreadMessages || 0) > 0,
+    },
     refunds: {
       n: data?.refundsDue || 0,
       alert: (data?.refundsDue || 0) > 0,

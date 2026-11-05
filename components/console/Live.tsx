@@ -26,6 +26,8 @@ export type LiveData = {
   /** Item id → the owner's own photo of it. */
   photos?: Record<string, string>;
   refundsDue: number;
+  /** Team messages this person hasn't opened. */
+  unreadMessages?: number;
   prepay: { minTotal: number | null; holdMin: number; payTo: string };
   /** Owner only: is the evening summary email on? */
   digest?: boolean;
