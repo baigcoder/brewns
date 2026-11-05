@@ -391,15 +391,88 @@ function paintCup(ctx: CanvasRenderingContext2D, base: Palette, label: CupLabel,
     ctx.restore();
     return;
   }
-  drawWordmark(ctx, p.gold, 72, 236, 296);
-  text(ctx, 'COFFEE HOUSE', 220, 345, p.cream, 21, 7, 'center');
-  rule(ctx, 86, 428, 356, 428, p.gold);
-  label.lines.forEach((line, i) => text(ctx, line, 88, 475 + i * 31, p.cream, 21));
-  rule(ctx, 86, 550, 356, 550, p.gold);
-  rule(ctx, 214, 574, 214, 640, p.gold);
-  text(ctx, label.option(sel), 94, 614, p.cream, 21);
-  text(ctx, 'BREWED', 250, 600, p.gold, 19);
-  text(ctx, 'DAILY', 250, 628, p.gold, 19);
+  paintHouseCup(ctx, p, label, sel);
+  ctx.restore();
+}
+
+/* The house cup, wrapped all the way round so it holds up as the hero turns:
+   foil hairlines under the lid, the wordmark and a big cream script on the
+   face, a solid gold foil band with the size knocked out of it, and a round
+   seal on the back. The hero's pose shows x −110 to 500 of the atlas, facing
+   about x 180, so the face is centred on 200 and kept within ±150. */
+function paintHouseCup(ctx: CanvasRenderingContext2D, p: Palette, label: CupLabel, sel: Record<string, number>) {
+  const CX = 200;
+  const W = 1536;
+  // under the lid: a double foil hairline round the rim
+  rule(ctx, 0, 182, W, 182, p.gold, 3);
+  rule(ctx, 0, 192, W, 192, p.gold, 1);
+  // the face
+  drawWordmark(ctx, p.gold, CX - 140, 232, 280);
+  text(ctx, 'COFFEE HOUSE', CX, 332, p.cream, 17, 8, 'center');
+  rule(ctx, CX - 24, 360, CX + 24, 360, p.gold, 2);
+  text(ctx, label.lines[0], CX, 402, p.gold, 16, 7, 'center');
+  ctx.save();
+  ctx.fillStyle = p.cream;
+  ctx.font = '84px Allura, cursive';
+  ctx.textAlign = 'center';
+  ctx.translate(CX, 492);
+  ctx.rotate(-0.05);
+  ctx.fillText(label.lines[1].toLowerCase(), 0, 0);
+  ctx.restore();
+  // the foil band, all the way round, with the size and promise knocked out in the stock
+  ctx.fillStyle = p.gold;
+  ctx.fillRect(0, 548, W, 58);
+  const band = `${label.option(sel)}  ·  BREWED DAILY  ·  SPECIALTY COFFEE  ·  `;
+  ctx.font = `700 19px ${MONO}`;
+  ctx.letterSpacing = '5px';
+  const step = ctx.measureText(band).width;
+  // the run starts so the size sits centred on the face
+  const lead = ctx.measureText(label.option(sel)).width;
+  ctx.fillStyle = p.ground;
+  for (let x = CX - lead / 2 - step; x < W; x += step) ctx.fillText(band, x, 584);
+  ctx.letterSpacing = '0px';
+  // a fine line and the house words under the band
+  rule(ctx, 0, 622, W, 622, p.gold, 1);
+  for (let x = 0; x < W; x += 384) text(ctx, 'GOOD COFFEE · GOOD MOOD · ', x, 652, p.dim, 13, 4);
+  // the back: a round seal, opposite the face
+  const SX = CX + W / 2;
+  const SY = 400;
+  ctx.strokeStyle = p.gold;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(SX, SY, 112, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(SX, SY, 72, 0, Math.PI * 2);
+  ctx.stroke();
+  // the words round the ring, letter by letter
+  const ring = 'BREWNS COFFEE HOUSE · LAHORE · ';
+  ctx.fillStyle = p.gold;
+  ctx.font = `400 17px ${MONO}`;
+  ctx.textAlign = 'center';
+  for (let i = 0; i < ring.length; i++) {
+    const a = (i / ring.length) * Math.PI * 2 - Math.PI / 2;
+    ctx.save();
+    ctx.translate(SX + Math.cos(a) * 92, SY + Math.sin(a) * 92);
+    ctx.rotate(a + Math.PI / 2);
+    ctx.fillText(ring[i], 0, 6);
+    ctx.restore();
+  }
+  ctx.textAlign = 'left';
+  // a coffee bean in the middle: an oval with its S-shaped crease
+  ctx.save();
+  ctx.translate(SX, SY);
+  ctx.rotate(-0.5);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 28, 40, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = p.ground;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, -36);
+  ctx.bezierCurveTo(-14, -12, 14, 12, 0, 36);
+  ctx.stroke();
   ctx.restore();
 }
 

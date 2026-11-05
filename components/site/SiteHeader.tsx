@@ -87,9 +87,6 @@ export function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
           </Link>
         </div>
       </header>
-      <Link href="/#menu" className="order-dock">
-        Order ahead <span aria-hidden="true">→</span>
-      </Link>
       <div className="gh-menu" id="gh-menu" hidden={!open}>
         <nav aria-label="Menu">
           {HEADER_LINKS.map((l, i) => (
