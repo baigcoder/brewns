@@ -439,14 +439,17 @@
   --size-arrow-height: var(--raw-size-arrow-height);
 }
 
-/* "Space Mono" and "Allura" come from next/font (app/layout.tsx), which declares
-   them under those family names as subset woff2. A second @font-face here pointing
-   at /assets/fonts made the browser download both copies. */
+/* "Space Mono" and "Allura" are declared here under exactly those names: the engine checks for them by name
+   (initBrewns.ts), and the receipts and 3D labels use them. They are not also loaded by next/font, so the browser
+   downloads each once. The files are self-hosted in /assets/fonts. */
+@font-face { font-family: 'Space Mono'; src: url('/assets/fonts/SpaceMono-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Allura'; src: url('/assets/fonts/Allura-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 :root {
-  /* --font-geist, --font-onest and --font-space-mono come from next/font on <html>.
+  /* --font-geist and --font-onest come from next/font on <html>.
      Redefining them here in terms of themselves made them invalid, and every
      headline fell back to Onest. */
   --font-sans: var(--font-onest, 'Onest', system-ui, sans-serif);
+  --font-space-mono: 'Space Mono', ui-monospace, Menlo, Consolas, monospace;
   --font-allura: 'Allura', cursive;
   --ease-entrance: cubic-bezier(0.2, 0, 0, 1);
   --leading-display: 1.1;

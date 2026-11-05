@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
+import { preload } from 'react-dom';
 import './globals.css';
 import './segments.css';
 import { SITE_URL } from '@/lib/site';
@@ -22,20 +23,8 @@ const onest = localFont({
   display: 'swap',
 });
 
-const spaceMono = localFont({
-  src: './fonts/SpaceMono-Regular.woff2',
-  weight: '400',
-  variable: '--font-space-mono',
-  display: 'swap',
-});
-
-const allura = localFont({
-  src: './fonts/Allura-Regular.woff2',
-  weight: '400',
-  variable: '--font-allura',
-  preload: false, // script accents sit below the fold
-  display: 'swap',
-});
+// "Space Mono" and "Allura" are declared in globals.css under those exact names (the engine, the receipts and the 3D
+// labels ask for them by name), so they are not loaded here.
 
 // Urdu in the concierge's captions and chat, in the Nastaliq script people read it in.
 const urdu = localFont({
@@ -68,6 +57,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Space Mono carries the small labels at the top of the page, so fetch it early.
+  preload('/assets/fonts/SpaceMono-Regular.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' });
   // The three shops as one business, so search and maps can show each branch.
   const hours = {
     '@type': 'OpeningHoursSpecification',
@@ -111,7 +102,7 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="en" className={`${geist.variable} ${onest.variable} ${spaceMono.variable} ${allura.variable} ${urdu.variable}`}>
+    <html lang="en" className={`${geist.variable} ${onest.variable} ${urdu.variable}`}>
       <head>
         <script
           type="application/ld+json"
