@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import Lenis from 'lenis';
+import { useEffect, useRef, useState } from 'react';
 import { ANNOUNCEMENT, HEADER_LINKS, TOUR_LINK } from '@/lib/siteNav';
 import './chrome.css';
 
@@ -25,6 +26,17 @@ export function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [bag, setBag] = useState(0);
+  const lenis = useRef<Lenis | null>(null);
+
+  // The home page's glide on every other page too: wheel and trackpad only, phones keep their own scrolling.
+  useEffect(() => {
+    if (!window.matchMedia('(pointer: fine)').matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const l = (lenis.current = new Lenis({ lerp: 0.12, syncTouch: false, anchors: true, allowNestedScroll: true, autoRaf: true }));
+    return () => {
+      l.destroy();
+      lenis.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const read = () => setBag(bagCount());
@@ -39,6 +51,8 @@ export function SiteHeader({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
+    if (open) lenis.current?.stop();
+    else lenis.current?.start();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     window.addEventListener('keydown', onKey);
     return () => {
