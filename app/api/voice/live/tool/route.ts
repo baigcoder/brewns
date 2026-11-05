@@ -6,7 +6,7 @@ import { logVoiceTurn, validCallId } from '@/lib/server/voiceLog';
 
 export const maxDuration = 30;
 
-const TOOLS = new Set(['reserve_table', 'book_party', 'save_booking_email', 'add_to_bag', 'check_order', 'check_table', 'request_callback', 'end_call']);
+const TOOLS = new Set(['reserve_table', 'book_party', 'save_booking_email', 'add_to_bag', 'place_order', 'check_order', 'check_table', 'request_callback', 'end_call']);
 
 /** POST /api/voice/live/tool: run a tool the Live model called mid-call. */
 export const POST = route(async (req) => {

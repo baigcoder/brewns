@@ -3,6 +3,7 @@
 import { hasDevanagari, toUrduScript } from '@/lib/devanagari';
 import { cafeHoursStatusLabel, getCafeOpeningStatus } from '@/lib/openingHours';
 import { LiveSession, type LiveEvent } from './liveSession';
+import { showVoiceOrder } from './voiceOrderCard';
 
 /* The brewns concierge in the browser, two ways to reach the same person:
 
@@ -31,6 +32,10 @@ export interface VoiceCallingDeps {
   playChime?: () => void;
   playSoftClick?: () => void;
   triggerHaptic?: (ms?: number) => void;
+  /** An order Sarah placed on the call: keep it with the visitor's orders (live pill, tracker) and empty the bag. */
+  onOrderPlaced?: (order: any, key: string) => void;
+  /** Open the full tracking page for an order. */
+  openTracking?: (number: number) => void;
 }
 
 type Mode = 'call' | 'message';
@@ -121,7 +126,7 @@ function rms(an: AnalyserNode, buf: Float32Array<ArrayBuffer>) {
   return Math.sqrt(sum / buf.length);
 }
 
-export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast, playChime, playSoftClick, triggerHaptic }: VoiceCallingDeps) {
+export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast, playChime, playSoftClick, triggerHaptic, onOrderPlaced, openTracking }: VoiceCallingDeps) {
   if (typeof window === 'undefined') return () => {};
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T | null;
   const modal = $('voice-call-modal');
@@ -1267,6 +1272,19 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
           openBag();
         });
       }
+    } else if (action.type === 'ORDER_PLACED') {
+      const { order, key } = action.data || {};
+      if (!order?.number || !key) return;
+      onOrderPlaced?.(order, key);
+      playChime?.();
+      triggerHaptic?.(60);
+      toast(`ORDER #${String(order.number).padStart(5, '0')} PLACED`);
+      const card = modal!.querySelector<HTMLElement>('.vcall-card');
+      if (card)
+        showVoiceOrder(card, order, key, (n) => {
+          closeModal();
+          openTracking?.(n);
+        });
     } else if (action.type === 'RESERVE_TABLE') {
       playChime?.();
       triggerHaptic?.(50);
