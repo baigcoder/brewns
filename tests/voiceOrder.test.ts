@@ -69,3 +69,14 @@ describe('Sarah places an order on a call', () => {
     expect((p.output as { error: string }).error).toMatch(/mobile/i);
   });
 });
+
+describe('checking an order by phone', () => {
+  const lookup = async (number: number, phone: string) => JSON.stringify((await voice.runLiveTool('check_order', { number, phone }, '', '')).output);
+  it('stops a stranger walking through one order after a few wrong tries, even with the right number', async () => {
+    const r = await voice.runLiveTool('place_order', { ...order, phone: '0311 7654321' }, 'yes please', asked);
+    const number = (r.actions.find((a) => a.type === 'ORDER_PLACED') as { data: { order: { number: number } } }).data.order.number;
+    expect(await lookup(number, '0311 7654321')).toContain('being made');
+    for (let i = 0; i < 5; i++) expect(await lookup(number, `0300 555000${i}`)).toMatch(/No order found/);
+    expect(await lookup(number, '0311 7654321')).toMatch(/No order found/);
+  });
+});

@@ -273,7 +273,9 @@ export async function seedRealisticDay(): Promise<{ created: number; days: strin
     const tableCalls = [
       { id: 'call_demo_1', loc: 0, table: 3, kind: 'bill', t: now - 3 * 60000, demo: true },
     ];
-    await kv.set('calls:open', tableCalls);
+    // Keep real customers' open calls: only sample ones are replaced.
+    const openNow = (await kv.get<Array<{ demo?: boolean }>>('calls:open')) || [];
+    await kv.set('calls:open', [...openNow.filter((c) => !c.demo), ...tableCalls]);
 
     // Save demo days tracker
     await kv.set('demo:days', daysToSeed);

@@ -32,8 +32,8 @@ export const POST = route(async (req) => {
   if (!user || !ok) {
     if (user && kind === 'staff' && user.passHash)
       await securityOnce(`fail:${user.id}`, 60, { id: user.id, name: user.name, role: String(user.role) }, 'Failed sign-in: wrong password');
-    if (user?.invite && !user.passHash) fail(401, 'Your account is waiting for you to set a password: open the invite link the owner sent you.');
-    fail(401, kind === 'staff' ? "That email and password don't match." : "That login and password don't match.");
+    // The same answer whether or not the email exists or is still waiting for an invite, so this page cannot be used to find out who is on the team.
+    fail(401, kind === 'staff' ? "That email and password don't match. Invited but have not set a password yet? Open the invite link in your email first." : "That login and password don't match.");
   }
   if (!user!.active) {
     const waiting = user!.invitedBy === 'Self sign-up' && !user!.lastLoginAt;

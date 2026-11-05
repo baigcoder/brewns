@@ -1296,16 +1296,25 @@ async function checkOrder(input: Record<string, unknown>): Promise<ToolOut> {
   const me = voiceCaller();
   const number = Math.round(Number(input.number) || 0);
   const phone = pkMobile(s(input.phone, 20));
+  const notFound: ToolOut = { content: 'No order found. Ask for the order number from their receipt and the mobile number it was placed with.', isError: true };
+  // Order numbers run in sequence and a mobile number is not a secret, so a stranger could walk through orders with someone's
+  // number. Too many misses for one number or one mobile in an hour, and lookups for that number/mobile stop (with the same answer).
+  const missKeys = [number ? `rl:order-check:n:${number}` : '', phone ? `rl:order-check:p:${phone.replace(/\D/g, '')}` : ''].filter(Boolean);
+  if (!me.userId && (await Promise.all(missKeys.map((k) => kv.num(k)))).some((n) => n >= 5)) return notFound;
+  const miss = async () => {
+    if (!me.userId) await Promise.all(missKeys.map((k) => kv.incr(k, 3600)));
+    return notFound;
+  };
   let order = number ? await getOrder(number) : null;
-  if (number && !order) return { content: 'No order found. Ask for the order number from their receipt and the mobile number it was placed with.', isError: true };
+  if (number && !order) return miss();
   if (!order && me.userId) {
     const refs = await customerOrderRefs(me.userId, 5);
     const mine = (await Promise.all(refs.map((r) => getOrder(r.number)))).filter((o) => o && o.customerId === me.userId);
     order = mine.find((o) => o && !['collected', 'delivered', 'served', 'cancelled'].includes(o.status)) || mine[0] || null;
   }
-  if (!order) return { content: 'No order found. Ask for the order number from their receipt and the mobile number it was placed with.', isError: true };
+  if (!order) return miss();
   const theirs = (me.userId && order.customerId === me.userId) || (phone && pkMobile(order.phone) === phone);
-  if (!theirs) return { content: 'No order found. Ask for the order number from their receipt and the mobile number it was placed with.', isError: true };
+  if (!theirs) return miss();
   const stage: Record<string, string> = {
     received: 'just come in, waiting for the bar to accept it',
     accepted: 'accepted, about to be made',
