@@ -166,6 +166,16 @@ async function staff(i) {
   }
 }
 
+// A deployment that is still building answers every request with a "Deployment is building" page and status 200, so wait for the
+// app's own JSON health answer before starting; otherwise those pages are counted as failed orders.
+for (let i = 0; ; i++) {
+  try {
+    const r = await fetch(base + '/api/health', { headers: bypass ? { 'x-vercel-protection-bypass': bypass } : {} });
+    if ((await r.json()).ok === true) break;
+  } catch {}
+  if (i > 90) throw new Error('The preview never answered with its health JSON.');
+  await sleep(4000);
+}
 console.log(`Starting: 100 virtual customers, ${(TOTAL / 60000).toFixed(1)} min  (ramp ${(RAMP / 1000) | 0}s, hold ${(HOLD / 1000) | 0}s, down ${(DOWN / 1000) | 0}s)`);
 await Promise.all([
   ...Array.from({ length: 50 }, (_, i) => orderer(i)),
