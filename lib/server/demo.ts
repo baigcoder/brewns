@@ -16,8 +16,10 @@ export async function clearDemo() {
     const demo = Object.values(all).filter((o) => o.demo).map((o) => o.number);
     if (!demo.length) continue;
     await kv.hdel(`orders:day:${day}`, ...demo);
-    await kv.hdel('orders:where', ...demo);
-    await kv.hdel('orders:active', ...demo);
+    for (const number of demo) {
+      if ((await kv.hget<ServerOrder>('orders:active', number))?.demo) await kv.hdel('orders:active', number);
+      if (await kv.hget<string>('orders:where', number) === day) await kv.hdel('orders:where', number);
+    }
     n += demo.length;
   }
   // Clear open demo calls on tables
@@ -51,6 +53,10 @@ export async function seedRealisticDay(): Promise<{ created: number; days: strin
 
     let orderNum = 1100;
     let totalCreated = 0;
+    const nextOrderNumber = async () => {
+      while (await kv.hget<string>('orders:where', orderNum)) orderNum++;
+      return orderNum++;
+    };
 
     const sampleCustomers = [
       { name: 'Maya Rehman', phone: '0300 4821945' },
@@ -131,8 +137,8 @@ export async function seedRealisticDay(): Promise<{ created: number; days: strin
       dayBaseTime: number,
       conf: (typeof schedule)[0],
       idx: number,
+      orderNumber: number,
     ): ServerOrder => {
-      const orderNumber = orderNum++;
       const cust = sampleCustomers[idx % sampleCustomers.length];
       const placed = dayBaseTime + conf.hour * 3600000 + conf.min * 60000;
       const target = placed + 15 * 60000;
@@ -242,7 +248,7 @@ export async function seedRealisticDay(): Promise<{ created: number; days: strin
     // Seed today's orders
     for (let i = 0; i < schedule.length; i++) {
       const conf = schedule[i];
-      const order = generateOrder(today, midnight, conf, i);
+      const order = generateOrder(today, midnight, conf, i, await nextOrderNumber());
       await kv.hset(`orders:day:${today}`, order.number, order);
       await kv.hset('orders:where', order.number, today);
       if (conf.isLiveActive || (order.mode === 'dinein' && !order.paid)) {
@@ -256,7 +262,7 @@ export async function seedRealisticDay(): Promise<{ created: number; days: strin
       const histMidnight = pkMidnight(now - (histDay === pkDay(now - D) ? D : 7 * D));
       for (let i = 0; i < schedule.length - 4; i++) {
         const conf = { ...schedule[i], status: (schedule[i].mode === 'delivery' ? 'delivered' : schedule[i].mode === 'dinein' ? 'served' : 'collected') as Status, isLiveActive: false };
-        const order = generateOrder(histDay, histMidnight, conf, i + 5);
+        const order = generateOrder(histDay, histMidnight, conf, i + 5, await nextOrderNumber());
         await kv.hset(`orders:day:${histDay}`, order.number, order);
         await kv.hset('orders:where', order.number, histDay);
         totalCreated++;

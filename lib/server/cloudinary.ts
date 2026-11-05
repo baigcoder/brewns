@@ -1,7 +1,7 @@
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 
 // Credentials come only from the environment: a key written here would be public with the repository.
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
 const apiKey = process.env.CLOUDINARY_API_KEY;
 const apiSecret = process.env.CLOUDINARY_API_SECRET;
 

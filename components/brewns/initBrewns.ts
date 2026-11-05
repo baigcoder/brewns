@@ -6516,7 +6516,7 @@ function renderDone() {
           : `<p class="trk-demo mono-fine"><button type="button" data-co="ff">${o.ff ? "PREVIEWING AT FAST-FORWARD" : "PREVIEW THE WHOLE FLOW ⏩"}</button> · PREVIEW: THE CAFÉ HASN'T SWITCHED ON ONLINE ORDERS YET, SO THIS RUNS ON THE CLOCK.</p>`}
       </div>
       <aside class="chat" id="chat" hidden aria-label="Messages">
-        <div class="chat-head"><div><p><b>${delivered ? `${shop} · ${r.first}` : shop}</b></p><p class="mono-fine">ORDER ${num}</p></div><button type="button" class="x-btn" data-co="chat-close" aria-label="Close messages"></button></div>
+        <div class="chat-head"><div><p><b>${delivered ? `${shop} · ${esc(r.first)}` : shop}</b></p><p class="mono-fine">ORDER ${num}</p></div><button type="button" class="x-btn" data-co="chat-close" aria-label="Close messages"></button></div>
         <div class="chat-list" id="chat-list" aria-live="polite"></div>
         <div class="chat-quick">${quick.map((q) => `<button type="button" data-quick="${esc(q)}">${esc(q)}</button>`).join("")}</div>
         <form class="chat-form" data-chat><input name="msg" autocomplete="off" maxlength="200" placeholder="Message ${delivered ? "the rider or café" : "the café"}…" aria-label="Message"><button type="submit">SEND</button></form>
@@ -6562,9 +6562,9 @@ function renderDone() {
         received: `We’ve got it, ${first}. ${shop} will make it and a rider will bring it to ${esc(o.address)}.`,
         accepted: `${shop} has accepted your order. Pay ${PAY[o.pay][0].toLowerCase()} on arrival: ${money(o.totals.total)}.`,
         preparing: `It’s being made now. A rider is assigned just before it’s ready.`,
-        rider: `${r.name} (bike ${r.plate}) is heading to ${shop} to collect it.`,
-        onway: `${r.first} has your order and is on the way. Follow the map below.`,
-        arriving: `${r.first} is about 3 minutes away and will call ${esc(o.phone)} when outside.`,
+        rider: `${esc(r.name)} (bike ${esc(r.plate)}) is heading to ${shop} to collect it.`,
+        onway: `${esc(r.first)} has your order and is on the way. Follow the map below.`,
+        arriving: `${esc(r.first)} is about 3 minutes away and will call ${esc(o.phone)} when outside.`,
         // Read when shown: the real delivery time only arrives with that stage.
         get delivered() {
           return `Delivered at ${stageTime(o.server?.times?.delivered || o.target)}. Thanks for ordering from brewns.`;
@@ -6592,7 +6592,7 @@ function renderDone() {
   const bubble = (m) =>
     m.from === "system"
       ? `<p class="chat-sys mono-fine">${esc(m.text)}</p>`
-      : `<div class="chat-msg ${m.from === "you" ? "me" : "them"}"><p>${m.from === "rider" ? `<b>${r.first}</b>` : m.from === "cafe" ? `<b>${shop}</b>` : ""}${esc(m.text)}</p><time class="mono-fine">${stageTime(m.t)}</time></div>`;
+      : `<div class="chat-msg ${m.from === "you" ? "me" : "them"}"><p>${m.from === "rider" ? `<b>${esc(r.first)}</b>` : m.from === "cafe" ? `<b>${shop}</b>` : ""}${esc(m.text)}</p><time class="mono-fine">${stageTime(m.t)}</time></div>`;
   const drawChat = (typing = false) => {
     chatList.innerHTML = chat.messages.map(bubble).join("") + (typing ? `<div class="chat-msg them typing"><p><span></span><span></span><span></span></p></div>` : "");
     chatList.scrollTop = chatList.scrollHeight;

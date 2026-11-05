@@ -2,14 +2,22 @@
 
 import { useEffect, useState } from 'react';
 
+const validators = new Map<string, string>();
+const validatorKey = (path: string) => path.split('?')[0];
+
 /** Calls the console's API. Errors come back as thrown Errors with the server's own sentence. */
 export async function api<T = Record<string, unknown>>(path: string, body?: unknown, method?: string): Promise<T> {
+  const key = validatorKey(path);
+  const isGet = body === undefined && !method;
+  const headers = new Headers(body === undefined ? undefined : { 'Content-Type': 'application/json' });
+  if (isGet && validators.has(key)) headers.set('If-None-Match', validators.get(key)!);
   const res = await fetch(path, {
     method: method || (body === undefined ? 'GET' : 'POST'),
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
-    cache: 'no-store',
+    cache: isGet ? 'no-cache' : 'no-store',
   });
+  if (res.status === 304) return { same: true } as T;
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && path.startsWith('/api/staff')) {
     // Signed out elsewhere (role changed, switched off, new password): back to the door.
@@ -17,6 +25,8 @@ export async function api<T = Record<string, unknown>>(path: string, body?: unkn
     window.location.assign(`/staff/signin?next=${encodeURIComponent(location.pathname)}`);
   }
   if (!res.ok) throw new Error((data as { error?: string }).error || `Something went wrong (${res.status}).`);
+  const etag = res.headers.get('etag');
+  if (isGet && etag) validators.set(key, etag);
   return data as T;
 }
 

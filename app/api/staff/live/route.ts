@@ -1,6 +1,6 @@
 import { canAny } from '@/lib/rbac';
 import { allUsers, requireStaff, worksAt } from '@/lib/server/auth';
-import { json, route } from '@/lib/server/http';
+import { json, notModified, route, versionEtag } from '@/lib/server/http';
 import { activeOrders, expireHolds, liveVersion, openCalls, refundList, riderFixes, staffView, visibleTo } from '@/lib/server/orders';
 import { isLive, recentVoiceCalls } from '@/lib/server/voiceLog';
 import { countPendingMoments } from '@/lib/server/moments';
@@ -22,6 +22,7 @@ export const GET = route(async (req) => {
   const url = new URL(req.url);
   const clientV = url.searchParams.get('v');
   const clientRole = url.searchParams.get('r');
+  const etag = versionEtag('staff-live', v, `${ctx.user.id}-${ctx.user.v}`);
 
   const p = ctx.perms;
   // Where each rider on the road is, from their phone: fixes don't bump the version, so they come with every poll (one small read).
@@ -29,9 +30,11 @@ export const GET = route(async (req) => {
     ? Object.fromEntries(Object.entries(await riderFixes()).filter(([, f]) => worksAt(ctx.user, f.loc)).map(([n, f]) => [n, { t: f.t, lat: f.lat, lng: f.lng, heading: f.heading }]))
     : undefined;
 
-  // If live version matches and role hasn't changed, return 304-equivalent same payload
-  if (clientV === String(v) && (!clientRole || clientRole === ctx.role)) {
-    return json({ v, same: true, fixes });
+  const unchanged = clientV === String(v) && (!clientRole || clientRole === ctx.role);
+  const cached = notModified(req, etag);
+  if (cached && unchanged) return cached;
+  if (unchanged) {
+    return json({ v, same: true, fixes }, 200, { ETag: etag, 'Cache-Control': 'private, no-cache' });
   }
 
   const [orders, calls, voice, pendingMoments, reservations] = await Promise.all([
@@ -93,5 +96,5 @@ export const GET = route(async (req) => {
     },
     perms: ctx.perms,
     rolePerms: canAny(ctx.perms, 'access.manage') ? ctx.settings.rolePerms : undefined,
-  });
+  }, 200, { ETag: etag, 'Cache-Control': 'private, no-cache' });
 });

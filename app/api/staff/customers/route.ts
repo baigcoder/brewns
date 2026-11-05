@@ -43,6 +43,7 @@ export const GET = route(async () => {
     rows.set(key, r);
   }
   for (const res of Object.values(resAll || {})) {
+    if (!worksAt(ctx.user, Number(res.loc ?? 0))) continue;
     const key = (res.phone || '').replace(/\D/g, '');
     if (!key) continue;
     const r = rows.get(key) || { key, name: res.name, phone: res.phone, email: res.email || '', orders: 0, spend: 0, last: 0, favourite: 'Table Reservation', account: false, since: res.createdAt, club: null, items: new Map() };
@@ -54,6 +55,7 @@ export const GET = route(async () => {
     rows.set(key, r);
   }
   for (const p of Object.values(partyAll || {})) {
+    if (!worksAt(ctx.user, Number(p.loc ?? 0))) continue;
     const key = (p.phone || '').replace(/\D/g, '');
     if (!key) continue;
     const r = rows.get(key) || { key, name: p.name || 'Event Guest', phone: p.phone || '', email: p.email || '', orders: 0, spend: 0, last: 0, favourite: 'Party Booking', account: false, since: p.createdAt, club: null, items: new Map() };

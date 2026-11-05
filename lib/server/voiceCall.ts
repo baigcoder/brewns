@@ -510,11 +510,12 @@ const bookingCodeFromHistory = (history: VoiceTurn[]) => extractBookingCode(hist
 
 export async function attachEmailToBooking(
   email: string,
-  codeOrPhone?: string,
+  code?: string,
   kind?: 'table' | 'party',
 ): Promise<{ ok: boolean; code?: string; details?: any; sent?: boolean }> {
   const clean = parseEmail(email);
-  if (!clean) return { ok: false };
+  const bookingCode = extractBookingCode(code || '');
+  if (!clean || !bookingCode) return { ok: false };
 
   let foundBooking: {
     code: string;
@@ -532,19 +533,12 @@ export async function attachEmailToBooking(
   let emailNeedsSending = false;
   let emailWasAlreadySent = false;
 
-  const phoneMatch = codeOrPhone ? pkMobile(codeOrPhone) : '';
-  const searchCode = (codeOrPhone || '').toUpperCase().trim();
-
   // 1. Search in reservations
   if (kind !== 'party') {
     foundBooking = await withLock('reservations', async () => {
       const all = (await kv.hall<Reservation>('reservations')) || {};
       const list = Object.values(all).sort((a, b) => b.createdAt - a.createdAt);
-      const target = list.find((r) => {
-        if (searchCode && (r.code === searchCode || r.code.replace(/-/g, '') === searchCode.replace(/-/g, ''))) return true;
-        if (phoneMatch && r.phone === phoneMatch) return true;
-        return false;
-      }) || null;
+      const target = list.find((r) => r.code === bookingCode) || null;
 
       if (target) {
         emailNeedsSending = target.email !== clean || target.emailSent !== true;
@@ -575,11 +569,7 @@ export async function attachEmailToBooking(
     foundBooking = await withLock('party_bookings', async () => {
       const all = (await kv.hall<PartyBooking>('party_bookings')) || {};
       const list = Object.values(all).sort((a, b) => b.createdAt - a.createdAt);
-      const target = list.find((p) => {
-        if (searchCode && (p.code === searchCode || p.code.replace(/-/g, '') === searchCode.replace(/-/g, ''))) return true;
-        if (phoneMatch && p.phone === phoneMatch) return true;
-        return false;
-      }) || null;
+      const target = list.find((p) => p.code === bookingCode) || null;
 
       if (target) {
         emailNeedsSending = target.email !== clean || target.emailSent !== true;
@@ -1209,7 +1199,7 @@ async function runTool(name: string, input: Record<string, unknown>, transcript:
     const codeStr = String(input.code || '');
     const clean = parseEmail(emailStr);
     if (!clean) return { content: 'That does not look like a valid email address. Ask the caller to repeat it.', isError: true };
-    const r = await attachEmailToBooking(clean, extractBookingCode(codeStr) || codeStr);
+    const r = await attachEmailToBooking(clean, extractBookingCode(codeStr));
     if (r.ok) {
       actions.push({ type: 'SAVED_EMAIL', data: { email: clean, code: r.code, sent: Boolean(r.sent) } });
       return { content: JSON.stringify({ saved: true, email: clean, code: r.code, confirmation_email_sent: Boolean(r.sent), note: r.sent ? 'Confirmation email sent and linked to the booking.' : 'Email saved to booking, but the confirmation email was not delivered. Do not say an email was sent.' }) };
@@ -1307,16 +1297,15 @@ async function checkOrder(input: Record<string, unknown>): Promise<ToolOut> {
   const number = Math.round(Number(input.number) || 0);
   const phone = pkMobile(s(input.phone, 20));
   let order = number ? await getOrder(number) : null;
-  if (number && !order) return { content: `There is no order #${number}. Ask them to check the number on their receipt or text message.`, isError: true };
+  if (number && !order) return { content: 'No order found. Ask for the order number from their receipt and the mobile number it was placed with.', isError: true };
   if (!order && me.userId) {
     const refs = await customerOrderRefs(me.userId, 5);
     const mine = (await Promise.all(refs.map((r) => getOrder(r.number)))).filter((o) => o && o.customerId === me.userId);
     order = mine.find((o) => o && !['collected', 'delivered', 'served', 'cancelled'].includes(o.status)) || mine[0] || null;
   }
-  if (!order && phone) order = (await activeOrders()).filter((o) => pkMobile(o.phone) === phone).at(-1) || null;
   if (!order) return { content: 'No order found. Ask for the order number from their receipt and the mobile number it was placed with.', isError: true };
   const theirs = (me.userId && order.customerId === me.userId) || (phone && pkMobile(order.phone) === phone);
-  if (!theirs) return { content: 'Found the order, but the mobile number does not match. Ask for the mobile number it was placed with. Never share details of an order that is not theirs.', isError: true };
+  if (!theirs) return { content: 'No order found. Ask for the order number from their receipt and the mobile number it was placed with.', isError: true };
   const stage: Record<string, string> = {
     received: 'just come in, waiting for the bar to accept it',
     accepted: 'accepted, about to be made',
@@ -1799,7 +1788,7 @@ const WORDS: [RegExp, string, boolean?][] = [
   [/tikka/, 'tikka-roll'], [/behari/, 'behari-roll'], [/wrap/, 'crispy-wrap'],
   [/margherita/, 'margherita-pizza'], [/fajita/, 'fajita-pizza'], [/pepperoni/, 'pepperoni-pizza'], [/pizza/, 'pepperoni-pizza', true],
   [/mint margarita|margarita/, 'mint-margarita'], [/peach|iced tea/, 'peach-iced-tea'], [/mango|smoothie/, 'mango-smoothie'], [/lime|soda/, 'lime-soda'],
-  [/iced latte/, 'iced-latte'], [/matcha latte|iced matcha|matcha(?! financier)/, 'iced-matcha'], [/latte/, 'latte', true], [/espresso/, 'espresso'], [/cortado/, 'cortado'], [/cold brew|nitro/, 'nitro-cold-brew'],
+  [/cold coffee|iced coffee/, 'iced-latte', true], [/iced latte/, 'iced-latte'], [/matcha latte|iced matcha|matcha(?! financier)/, 'iced-matcha'], [/latte/, 'latte', true], [/espresso/, 'espresso'], [/cortado/, 'cortado'], [/cold brew|nitro/, 'nitro-cold-brew'],
   [/cappuccino/, 'cappuccino'], [/spanish latte/, 'spanish-latte'], [/americano|long black/, 'americano'], [/flat white/, 'flat-white'], [/mocha|hot chocolate/, 'mocha'],
   [/truffle fries|parmesan fries/, 'truffle-fries'], [/fries/, 'truffle-fries', true], [/tenders|chicken tenders/, 'chicken-tenders'], [/garlic bread/, 'garlic-bread'],
   [/butter croissant|croissant(?! almond)/, 'butter-croissant'], [/almond croissant/, 'almond-croissant'], [/san sebastian|basque cheesecake|cheesecake/, 'san-sebastian'], [/fudge brownie|brownie/, 'fudge-brownie'], [/tiramisu/, 'tiramisu'],

@@ -40,7 +40,15 @@ const inviteFor = () => {
 
 const actorOf = (ctx: StaffContext) => ({ id: ctx.user.id, name: ctx.user.name, role: ctx.role });
 
-export const listTeam = async () => (await allUsers('staff')).sort((a, b) => a.createdAt - b.createdAt).map(publicUser);
+/** Scoped staff only see colleagues assigned to one of their shops. An empty
+ * assignment means all shops, so it must not leak through a shop-scoped view. */
+export const listTeam = async (ctx: Pick<StaffContext, 'user' | 'role'>) => {
+  const scoped = ctx.role !== 'owner' && ctx.user.shops.length > 0;
+  return (await allUsers('staff'))
+    .filter((member) => !scoped || (member.shops.length > 0 && member.shops.some((shop) => ctx.user.shops.includes(shop))))
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map(publicUser);
+};
 
 export async function invite(ctx: StaffContext, b: Record<string, unknown>) {
   const name = str(b.name, 60).replace(/\s+/g, ' ');
@@ -69,9 +77,11 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
     if (!target || target.kind !== 'staff' || target.role === 'customer') return fail(404, 'No such team member.') as never;
     const self = target.id === ctx.user.id;
     if (!self && !outranks(ctx.role, target.role)) fail(403, `Only someone above a ${ROLE_INFO[target.role].label.toLowerCase()} can change their account.`);
-    // A manager tied to some shops runs only the people of those shops (someone at every shop is beyond them).
-    const mine = ctx.user.shops;
-    if (!self && mine.length && (!target.shops.length || target.shops.some((s) => !mine.includes(s)))) fail(403, `You can only change people who work at your shops: ${mine.map((s) => LOC_TITLES[s]).join(', ')}.`);
+    const scopedManager = ctx.role === 'manager' && ctx.user.shops.length > 0;
+    const activatingSelfSignup = b.active === true && !target.active && target.invitedBy === 'Self sign-up';
+    if (scopedManager && !activatingSelfSignup && (!target.shops.length || target.shops.some((shop) => !ctx.user.shops.includes(shop)))) {
+      fail(403, 'You can only manage team members assigned to your shops.');
+    }
     const next: User = { ...target };
     const done: string[] = [];
     let token = '';
@@ -109,6 +119,7 @@ export async function editMember(ctx: StaffContext, id: string, b: Record<string
       if (self) fail(403, "You can't switch off your own account.");
       if (!b.active && target.role === 'owner' && (await activeOwners()).length < 2) fail(409, 'The café needs at least one active owner.');
       next.active = !!b.active;
+      if (next.active && scopedManager) next.shops = cleanShops(ctx, next.shops);
       next.v += 1;
       done.push(next.active ? 'switched on' : 'switched off');
     }

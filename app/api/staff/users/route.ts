@@ -4,8 +4,8 @@ import { emailStaffLink, staffLink } from '@/lib/server/staffAccess';
 import { invite, listTeam } from '@/lib/server/team';
 
 export const GET = route(async () => {
-  await requireStaff(['staff.view']);
-  return json({ team: await listTeam() });
+  const ctx = await requireStaff(['staff.view']);
+  return json({ team: await listTeam(ctx) });
 });
 
 /**

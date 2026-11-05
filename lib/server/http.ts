@@ -17,6 +17,15 @@ export class HttpError extends Error {
 export const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 
+/** A private response validator for a versioned staff feed. The identity keeps
+ * browser tabs from reusing one staff member's representation for another. */
+export const versionEtag = (feed: string, version: number, identity: string) => `W/\"${feed}-${identity}-${version}\"`;
+
+export const notModified = (req: Request, etag: string) =>
+  req.headers.get('if-none-match') === etag
+    ? new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': 'private, no-cache' } })
+    : null;
+
 export const fail = (status: number, message: string): never => {
   throw new HttpError(status, message);
 };
@@ -55,7 +64,7 @@ export function checkOrigin(req: Request) {
  */
 export function safeNextPath(v: unknown, fallback: string) {
   const raw = str(v, 300);
-  if (!raw.startsWith('/')) return fallback;
+  if (!raw.startsWith('/') || /[\\\u0000-\u001F\u007F]/.test(raw)) return fallback;
   try {
     const u = new URL(raw, 'https://brewns.invalid');
     if (u.origin !== 'https://brewns.invalid' || u.pathname.startsWith('/api/')) return fallback;

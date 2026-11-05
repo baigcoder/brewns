@@ -2,7 +2,7 @@ import type { Reservation } from '@/app/api/reservations/route';
 import { can } from '@/lib/rbac';
 import { requireStaff, worksAt } from '@/lib/server/auth';
 import { audit } from '@/lib/server/audit';
-import { fail, json, readBody, route, str } from '@/lib/server/http';
+import { fail, json, notModified, readBody, route, str, versionEtag } from '@/lib/server/http';
 import { bumpLive, liveVersion } from '@/lib/server/orders';
 import { kv, withLock } from '@/lib/server/store';
 import type { PartyBooking } from '@/lib/server/voiceCall';
@@ -15,12 +15,16 @@ const DAY = 86_400_000;
  * Table bookings, party bookings and the AI voice call log, for the shops the
  * caller works at. Call transcripts hold customers' numbers, so they're for
  * roles with reports (owner and managers by default). Polled every few
- * seconds; `?v=` with the last version gets `{ same: true }` when nothing moved.
+ * seconds; matching response validators return HTTP 304 when nothing moved.
  */
 export const GET = route(async (req) => {
   const ctx = await requireStaff(SEE, 'any');
   const v = await liveVersion();
-  if (new URL(req.url).searchParams.get('v') === String(v)) return json({ v, same: true });
+  const etag = versionEtag('staff-bookings', v, `${ctx.user.id}-${ctx.user.v}`);
+  const unchanged = new URL(req.url).searchParams.get('v') === String(v);
+  const cached = notModified(req, etag);
+  if (cached && unchanged) return cached;
+  if (unchanged) return json({ v, same: true }, 200, { ETag: etag, 'Cache-Control': 'private, no-cache' });
 
   const now = Date.now();
   const from = new Date(now - DAY).toISOString().slice(0, 10);
@@ -39,7 +43,7 @@ export const GET = route(async (req) => {
     parties: Object.values(parties || {}).filter((p) => mine(p.loc) && (!p.date || p.date >= from)).sort((a, b) => byWhen({ date: a.date || '', time: a.time || '' }, { date: b.date || '', time: b.time || '' })),
     calls: calls.map((c) => ({ ...c, live: isLive(c, now) })),
     canSeeCalls: can(ctx.perms, 'reports.view'),
-  });
+  }, 200, { ETag: etag, 'Cache-Control': 'private, no-cache' });
 });
 
 /** `{ kind: 'table' | 'party', id, status }`: seat, confirm or cancel a booking. */

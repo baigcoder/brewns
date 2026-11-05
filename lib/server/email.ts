@@ -39,24 +39,40 @@ const formatSpokenTime = (hm: string) => {
   return `${((h + 11) % 12) + 1}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'AM' : 'PM'}`;
 };
 
+const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+})[char] as string);
+
 export function renderBookingEmailHtml(p: BookingEmailPayload): string {
   const counterName = LOC_TITLES[p.loc] || 'MM Alam Road · Gulberg III';
   const displayDate = formatSpokenDate(p.date);
   const displayTime = formatSpokenTime(p.time);
   const isParty = p.kind === 'party';
   const title = isParty ? 'Party & Event Booking' : 'Table Reservation';
+  const code = escapeHtml(p.code);
+  const name = escapeHtml(p.name);
+  const phone = escapeHtml(p.phone);
+  const email = escapeHtml(p.email);
+  const guests = escapeHtml(p.guests);
+  const area = escapeHtml(p.area?.toUpperCase());
+  const occasion = escapeHtml(p.occasion);
+  const notes = escapeHtml(p.notes);
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your Booking at brewns — ${p.code}</title>
+  <title>Your Booking at brewns — ${code}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#0d0c0a; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#f5ede3; -webkit-font-smoothing:antialiased;">
   <!-- Hidden Preheader Preview Text -->
   <div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">
-    Your reservation ${p.code} at brewns coffee house is confirmed for ${displayDate} at ${displayTime}.
+    Your reservation ${code} at brewns coffee house is confirmed for ${escapeHtml(displayDate)} at ${escapeHtml(displayTime)}.
   </div>
   <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#0d0c0a; padding:32px 16px;">
     <tr>
@@ -69,7 +85,7 @@ export function renderBookingEmailHtml(p: BookingEmailPayload): string {
               <p style="margin:0 0 10px; font-family:monospace; font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:#c99355;">// BREWNS COFFEE HOUSE · LAHORE</p>
               <h1 style="margin:0; font-size:26px; font-weight:700; letter-spacing:-0.02em; color:#ffffff; text-transform:uppercase;">${title} Confirmed</h1>
               <div style="display:inline-block; margin-top:14px; padding:6px 16px; border-radius:9999px; background:rgba(201,147,85,0.12); border:1px solid rgba(201,147,85,0.35); font-family:monospace; font-size:15px; font-weight:700; letter-spacing:0.1em; color:#e0a868;">
-                ${p.code}
+                ${code}
               </div>
             </td>
           </tr>
@@ -78,10 +94,10 @@ export function renderBookingEmailHtml(p: BookingEmailPayload): string {
           <tr>
             <td style="padding:28px 32px 16px;">
               <p style="margin:0 0 12px; font-size:16px; line-height:1.5; color:#f5ede3;">
-                Hi <b>${p.name}</b>,
+                Hi <b>${name}</b>,
               </p>
               <p style="margin:0; font-size:15px; line-height:1.6; color:rgba(245,237,227,0.78);">
-                We're excited to host you at brewns. Your ${isParty ? 'event' : 'table'} is confirmed and reserved for you. Simply mention your name or code <b>${p.code}</b> when you arrive.
+                We're excited to host you at brewns. Your ${isParty ? 'event' : 'table'} is confirmed and reserved for you. Simply mention your name or code <b>${code}</b> when you arrive.
               </p>
             </td>
           </tr>
@@ -99,19 +115,19 @@ export function renderBookingEmailHtml(p: BookingEmailPayload): string {
                 <tr>
                   <td style="padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
                     <span style="font-family:monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:rgba(245,237,227,0.46); display:block; margin-bottom:4px;">DATE &amp; TIME</span>
-                    <span style="font-size:15px; font-weight:600; color:#e0a868;">${displayDate} · ${displayTime}</span>
+                    <span style="font-size:15px; font-weight:600; color:#e0a868;">${escapeHtml(displayDate)} · ${escapeHtml(displayTime)}</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
                     <span style="font-family:monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:rgba(245,237,227,0.46); display:block; margin-bottom:4px;">PARTY SIZE</span>
-                    <span style="font-size:15px; font-weight:600; color:#ffffff;">${p.guests} Guests${p.area ? ` · ${p.area.toUpperCase()} SEATING` : ''}${p.occasion ? ` · ${p.occasion}` : ''}</span>
+                    <span style="font-size:15px; font-weight:600; color:#ffffff;">${guests} Guests${p.area ? ` · ${area} SEATING` : ''}${p.occasion ? ` · ${occasion}` : ''}</span>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding-top:14px;">
                     <span style="font-family:monospace; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:rgba(245,237,227,0.46); display:block; margin-bottom:4px;">CONTACT</span>
-                    <span style="font-size:14px; color:rgba(245,237,227,0.85);">${p.phone} · ${p.email}</span>
+                    <span style="font-size:14px; color:rgba(245,237,227,0.85);">${phone} · ${email}</span>
                   </td>
                 </tr>
               </table>
@@ -123,7 +139,7 @@ export function renderBookingEmailHtml(p: BookingEmailPayload): string {
           <tr>
             <td style="padding:0 32px 20px;">
               <p style="margin:0; font-family:monospace; font-size:12px; line-height:1.5; color:rgba(245,237,227,0.5);">
-                <b>Notes:</b> ${p.notes}
+                <b>Notes:</b> ${notes}
               </p>
             </td>
           </tr>` : ''}
