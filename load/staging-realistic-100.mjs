@@ -43,7 +43,7 @@ function client(id) {
   const h = { 'content-type': 'application/json', 'x-loadtest-secret': lt, 'x-loadtest-ip': ip };
   if (bypass) h['x-vercel-protection-bypass'] = bypass;
   let cookie = '';
-  return async (persona, method, path, body, extra = {}) => {
+  const fn = async (persona, method, path, body, extra = {}) => {
     const s = performance.now();
     let code = 'ERR', json = null;
     try {
@@ -59,6 +59,9 @@ function client(id) {
     rec(`${persona} ${method} ${path.replace(/\/\d+/g, '/N').replace(/\?.*$/, '')}`, performance.now() - s, code);
     return { code, json };
   };
+  fn.cookie = () => cookie;
+  fn.setCookie = (c) => { cookie = c; };
+  return fn;
 }
 
 const tomorrow = new Date(Date.now() + 86400000 + 5 * 3600000).toISOString().slice(0, 10);
@@ -134,12 +137,21 @@ async function browser(i) {
   }
 }
 
+// One owner login shared by the five staff screens (a real café signs in once per screen; the app also limits sign-ins per account).
+let staffCookie = null, staffSigningIn = null;
+async function staffLogin() {
+  const f = client(4999);
+  const s = await f('staff', 'POST', '/api/auth/signin', { kind: 'staff', email: 'owner@staging.example.com', password: ownerPass });
+  if (s.code !== 200) return null;
+  return f.cookie();
+}
 async function staff(i) {
-  const f = client(4000 + i);
   while (!done()) {
     if (!active(i, 5)) { await sleep(1000); continue; }
-    const s = await f('staff', 'POST', '/api/auth/signin', { kind: 'staff', email: 'owner@staging.example.com', password: ownerPass });
-    if (s.code !== 200) { await sleep(10000); continue; }
+    staffSigningIn ||= staffLogin().then((c) => { staffCookie = c; return c; });
+    await staffSigningIn;
+    if (!staffCookie) { await sleep(10000); continue; }
+    const f = client(4000 + i); f.setCookie(staffCookie);
     let v = '';
     for (let t = 0; t < 60 && !done(); t++) {
       const r = await f('staff', 'GET', `/api/staff/live${v ? `?v=${v}` : ''}`);
