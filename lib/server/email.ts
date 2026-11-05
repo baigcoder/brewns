@@ -1,3 +1,4 @@
+import nodemailer, { type Transporter } from 'nodemailer';
 import { kv, withLock } from './store';
 import { LOC_TITLES } from '@/lib/catalog';
 import type { Reservation } from '@/app/api/reservations/route';
@@ -186,71 +187,8 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
   const text = renderBookingEmailText({ ...payload, email: cleanEmail });
   const now = Date.now();
 
-  let sentVia = 'local_record';
-
-  // 1. Try Resend if RESEND_API_KEY is available
-  const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
-    try {
-      // Use onboarding@resend.dev unless a custom domain is explicitly configured
-      const fromAddr = process.env.EMAIL_FROM || 'brewns Concierge <onboarding@resend.dev>';
-      const replyTo = process.env.EMAIL_REPLY_TO || 'brewns.coffee@gmail.com';
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: fromAddr,
-          to: [cleanEmail],
-          reply_to: replyTo,
-          subject,
-          html,
-          text,
-          headers: {
-            'X-Entity-Ref-ID': payload.code,
-          },
-        }),
-      });
-      if (res.ok) {
-        sentVia = 'resend';
-      } else {
-        const errText = await res.text();
-        console.warn('[Email Resend Error]', errText);
-      }
-    } catch (e: any) {
-      console.warn('[Email Resend Catch]', e.message);
-    }
-  }
-
-  // 2. Try Brevo if BREVO_API_KEY is available and Resend didn't send
-  const brevoKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
-  if (sentVia === 'local_record' && brevoKey) {
-    try {
-      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'api-key': brevoKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sender: { name: 'brewns Concierge', email: process.env.EMAIL_FROM || 'orders@brewns.coffee' },
-          to: [{ email: cleanEmail }],
-          subject,
-          htmlContent: html,
-          textContent: text,
-        }),
-      });
-      if (res.ok) {
-        sentVia = 'brevo';
-      } else {
-        console.warn('[Email Brevo Error]', await res.text().catch(() => ''));
-      }
-    } catch (e: any) {
-      console.warn('[Email Brevo Catch]', e.message);
-    }
-  }
+  const sent = await sendEmail({ to: cleanEmail, subject, text, html });
+  const sentVia = sent.ok ? sent.sentVia : 'local_record';
 
   // 2. Persist record to KV store so owner/staff dashboard and system can always inspect it
   try {
@@ -305,14 +243,51 @@ export async function sendBookingConfirmationEmail(payload: BookingEmailPayload)
   }
 }
 
+/* Gmail (or any SMTP mailbox) through Nodemailer: no domain needed, mail comes from a real
+   inbox so it lands in the inbox, about 500 a day on a free Gmail. SMTP_USER is the address,
+   SMTP_PASS a Google "App password" (Google Account → Security → App passwords). */
+let smtp: Transporter | null = null;
+const smtpTransport = () => {
+  const user = process.env.SMTP_USER?.trim(), pass = process.env.SMTP_PASS?.replace(/\s+/g, '');
+  if (!user || !pass) return null;
+  const port = Number(process.env.SMTP_PORT || 465);
+  return (smtp ||= nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    // a serverless request can't wait on a stuck mail server
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 12000,
+  }));
+};
+
 /**
- * Sends one plain email through whichever provider is set up (Resend, then Brevo).
- * Returns how it went; with neither configured nothing is sent and `sentVia` is "none".
+ * Sends one email through whichever provider is set up: SMTP (Gmail), then Resend, then Brevo.
+ * Returns how it went; with none configured nothing is sent and `sentVia` is "none".
  */
-export async function sendEmail(msg: { to: string; subject: string; text: string; html?: string }): Promise<{ ok: boolean; sentVia: 'resend' | 'brevo' | 'none' }> {
+export async function sendEmail(msg: { to: string; subject: string; text: string; html?: string }): Promise<{ ok: boolean; sentVia: 'smtp' | 'resend' | 'brevo' | 'none' }> {
   const to = msg.to.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return { ok: false, sentVia: 'none' };
   const html = msg.html || `<pre style="font:15px/1.5 system-ui,sans-serif;white-space:pre-wrap">${msg.text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] as string)}</pre>`;
+
+  const mailer = smtpTransport();
+  if (mailer) {
+    try {
+      await mailer.sendMail({
+        from: { name: 'brewns', address: process.env.SMTP_USER!.trim() },
+        to,
+        replyTo: process.env.EMAIL_REPLY_TO || undefined,
+        subject: msg.subject,
+        text: msg.text,
+        html,
+      });
+      return { ok: true, sentVia: 'smtp' };
+    } catch (e) {
+      console.warn('[Email SMTP Error]', (e as Error).message);
+    }
+  }
 
   const resendKey = process.env.RESEND_API_KEY;
   if (resendKey) {
@@ -353,4 +328,33 @@ export async function sendEmail(msg: { to: string; subject: string; text: string
     }
   }
   return { ok: false, sentVia: 'none' };
+}
+
+const escHtml = (v: string) => v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+
+/**
+ * A short branded email with one button: staff invites, new links and password resets.
+ * Inline styles and tables only, so it looks the same in Gmail, Outlook and phone mail apps.
+ */
+export function renderLinkEmail(p: { preview: string; heading: string; lines: string[]; button: string; link: string; note: string; signoff?: string }): string {
+  const para = (t: string) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#3b342c;">${escHtml(t)}</p>`;
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escHtml(p.heading)}</title></head>
+<body style="margin:0;padding:0;background:#f2f0ea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escHtml(p.preview)}</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f2f0ea;padding:28px 12px;"><tr><td align="center">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e4dfd4;">
+<tr><td style="background:#17130f;padding:22px 28px;"><span style="font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#f4f1ea;">brewns</span><span style="font-size:11px;letter-spacing:2px;color:#d8b777;padding-left:10px;">COFFEE HOUSE · LAHORE</span></td></tr>
+<tr><td style="padding:30px 28px 8px;">
+<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#17130f;">${escHtml(p.heading)}</h1>
+${p.lines.map(para).join('')}
+<table role="presentation" cellspacing="0" cellpadding="0" style="margin:22px 0 18px;"><tr><td style="border-radius:8px;background:#d8b777;">
+<a href="${escHtml(p.link)}" style="display:inline-block;padding:14px 26px;font-size:15px;font-weight:700;color:#17130f;text-decoration:none;border-radius:8px;">${escHtml(p.button)}</a>
+</td></tr></table>
+<p style="margin:0 0 6px;font-size:12px;color:#8a8278;">Button not working? Paste this into your browser:</p>
+<p style="margin:0 0 20px;font-size:12px;word-break:break-all;"><a href="${escHtml(p.link)}" style="color:#9a7a3c;">${escHtml(p.link)}</a></p>
+<p style="margin:0 0 24px;padding:12px 14px;border-radius:8px;background:#f7f4ee;font-size:13px;line-height:1.5;color:#5b5348;">${escHtml(p.note)}</p>
+</td></tr>
+<tr><td style="padding:18px 28px 26px;border-top:1px solid #efeae0;font-size:13px;line-height:1.6;color:#8a8278;">${escHtml(p.signoff || 'brewns coffee house')}<br>MM Alam Road · CCA DHA Phase 5 · Johar Town, Lahore</td></tr>
+</table></td></tr></table></body></html>`;
 }
