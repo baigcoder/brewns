@@ -3757,9 +3757,17 @@ body:has(#pre) .voice-call-floating {
 }
 @keyframes heroScroll { to { transform: translateY(250%); } }
 
-/* a fine film grain over the warm light, under the copy */
+/* A quiet studio backdrop: native-resolution gradients, without film grain
+   or a second animated canvas competing with the product scene. */
+.hero > .opal .opal-canvas { display: none; }
+.hero > .opal .opal-fallback {
+  background-color: #17110d;
+  background-image:
+    radial-gradient(ellipse at 76% 42%, rgb(153 100 51 / 0.32), transparent 58%),
+    linear-gradient(115deg, #100d0b 12%, #2c2016 64%, #17110d);
+}
 .hero::after {
-  content: "";
+  content: none;
   position: absolute;
   inset: 0;
   z-index: 5;

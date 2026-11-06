@@ -2740,7 +2740,9 @@ const idleQueue = (() => {
   };
   return { push: (job) => (jobs.push(job), schedule()) };
 })();
-$$("[data-opal]").forEach((w) => (w.closest("#hero") ? opalesce(w, heroConfig()) : whenNear(w, () => opalesce(w))));
+// Keep the hero's studio backdrop crisp and still; its product scene supplies motion.
+// Do not allocate a second WebGL context or animation loop behind those products.
+$$("[data-opal]").filter((w) => !w.closest("#hero")).forEach((w) => whenNear(w, () => opalesce(w)));
 whenReady(() => setTimeout(() => idleQueue.push(pauseLoopsOffscreen), 800));
 
 /* Phones: the products start just under the hero text, wherever it ends (a short
