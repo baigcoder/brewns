@@ -3675,6 +3675,13 @@ section[id] {
 .pre-fillmark .wordmark { position: absolute; inset: 0; }
 .pre-base { background-color: rgb(245 237 227 / 0.12); }
 .pre-pour { background-color: #d8b777; clip-path: inset(calc((1 - var(--level, 0)) * 100%) 0 0 0); }
+/* Start the pour immediately, even while the interactive bundle is loading. */
+@media (prefers-reduced-motion: no-preference) {
+  .pre-pour { animation: pre-coffee-fill 1.1s cubic-bezier(.22, .8, .3, 1) both; }
+  .pre-center { animation: pre-arrive 650ms cubic-bezier(.22, .8, .3, 1) both; }
+}
+@keyframes pre-coffee-fill { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes pre-arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .pre-foot { margin: 0; font-family: var(--font-geist); font-size: 0.9375rem; letter-spacing: 0.02em; color: rgb(245 237 227 / 0.55); }
 
 /* ── Hide floating call button whenever ANY modal, drawer, or sheet is active ──
