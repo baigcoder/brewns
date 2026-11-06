@@ -160,6 +160,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
 
   const logEl = $('vc-log')!;
   const phaseEl = $('voice-caption-status');
+  const phaseHint = $('vc-phase-hint');
   const timerEl = $('voice-call-timer');
   const hoursEl = $('voice-hours-status');
   const hoursLabel = $('voice-hours-label');
@@ -289,6 +290,13 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
         ended: t.ended,
       }[next];
     if (phaseEl) phaseEl.textContent = text;
+    if (phaseHint) {
+      const hints: Record<Lang, Record<Phase, string>> = {
+        en: { idle: '', ringing: 'Please allow microphone access if asked.', connecting: 'We’re getting your connection ready.', listening: 'Go ahead, we’re listening.', speaking: 'You can speak if you need to interrupt.', thinking: 'Just a moment while we check that for you.', muted: 'Tap Unmute when you’re ready to speak.', ended: '' },
+        ur: { idle: '', ringing: 'پوچھے جانے پر مائیک کی اجازت دیں۔', connecting: 'آپ کی کال ملائی جا رہی ہے۔', listening: 'جی بتائیے، ہم سن رہے ہیں۔', speaking: 'آپ درمیان میں بھی بات کر سکتے ہیں۔', thinking: 'ایک لمحہ، ہم چیک کر رہے ہیں۔', muted: 'بات کرنے کے لیے مائیک کھولیں۔', ended: '' },
+      };
+      phaseHint.textContent = mode === 'call' ? hints[lang][next] : '';
+    }
     micBtn?.setAttribute('aria-pressed', String(muted));
     micBtn?.setAttribute('aria-label', muted ? t.unmute : t.mute);
     if (micLabel) micLabel.textContent = muted ? t.unmute : t.mute;
@@ -517,6 +525,10 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     sumEl.hidden = !inCall && rows.length < 2;
     const h = $('vc-sum-h');
     if (h) h.textContent = ui().noted(shown());
+    const help = $('vc-sum-help');
+    if (help) help.textContent = lang === 'ur'
+      ? 'بات کرتے ہوئے تفصیلات دیکھیں۔ آرڈر تصدیق کے بعد ہی دیا جاتا ہے۔'
+      : 'Check these details as you talk. An order is only placed when confirmed.';
   }
   const nameOf = (id: string) => productById(id)?.name || '';
 

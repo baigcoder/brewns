@@ -85,6 +85,12 @@
 .vcall-voice { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); font-family: var(--font-space-mono), monospace; font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
 .vcall-voice[data-tier="studio"] { color: var(--gold-hi); border-color: rgb(214 160 102 / 0.4); }
 .vcall-phase { min-height: 1.4em; margin-top: 6px; font-family: var(--font-space-mono), monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+.vcall-phase-hint { margin: 0; color: var(--mute); font-size: 12px; line-height: 1.4; }
+.vcall-phase-hint:empty { display: none; }
+.vcall[data-lang="ur"] .vcall-phase-hint { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; direction: rtl; line-height: 1.9; }
+.vcall-log li.agent::before, .vcall-log li.you::before { display: block; margin-bottom: 3px; font-size: 10px; font-weight: 700; letter-spacing: .04em; opacity: .7; }
+.vcall-log li.agent::before { content: var(--agent, "Concierge"); }
+.vcall-log li.you::before { content: var(--you, "You"); }
 .vcall[data-phase="listening"] .vcall-phase { color: var(--green); }
 .vcall[data-phase="muted"] .vcall-phase { color: var(--faint); }
 .vcall-switch { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 5px 10px; border-radius: 999px; font-size: 12px; color: var(--faint); transition: color 150ms, background-color 150ms; }
@@ -215,6 +221,8 @@
 .vcall-sum { flex: 0 1 auto; min-height: 48px; margin: 0 18px 8px; padding: 10px 14px; border-radius: 16px; background: rgb(255 255 255 / 0.04); border: 1px solid rgb(214 160 102 / 0.22); max-height: 32%; overflow-y: auto; scrollbar-width: thin; }
 .vcall-sum[hidden] { display: none; }
 .vcall-sum-h { margin: 0 0 6px; font-family: var(--font-space-mono), monospace; font-size: 10px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+.vcall-sum-help { margin: 0 0 8px; color: var(--mute); font-size: 11px; line-height: 1.4; }
+.vcall[data-lang="ur"] .vcall-sum-help { font-family: var(--font-urdu), "Noto Nastaliq Urdu", system-ui, sans-serif; line-height: 1.9; }
 .vcall-sum dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; line-height: 1.4; }
 .vcall-sum dt { color: var(--faint); }
 .vcall-sum dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }

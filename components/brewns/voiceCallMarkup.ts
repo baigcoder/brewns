@@ -54,11 +54,13 @@ export const VOICE_CALL_MARKUP = `
         <p class="vcall-meta"><span class="vcall-hours" id="voice-hours-status" data-state="open" role="status"><i aria-hidden="true"></i><span id="voice-hours-label">OPEN · UNTIL 9 PM</span></span><span class="vcall-timer" id="voice-call-timer" hidden>00:00</span></p>
       </div>
       <p class="vcall-phase" id="voice-caption-status" aria-live="polite">Ready</p>
+      <p class="vcall-phase-hint" id="vc-phase-hint" aria-hidden="true"></p>
       <button type="button" class="vcall-switch" id="vc-voice-switch">${icon(SWAP, 14)}<span>Talk to <span id="vc-voice-current">Hamza</span></span></button>
     </section>
 
     <section class="vcall-sum" id="vc-sum" hidden aria-live="polite" aria-labelledby="vc-sum-h">
       <h3 class="vcall-sum-h" id="vc-sum-h">Sarah has noted</h3>
+      <p class="vcall-sum-help" id="vc-sum-help">Check these details as you talk. An order is only placed when confirmed.</p>
       <dl id="vc-sum-rows"></dl>
     </section>
 
