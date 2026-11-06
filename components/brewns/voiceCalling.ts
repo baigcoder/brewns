@@ -89,7 +89,11 @@ const UI = {
     placeholder: 'Type a message…', tryMic: 'Try the mic again', msgInstead: 'Message instead', noConnect: 'Call didn’t connect',
     micBlocked: 'Your microphone is blocked for this site. Allow it from the icon in the address bar, or keep going by message.',
     micMissing: 'We couldn’t reach your microphone. Check it isn’t in use by another app, or keep going by message.',
-    why: 'What’s the call about?', order: 'Place an order', complaint: 'Make a complaint', back: 'Language', noted: (n: string) => `${n} has noted`,
+    why: 'What can we help with?', order: 'Place an order', complaint: 'Report a problem', back: 'Language', noted: (n: string) => `${n} has noted`,
+    stepLanguage: 'Step 1 of 2', chooseLanguage: 'Choose your language', languageHelp: 'You can change this at any time.',
+    stepPurpose: 'Step 2 of 2', purposeHelp: 'Choose a reason and Sarah will guide you, one step at a time.',
+    orderDetail: 'Coffee, food, a table or a party', complaintDetail: 'Tell us what happened—we’ll help make it right',
+    callNote: 'Speak naturally. Your conversation stays on screen, and we never ask for card details.',
     purpose: { order: 'I’d like to place an order.', complaint: 'I have a complaint.' },
     noAnswer: (n: string) => `${n} isn’t answering. The line may be slow; try again, or keep going by message.`, retry: 'Try again',
     offline: 'No internet · waiting for signal…',
@@ -114,7 +118,11 @@ const UI = {
     placeholder: 'پیغام لکھیں…', tryMic: 'مائیک دوبارہ آزمائیں', msgInstead: 'پیغام بھیجیں', noConnect: 'کال نہیں مل سکی',
     micBlocked: 'اس سائٹ کے لیے آپ کا مائیک بند ہے۔ ایڈریس بار کے آئیکن سے اجازت دیں، یا پیغام سے بات جاری رکھیں۔',
     micMissing: 'آپ کا مائیک نہیں مل سکا۔ دیکھ لیں کہ کوئی اور ایپ اسے استعمال تو نہیں کر رہی، یا پیغام سے بات جاری رکھیں۔',
-    why: 'کال کس بارے میں ہے؟', order: 'آرڈر دینا ہے', complaint: 'شکایت کرنی ہے', back: 'زبان', noted: (n: string) => `${n} نے نوٹ کیا`,
+    why: 'ہم آپ کی کیا مدد کر سکتے ہیں؟', order: 'آرڈر دینا ہے', complaint: 'مسئلہ رپورٹ کریں', back: 'زبان', noted: (n: string) => `${n} نے نوٹ کیا`,
+    stepLanguage: '۲ میں سے مرحلہ ۱', chooseLanguage: 'اپنی زبان منتخب کریں', languageHelp: 'آپ اسے کسی بھی وقت بدل سکتے ہیں۔',
+    stepPurpose: '۲ میں سے مرحلہ ۲', purposeHelp: 'ایک وجہ منتخب کریں؛ سارہ آپ کی ایک ایک قدم پر رہنمائی کرے گی۔',
+    orderDetail: 'کافی، کھانا، ٹیبل یا پارٹی', complaintDetail: 'ہمیں بتائیں کیا ہوا، ہم اسے ٹھیک کرنے میں مدد کریں گے',
+    callNote: 'آرام سے بات کریں۔ گفتگو اسکرین پر رہتی ہے اور ہم کبھی کارڈ کی تفصیل نہیں مانگتے۔',
     purpose: { order: 'مجھے آرڈر دینا ہے۔', complaint: 'مجھے ایک شکایت درج کرانی ہے۔' },
     noAnswer: (n: string) => `${n} جواب نہیں دے رہیں۔ لائن سست ہو سکتی ہے؛ دوبارہ کوشش کریں، یا پیغام سے بات جاری رکھیں۔`, retry: 'دوبارہ کوشش کریں',
     offline: 'انٹرنیٹ نہیں · سگنل کا انتظار…',
@@ -170,6 +178,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   const langBtn = $('vc-lang-toggle');
   const pickLang = $('vc-pick-lang');
   const pickWhy = $('vc-pick-why');
+  let returnFocus: HTMLElement | null = null;
   const sumEl = $('vc-sum');
   const sumRows = $('vc-sum-rows');
   const tabs = [...modal.querySelectorAll<HTMLButtonElement>('.vcall-tab')];
@@ -391,10 +400,17 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     };
     label('.vcall-tab[data-mode="call"] span', t.call);
     label('.vcall-tab[data-mode="message"] span', t.message);
+    label('#vc-pick-lang-step', t.stepLanguage);
+    label('#vc-pick-lang-title', t.chooseLanguage);
+    label('#vc-pick-lang-help', t.languageHelp);
+    label('#vc-pick-why-step', t.stepPurpose);
     label('#vc-why-q', t.why);
-    label('#vc-why-help', lang === 'ur' ? 'ایک آپشن چنیں، سارہ ایک ایک تفصیل پوچھ کر آپ کی مدد کرے گی۔' : 'Choose an option and Sarah will guide you, one question at a time.');
-    label('[data-why="order"] span', t.order);
-    label('[data-why="complaint"] span', lang === 'ur' ? 'مسئلہ رپورٹ کریں' : 'Report a problem');
+    label('#vc-why-help', t.purposeHelp);
+    label('#vc-order-title', t.order);
+    label('#vc-order-detail', t.orderDetail);
+    label('#vc-complaint-title', t.complaint);
+    label('#vc-complaint-detail', t.complaintDetail);
+    label('#vc-call-note', t.callNote);
     label('#vc-why-back span', t.back);
     for (const b of modal!.querySelectorAll('[data-lang].vcall-choice')) b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.lang === lang));
     renderSummary();
@@ -477,6 +493,11 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   function pickStep(step: 'lang' | 'why') {
     pickLang?.toggleAttribute('hidden', step !== 'lang');
     pickWhy?.toggleAttribute('hidden', step !== 'why');
+    modal!.dataset.pickStep = step;
+    const focus = step === 'lang'
+      ? modal!.querySelector<HTMLButtonElement>('.vcall-choice[data-lang]')
+      : modal!.querySelector<HTMLButtonElement>('.vcall-choice[data-why]');
+    window.setTimeout(() => focus?.focus(), 0);
   }
 
   function renderSummary() {
@@ -1525,6 +1546,7 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   /* ═════════ open, close, switch ═════════ */
 
   function openModal(next: Mode) {
+    returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     modal!.hidden = false;
     document.body.classList.add('modal-open');
     document.body.style.overflow = 'hidden';
@@ -1552,6 +1574,8 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
     } catch {}
     ctx = null;
     setPhase('idle');
+    returnFocus?.focus();
+    returnFocus = null;
   }
 
   async function transferTo(next: 'female' | 'male') {
@@ -1650,6 +1674,19 @@ export function initVoiceCalling({ cart, productById, defaultSel, openBag, toast
   });
   on(document, 'keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !modal!.hidden) closeModal();
+    if (e.key !== 'Tab' || modal!.hidden) return;
+    const focusable = [...modal!.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.closest('[hidden]'));
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable.at(-1)!;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   });
   on(window, 'pagehide', () => inCall && endCall());
   on(document, 'visibilitychange', () => !document.hidden && wakeAudio());

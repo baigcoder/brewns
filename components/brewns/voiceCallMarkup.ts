@@ -15,6 +15,7 @@ const CHAT = '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 
 const SEND = '<path d="M5 12h13M13 6l6 6-6 6"/>';
 const SWAP = '<path d="M7 7h11l-3-3M17 17H6l3 3"/>';
 const CLOSE = '<path d="M6 6l12 12M18 6L6 18"/>';
+const CHEVRON = '<path d="m9 18 6-6-6-6"/>';
 
 const CHIPS = [
   ['Order a classic smash burger and an iced latte for delivery', 'Burger &amp; iced latte'],
@@ -26,7 +27,7 @@ const CHIPS = [
 
 export const VOICE_CALL_MARKUP = `
 <!-- The concierge: call or message -->
-<div class="vcall" id="voice-call-modal" hidden role="dialog" aria-modal="true" aria-labelledby="vc-agent-title" data-phase="idle" data-mode="call">
+<div class="vcall" id="voice-call-modal" hidden role="dialog" aria-modal="true" aria-labelledby="vc-agent-title" aria-describedby="vc-call-note" tabindex="-1" data-phase="idle" data-mode="call">
   <div class="vcall-backdrop" id="voice-call-backdrop"></div>
   <div class="vcall-card">
     <div class="vcall-glow" aria-hidden="true"></div>
@@ -82,24 +83,38 @@ export const VOICE_CALL_MARKUP = `
 
     <!-- Before a call: the language first, then what it's about; the second tap dials. -->
     <div class="vcall-start" id="vc-start">
-      <div class="vcall-pick" id="vc-pick-lang">
-        <p class="vcall-pick-step">Step 1 of 2</p>
-        <h3 class="vcall-pick-h">Choose your language</h3>
-        <p class="vcall-pick-q">You can change it later · <span lang="ur">زبان منتخب کریں</span></p>
-        <div class="vcall-pick-row">
-          <button type="button" class="vcall-choice" data-lang="en" aria-pressed="false">English</button>
-          <button type="button" class="vcall-choice" data-lang="ur" lang="ur" aria-pressed="false">اردو</button>
+      <div class="vcall-start-shell">
+        <div class="vcall-start-intro">
+          <p class="vcall-kicker" id="vc-pick-kicker">brewns call concierge</p>
+          <p class="vcall-start-note" id="vc-call-note">Speak naturally. Your conversation stays on screen, and we never ask for card details.</p>
         </div>
-      </div>
-      <div class="vcall-pick" id="vc-pick-why" hidden>
-        <p class="vcall-pick-step">Step 2 of 2</p>
-        <h3 class="vcall-pick-h" id="vc-why-q">What can we help with?</h3>
-        <p class="vcall-pick-q" id="vc-why-help">Choose an option and Sarah will guide you, one question at a time.</p>
-        <div class="vcall-pick-row">
-          <button type="button" class="vcall-choice" data-why="order">${icon(PHONE, 18)}<span>Place an order</span></button>
-          <button type="button" class="vcall-choice" data-why="complaint">${icon(CHAT, 18)}<span>Report a problem</span></button>
+        <div class="vcall-pick" id="vc-pick-lang">
+          <p class="vcall-pick-step" id="vc-pick-lang-step">Step 1 of 2</p>
+          <h3 class="vcall-pick-h" id="vc-pick-lang-title">Choose your language</h3>
+          <p class="vcall-pick-q" id="vc-pick-lang-help">You can change this at any time.</p>
+          <div class="vcall-pick-row">
+            <button type="button" class="vcall-choice" data-lang="en" aria-pressed="false">English</button>
+            <button type="button" class="vcall-choice" data-lang="ur" lang="ur" aria-pressed="false">اردو</button>
+          </div>
         </div>
-        <button type="button" class="vcall-back" id="vc-why-back">‹ <span>Language</span></button>
+        <div class="vcall-pick" id="vc-pick-why" hidden>
+          <p class="vcall-pick-step" id="vc-pick-why-step">Step 2 of 2</p>
+          <h3 class="vcall-pick-h" id="vc-why-q">What can we help with?</h3>
+          <p class="vcall-pick-q" id="vc-why-help">Choose a reason and Sarah will guide you, one step at a time.</p>
+          <div class="vcall-pick-row vcall-purpose-row">
+            <button type="button" class="vcall-choice vcall-purpose" data-why="order" aria-pressed="false">
+              <span class="vcall-choice-icon">${icon(PHONE, 18)}</span>
+              <span class="vcall-choice-copy"><strong id="vc-order-title">Place an order</strong><small id="vc-order-detail">Coffee, food, a table or a party</small></span>
+              <span class="vcall-choice-next" aria-hidden="true">${icon(CHEVRON, 18)}</span>
+            </button>
+            <button type="button" class="vcall-choice vcall-purpose complaint" data-why="complaint" aria-pressed="false">
+              <span class="vcall-choice-icon">${icon(CHAT, 18)}</span>
+              <span class="vcall-choice-copy"><strong id="vc-complaint-title">Report a problem</strong><small id="vc-complaint-detail">Tell us what happened—we’ll help make it right</small></span>
+              <span class="vcall-choice-next" aria-hidden="true">${icon(CHEVRON, 18)}</span>
+            </button>
+          </div>
+          <button type="button" class="vcall-back" id="vc-why-back">‹ <span>Language</span></button>
+        </div>
       </div>
     </div>
 
